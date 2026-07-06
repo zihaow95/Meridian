@@ -1,0 +1,19 @@
+# Normalize line endings across platforms so local checks match Linux CI.
+# Text files use LF in the working tree; Windows-only scripts keep CRLF.
+
+* text=auto eol=lf
+
+# Windows scripts must stay CRLF.
+*.cmd text eol=crlf
+*.bat text eol=crlf
+*.ps1 text eol=crlf
+
+# Binary assets must not be normalized.
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.woff binary
+*.woff2 binary
+*.xlsx binary
