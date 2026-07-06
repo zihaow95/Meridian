@@ -124,6 +124,8 @@ docker compose -f deploy/compose/compose.dev.yml config
 - CI能够验证后端、前端和镜像构建；
 - 正式工程不引用`npd-lcm-mvp/`。
 
+**阶段状态：已完成（2026-07-06）。** 完成证据见 [阶段0 完成检查点](../implementation/phase-0-checkpoint.md)。CI 采用 GitHub Actions（原 Gitee Go 因内置 Node/Python 版本过旧无法满足基线，已切换，详见检查点第 7 节）。
+
 ## 4. 阶段1：平台内核
 
 目标：先建立所有业务域共同依赖的身份、权限、审计、配置、文件和可靠事件能力。
