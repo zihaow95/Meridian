@@ -9,7 +9,6 @@ Thumbs.db
 # Python
 __pycache__/
 *.py[cod]
-.python-version
 .venv/
 venv/
 .pytest_cache/

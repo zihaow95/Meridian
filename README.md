@@ -41,6 +41,37 @@ D:\Projects\Meridian
 - [工程规范](docs/development/02-engineering-standards.md)
 - [测试策略与质量门禁](docs/development/03-test-strategy-and-quality-gates.md)
 
+## 开发环境
+
+支持版本（由预检脚本校验）：
+
+| 组件 | 版本要求 |
+|---|---|
+| Git | 2.x |
+| uv | 0.11+ |
+| Python | 3.13（由 uv 安装并固定，见 `.python-version`） |
+| Node.js | 24 LTS |
+| npm | 随 Node 24 |
+| Docker Desktop | 提供 MySQL 8.0 与 Redis，运行前必须启动 daemon |
+| Docker Compose | v2+ |
+
+前置条件：Docker Desktop 必须处于运行状态，否则依赖 MySQL/Redis 的任务会失败。
+
+首次准备 Python 运行时：
+
+```powershell
+uv python install 3.13
+uv python pin 3.13
+```
+
+### 环境预检
+
+```powershell
+scripts\preflight.cmd
+```
+
+环境齐备时退出码为 0；缺失任一组件或 Docker daemon 未运行时，脚本会明确报出原因并以非零码退出。该失败是环境证据，不应绕过。
+
 ## 校验
 
 ```powershell
