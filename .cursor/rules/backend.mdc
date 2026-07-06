@@ -1,0 +1,58 @@
+---
+description: Meridian 后端（Django 模块化单体）工程规范
+globs: backend/**
+alwaysApply: false
+---
+
+# 后端规范（Django + DRF + MySQL）
+
+权威来源：`docs/development/02-engineering-standards.md`、`docs/development/03-test-strategy-and-quality-gates.md`。本规则是高频约束的速查，冲突时以工程规范文档和已确认 PRD/TRD 为准。
+
+## 依赖与环境
+- Python 固定 3.13（见根目录 `.python-version`）；用 `uv` 管理，所有直接依赖写入 `backend/pyproject.toml` 并锁定 `uv.lock`。
+- 禁止只在本机全局安装而不记录；依赖升级单独提交，不与业务功能混合。
+
+## 模块结构（按领域组织，不做全局分层）
+每个业务应用采用：`models/ services/ queries/ api/ policies/ events/ tasks/ migrations/ tests/`。
+- `models`：实体、约束、简单领域行为；
+- `services`：编排命令、事务、权限、审计、事件；
+- `queries`：权限过滤后的读取；
+- `api`：只解析、调用、序列化；
+- `policies`：本领域 ABAC；
+- `tasks`：只接收标识并重新读取权威数据；
+- 模块不得直接修改其他模块的模型；跨域写入必须走公开应用服务。
+
+## 应用服务（关键状态迁移的唯一入口）
+命令顺序：解析主体与输入 → 读取对象 → 判权 → 开事务 → 锁定/校验 `version_no` → 复核前置条件 → 领域变化 → 写审计与事件发件箱 → 提交后再触发外部通知。
+- View / Serializer / Celery 任务 / 前端组件不得直接实现关键状态迁移。
+- 命名用命令语义，如 `SubmitProposal`、`ApproveAndCreateProject`。
+
+## 数据库
+- InnoDB、`utf8mb4`、严格 SQL 模式、`READ COMMITTED`；时间存 UTC；金额/比例/计量用 DECIMAL。
+- 对外用 UUID `public_id`，内部主键 BIGINT；核心业务表含 `organization_id`；状态用 varchar 代码，不用 MySQL ENUM。
+- 外键默认 `PROTECT`；正式流程数据不物理删除；不建全局软删除字段，用领域状态。
+- 每个唯一业务规则必须有数据库唯一约束；外键建索引；不为低基数字段滥建索引。
+
+## 迁移
+- 每个提交只含本功能所需迁移；数据迁移与结构迁移尽量分开；不改已进入共享环境的历史迁移。
+- 提交前运行 `makemigrations --check`（无漂移）；测试与迁移必须能从空库执行。
+
+## API
+- 前缀 `/api/v1`；JSON、UTF-8、ISO 8601；路径 `{id}` 用 UUID `public_id`。
+- GET 查询、POST 创建/命令、PATCH 普通字段；关键状态用动作端点，禁止直接 PATCH 状态字段。
+- 列表必须分页且稳定排序；金额/高精度小数以字符串传输；统一错误结构 `code/message/details/trace_id`。
+- 不返回数据库主键、SQL/堆栈/服务器路径、密钥/令牌、无权字段或对象存在性。
+- OpenAPI（drf-spectacular）是前端类型与契约测试来源；API 变更必须同步测试与 OpenAPI。
+
+## 权限与安全（默认拒绝）
+- 列表先过滤、详情再判权；字段/预览/下载/导出/通知分别判权；写命令在事务中重新判权。
+- 平台管理权与业务数据访问权分离；排障访问限时、限对象并全量审计。
+- 密钥不进 Git/日志/审计；`.env.example` 只写变量名与说明。
+
+## 测试（表达业务意图）
+- 业务规则先写失败测试，再写最小实现；测试名说明规则为什么存在。
+- 用 MySQL 验证正式数据库行为，禁止用 SQLite 替代关键行为。
+- 权限测同时覆盖允许与拒绝；状态测覆盖合法与非法迁移；并发测必须查最终数据库事实。
+
+## 失败可见
+- 不吞异常、不空 `except`、不静默跳过测试、不静默降级；未运行的检查必须明确披露。

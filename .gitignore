@@ -9,7 +9,6 @@ Thumbs.db
 # Python
 __pycache__/
 *.py[cod]
-.python-version
 .venv/
 venv/
 .pytest_cache/
@@ -41,7 +40,8 @@ secrets/
 logs/
 *.log
 data/
-storage/
+storage/*
+!storage/.gitkeep
 uploads/
 backups/
 exports/

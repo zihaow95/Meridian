@@ -1,35 +1,74 @@
 version: '1.0'
 name: pr-pipeline
 displayName: PRPipeline
+# Project Meridian PR CI: identical gates to the branch pipeline; blocks merge.
+# Assumes the Gitee Go runner provides Docker (see branch-pipeline.yml note).
 stages:
-  - stage: 
-    name: compile
-    displayName: 编译
-    steps:
-      - step: build@python
-        name: build_python
-        displayName: Python 构建
-        pythonVersion: '3.9'
-        # 非必填字段，开启后表示将构建产物暂存，但不会上传到制品库中，7天后自动清除
-        artifacts:
-            # 构建产物名字，作为产物的唯一标识可向下传递，支持自定义，默认为BUILD_ARTIFACT。在下游可以通过${BUILD_ARTIFACT}方式引用来获取构建物地址
-          - name: BUILD_ARTIFACT
-            # 构建产物获取路径，是指代码编译完毕之后构建物的所在路径
-            path:
-              - ./
-        commands:
-          - python3 -m pip install --upgrade pip
-          - pip3 config set global.index-url https://pypi.tuna.tsinghua.edu.cn/simple
-          - pip3 install -r requirements.txt
-          - python3 ./main.py
-      - step: publish@general_artifacts
-        name: publish_general_artifacts
-        displayName: 上传制品
-        # 上游构建任务定义的产物名，默认BUILD_ARTIFACT
-        dependArtifact: BUILD_ARTIFACT
-        # 上传到制品库时的制品命名，默认output
-        artifactName: output
-        dependsOn: build_python
+  - stage:
+      name: backend
+      displayName: 后端质量门禁
+      strategy: fast
+      trigger: auto
+      steps:
+        - step: build@python
+          name: backend_quality
+          displayName: 后端检查（MySQL）
+          pythonVersion: '3.13'
+          commands:
+            - 'echo "== tool versions ==" && python3 --version && (node --version || echo "node: n/a") && (docker version || echo "docker: n/a")'
+            - 'curl -LsSf https://astral.sh/uv/install.sh | sh'
+            - 'export PATH="$HOME/.local/bin:$PATH" && uv --version'
+            - 'export PATH="$HOME/.local/bin:$PATH" && cd backend && uv sync --locked'
+            - 'export PATH="$HOME/.local/bin:$PATH" && cd backend && uv run ruff check .'
+            - 'export PATH="$HOME/.local/bin:$PATH" && cd backend && uv run ruff format --check .'
+            - 'export PATH="$HOME/.local/bin:$PATH" && cd backend && uv run mypy config apps'
+            - 'export PATH="$HOME/.local/bin:$PATH" && cd backend && uv run python manage.py check --settings=config.settings.test'
+            - 'export PATH="$HOME/.local/bin:$PATH" && cd backend && uv run python manage.py makemigrations --check --dry-run --settings=config.settings.test'
+            - 'cp .env.example .env && docker compose -f deploy/compose/compose.dev.yml --env-file .env up -d'
+            - |
+              for i in $(seq 1 60); do
+                if docker exec meridian-dev-mysql-1 mysqladmin ping -h127.0.0.1 -uroot -pdev-root-password --silent 2>/dev/null; then
+                  echo "mysql ready"; break
+                fi
+                echo "waiting for mysql ($i)"; sleep 3
+                if [ "$i" -eq 60 ]; then echo "mysql failed to become ready"; exit 1; fi
+              done
+            - 'export PATH="$HOME/.local/bin:$PATH" && cd backend && uv run pytest -q'
+            - 'export PATH="$HOME/.local/bin:$PATH" && cd backend && uv run python manage.py spectacular --file openapi/schema.yaml --validate --settings=config.settings.test'
+            - 'git diff --exit-code -- backend/openapi/schema.yaml'
+            - 'docker compose -f deploy/compose/compose.dev.yml --env-file .env down -v || true'
+  - stage:
+      name: frontend
+      displayName: 前端质量门禁
+      strategy: fast
+      trigger: auto
+      steps:
+        - step: build@nodejs
+          name: frontend_quality
+          displayName: 前端检查
+          nodeVersion: '24.0.0'
+          commands:
+            - 'cd frontend && npm ci'
+            - 'cd frontend && npm run lint'
+            - 'cd frontend && npm run format:check'
+            - 'cd frontend && npm run typecheck'
+            - 'cd frontend && npm run test:unit -- --run'
+            - 'cd frontend && npm run build'
+            - 'cd frontend && npm run api:generate'
+            - 'git diff --exit-code -- frontend/src/api/generated/schema.d.ts'
+  - stage:
+      name: images
+      displayName: 镜像构建（不推送）
+      strategy: fast
+      trigger: auto
+      steps:
+        - step: build@python
+          name: image_build
+          displayName: 构建前后端镜像
+          pythonVersion: '3.13'
+          commands:
+            - 'docker build -t meridian-backend:ci backend'
+            - 'docker build -f frontend/Dockerfile -t meridian-frontend:ci .'
 triggers:
   pr:
     branches:

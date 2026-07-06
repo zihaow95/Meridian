@@ -1,0 +1,56 @@
+# Local development dependencies for Project Meridian.
+# Provides MySQL 8.0 and Redis only. The application runs on the host.
+# No MinIO, Celery or Nginx in phase 0.
+#
+# Usage (from repository root, with .env present):
+#   docker compose -f deploy/compose/compose.dev.yml --env-file .env up -d
+name: meridian-dev
+
+services:
+  mysql:
+    image: mysql:8.0
+    restart: unless-stopped
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_0900_ai_ci
+      - --transaction-isolation=READ-COMMITTED
+      - --sql-mode=STRICT_TRANS_TABLES,NO_ENGINE_SUBSTITUTION
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?set MYSQL_ROOT_PASSWORD in .env}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:?set MYSQL_DATABASE in .env}
+      MYSQL_USER: ${MYSQL_USER:?set MYSQL_USER in .env}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:?set MYSQL_PASSWORD in .env}
+    ports:
+      # Bind to loopback only; never expose to the company network.
+      - "127.0.0.1:${MYSQL_PUBLISHED_PORT:-3306}:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ../mysql/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-uroot", "-p${MYSQL_ROOT_PASSWORD}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    mem_limit: 1536m
+    cpus: 1.0
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--save", "", "--appendonly", "no"]
+    ports:
+      # Bind to loopback only; never expose to the company network.
+      - "127.0.0.1:${REDIS_PUBLISHED_PORT:-6379}:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 5s
+    mem_limit: 256m
+    cpus: 0.5
+
+volumes:
+  mysql_data:
+    name: meridian_mysql_data
