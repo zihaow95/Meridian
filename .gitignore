@@ -40,7 +40,8 @@ secrets/
 logs/
 *.log
 data/
-storage/
+storage/*
+!storage/.gitkeep
 uploads/
 backups/
 exports/

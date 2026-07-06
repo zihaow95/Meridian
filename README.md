@@ -72,6 +72,46 @@ scripts\preflight.cmd
 
 环境齐备时退出码为 0；缺失任一组件或 Docker daemon 未运行时，脚本会明确报出原因并以非零码退出。该失败是环境证据，不应绕过。
 
+## 本地依赖服务（MySQL 与 Redis）
+
+开发与测试依赖由 Docker Compose 提供，应用代码在宿主机运行。首次使用先复制环境模板：
+
+```powershell
+Copy-Item .env.example .env
+```
+
+启动依赖服务：
+
+```powershell
+docker compose -f deploy/compose/compose.dev.yml --env-file .env up -d
+```
+
+查看状态（等待 MySQL 与 Redis 均为 `healthy`）：
+
+```powershell
+docker compose -f deploy/compose/compose.dev.yml --env-file .env ps
+```
+
+停止服务（保留数据卷）：
+
+```powershell
+docker compose -f deploy/compose/compose.dev.yml --env-file .env down
+```
+
+首次启动会自动创建开发库 `meridian`、测试库 `meridian_test` 和开发账号。后端迁移与测试均在 MySQL 上执行，无 SQLite 回退：
+
+```powershell
+# 在 backend/ 目录，且 .env 变量已加载到当前会话
+uv run python manage.py migrate --settings=config.settings.development
+uv run pytest -q
+```
+
+> **破坏性操作**：以下命令会删除数据卷并清空开发数据库，仅在需要彻底重置时手动执行，不要放入日常启动流程。
+>
+> ```powershell
+> docker compose -f deploy/compose/compose.dev.yml --env-file .env down -v
+> ```
+
 ## 校验
 
 ```powershell
