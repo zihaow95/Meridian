@@ -1,0 +1,32 @@
+---
+description: Meridian 前端（Vue 3 + TS + Vite）工程规范
+globs: frontend/**
+alwaysApply: false
+---
+
+# 前端规范（Vue 3 + TypeScript + Vite）
+
+权威来源：`docs/development/02-engineering-standards.md` 第 12 节。冲突时以该文档为准。
+
+## 技术栈与依赖
+- Node.js 24 LTS，npm + `package-lock.json`（CI 用锁文件安装，Windows 用 `npm.cmd`）。
+- Vue 3、TypeScript、Vite、Vue Router、Pinia、Element Plus；ESLint、Prettier、vue-tsc；Vitest、Playwright。
+
+## 目录（按业务域组织）
+```
+src/modules/<domain>/
+├─ api/  components/  pages/  stores/  types/  tests/
+```
+共享外壳、路由、Pinia 入口放在 `src/app`、`src/router`、`src/stores`、`src/shared`。
+
+## 关键约束
+- API 类型由 OpenAPI 生成（`src/api/generated/`），不手写后端契约类型，不手改生成文件。
+- Pinia 只保存跨页面共享状态；业务状态代码使用统一字典。
+- 路由守卫不替代后端权限；无权动作在 UI 隐藏，但真正的鉴权在后端。
+- 关键提交防重复点击并处理幂等响应；409 冲突必须提示刷新与比较。
+- 敏感信息不进入 URL、localStorage 和前端日志。
+- 表格分页、筛选、排序由后端执行；所有待办动作跳转系统页面完成。
+
+## 质量门禁（提交前本地必须通过）
+`npm run lint` → `npm run format:check` → `npm run typecheck` → `npm run test:unit -- --run` → `npm run build`。
+- `dist/`、`node_modules/`、`coverage/` 不进 Git。
