@@ -11,7 +11,8 @@
     "format": "prettier --write src",
     "format:check": "prettier --check src",
     "typecheck": "vue-tsc -b",
-    "test:unit": "vitest"
+    "test:unit": "vitest",
+    "api:generate": "openapi-typescript ../backend/openapi/schema.yaml -o src/api/generated/schema.d.ts"
   },
   "dependencies": {
     "element-plus": "^2.14.2",
@@ -29,8 +30,9 @@
     "eslint": "^10.6.0",
     "eslint-plugin-vue": "^10.9.2",
     "jsdom": "^29.1.1",
+    "openapi-typescript": "^7.13.0",
     "prettier": "^3.9.4",
-    "typescript": "~6.0.2",
+    "typescript": "~5.9.3",
     "vite": "^8.1.1",
     "vitest": "^4.1.9",
     "vue-tsc": "^3.3.6"

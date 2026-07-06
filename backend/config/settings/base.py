@@ -34,6 +34,7 @@ INSTALLED_APPS = [
     "django.contrib.auth",
     "django.contrib.staticfiles",
     "rest_framework",
+    "drf_spectacular",
     "apps.platform",
 ]
 
@@ -92,4 +93,13 @@ REST_FRAMEWORK: dict[str, Any] = {
     "DEFAULT_RENDERER_CLASSES": [
         "rest_framework.renderers.JSONRenderer",
     ],
+    "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
+}
+
+SPECTACULAR_SETTINGS: dict[str, Any] = {
+    "TITLE": "Project Meridian API",
+    "DESCRIPTION": "Product lifecycle management platform API.",
+    "VERSION": "v1",
+    "SERVE_INCLUDE_SCHEMA": False,
+    "SCHEMA_PATH_PREFIX": "/api/v1",
 }

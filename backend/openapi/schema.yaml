@@ -1,0 +1,37 @@
+openapi: 3.0.3
+info:
+  title: Project Meridian API
+  version: v1
+  description: Product lifecycle management platform API.
+paths:
+  /api/v1/health:
+    get:
+      operationId: health_retrieve
+      summary: Liveness/readiness probe
+      tags:
+      - health
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+              examples:
+                Ok:
+                  value:
+                    status: ok
+                    service: meridian-api
+                  summary: ok
+          description: ''
+components:
+  schemas:
+    HealthResponse:
+      type: object
+      properties:
+        status:
+          type: string
+        service:
+          type: string
+      required:
+      - service
+      - status
