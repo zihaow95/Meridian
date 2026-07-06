@@ -112,6 +112,36 @@ uv run pytest -q
 > docker compose -f deploy/compose/compose.dev.yml --env-file .env down -v
 > ```
 
+## 统一质量门禁
+
+以下命令按顺序执行环境预检、Compose 配置校验、后端全部门禁（锁文件、Ruff、mypy、Django check、迁移漂移、pytest、OpenAPI 漂移）、前端全部门禁（`npm ci`、lint、格式、类型、Vitest、build、契约类型漂移）、前后端 Docker 镜像构建，以及旧工程引用扫描。任一步骤失败立即停止并返回非零码。
+
+前置条件：先启动依赖服务（MySQL/Redis）。
+
+```powershell
+scripts\check.cmd
+```
+
+预期：完整执行后输出 `All quality gates passed.` 且退出码 0。
+
+## 端到端烟雾测试（Playwright）
+
+阶段0仅验证前端应用壳层可正常提供服务。首次使用需安装浏览器：
+
+```powershell
+Set-Location tests\e2e
+npm.cmd install
+npx.cmd playwright install chromium
+```
+
+先在 `frontend/` 执行 `npm.cmd run build` 生成 `dist/`，然后运行：
+
+```powershell
+npx.cmd playwright test
+```
+
+Playwright 会自动启动 Vite 预览服务并断言页面标题为 `Project Meridian`。
+
 ## 校验
 
 ```powershell
