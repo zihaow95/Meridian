@@ -1,0 +1,189 @@
+name: CI
+
+on:
+  push:
+    branches: ['**']
+  pull_request:
+    branches: [master]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend:
+    name: Backend quality gates (MySQL)
+    runs-on: ubuntu-latest
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: dev-root-password
+          MYSQL_DATABASE: meridian
+          MYSQL_USER: meridian
+          MYSQL_PASSWORD: meridian
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h127.0.0.1 -uroot -pdev-root-password"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=15
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd="redis-cli ping"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+    env:
+      MYSQL_HOST: 127.0.0.1
+      MYSQL_PORT: '3306'
+      MYSQL_DATABASE: meridian
+      MYSQL_USER: meridian
+      MYSQL_PASSWORD: meridian
+      MYSQL_TEST_DATABASE: meridian_test
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Create dedicated test database
+        run: |
+          mysql -h127.0.0.1 -uroot -pdev-root-password -e "
+            CREATE DATABASE IF NOT EXISTS meridian_test CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci;
+            GRANT ALL PRIVILEGES ON meridian_test.* TO 'meridian'@'%';
+            FLUSH PRIVILEGES;"
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+
+      - name: Sync backend dependencies (locked)
+        working-directory: backend
+        run: uv sync --locked
+
+      - name: Ruff lint and format check
+        working-directory: backend
+        run: |
+          uv run ruff check .
+          uv run ruff format --check .
+
+      - name: mypy
+        working-directory: backend
+        run: uv run mypy config apps
+
+      - name: Django system check
+        working-directory: backend
+        run: uv run python manage.py check --settings=config.settings.test
+
+      - name: Migration drift check
+        working-directory: backend
+        run: uv run python manage.py makemigrations --check --dry-run --settings=config.settings.test
+
+      - name: Pytest (MySQL)
+        working-directory: backend
+        run: uv run pytest -q
+
+      - name: OpenAPI schema drift check
+        working-directory: backend
+        run: |
+          uv run python manage.py spectacular --file openapi/schema.yaml --validate --settings=config.settings.test
+          git diff --exit-code -- openapi/schema.yaml
+
+  frontend:
+    name: Frontend quality gates
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install (locked)
+        working-directory: frontend
+        run: npm ci
+
+      - name: Lint
+        working-directory: frontend
+        run: npm run lint
+
+      - name: Format check
+        working-directory: frontend
+        run: npm run format:check
+
+      - name: Typecheck
+        working-directory: frontend
+        run: npm run typecheck
+
+      - name: Unit tests
+        working-directory: frontend
+        run: npm run test:unit -- --run
+
+      - name: Build
+        working-directory: frontend
+        run: npm run build
+
+      - name: Contract type drift check
+        working-directory: frontend
+        run: |
+          npm run api:generate
+          git diff --exit-code -- src/api/generated/schema.d.ts
+
+  e2e:
+    name: E2E smoke (Playwright)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Build frontend
+        working-directory: frontend
+        run: |
+          npm ci
+          npm run build
+
+      - name: Install e2e deps
+        working-directory: tests/e2e
+        run: npm ci
+
+      - name: Install Playwright browser
+        working-directory: tests/e2e
+        run: npx playwright install --with-deps chromium
+
+      - name: Run smoke test
+        working-directory: tests/e2e
+        run: npx playwright test
+
+  images:
+    name: Docker image builds (no push)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build backend image
+        run: docker build -t meridian-backend:ci backend
+
+      - name: Build frontend image
+        run: docker build -f frontend/Dockerfile -t meridian-frontend:ci .
+
+  legacy-scan:
+    name: Legacy prototype reference scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Scan for legacy references
+        run: |
+          if git grep -I -F -n -f scripts/legacy-patterns.txt -- backend frontend deploy tests scripts ':(exclude)scripts/legacy-patterns.txt'; then
+            echo "legacy prototype references found"
+            exit 1
+          fi
+          echo "no legacy prototype references"
