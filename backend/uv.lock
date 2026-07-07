@@ -400,6 +400,7 @@ dependencies = [
     { name = "drf-spectacular" },
     { name = "gunicorn" },
     { name = "httpx" },
+    { name = "jsonschema" },
     { name = "mysqlclient" },
     { name = "redis" },
 ]
@@ -423,6 +424,7 @@ requires-dist = [
     { name = "drf-spectacular", specifier = ">=0.28,<0.29" },
     { name = "gunicorn", specifier = ">=23,<24" },
     { name = "httpx", specifier = ">=0.28,<0.29" },
+    { name = "jsonschema", specifier = ">=4.24,<5" },
     { name = "mysqlclient", specifier = ">=2.2,<2.3" },
     { name = "redis", specifier = ">=6,<7" },
 ]

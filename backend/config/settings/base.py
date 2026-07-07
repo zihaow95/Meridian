@@ -42,6 +42,9 @@ INSTALLED_APPS = [
     "apps.integrations",
     "apps.authorization",
     "apps.audit",
+    "apps.configuration",
+    "apps.documents",
+    "apps.notifications",
 ]
 
 AUTH_USER_MODEL = "identity.User"

@@ -30,8 +30,15 @@ ENABLE_IDENTITY_API = True
 ENABLE_DEV_LOGIN = True
 ENABLE_AUTHORIZATION_API = True
 ENABLE_AUDIT_API = True
+ENABLE_CONFIGURATION_API = True
+ENABLE_DOCUMENTS_API = True
+ENABLE_NOTIFICATIONS_API = True
 
 CELERY_TASK_ALWAYS_EAGER = True
+
+FILE_STORAGE_ROOT = BASE_DIR / "var" / "files"  # noqa: F405
+FILE_UPLOAD_MAX_BYTES = 10_485_760
+FILE_UPLOAD_ALLOWED_MIME_TYPES = ["application/pdf", "image/png", "image/jpeg"]
 
 from apps.integrations.dingtalk.fake_gateway import FakeDingTalkGateway  # noqa: E402
 

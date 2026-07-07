@@ -27,10 +27,10 @@ PR 拆分：
 | PLT-006 | 关键角色人工分配 | `backend/tests/authorization/test_role_assignment.py` | PR1 已实现，待 MySQL 验证 |
 | PLT-007 | 平台开关和管理变更复核请求 | `backend/tests/authorization/test_dual_control.py` | PR2 已实现，待 MySQL 验证 |
 | PLT-008 | 限时专项授权和排障访问 | `backend/tests/authorization/test_special_grants.py`, `test_troubleshoot.py` | PR2 已实现，待 MySQL 验证 |
-| PLT-009 | 通用配置版本和项目快照 | `backend/tests/configuration/` | 未实现 |
-| PLT-010 | 文档、不可变版本和NAS对象 | `backend/tests/documents/` | 未实现 |
-| PLT-011 | 权威待办及权限过滤通知 | `backend/tests/notifications/` | 未实现 |
-| PLT-012 | 钉钉投递和系统深链接 | `backend/tests/notifications/test_dingtalk_delivery.py` | 未实现 |
+| PLT-009 | 通用配置版本和项目快照 | `backend/tests/configuration/` | PR3 已实现，待 MySQL 验证 |
+| PLT-010 | 文档、不可变版本和NAS对象 | `backend/tests/documents/` | PR3 已实现，待 MySQL 验证 |
+| PLT-011 | 权威待办及权限过滤通知 | `backend/tests/notifications/` | PR3 已实现，待 MySQL 验证 |
+| PLT-012 | 钉钉投递和系统深链接 | `backend/tests/notifications/test_dingtalk_delivery.py` | PR3 已实现，待 MySQL 验证 |
 | PLT-013 | 同事务追加审计 | `backend/tests/audit/test_transactional_audit.py` | PR2 已实现，待 MySQL 验证 |
 | PLT-014 | 适配器、同步运行、错误和重试 | — | 本阶段不实现，见阶段6 |
 | PLT-015 | 备份运行和恢复验证记录 | — | 本阶段不实现，见阶段7 |
