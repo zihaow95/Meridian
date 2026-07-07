@@ -1,8 +1,42 @@
 import { createRouter, createWebHistory, type RouteRecordRaw } from 'vue-router'
 
-const routes: RouteRecordRaw[] = []
+import { pinia } from '@/stores'
+import { useAuthStore } from '@/modules/auth/store'
+
+import AccessDeniedView from '@/modules/auth/AccessDeniedView.vue'
+import LoginView from '@/modules/auth/LoginView.vue'
+import ConfigurationListView from '@/modules/admin/ConfigurationListView.vue'
+import AuditListView from '@/modules/admin/AuditListView.vue'
+import DocumentWorkbenchView from '@/modules/admin/DocumentWorkbenchView.vue'
+import UserAccessView from '@/modules/admin/UserAccessView.vue'
+import TodoListView from '@/modules/todos/TodoListView.vue'
+
+const routes: RouteRecordRaw[] = [
+  { path: '/', redirect: '/todos' },
+  { path: '/login', component: LoginView },
+  { path: '/access-denied', component: AccessDeniedView },
+  { path: '/todos', component: TodoListView, meta: { requiresAuth: true } },
+  { path: '/documents/:publicId', component: AccessDeniedView, meta: { requiresAuth: true } },
+  { path: '/admin/users', component: UserAccessView, meta: { requiresAuth: true } },
+  { path: '/admin/configurations', component: ConfigurationListView, meta: { requiresAuth: true } },
+  { path: '/admin/audit', component: AuditListView, meta: { requiresAuth: true } },
+  { path: '/admin/documents', component: DocumentWorkbenchView, meta: { requiresAuth: true } },
+]
 
 export const router = createRouter({
   history: createWebHistory(),
   routes,
+})
+
+router.beforeEach(async (to) => {
+  const auth = useAuthStore(pinia)
+  if (!to.meta.requiresAuth) return true
+
+  if (auth.isAuthenticated) return true
+  try {
+    await auth.fetchMe()
+    return true
+  } catch {
+    return { path: '/login', query: { next: to.fullPath } }
+  }
 })

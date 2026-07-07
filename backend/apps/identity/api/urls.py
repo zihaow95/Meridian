@@ -5,10 +5,17 @@ from __future__ import annotations
 from django.conf import settings
 from django.urls import path
 
-from apps.identity.api.auth import DevLoginView, DingTalkCallbackView, DingTalkStartView, LogoutView
+from apps.identity.api.auth import (
+    CsrfView,
+    DevLoginView,
+    DingTalkCallbackView,
+    DingTalkStartView,
+    LogoutView,
+)
 from apps.identity.api.me import MeView
 
 urlpatterns = [
+    path("auth/csrf", CsrfView.as_view(), name="auth-csrf"),
     path("auth/dingtalk/start", DingTalkStartView.as_view(), name="auth-dingtalk-start"),
     path("auth/dingtalk/callback", DingTalkCallbackView.as_view(), name="auth-dingtalk-callback"),
     path("auth/logout", LogoutView.as_view(), name="auth-logout"),
