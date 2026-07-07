@@ -4,12 +4,77 @@ info:
   version: v1
   description: Product lifecycle management platform API.
 paths:
+  /api/v1/_test/hidden-resource:
+    get:
+      operationId: _test_hidden_resource_retrieve
+      description: Always responds with a 404-style hidden resource error.
+      tags:
+      - _test
+      security:
+      - cookieAuth: []
+      - {}
+      responses:
+        '200':
+          description: No response body
+  /api/v1/auth/dev/login:
+    post:
+      operationId: auth_dev_login_create
+      tags:
+      - auth
+      security:
+      - {}
+      responses:
+        '200':
+          description: No response body
+  /api/v1/auth/dingtalk/callback:
+    get:
+      operationId: auth_dingtalk_callback_retrieve
+      tags:
+      - auth
+      security:
+      - {}
+      responses:
+        '200':
+          description: No response body
+  /api/v1/auth/dingtalk/start:
+    get:
+      operationId: auth_dingtalk_start
+      summary: Start DingTalk OAuth flow
+      tags:
+      - auth
+      security:
+      - {}
+      responses:
+        '302':
+          description: No response body
+  /api/v1/auth/logout:
+    post:
+      operationId: auth_logout_create
+      tags:
+      - auth
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/authorization/roles:
+    get:
+      operationId: authorization_roles_retrieve
+      tags:
+      - authorization
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          description: No response body
   /api/v1/health:
     get:
       operationId: health_retrieve
       summary: Liveness/readiness probe
       tags:
       - health
+      security:
+      - {}
       responses:
         '200':
           content:
@@ -23,6 +88,21 @@ paths:
                     service: meridian-api
                   summary: ok
           description: ''
+  /api/v1/me:
+    get:
+      operationId: me_retrieve
+      summary: Current authenticated user
+      tags:
+      - me
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MeResponse'
+          description: ''
 components:
   schemas:
     HealthResponse:
@@ -35,3 +115,22 @@ components:
       required:
       - service
       - status
+    MeResponse:
+      type: object
+      properties:
+        public_id:
+          type: string
+          format: uuid
+        display_name:
+          type: string
+        status:
+          type: string
+      required:
+      - display_name
+      - public_id
+      - status
+  securitySchemes:
+    cookieAuth:
+      type: apiKey
+      in: cookie
+      name: sessionid
