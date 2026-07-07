@@ -115,4 +115,70 @@ def authorize(
     if any(identity.action_code == action for identity in object_identities):
         return AuthorizationDecision(allowed=True, reason_code="ALLOWED")
 
+    if _allowed_by_special_grant(subject, action, resource, context):
+        return AuthorizationDecision(allowed=True, reason_code="ALLOWED")
+
+    if _allowed_by_troubleshoot_access(subject, action, resource, context):
+        return AuthorizationDecision(allowed=True, reason_code="ALLOWED")
+
     return AuthorizationDecision(allowed=False, reason_code="NO_ALLOWING_POLICY")
+
+
+def _allowed_by_special_grant(
+    subject: AuthorizationSubject,
+    action: str,
+    resource: ResourceDescriptor,
+    context: AuthorizationContext,
+) -> bool:
+    from apps.authorization.models.role import LEVEL_RANK
+    from apps.authorization.models.special_grant import SpecialGrant, SpecialGrantStatus
+
+    grants = SpecialGrant.objects.filter(
+        grantee=subject.user,
+        status=SpecialGrantStatus.ACTIVE,
+        resource_type=resource.resource_type,
+        valid_from__lte=context.as_of,
+        valid_to__gt=context.as_of,
+    )
+    for grant in grants:
+        if action not in grant.actions:
+            continue
+        if LEVEL_RANK.get(grant.max_sensitivity_level, 0) < LEVEL_RANK.get(
+            resource.sensitivity_level, 0
+        ):
+            continue
+        if grant.resource_public_id and resource.public_id:
+            if grant.resource_public_id != resource.public_id:
+                continue
+        return True
+    return False
+
+
+def _allowed_by_troubleshoot_access(
+    subject: AuthorizationSubject,
+    action: str,
+    resource: ResourceDescriptor,
+    context: AuthorizationContext,
+) -> bool:
+    from apps.authorization.models.role import LEVEL_RANK
+    from apps.authorization.models.troubleshoot import TroubleshootAccess, TroubleshootAccessStatus
+
+    accesses = TroubleshootAccess.objects.filter(
+        user=subject.user,
+        status=TroubleshootAccessStatus.ACTIVE,
+        resource_type=resource.resource_type,
+        valid_from__lte=context.as_of,
+        valid_to__gt=context.as_of,
+    )
+    for access in accesses:
+        if action not in access.actions:
+            continue
+        if LEVEL_RANK.get(access.max_sensitivity_level, 0) < LEVEL_RANK.get(
+            resource.sensitivity_level, 0
+        ):
+            continue
+        if access.resource_public_id and resource.public_id:
+            if access.resource_public_id != resource.public_id:
+                continue
+        return True
+    return False

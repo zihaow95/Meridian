@@ -38,6 +38,7 @@ secrets/
 
 # Runtime data
 logs/
+backend/tests/documents/_storage/
 *.log
 data/
 storage/*
