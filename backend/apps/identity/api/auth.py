@@ -7,7 +7,7 @@ from django.contrib.auth import logout as django_logout
 from django.http import HttpResponseBase
 from django.shortcuts import redirect
 from django.utils.decorators import method_decorator
-from django.views.decorators.csrf import csrf_protect
+from django.views.decorators.csrf import csrf_protect, ensure_csrf_cookie
 from drf_spectacular.utils import extend_schema
 from rest_framework import status
 from rest_framework.permissions import AllowAny
@@ -52,6 +52,16 @@ class DingTalkStartView(APIView):
         gateway = _get_dingtalk_gateway()
         authorize_url = gateway.build_authorize_url(state=state, redirect_uri=callback_url)
         return redirect(authorize_url)
+
+
+class CsrfView(APIView):
+    authentication_classes: list = []
+    permission_classes = [AllowAny]
+
+    @extend_schema(operation_id="auth_csrf_retrieve", responses={204: None})
+    @method_decorator(ensure_csrf_cookie)
+    def get(self, request: Request) -> Response:
+        return Response(status=status.HTTP_204_NO_CONTENT)
 
 
 class DingTalkCallbackView(APIView):

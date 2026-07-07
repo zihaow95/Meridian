@@ -36,6 +36,16 @@ paths:
       responses:
         '200':
           description: No response body
+  /api/v1/auth/csrf:
+    get:
+      operationId: auth_csrf_retrieve
+      tags:
+      - auth
+      security:
+      - {}
+      responses:
+        '204':
+          description: No response body
   /api/v1/auth/dev/login:
     post:
       operationId: auth_dev_login_create
