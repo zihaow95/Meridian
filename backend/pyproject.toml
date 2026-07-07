@@ -10,6 +10,7 @@ dependencies = [
     "drf-spectacular>=0.28,<0.29",
     "gunicorn>=23,<24",
     "httpx>=0.28,<0.29",
+    "jsonschema>=4.24,<5",
     "mysqlclient>=2.2,<2.3",
     "redis>=6,<7",
 ]
