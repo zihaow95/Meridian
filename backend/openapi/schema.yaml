@@ -16,6 +16,26 @@ paths:
       responses:
         '200':
           description: No response body
+  /api/v1/admin/audit-events:
+    get:
+      operationId: admin_audit_events_retrieve
+      tags:
+      - admin
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/audit/events:
+    get:
+      operationId: audit_events_retrieve
+      tags:
+      - audit
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          description: No response body
   /api/v1/auth/dev/login:
     post:
       operationId: auth_dev_login_create
