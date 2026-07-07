@@ -32,16 +32,25 @@ ALLOWED_HOSTS: list[str] = env_list("DJANGO_ALLOWED_HOSTS")
 INSTALLED_APPS = [
     "django.contrib.contenttypes",
     "django.contrib.auth",
+    "django.contrib.sessions",
     "django.contrib.staticfiles",
     "rest_framework",
     "drf_spectacular",
     "apps.platform",
+    "apps.identity",
+    "apps.integrations",
+    "apps.authorization",
 ]
+
+AUTH_USER_MODEL = "identity.User"
 
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
+    "apps.platform.middleware.trace.TraceIdMiddleware",
+    "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
+    "django.contrib.auth.middleware.AuthenticationMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
 ]
 
@@ -93,7 +102,14 @@ REST_FRAMEWORK: dict[str, Any] = {
     "DEFAULT_RENDERER_CLASSES": [
         "rest_framework.renderers.JSONRenderer",
     ],
+    "DEFAULT_AUTHENTICATION_CLASSES": [
+        "rest_framework.authentication.SessionAuthentication",
+    ],
+    "DEFAULT_PERMISSION_CLASSES": [
+        "apps.platform.permissions.DenyAll",
+    ],
     "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
+    "EXCEPTION_HANDLER": "apps.platform.api.exception_handler.custom_exception_handler",
 }
 
 SPECTACULAR_SETTINGS: dict[str, Any] = {

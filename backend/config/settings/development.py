@@ -16,3 +16,10 @@ DATABASES["default"]["USER"] = env("MYSQL_USER", "meridian")
 DATABASES["default"]["PASSWORD"] = env("MYSQL_PASSWORD", "meridian")
 DATABASES["default"]["HOST"] = env("MYSQL_HOST", "127.0.0.1")
 DATABASES["default"]["PORT"] = env("MYSQL_PORT", "3306")
+
+ENABLE_IDENTITY_API = True
+ENABLE_DEV_LOGIN = True
+
+from apps.integrations.dingtalk.fake_gateway import FakeDingTalkGateway  # noqa: E402
+
+DINGTALK_GATEWAY = FakeDingTalkGateway()

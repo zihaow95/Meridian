@@ -25,3 +25,11 @@ DATABASES["default"]["TEST"] = {
     "CHARSET": "utf8mb4",
     "COLLATION": "utf8mb4_0900_ai_ci",
 }
+
+ENABLE_IDENTITY_API = True
+ENABLE_DEV_LOGIN = True
+ENABLE_AUTHORIZATION_API = True
+
+from apps.integrations.dingtalk.fake_gateway import FakeDingTalkGateway  # noqa: E402
+
+DINGTALK_GATEWAY = FakeDingTalkGateway()

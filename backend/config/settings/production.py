@@ -46,3 +46,6 @@ SECURE_HSTS_INCLUDE_SUBDOMAINS = True
 SECURE_HSTS_PRELOAD = True
 SECURE_CONTENT_TYPE_NOSNIFF = True
 X_FRAME_OPTIONS = "DENY"
+
+if (env("ENABLE_DEV_LOGIN") or "false").lower() in {"1", "true", "yes"}:
+    raise ImproperlyConfigured("ENABLE_DEV_LOGIN must not be enabled in production.")
