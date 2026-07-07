@@ -112,6 +112,23 @@ uv run pytest -q
 > docker compose -f deploy/compose/compose.dev.yml --env-file .env down -v
 > ```
 
+## Celery Worker（阶段1+）
+
+异步任务依赖 Redis。确保 Docker Compose 已启动 Redis 后，在 `backend/` 目录运行：
+
+```powershell
+Set-Location backend
+uv run celery -A config worker --loglevel=info
+```
+
+定时分发发件箱事件（可选）：
+
+```powershell
+uv run celery -A config beat --loglevel=info
+```
+
+测试环境默认 `CELERY_TASK_ALWAYS_EAGER=True`，无需启动 worker。
+
 ## 统一质量门禁
 
 以下命令按顺序执行环境预检、Compose 配置校验、后端全部门禁（锁文件、Ruff、mypy、Django check、迁移漂移、pytest、OpenAPI 漂移）、前端全部门禁（`npm ci`、lint、格式、类型、Vitest、build、契约类型漂移）、前后端 Docker 镜像构建，以及旧工程引用扫描。任一步骤失败立即停止并返回非零码。

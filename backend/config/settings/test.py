@@ -29,6 +29,9 @@ DATABASES["default"]["TEST"] = {
 ENABLE_IDENTITY_API = True
 ENABLE_DEV_LOGIN = True
 ENABLE_AUTHORIZATION_API = True
+ENABLE_AUDIT_API = True
+
+CELERY_TASK_ALWAYS_EAGER = True
 
 from apps.integrations.dingtalk.fake_gateway import FakeDingTalkGateway  # noqa: E402
 

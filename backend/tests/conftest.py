@@ -30,3 +30,17 @@ def active_user(organization: Organization, db: None):
         status=UserStatus.ACTIVE,
         activated_at=timezone.now(),
     )
+
+
+@pytest.fixture
+def another_active_user(organization: Organization, db: None):
+    from django.utils import timezone
+
+    from apps.identity.models.user import User, UserStatus
+
+    return User.objects.create_user(
+        organization=organization,
+        display_name="Another Active User",
+        status=UserStatus.ACTIVE,
+        activated_at=timezone.now(),
+    )
