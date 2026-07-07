@@ -2,7 +2,7 @@
 
 日期：2026-07-07
 
-状态：待合并 PR4（前端闭环 / E2E / 退出证据）
+状态：已完成（PR1–PR4 已合并）
 
 对应计划：`docs/superpowers/plans/2026-07-06-phase-1-platform-kernel.md`
 

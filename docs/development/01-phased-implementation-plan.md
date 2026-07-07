@@ -128,7 +128,7 @@ docker compose -f deploy/compose/compose.dev.yml config
 
 ## 4. 阶段1：平台内核
 
-**状态：** 执行中（2026-07-07，PR4 进行中）
+**状态：** 已完成（2026-07-07）
 
 **任务级计划：** [`docs/superpowers/plans/2026-07-06-phase-1-platform-kernel.md`](../superpowers/plans/2026-07-06-phase-1-platform-kernel.md)
 
@@ -136,7 +136,7 @@ docker compose -f deploy/compose/compose.dev.yml config
 
 **PR 拆分：** PR1（1.0–1.4 契约/身份/认证/授权）→ PR2（1.5–1.7 审计/发件箱）→ PR3（1.8–1.10 配置/文件/待办）→ PR4（1.11–1.12 前端/E2E/退出）
 
-**检查点：** PR4 合并后生成 `docs/implementation/phase-1-checkpoint.md`
+**检查点：** `docs/implementation/phase-1-checkpoint.md`
 
 目标：先建立所有业务域共同依赖的身份、权限、审计、配置、文件和可靠事件能力。
 
