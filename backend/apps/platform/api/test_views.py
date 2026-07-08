@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from drf_spectacular.utils import extend_schema
 from rest_framework.permissions import AllowAny
 from rest_framework.request import Request
 from rest_framework.response import Response
@@ -15,5 +16,6 @@ class HiddenResourceView(APIView):
 
     permission_classes = [AllowAny]
 
+    @extend_schema(exclude=True)
     def get(self, request: Request) -> Response:
         raise ResourceNotFoundError()

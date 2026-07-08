@@ -4,18 +4,6 @@ info:
   version: v1
   description: Product lifecycle management platform API.
 paths:
-  /api/v1/_test/hidden-resource:
-    get:
-      operationId: _test_hidden_resource_retrieve
-      description: Always responds with a 404-style hidden resource error.
-      tags:
-      - _test
-      security:
-      - cookieAuth: []
-      - {}
-      responses:
-        '200':
-          description: No response body
   /api/v1/admin/audit-events:
     get:
       operationId: admin_audit_events_retrieve

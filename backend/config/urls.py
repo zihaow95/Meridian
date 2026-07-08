@@ -13,7 +13,6 @@ from drf_spectacular.views import SpectacularAPIView, SpectacularSwaggerView
 from rest_framework.permissions import AllowAny
 
 from apps.platform.api.health import HealthView
-from apps.platform.api.test_views import HiddenResourceView
 
 
 class PublicSchemaView(SpectacularAPIView):
@@ -27,8 +26,18 @@ class PublicSwaggerView(SpectacularSwaggerView):
 urlpatterns: list[URLPattern | URLResolver] = [
     path("api/v1/health", HealthView.as_view(), name="health"),
     path("api/v1/schema", PublicSchemaView.as_view(), name="schema"),
-    path("api/v1/_test/hidden-resource", HiddenResourceView.as_view(), name="hidden-resource-test"),
 ]
+
+if getattr(settings, "ENABLE_TEST_API", False):
+    from apps.platform.api.test_views import HiddenResourceView
+
+    urlpatterns += [
+        path(
+            "api/v1/_test/hidden-resource",
+            HiddenResourceView.as_view(),
+            name="hidden-resource-test",
+        ),
+    ]
 
 if settings.DEBUG:
     urlpatterns += [

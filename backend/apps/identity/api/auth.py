@@ -76,7 +76,7 @@ class DingTalkCallbackView(APIView):
             state=state,
             gateway=_get_dingtalk_gateway(),
         ).execute()
-        establish_session(request.session, user)
+        establish_session(request, user)
         return redirect(redirect_path)
 
 
@@ -108,5 +108,5 @@ class DevLoginView(APIView):
         if not user.is_active:
             raise UserNotActiveError()
 
-        establish_session(request.session, user)
+        establish_session(request, user)
         return Response({"public_id": str(user.public_id), "display_name": user.display_name})

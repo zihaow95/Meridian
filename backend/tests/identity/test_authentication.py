@@ -79,6 +79,20 @@ def test_me_requires_authentication(client: Client) -> None:
 
 
 @pytest.mark.django_db
+def test_dev_login_session_can_access_me(client: Client, active_user) -> None:
+    login_response = client.post(
+        "/api/v1/auth/dev/login",
+        data={"login_key": active_user.login_key},
+        content_type="application/json",
+    )
+    assert login_response.status_code == 200
+
+    me_response = client.get("/api/v1/me")
+    assert me_response.status_code == 200
+    assert me_response.json()["public_id"] == str(active_user.public_id)
+
+
+@pytest.mark.django_db
 def test_me_returns_current_user(client: Client, active_user) -> None:
     client.force_login(active_user)
     response = client.get("/api/v1/me")
