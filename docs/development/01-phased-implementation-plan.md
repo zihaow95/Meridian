@@ -198,6 +198,14 @@ docker compose -f deploy/compose/compose.dev.yml config
 
 ## 5. 阶段2：提案到项目纵向切片
 
+**状态：** 进行中（2026-07-08 起）
+
+**任务级计划：** [`docs/superpowers/plans/2026-07-08-phase-2-opportunity-to-project.md`](../superpowers/plans/2026-07-08-phase-2-opportunity-to-project.md)
+
+**测试矩阵：** [`docs/implementation/phase-2-test-matrix.md`](../implementation/phase-2-test-matrix.md)
+
+**PR 拆分：** PR1（Task 2.1–2.3 提案提交）→ PR2（Task 2.4–2.6 阶段门/评估/暂缓复议）→ PR3（Task 2.7 原子立项）→ PR4（Task 2.8–2.10 前端/E2E/退出）
+
 目标：交付首个可供业务试用的提案—立案—立项闭环。
 
 ### Task 2.1：提案、成员和额度
