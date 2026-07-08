@@ -15,6 +15,12 @@ SECRET_KEY = "test-insecure-secret-key"  # test-only, never deployed
 
 ALLOWED_HOSTS = ["testserver", "localhost", "127.0.0.1"]
 
+CSRF_TRUSTED_ORIGINS = [
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
+    "http://[::1]:5173",
+]
+
 DATABASES["default"]["NAME"] = env("MYSQL_DATABASE", "meridian")
 DATABASES["default"]["USER"] = env("MYSQL_USER", "meridian")
 DATABASES["default"]["PASSWORD"] = env("MYSQL_PASSWORD", "meridian")

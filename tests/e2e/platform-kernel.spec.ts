@@ -4,7 +4,8 @@ const E2E_LOGIN_KEY = 'e2e-active-user'
 
 test('unauthenticated user is redirected to login when opening todos', async ({ page }) => {
   await page.goto('/todos')
-  await expect(page.getByText('登录')).toBeVisible()
+  await expect(page.locator('.login__title')).toHaveText('登录')
+  await expect(page.getByRole('button', { name: '钉钉登录' })).toBeVisible()
 })
 
 test('dev login succeeds and todos page loads backend data', async ({ page }) => {
