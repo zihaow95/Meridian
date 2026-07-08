@@ -16,7 +16,6 @@ OWNER_ACTIONS: frozenset[str] = frozenset(
     {
         "opportunity.full.read",
         "opportunity.edit",
-        "opportunity.submit",
         "opportunity.withdraw",
         "opportunity.member.invite",
         "opportunity.member.manage",

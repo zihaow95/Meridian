@@ -54,8 +54,16 @@ def test_proposal_owner_is_granted_owner_actions_by_object_identity(
 ) -> None:
     resource = _resource(opportunity)
     assert _authorize(active_user, "opportunity.full.read", resource)
-    assert _authorize(active_user, "opportunity.submit", resource)
+    assert _authorize(active_user, "opportunity.edit", resource)
     assert _authorize(active_user, "opportunity.export", resource)
+
+
+@pytest.mark.django_db
+def test_owner_identity_alone_does_not_grant_submit(
+    opportunity: Opportunity, active_user: User
+) -> None:
+    # Submission eligibility is an RBAC proposer grant, not object ownership.
+    assert not _authorize(active_user, "opportunity.submit", _resource(opportunity))
 
 
 @pytest.mark.django_db

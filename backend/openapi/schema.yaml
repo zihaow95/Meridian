@@ -272,6 +272,126 @@ paths:
               schema:
                 $ref: '#/components/schemas/MeResponse'
           description: ''
+  /api/v1/opportunities:
+    get:
+      operationId: opportunities_list_mine
+      tags:
+      - opportunities
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          description: No response body
+    post:
+      operationId: opportunities_create
+      tags:
+      - opportunities
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/opportunities/{public_id}:
+    get:
+      operationId: opportunities_retrieve_detail
+      parameters:
+      - in: path
+        name: public_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - opportunities
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          description: No response body
+    patch:
+      operationId: opportunities_partial_update
+      parameters:
+      - in: path
+        name: public_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - opportunities
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/opportunities/{public_id}/members/invitations:
+    post:
+      operationId: opportunities_members_invitations_create
+      parameters:
+      - in: path
+        name: public_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - opportunities
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/opportunities/{public_id}/submit:
+    post:
+      operationId: opportunities_submit_create
+      parameters:
+      - in: path
+        name: public_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - opportunities
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/opportunities/{public_id}/versions:
+    get:
+      operationId: opportunities_versions_retrieve
+      parameters:
+      - in: path
+        name: public_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - opportunities
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/opportunities/{public_id}/withdraw:
+    post:
+      operationId: opportunities_withdraw_create
+      parameters:
+      - in: path
+        name: public_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - opportunities
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          description: No response body
   /api/v1/todos/my:
     get:
       operationId: todos_my_retrieve

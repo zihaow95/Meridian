@@ -93,3 +93,8 @@ if getattr(settings, "ENABLE_DOCUMENTS_API", False):
     urlpatterns += [
         path("api/v1/", include("apps.documents.api.urls")),
     ]
+
+if getattr(settings, "ENABLE_OPPORTUNITIES_API", False):
+    urlpatterns += [
+        path("api/v1/", include("apps.opportunities.api.urls")),
+    ]
