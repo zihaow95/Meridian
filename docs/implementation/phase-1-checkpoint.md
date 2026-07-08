@@ -30,6 +30,7 @@
 
 ## 已知限制 / 后置项
 
+- 测试专用端点 `/api/v1/_test/hidden-resource` 仅在 `ENABLE_TEST_API=True` 时注册，不出现在生产 URL 与 OpenAPI
 - 真实钉钉企业环境登录与通知投递验收：按计划延后至阶段6
 - 文件的 Nginx `X-Accel-Redirect` 端到端验收：随部署（阶段7）补齐
 
