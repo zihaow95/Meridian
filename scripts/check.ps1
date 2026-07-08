@@ -93,7 +93,16 @@ try {
         git diff --exit-code -- src/api/generated/schema.d.ts
     } $frontend
 
-    # 5. Docker image builds.
+    # 5. E2E platform kernel (backend + frontend dev via Playwright webServer).
+    $e2e = Join-Path $RepoRoot 'tests/e2e'
+    Invoke-Native 'E2E: install deps' { npm.cmd ci } $e2e
+    Invoke-Native 'E2E: Playwright browser' { npx playwright install chromium } $e2e
+    Invoke-Native 'E2E: platform kernel' {
+        $env:CI = 'true'
+        npx playwright test
+    } $e2e
+
+    # 6. Docker image builds.
     Invoke-Native 'Docker: backend image' {
         docker build -t meridian-backend:ci backend
     }
@@ -101,7 +110,7 @@ try {
         docker build -f frontend/Dockerfile -t meridian-frontend:ci .
     }
 
-    # 6. Legacy prototype reference scan (must find nothing).
+    # 7. Legacy prototype reference scan (must find nothing).
     # Uses git grep for portability (Windows and Linux CI) and to honor
     # .gitignore, so node_modules/.venv/dist are skipped. --untracked also
     # covers new files not yet committed.

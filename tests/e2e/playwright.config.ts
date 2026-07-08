@@ -1,16 +1,12 @@
 import { defineConfig, devices } from '@playwright/test'
 
-// Phase 0 smoke only: verifies the built frontend serves the application shell.
-// The config starts the Vite preview server serving the production build, so
-// `npm run build` must have produced frontend/dist beforehand.
-// Vite preview binds to `localhost`, so the readiness probe and baseURL must
-// use `localhost` (not 127.0.0.1) to match on hosts where localhost is IPv6.
-const PORT = Number(process.env.E2E_PORT ?? 4173)
+const PORT = Number(process.env.E2E_PORT ?? 5173)
 const BASE_URL = process.env.E2E_BASE_URL ?? `http://localhost:${PORT}`
+const BACKEND_URL = process.env.E2E_BACKEND_URL ?? 'http://127.0.0.1:8000'
 
 export default defineConfig({
   testDir: './',
-  fullyParallel: true,
+  fullyParallel: false,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 1 : 0,
   reporter: process.env.CI ? 'line' : 'list',
@@ -24,10 +20,24 @@ export default defineConfig({
       use: { ...devices['Desktop Chrome'] },
     },
   ],
-  webServer: {
-    command: `npm --prefix ../../frontend run preview -- --port ${PORT} --strictPort`,
-    url: BASE_URL,
-    reuseExistingServer: !process.env.CI,
-    timeout: 120_000,
-  },
+  webServer: [
+    {
+      command:
+        'uv run python manage.py migrate --settings=config.settings.test && uv run python manage.py seed_e2e_user --settings=config.settings.test && uv run python manage.py runserver 127.0.0.1:8000 --settings=config.settings.test',
+      cwd: '../../backend',
+      url: `${BACKEND_URL}/api/v1/health`,
+      reuseExistingServer: !process.env.CI,
+      timeout: 180_000,
+    },
+    {
+      command: `npm --prefix ../../frontend run dev -- --port ${PORT} --host localhost --strictPort`,
+      url: BASE_URL,
+      reuseExistingServer: !process.env.CI,
+      timeout: 180_000,
+      env: {
+        ...process.env,
+        VITE_ENABLE_DEV_LOGIN: 'true',
+      },
+    },
+  ],
 })

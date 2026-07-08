@@ -15,7 +15,8 @@ D:\Projects\Meridian
 - 6份TRD已确认基线；
 - TRD校验覆盖92项需求和4个重大阶段门；
 - 四份开发前文档已完成；
-- 正式Django/Vue工程尚未初始化。
+- **阶段0工程基础与阶段1平台内核已完成**（Django 5.2 + Vue 3 正式工程，MySQL 测试门禁与 Playwright E2E 已通过 remediation 验收）；
+- 阶段2（提案工作流）尚未开始。
 
 ## 文档入口
 

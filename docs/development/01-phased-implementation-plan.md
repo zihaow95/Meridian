@@ -128,7 +128,9 @@ docker compose -f deploy/compose/compose.dev.yml config
 
 ## 4. 阶段1：平台内核
 
-**状态：** 已完成（2026-07-07）
+**状态：** 已完成并通过 remediation 重新验收（2026-07-08）
+
+**修复计划：** [`docs/implementation/phase-1-code-review-remediation-plan.md`](../implementation/phase-1-code-review-remediation-plan.md)
 
 **任务级计划：** [`docs/superpowers/plans/2026-07-06-phase-1-platform-kernel.md`](../superpowers/plans/2026-07-06-phase-1-platform-kernel.md)
 
