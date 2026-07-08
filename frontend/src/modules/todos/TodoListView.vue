@@ -1,13 +1,26 @@
 <script setup lang="ts">
-import { onMounted } from 'vue'
+import { onMounted, ref } from 'vue'
 
+import { ApiError } from '@/api/client'
 import { useTodoStore } from '@/modules/todos/store'
 
 const todos = useTodoStore()
+const errorText = ref('')
 
-onMounted(async () => {
-  await todos.fetchMyTodos()
-})
+async function load(): Promise<void> {
+  errorText.value = ''
+  try {
+    await todos.fetchMyTodos()
+  } catch (err: unknown) {
+    if (err instanceof ApiError) {
+      errorText.value = `${err.code}: ${err.message} (trace ${err.traceId})`
+    } else {
+      errorText.value = '加载待办失败'
+    }
+  }
+}
+
+onMounted(load)
 
 function openLink(link: string): void {
   window.location.assign(link)
@@ -18,10 +31,21 @@ function openLink(link: string): void {
   <div class="todos">
     <div class="todos__header">
       <h2>我的待办</h2>
-      <el-button :loading="todos.loading" @click="todos.fetchMyTodos">刷新</el-button>
+      <el-button :loading="todos.loading" @click="load">刷新</el-button>
     </div>
 
-    <el-table v-loading="todos.loading" :data="todos.items" style="width: 100%">
+    <el-alert
+      v-if="errorText"
+      type="error"
+      :closable="false"
+      :title="errorText"
+      show-icon
+      class="todos__error"
+    />
+
+    <el-empty v-else-if="!todos.loading && todos.items.length === 0" description="暂无待办" />
+
+    <el-table v-else v-loading="todos.loading" :data="todos.items" style="width: 100%">
       <el-table-column prop="title" label="标题" />
       <el-table-column prop="status" label="状态" width="140" />
       <el-table-column label="操作" width="160">
@@ -39,6 +63,10 @@ function openLink(link: string): void {
   align-items: center;
   justify-content: space-between;
   gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.todos__error {
   margin-bottom: 1rem;
 }
 </style>

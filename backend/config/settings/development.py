@@ -19,6 +19,13 @@ DATABASES["default"]["PORT"] = env("MYSQL_PORT", "3306")
 
 ENABLE_IDENTITY_API = True
 ENABLE_DEV_LOGIN = True
+ENABLE_AUTHORIZATION_API = True
+ENABLE_AUDIT_API = True
+ENABLE_CONFIGURATION_API = True
+ENABLE_DOCUMENTS_API = True
+ENABLE_NOTIFICATIONS_API = True
+
+FILE_STORAGE_ROOT = BASE_DIR / "var" / "files"  # noqa: F405
 
 from apps.integrations.dingtalk.fake_gateway import FakeDingTalkGateway  # noqa: E402
 

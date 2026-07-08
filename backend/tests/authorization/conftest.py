@@ -48,11 +48,14 @@ def platform_admin_role(db: None) -> Role:
 
 @pytest.fixture
 def role_assign_action(db: None) -> PermissionAction:
-    return PermissionAction.objects.create(
+    action, _ = PermissionAction.objects.get_or_create(
         action_code="authorization.role.assign",
-        resource_type="authorization.role",
-        action_category=ActionCategory.ADMIN,
+        defaults={
+            "resource_type": "authorization.role",
+            "action_category": ActionCategory.ADMIN,
+        },
     )
+    return action
 
 
 @pytest.fixture

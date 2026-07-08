@@ -55,10 +55,16 @@ if getattr(settings, "ENABLE_IDENTITY_API", False):
 
 if getattr(settings, "ENABLE_AUTHORIZATION_API", False):
     from apps.authorization.api.admin import RoleCatalogView
+    from apps.authorization.api.assignments import UserAssignmentsView
     from apps.authorization.api.grants import AuditEventsAdminView
 
     urlpatterns += [
         path("api/v1/authorization/roles", RoleCatalogView.as_view(), name="authorization-roles"),
+        path(
+            "api/v1/authorization/users/<uuid:public_id>/assignments",
+            UserAssignmentsView.as_view(),
+            name="authorization-user-assignments",
+        ),
         path(
             "api/v1/admin/audit-events",
             AuditEventsAdminView.as_view(),
@@ -71,4 +77,19 @@ if getattr(settings, "ENABLE_AUDIT_API", False):
 
     urlpatterns += [
         path("api/v1/audit/events", AuditEventListView.as_view(), name="audit-events"),
+    ]
+
+if getattr(settings, "ENABLE_NOTIFICATIONS_API", False):
+    urlpatterns += [
+        path("api/v1/", include("apps.notifications.api.urls")),
+    ]
+
+if getattr(settings, "ENABLE_CONFIGURATION_API", False):
+    urlpatterns += [
+        path("api/v1/", include("apps.configuration.api.urls")),
+    ]
+
+if getattr(settings, "ENABLE_DOCUMENTS_API", False):
+    urlpatterns += [
+        path("api/v1/", include("apps.documents.api.urls")),
     ]

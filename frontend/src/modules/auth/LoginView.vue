@@ -9,6 +9,7 @@ const auth = useAuthStore()
 const router = useRouter()
 const route = useRoute()
 
+const showDevLogin = import.meta.env.DEV && import.meta.env.VITE_ENABLE_DEV_LOGIN === 'true'
 const loginKey = ref('active-user')
 const errorText = ref('')
 
@@ -55,7 +56,7 @@ function onDingTalkLogin(): void {
 
       <el-divider />
 
-      <div class="login__dev">
+      <div v-if="showDevLogin" class="login__dev">
         <div class="login__hint">开发登录（仅 DEV/TEST）</div>
         <el-input v-model="loginKey" placeholder="login_key" />
         <el-button :loading="auth.loading" @click="onDevLogin">开发登录</el-button>
