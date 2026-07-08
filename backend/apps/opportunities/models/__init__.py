@@ -2,6 +2,20 @@
 
 from __future__ import annotations
 
+from apps.opportunities.models.assessment import (
+    CORE_ASSESSMENT_CATEGORIES,
+    RESOLVED_ASSESSMENT_STATUSES,
+    AssessmentCategory,
+    AssessmentStatus,
+    CaseAssessment,
+)
+from apps.opportunities.models.candidate import (
+    CandidateSource,
+    CandidateStatus,
+    CandidateType,
+    ProjectCandidate,
+    SourceRole,
+)
 from apps.opportunities.models.member import (
     InvitationStatus,
     MemberRole,
@@ -26,12 +40,21 @@ from apps.opportunities.models.quota import (
 )
 
 __all__ = [
+    "CORE_ASSESSMENT_CATEGORIES",
+    "RESOLVED_ASSESSMENT_STATUSES",
+    "AssessmentCategory",
+    "AssessmentStatus",
+    "CandidateSource",
+    "CandidateStatus",
+    "CandidateType",
+    "CaseAssessment",
     "EnforcementMode",
     "InitialType",
     "InvitationStatus",
     "MemberRole",
     "Opportunity",
     "OpportunityMember",
+    "ProjectCandidate",
     "ProposalStatus",
     "ProposalVersion",
     "ProposalVersionLocked",
@@ -39,5 +62,6 @@ __all__ = [
     "QuotaCountStatus",
     "QuotaLedger",
     "QuotaOwnerType",
+    "SourceRole",
     "SubmissionQuota",
 ]

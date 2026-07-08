@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import datetime
 from uuid import UUID
 
 from django.db import transaction
@@ -18,6 +19,7 @@ from apps.opportunities.services.configuration import (
     OpportunityRuleConfigurationMissing,
     get_opportunity_rule_snapshot,
 )
+from apps.opportunities.services.create_project_candidate import create_initial_candidate
 from apps.platform.api.errors import PermissionDeniedError
 from apps.platform.application.command import CommandContext
 from apps.platform.outbox.services import OutboxMessage, register_outbox_event
@@ -43,6 +45,9 @@ _PROPOSAL_STATUS_BY_RESULT = {
     GateResult.DEFERRED: ProposalStatus.DEFERRED,
     GateResult.PASSED: ProposalStatus.PASSED,
 }
+
+# Final decisions that move a proposal into case and spawn a project candidate.
+_APPROVING_RESULTS = frozenset({GateResult.APPROVED, GateResult.APPROVED_WITH_EXCEPTION})
 
 
 @dataclass
@@ -184,8 +189,17 @@ class RecordMajorGateDecision:
             raise MajorGateMaterialChanged()
 
     def _apply_to_subject(
-        self, stage_gate: StageGateInstance, subject: Opportunity, now: object
+        self, stage_gate: StageGateInstance, subject: Opportunity, now: datetime
     ) -> None:
-        subject.proposal_status = _PROPOSAL_STATUS_BY_RESULT[GateResult(self.final_decision)]
+        result = GateResult(self.final_decision)
+        subject.proposal_status = _PROPOSAL_STATUS_BY_RESULT[result]
         subject.version_no += 1
         subject.save(update_fields=["proposal_status", "version_no", "updated_at"])
+
+        if result in _APPROVING_RESULTS:
+            create_initial_candidate(
+                opportunity=subject,
+                actor=self.context.actor,
+                now=now,
+                trace_id=self.context.trace_id,
+            )

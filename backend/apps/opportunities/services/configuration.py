@@ -31,6 +31,8 @@ class OpportunityRuleSnapshot:
     eligible_proposer_roles: frozenset[str]
     management_conclusion_roles: frozenset[str]
     final_decision_roles: frozenset[str]
+    product_manager_roles: frozenset[str]
+    case_leadership_roles: frozenset[str]
     quota_enforcement_mode: str
     quota_minimums: dict[str, int]
     source_version_id: int
@@ -63,6 +65,8 @@ def get_opportunity_rule_snapshot(
         eligible_proposer_roles=frozenset(content.get("eligible_proposer_roles", [])),
         management_conclusion_roles=frozenset(content.get("management_conclusion_roles", [])),
         final_decision_roles=frozenset(content.get("final_decision_roles", [])),
+        product_manager_roles=frozenset(content.get("product_manager_roles", [])),
+        case_leadership_roles=frozenset(content.get("case_leadership_roles", [])),
         quota_enforcement_mode=str(content.get("quota_enforcement_mode", "WARN")),
         quota_minimums={
             str(key): int(value) for key, value in content.get("quota_minimums", {}).items()
