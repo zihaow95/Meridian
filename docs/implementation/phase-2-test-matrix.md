@@ -21,7 +21,7 @@
 | OPP-002 | 支持联合提案及成员协作 | `backend/tests/opportunities/test_submit_proposal.py`, `test_opportunity_api.py` | 未实现 |
 | OPP-003 | 支持个人/部门季度额度统计 | `backend/tests/opportunities/test_quota.py` | 未实现 |
 | OPP-004 | 强制校验四项提案核心内容 | `backend/tests/opportunities/test_submit_proposal.py` | 未实现 |
-| OPP-005 | 支持提案版本和撤回/退回 | `backend/tests/opportunities/test_models.py`, `test_submit_proposal.py` | 未实现 |
+| OPP-005 | 支持提案版本和撤回/退回 | `backend/tests/opportunities/test_opportunity_models.py`, `test_submit_proposal.py` | 未实现 |
 | OPP-006 | 支持提案进入立案重大阶段门 | `backend/tests/stage_gates/test_major_decision.py`, `backend/tests/opportunities/test_proposal_to_case.py` | 未实现 |
 | OPP-007 | 支持立案负责人和副组长任命 | `backend/tests/opportunities/test_candidate_assessment.py` | 未实现 |
 | OPP-008 | 支持立案评估任务和受控交付物 | `backend/tests/opportunities/test_candidate_assessment.py` | 未实现 |
