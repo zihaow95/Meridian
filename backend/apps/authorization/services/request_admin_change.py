@@ -10,13 +10,26 @@ from django.db import transaction
 from apps.audit.models import AuditResult
 from apps.audit.services.append_event import AuditRecord, append_event
 from apps.audit.services.snapshots import acting_roles_snapshot
+from apps.authorization.context import (
+    AuthorizationContext,
+    AuthorizationDecision,
+    ResourceDescriptor,
+)
 from apps.authorization.models.admin_change import (
     AdminChangeRequest,
     SecuritySetting,
 )
+from apps.authorization.policies.engine import authorize
+from apps.authorization.services.subject import subject_for
 from apps.platform.application.command import CommandContext
 
 DEFAULT_SETTING_KEY = "platform_security"
+
+
+class AdminChangeRequestDenied(Exception):
+    def __init__(self, decision: AuthorizationDecision) -> None:
+        self.decision = decision
+        super().__init__(decision.reason_code)
 
 
 def get_security_setting() -> SecuritySetting:
@@ -38,6 +51,19 @@ class RequestAdminChange:
 
     def execute(self) -> AdminChangeRequest:
         with transaction.atomic():
+            decision = authorize(
+                subject_for(self.context.actor),
+                action="authorization.admin_change.request",
+                resource=ResourceDescriptor(
+                    resource_type="authorization.admin_change_request",
+                    public_id=None,
+                    organization_id=self.context.actor.organization_id,
+                ),
+                context=AuthorizationContext.current(),
+            )
+            if not decision.allowed:
+                raise AdminChangeRequestDenied(decision)
+
             request = AdminChangeRequest.objects.create(
                 action_type=self.action_type,
                 target_summary=self.target_summary,

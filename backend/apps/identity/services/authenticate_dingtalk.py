@@ -9,6 +9,7 @@ from datetime import timedelta
 from typing import TYPE_CHECKING
 from urllib.parse import urlparse
 
+from django.contrib.auth import login
 from django.utils import timezone
 
 from apps.identity.models.binding import AuthState, BindingStatus, IdentityBinding, IdentityProvider
@@ -17,7 +18,7 @@ from apps.integrations.dingtalk.contracts import DingTalkGateway, DingTalkIdenti
 from apps.platform.api.errors import AuthenticationFailedError, UserNotActiveError
 
 if TYPE_CHECKING:
-    from django.contrib.sessions.backends.base import SessionBase
+    from django.http import HttpRequest
 
 
 class InvalidRedirectPath(Exception):
@@ -101,7 +102,5 @@ class DingTalkAuthCallback:
         return binding.user
 
 
-def establish_session(session: SessionBase, user: User) -> None:
-    session.cycle_key()
-    session["_auth_user_id"] = str(user.pk)
-    session["_auth_user_backend"] = "django.contrib.auth.backends.ModelBackend"
+def establish_session(request: HttpRequest, user: User) -> None:
+    login(request, user, backend="django.contrib.auth.backends.ModelBackend")

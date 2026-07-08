@@ -15,6 +15,12 @@ SECRET_KEY = "test-insecure-secret-key"  # test-only, never deployed
 
 ALLOWED_HOSTS = ["testserver", "localhost", "127.0.0.1"]
 
+CSRF_TRUSTED_ORIGINS = [
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
+    "http://[::1]:5173",
+]
+
 DATABASES["default"]["NAME"] = env("MYSQL_DATABASE", "meridian")
 DATABASES["default"]["USER"] = env("MYSQL_USER", "meridian")
 DATABASES["default"]["PASSWORD"] = env("MYSQL_PASSWORD", "meridian")
@@ -33,6 +39,7 @@ ENABLE_AUDIT_API = True
 ENABLE_CONFIGURATION_API = True
 ENABLE_DOCUMENTS_API = True
 ENABLE_NOTIFICATIONS_API = True
+ENABLE_TEST_API = True
 
 CELERY_TASK_ALWAYS_EAGER = True
 

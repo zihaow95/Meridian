@@ -1,7 +1,9 @@
 import { defineStore } from 'pinia'
 
+import { apiFetch } from '@/api/client'
+
 export type TodoItem = {
-  id: string
+  public_id: string
   title: string
   status: 'OPEN' | 'COMPLETED' | 'CANCELLED' | 'EXPIRED'
   due_at?: string | null
@@ -12,21 +14,19 @@ export const useTodoStore = defineStore('todos', {
   state: () => ({
     items: [] as TodoItem[],
     loading: false,
+    lastError: null as Error | null,
   }),
   actions: {
-    // Phase 1: backend todo list API will follow; keep UI functional with local placeholder.
-    async fetchMyTodos(): Promise<void> {
+    async fetchMyTodos(status?: TodoItem['status']): Promise<void> {
       this.loading = true
+      this.lastError = null
       try {
-        this.items = [
-          {
-            id: 'demo-1',
-            title: '（示例）平台内核待办：检查权限与审计闭环',
-            status: 'OPEN',
-            due_at: null,
-            deep_link: '/admin/audit',
-          },
-        ]
+        const query = status ? `?status=${status}` : ''
+        this.items = await apiFetch<TodoItem[]>(`/api/v1/todos/my${query}`)
+      } catch (err) {
+        this.items = []
+        this.lastError = err as Error
+        throw err
       } finally {
         this.loading = false
       }

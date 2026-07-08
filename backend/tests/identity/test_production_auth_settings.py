@@ -2,20 +2,35 @@
 
 from __future__ import annotations
 
-import importlib
+import os
+import subprocess
+import sys
+from pathlib import Path
 
-import pytest
-from django.core.exceptions import ImproperlyConfigured
 
+def test_production_settings_reject_dev_login() -> None:
+    backend_root = Path(__file__).resolve().parents[2]
+    env = os.environ.copy()
+    env.update(
+        {
+            "DJANGO_SECRET_KEY": "prod-secret",
+            "DJANGO_ALLOWED_HOSTS": "example.com",
+            "MYSQL_DATABASE": "meridian",
+            "MYSQL_USER": "meridian",
+            "MYSQL_PASSWORD": "secret",
+            "MYSQL_HOST": "db",
+            "ENABLE_DEV_LOGIN": "true",
+        }
+    )
 
-def test_production_settings_reject_dev_login(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv("DJANGO_SECRET_KEY", "prod-secret")
-    monkeypatch.setenv("DJANGO_ALLOWED_HOSTS", "example.com")
-    monkeypatch.setenv("MYSQL_DATABASE", "meridian")
-    monkeypatch.setenv("MYSQL_USER", "meridian")
-    monkeypatch.setenv("MYSQL_PASSWORD", "secret")
-    monkeypatch.setenv("MYSQL_HOST", "db")
-    monkeypatch.setenv("ENABLE_DEV_LOGIN", "true")
+    result = subprocess.run(
+        [sys.executable, "-c", "import config.settings.production"],
+        cwd=backend_root,
+        env=env,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
 
-    with pytest.raises(ImproperlyConfigured, match="ENABLE_DEV_LOGIN"):
-        importlib.reload(importlib.import_module("config.settings.production"))
+    assert result.returncode != 0
+    assert "ENABLE_DEV_LOGIN" in result.stderr

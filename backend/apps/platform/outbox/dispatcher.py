@@ -22,6 +22,11 @@ class PublishFailure(Exception):
     error_code: str = "PUBLISH_FAILED"
 
 
+@dataclass(frozen=True)
+class UnregisteredEventType(Exception):
+    error_code: str = "UNREGISTERED_EVENT_TYPE"
+
+
 def dispatch_pending_events(*, publisher: OutboxPublisher, limit: int = 100) -> int:
     dispatched = 0
     now = timezone.now()
@@ -39,6 +44,19 @@ def dispatch_pending_events(*, publisher: OutboxPublisher, limit: int = 100) -> 
     for event in events:
         try:
             publisher.publish(event)
+        except UnregisteredEventType as exc:
+            with transaction.atomic():
+                event.refresh_from_db()
+                event.status = OutboxStatus.FAILED
+                event.last_error_code = exc.error_code
+                event.save(
+                    update_fields=[
+                        "status",
+                        "last_error_code",
+                        "updated_at",
+                    ]
+                )
+            continue
         except Exception:
             with transaction.atomic():
                 event.refresh_from_db()

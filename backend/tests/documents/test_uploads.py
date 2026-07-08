@@ -5,7 +5,7 @@ from __future__ import annotations
 import pytest
 
 from apps.documents.models import DocumentVersion, FileObject, StorageStatus, VersionStatus
-from apps.documents.services.uploads import complete_upload
+from apps.documents.services.uploads import UploadValidationFailed, complete_upload
 from apps.documents.storage.base import StorageMoveFailed
 
 
@@ -33,3 +33,15 @@ def test_successful_upload_activates_file(upload_session, file_storage, active_u
     version.file_object.refresh_from_db()
     assert version.file_object.storage_status == StorageStatus.ACTIVE
     assert version.status == VersionStatus.CONTROLLED
+
+
+@pytest.mark.django_db(transaction=True)
+def test_completed_upload_session_cannot_be_completed_twice(
+    upload_session, file_storage, active_user
+) -> None:
+    complete_upload(upload_session.public_id, actor=active_user, storage=file_storage)
+
+    with pytest.raises(UploadValidationFailed):
+        complete_upload(upload_session.public_id, actor=active_user, storage=file_storage)
+
+    assert DocumentVersion.objects.filter(status=VersionStatus.CONTROLLED).count() == 1

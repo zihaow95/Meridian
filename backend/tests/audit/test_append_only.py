@@ -32,7 +32,8 @@ def test_append_event_creates_immutable_record(active_user) -> None:
 
 
 @pytest.mark.django_db
-def test_status_change_writes_audit_event(active_user) -> None:
+def test_status_change_writes_audit_event(active_user, grant_action) -> None:
+    grant_action(active_user, "identity.user.status_change", "identity.user")
     ChangeUserStatus(
         actor=active_user,
         target=active_user,

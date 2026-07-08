@@ -8,10 +8,16 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from apps.authorization.models.role import Role
+from apps.platform.api.permissions import requires_action
+
+RoleReadPermission = requires_action(
+    action_code="authorization.role.read",
+    resource_type="authorization.role",
+)
 
 
 class RoleCatalogView(APIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, RoleReadPermission]
 
     def get(self, request: Request) -> Response:
         roles = Role.objects.filter(status="ACTIVE").order_by("role_code")

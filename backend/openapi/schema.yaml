@@ -4,18 +4,6 @@ info:
   version: v1
   description: Product lifecycle management platform API.
 paths:
-  /api/v1/_test/hidden-resource:
-    get:
-      operationId: _test_hidden_resource_retrieve
-      description: Always responds with a 404-style hidden resource error.
-      tags:
-      - _test
-      security:
-      - cookieAuth: []
-      - {}
-      responses:
-        '200':
-          description: No response body
   /api/v1/admin/audit-events:
     get:
       operationId: admin_audit_events_retrieve
@@ -97,6 +85,157 @@ paths:
       responses:
         '200':
           description: No response body
+  /api/v1/authorization/users/{public_id}/assignments:
+    get:
+      operationId: authorization_users_assignments_retrieve
+      parameters:
+      - in: path
+        name: public_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - authorization
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          description: No response body
+    post:
+      operationId: authorization_users_assignments_create
+      parameters:
+      - in: path
+        name: public_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - authorization
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/configurations/definitions:
+    get:
+      operationId: configurations_definitions_retrieve
+      tags:
+      - configurations
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/configurations/definitions/{definition_code}/versions:
+    get:
+      operationId: configurations_definitions_versions_retrieve
+      parameters:
+      - in: path
+        name: definition_code
+        schema:
+          type: string
+        required: true
+      tags:
+      - configurations
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/configurations/versions/{public_id}/publish:
+    post:
+      operationId: configurations_versions_publish_create
+      parameters:
+      - in: path
+        name: public_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - configurations
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/documents/{document_public_id}/versions:
+    get:
+      operationId: documents_versions_retrieve
+      parameters:
+      - in: path
+        name: document_public_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - documents
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/documents/download/{token}:
+    get:
+      operationId: documents_download_retrieve
+      parameters:
+      - in: path
+        name: token
+        schema:
+          type: string
+        required: true
+      tags:
+      - documents
+      responses:
+        '200':
+          description: No response body
+  /api/v1/documents/uploads:
+    post:
+      operationId: documents_uploads_create
+      tags:
+      - documents
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/documents/uploads/{public_id}/complete:
+    post:
+      operationId: documents_uploads_complete_create
+      parameters:
+      - in: path
+        name: public_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - documents
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/documents/versions/{version_public_id}/download-ticket:
+    post:
+      operationId: documents_versions_download_ticket_create
+      parameters:
+      - in: path
+        name: version_public_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - documents
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          description: No response body
   /api/v1/health:
     get:
       operationId: health_retrieve
@@ -133,6 +272,16 @@ paths:
               schema:
                 $ref: '#/components/schemas/MeResponse'
           description: ''
+  /api/v1/todos/my:
+    get:
+      operationId: todos_my_retrieve
+      tags:
+      - todos
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          description: No response body
 components:
   schemas:
     HealthResponse:

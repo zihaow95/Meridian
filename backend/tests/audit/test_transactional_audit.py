@@ -15,8 +15,9 @@ def _raise_audit_write_failed(*args: object, **kwargs: object) -> None:
 
 @pytest.mark.django_db(transaction=True)
 def test_critical_command_rolls_back_when_audit_write_fails(
-    active_user, monkeypatch: pytest.MonkeyPatch
+    active_user, grant_action, monkeypatch: pytest.MonkeyPatch
 ) -> None:
+    grant_action(active_user, "identity.user.status_change", "identity.user")
     monkeypatch.setattr(
         "apps.identity.services.change_user_status.append_event", _raise_audit_write_failed
     )

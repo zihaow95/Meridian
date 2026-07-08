@@ -65,28 +65,30 @@ class CompleteUpload:
     title: str | None = None
 
     def execute(self) -> DocumentVersion:
-        session = UploadSession.objects.select_for_update().get(public_id=self.session_public_id)
-        if session.completed_at is not None:
-            raise UploadValidationFailed("Upload session already completed.")
-        if session.expires_at <= timezone.now():
-            raise UploadValidationFailed("Upload session expired.")
-        if session.uploaded_by_id != self.actor.id:
-            raise UploadValidationFailed("Upload session belongs to another user.")
-
-        policy = resolve_upload_policy(session.organization)
-        if session.declared_mime_type not in policy.allowed_mime_types:
-            raise UploadValidationFailed("MIME type not allowed.")
-        if session.size_bytes <= 0:
-            raise UploadValidationFailed("Uploaded file is empty.")
-        if session.size_bytes > policy.max_bytes:
-            raise UploadValidationFailed("Uploaded file exceeds size limit.")
-
-        object_key = f"{uuid.uuid4()}/{uuid.uuid4()}"
-        now = timezone.now()
-        document_code = self.document_code or f"DOC-{uuid.uuid4().hex[:12].upper()}"
-        title = self.title or session.original_filename
-
         with transaction.atomic():
+            session = UploadSession.objects.select_for_update().get(
+                public_id=self.session_public_id
+            )
+            if session.completed_at is not None:
+                raise UploadValidationFailed("Upload session already completed.")
+            if session.expires_at <= timezone.now():
+                raise UploadValidationFailed("Upload session expired.")
+            if session.uploaded_by_id != self.actor.id:
+                raise UploadValidationFailed("Upload session belongs to another user.")
+
+            policy = resolve_upload_policy(session.organization)
+            if session.declared_mime_type not in policy.allowed_mime_types:
+                raise UploadValidationFailed("MIME type not allowed.")
+            if session.size_bytes <= 0:
+                raise UploadValidationFailed("Uploaded file is empty.")
+            if session.size_bytes > policy.max_bytes:
+                raise UploadValidationFailed("Uploaded file exceeds size limit.")
+
+            object_key = f"{uuid.uuid4()}/{uuid.uuid4()}"
+            now = timezone.now()
+            document_code = self.document_code or f"DOC-{uuid.uuid4().hex[:12].upper()}"
+            title = self.title or session.original_filename
+
             file_object = FileObject.objects.create(
                 organization=session.organization,
                 storage_backend=StorageBackend.NAS_NFS,

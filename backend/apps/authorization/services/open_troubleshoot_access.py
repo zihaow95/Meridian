@@ -11,9 +11,22 @@ from django.db import transaction
 from apps.audit.models import AuditResult
 from apps.audit.services.append_event import AuditRecord, append_event
 from apps.audit.services.snapshots import acting_roles_snapshot
+from apps.authorization.context import (
+    AuthorizationContext,
+    AuthorizationDecision,
+    ResourceDescriptor,
+)
 from apps.authorization.models.troubleshoot import TroubleshootAccess, TroubleshootAccessStatus
+from apps.authorization.policies.engine import authorize
+from apps.authorization.services.subject import subject_for
 from apps.identity.models.user import User
 from apps.platform.application.command import CommandContext
+
+
+class TroubleshootAccessDenied(Exception):
+    def __init__(self, decision: AuthorizationDecision) -> None:
+        self.decision = decision
+        super().__init__(decision.reason_code)
 
 
 @dataclass(frozen=True)
@@ -30,6 +43,19 @@ class OpenTroubleshootAccess:
     def execute(self) -> TroubleshootAccess:
         now = self.context.occurred_at
         with transaction.atomic():
+            decision = authorize(
+                subject_for(self.context.actor),
+                action="authorization.troubleshoot.open",
+                resource=ResourceDescriptor(
+                    resource_type="authorization.troubleshoot_access",
+                    public_id=None,
+                    organization_id=self.context.actor.organization_id,
+                ),
+                context=AuthorizationContext.current(),
+            )
+            if not decision.allowed:
+                raise TroubleshootAccessDenied(decision)
+
             access = TroubleshootAccess.objects.create(
                 user=self.user,
                 opened_by=self.context.actor,
@@ -45,7 +71,7 @@ class OpenTroubleshootAccess:
             append_event(
                 AuditRecord(
                     actor=self.context.actor,
-                    action_code="troubleshoot_access.open",
+                    action_code="authorization.troubleshoot.open",
                     resource_type="authorization.troubleshoot_access",
                     resource_public_id=access.public_id,
                     result=AuditResult.SUCCESS,
