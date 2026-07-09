@@ -16,6 +16,7 @@ from apps.opportunities.api.deferred import (
     DeferredItemDetailView,
     DeferredQuarterlyReviewView,
 )
+from apps.opportunities.api.lifecycle_board import LifecycleBoardView
 from apps.opportunities.api.opportunities import (
     OpportunityCollectionView,
     OpportunityDetailView,
@@ -107,5 +108,10 @@ urlpatterns = [
         "opportunity-pool",
         OpportunityPoolView.as_view(),
         name="opportunity-pool",
+    ),
+    path(
+        "lifecycle-board",
+        LifecycleBoardView.as_view(),
+        name="lifecycle-board",
     ),
 ]

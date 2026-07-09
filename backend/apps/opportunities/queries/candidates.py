@@ -5,6 +5,17 @@ from __future__ import annotations
 from typing import Any
 
 from apps.opportunities.models import CaseAssessment, ProjectCandidate
+from apps.stage_gates.models import GateStatus, StageGateInstance, SubjectType
+
+
+def _active_stage_gate_public_id(candidate: ProjectCandidate) -> str | None:
+    gate = StageGateInstance.objects.filter(
+        organization_id=candidate.organization_id,
+        subject_type=SubjectType.PROJECT_CANDIDATE,
+        subject_public_id=candidate.public_id,
+        status=GateStatus.OPEN,
+    ).first()
+    return str(gate.public_id) if gate is not None else None
 
 
 def serialize_assessment(assessment: CaseAssessment) -> dict[str, Any]:
@@ -34,6 +45,7 @@ def serialize_candidate_detail(candidate: ProjectCandidate) -> dict[str, Any]:
         "deputy_leader_public_id": (str(deputy_leader.public_id) if deputy_leader else None),
         "proposed_schedule": candidate.proposed_schedule,
         "resource_risk_summary": candidate.resource_risk_summary,
+        "active_stage_gate_public_id": _active_stage_gate_public_id(candidate),
         "assessments": [
             serialize_assessment(item)
             for item in candidate.assessments.all().order_by("category_code")

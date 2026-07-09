@@ -16,12 +16,30 @@ from apps.authorization.models.role import (
     RolePermission,
     RoleType,
 )
+from apps.configuration.models import (
+    ConfigurationDefinition,
+    ConfigurationStatus,
+    ConfigurationVersion,
+)
 from apps.identity.models.organization import Organization
 from apps.identity.models.user import User, UserStatus
 from apps.notifications.models import Todo, TodoStatus
+from apps.opportunities.services.configuration import OPPORTUNITY_RULE_DEFINITION_CODE
 
 E2E_LOGIN_KEY = "e2e-active-user"
 E2E_ORG_NAME = "E2E Organization"
+
+_PHASE2_ACTIONS: tuple[tuple[str, str, str], ...] = (
+    ("opportunity.create", "opportunity", "PROPOSER"),
+    ("opportunity.edit", "opportunity", "PROPOSER"),
+    ("opportunity.submit", "opportunity", "PROPOSER"),
+    ("opportunity.full.read", "opportunity", "PRODUCT_MANAGER"),
+    ("major_gate.management_conclusion.record", "stage_gate", "BOSS"),
+    ("major_gate.final_decision.record", "stage_gate", "BOSS"),
+    ("candidate.leadership.assign", "project_candidate", "PRODUCT_DIRECTOR"),
+    ("candidate.assessment.edit", "project_candidate", "PRODUCT_DIRECTOR"),
+    ("candidate.submit_review", "project_candidate", "PRODUCT_DIRECTOR"),
+)
 
 
 class Command(BaseCommand):
@@ -47,6 +65,9 @@ class Command(BaseCommand):
 
         self._grant_action(user, "notification.todo.read", "notification.todo")
         self._grant_action(user, "configuration.version.read", "configuration.version")
+        for action_code, resource_type, role_code in _PHASE2_ACTIONS:
+            self._grant_action(user, action_code, resource_type, role_code=role_code)
+        self._publish_opportunity_rules(organization, user)
 
         source_id = uuid4()
         Todo.objects.update_or_create(
@@ -66,7 +87,14 @@ class Command(BaseCommand):
 
         self.stdout.write(self.style.SUCCESS(f"E2E user ready: login_key={E2E_LOGIN_KEY}"))
 
-    def _grant_action(self, user: User, action_code: str, resource_type: str) -> None:
+    def _grant_action(
+        self,
+        user: User,
+        action_code: str,
+        resource_type: str,
+        *,
+        role_code: str | None = None,
+    ) -> None:
         action, _ = PermissionAction.objects.get_or_create(
             action_code=action_code,
             defaults={
@@ -74,8 +102,9 @@ class Command(BaseCommand):
                 "action_category": ActionCategory.READ,
             },
         )
+        code = role_code or f"E2E_{action_code.replace('.', '_').upper()}"
         role, _ = Role.objects.get_or_create(
-            role_code=f"E2E_{action_code.replace('.', '_').upper()}",
+            role_code=code,
             defaults={
                 "name": f"E2E {action_code}",
                 "role_type": RoleType.PLATFORM,
@@ -96,5 +125,33 @@ class Command(BaseCommand):
                 "scope_type": ScopeType.ORGANIZATION,
                 "effective_from": timezone.now(),
                 "configured_by": user,
+            },
+        )
+
+    def _publish_opportunity_rules(self, organization: Organization, actor: User) -> None:
+        definition, _ = ConfigurationDefinition.objects.get_or_create(
+            organization=organization,
+            definition_code=OPPORTUNITY_RULE_DEFINITION_CODE,
+            defaults={"name": "Proposal rules"},
+        )
+        ConfigurationVersion.objects.update_or_create(
+            organization=organization,
+            definition=definition,
+            version_number=1,
+            defaults={
+                "status": ConfigurationStatus.PUBLISHED,
+                "content_json": {
+                    "member_limit": 8,
+                    "eligible_proposer_roles": ["PROPOSER"],
+                    "management_conclusion_roles": ["MANAGEMENT_COMMITTEE", "BOSS"],
+                    "final_decision_roles": ["BOSS"],
+                    "product_manager_roles": ["PRODUCT_MANAGER"],
+                    "case_leadership_roles": ["PRODUCT_DIRECTOR"],
+                    "quota_enforcement_mode": "WARN",
+                    "quota_minimums": {"USER": 3, "DEPARTMENT": 3},
+                },
+                "created_by": actor,
+                "published_by": actor,
+                "published_at": timezone.now(),
             },
         )
