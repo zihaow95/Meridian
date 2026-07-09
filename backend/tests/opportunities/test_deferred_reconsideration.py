@@ -8,17 +8,22 @@ import pytest
 from django.utils import timezone
 
 from apps.configuration.models import ConfigurationVersion
-from apps.identity.models.user import User
+from apps.identity.models.user import User, UserStatus
 from apps.opportunities.models import (
     CandidateSource,
     CandidateStatus,
+    DeferRecord,
+    DeferStatus,
     Opportunity,
     ProjectCandidate,
     ProposalStatus,
+    QuarterlyAction,
     SourceRole,
 )
 from apps.opportunities.services.defer_subject import DeferSubject
+from apps.opportunities.services.quarterly_review import QuarterlyReview
 from apps.opportunities.services.start_reconsideration import StartReconsideration
+from apps.platform.api.errors import PermissionDeniedError
 from apps.platform.application.command import CommandContext
 from apps.stage_gates.models import GateResult, GateStatus, StageGateInstance
 from apps.stage_gates.services.record_major_decision import RecordMajorGateDecision
@@ -73,6 +78,59 @@ def test_defer_accepts_restart_trigger_without_reason(review_cycle) -> None:
     assert record.restart_trigger == "Competitor launch evidence arrives."
     review_cycle.subject.refresh_from_db()
     assert review_cycle.subject.proposal_status == ProposalStatus.DEFERRED
+
+
+@pytest.mark.django_db
+def test_deferred_gate_decision_creates_active_defer_record(review_cycle) -> None:
+    RecordMajorGateDecision(
+        context=CommandContext.for_actor(review_cycle.final_decision_actor),
+        stage_gate_public_id=review_cycle.stage_gate.public_id,
+        management_conclusion=GateResult.DEFERRED,
+        final_decision=GateResult.DEFERRED,
+        decision_summary="Wait for channel evidence.",
+        idempotency_key="gate-defer",
+        restart_trigger="Competitor launch evidence arrives.",
+        next_review_quarter="2026Q4",
+    ).execute()
+    review_cycle.subject.refresh_from_db()
+    assert review_cycle.subject.proposal_status == ProposalStatus.DEFERRED
+    record = DeferRecord.objects.get(
+        subject_public_id=review_cycle.subject.public_id,
+        status=DeferStatus.ACTIVE,
+    )
+    assert record.stage_code == "PROPOSAL_TO_CASE"
+    assert record.restart_trigger == "Competitor launch evidence arrives."
+
+
+@pytest.mark.django_db
+def test_quarterly_update_trigger_updates_active_defer_record(
+    review_cycle,
+    grant_action,
+) -> None:
+    grant_action(review_cycle.final_decision_actor, "deferred_item.review", "opportunity")
+    record = RecordMajorGateDecision(
+        context=CommandContext.for_actor(review_cycle.final_decision_actor),
+        stage_gate_public_id=review_cycle.stage_gate.public_id,
+        management_conclusion=GateResult.DEFERRED,
+        final_decision=GateResult.DEFERRED,
+        decision_summary="Wait.",
+        idempotency_key="gate-defer-review",
+        restart_trigger="Old trigger.",
+        next_review_quarter="2026Q3",
+    ).execute()
+    assert record.final_decision == GateResult.DEFERRED
+    defer_record = DeferRecord.objects.get(subject_public_id=review_cycle.subject.public_id)
+    QuarterlyReview(
+        context=CommandContext.for_actor(review_cycle.final_decision_actor),
+        defer_record_public_id=defer_record.public_id,
+        action=QuarterlyAction.UPDATE_TRIGGER,
+        note="Updated trigger.",
+        new_restart_trigger="New trigger after channel review.",
+        new_next_review_quarter="2026Q4",
+    ).execute()
+    defer_record.refresh_from_db()
+    assert defer_record.restart_trigger == "New trigger after channel review."
+    assert defer_record.next_review_quarter == "2026Q4"
 
 
 @pytest.mark.django_db

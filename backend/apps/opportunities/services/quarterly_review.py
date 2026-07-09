@@ -31,6 +31,7 @@ from apps.opportunities.models import (
 from apps.platform.api.errors import PermissionDeniedError
 from apps.platform.application.command import CommandContext
 from apps.platform.outbox.services import OutboxMessage, register_outbox_event
+from apps.stage_gates.material_keys import open_material_key
 from apps.stage_gates.models import (
     GateMaterialReference,
     GateStatus,
@@ -131,6 +132,11 @@ class QuarterlyReview:
         if self.action == QuarterlyAction.CONTINUE_DEFERRED:
             return None
         if self.action == QuarterlyAction.UPDATE_TRIGGER:
+            if self.new_restart_trigger.strip():
+                record.restart_trigger = self.new_restart_trigger.strip()
+            if self.new_next_review_quarter.strip():
+                record.next_review_quarter = self.new_next_review_quarter.strip()
+            record.save(update_fields=["restart_trigger", "next_review_quarter"])
             return None
         if self.action == QuarterlyAction.CONVERT_TO_PASS:
             self._set_subject_status(record, passed=True)
@@ -185,6 +191,7 @@ class QuarterlyReview:
             status=GateStatus.OPEN,
             primary_material_type=MaterialType.PROPOSAL_VERSION,
             primary_material_public_id=material_public_id,
+            open_material_key=open_material_key(MaterialType.PROPOSAL_VERSION, material_public_id),
         )
         GateMaterialReference.objects.create(
             organization=opportunity.organization,

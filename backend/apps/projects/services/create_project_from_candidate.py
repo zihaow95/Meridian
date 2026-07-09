@@ -29,6 +29,7 @@ from apps.platform.outbox.services import OutboxMessage, register_outbox_event
 from apps.products.models import ProductDraft
 from apps.products.services.create_draft_from_candidate import create_product_draft
 from apps.projects.errors import ProjectCandidateNotApprovable, ProjectCreationFailed
+from apps.projects.member_keys import active_member_key
 from apps.projects.models import (
     Project,
     ProjectMember,
@@ -42,6 +43,7 @@ from apps.stage_gates.errors import (
     MajorGateMaterialChanged,
     MajorGateRoleNotConfigured,
 )
+from apps.stage_gates.material_keys import close_gate_material_lock
 from apps.stage_gates.models import (
     GateResult,
     GateStatus,
@@ -184,7 +186,8 @@ class ApproveAndCreateProject:
                 decided_at=now,
             )
             stage_gate.status = GateStatus.DECIDED
-            stage_gate.save(update_fields=["status", "updated_at"])
+            close_gate_material_lock(stage_gate)
+            stage_gate.save(update_fields=["status", "open_material_key", "updated_at"])
 
             project = self._create_project(candidate, case_owner)
             try:
@@ -303,6 +306,7 @@ class ApproveAndCreateProject:
             project=project,
             user=case_owner,
             project_role=ProjectRole.LEADER,
+            active_role_key=active_member_key(project.id, case_owner.id, ProjectRole.LEADER),
             active_from=now,
             appointed_by=actor,
         )
@@ -313,6 +317,11 @@ class ApproveAndCreateProject:
                 project=project,
                 user=deputy_leader,
                 project_role=ProjectRole.DEPUTY,
+                active_role_key=active_member_key(
+                    project.id,
+                    deputy_leader.id,
+                    ProjectRole.DEPUTY,
+                ),
                 active_from=now,
                 appointed_by=actor,
             )

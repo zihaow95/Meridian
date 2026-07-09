@@ -22,6 +22,7 @@ from apps.opportunities.models import (
     ProjectCandidate,
     ProposalStatus,
 )
+from apps.opportunities.services.defer_records import create_defer_record
 from apps.platform.api.errors import PermissionDeniedError, ValidationFailedError
 from apps.platform.application.command import CommandContext
 from apps.platform.outbox.services import OutboxMessage, register_outbox_event
@@ -75,15 +76,15 @@ class DeferSubject:
 
             self._set_subject_deferred(actor.organization_id)
 
-            record = DeferRecord.objects.create(
+            record = create_defer_record(
                 organization=actor.organization,
                 subject_type=self.subject_type,
                 subject_public_id=self.subject_public_id,
                 stage_code=self.stage_code,
                 defer_reason=self.defer_reason,
                 restart_trigger=self.restart_trigger,
-                responsible_user=responsible,
                 next_review_quarter=self.next_review_quarter,
+                responsible_user=responsible,
             )
 
             append_event(

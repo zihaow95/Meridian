@@ -54,6 +54,8 @@ class StageGateInstance(OrganizationOwnedModel):
     )
     primary_material_type = models.CharField(max_length=32, choices=MaterialType.choices)
     primary_material_public_id = models.UUIDField()
+    # MySQL cannot enforce partial unique indexes; this is set only while status=OPEN.
+    open_material_key = models.CharField(max_length=96, null=True, blank=True, unique=True)
     previous_cycle = models.ForeignKey(
         "self",
         null=True,
@@ -70,11 +72,6 @@ class StageGateInstance(OrganizationOwnedModel):
             models.UniqueConstraint(
                 fields=["subject_type", "subject_public_id", "stage_code", "cycle_number"],
                 name="stage_gates_instance_cycle_uniq",
-            ),
-            models.UniqueConstraint(
-                fields=["primary_material_type", "primary_material_public_id"],
-                condition=models.Q(status="OPEN"),
-                name="stage_gates_active_material_uniq",
             ),
         ]
         indexes = [

@@ -73,7 +73,6 @@ class ProjectCandidate(OrganizationOwnedModel):
             ),
             models.UniqueConstraint(
                 fields=["project_id"],
-                condition=models.Q(project_id__isnull=False),
                 name="opportunities_candidate_project_uniq",
             ),
         ]

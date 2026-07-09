@@ -99,6 +99,8 @@ class ProjectMember(OrganizationOwnedModel):
         related_name="project_memberships",
     )
     project_role = models.CharField(max_length=16, choices=ProjectRole.choices)
+    # MySQL cannot enforce partial unique indexes; set only for active memberships.
+    active_role_key = models.CharField(max_length=96, null=True, blank=True, unique=True)
     active_from = models.DateTimeField()
     active_to = models.DateTimeField(null=True, blank=True)
     appointed_by = models.ForeignKey(
@@ -109,13 +111,6 @@ class ProjectMember(OrganizationOwnedModel):
 
     class Meta:
         db_table = "projects_project_member"
-        constraints = [
-            models.UniqueConstraint(
-                fields=["project", "user", "project_role"],
-                condition=models.Q(active_to__isnull=True),
-                name="projects_member_active_uniq",
-            ),
-        ]
         indexes = [
             models.Index(fields=["project", "project_role"]),
             models.Index(fields=["user", "active_from"]),

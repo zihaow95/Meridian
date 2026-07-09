@@ -20,6 +20,7 @@ from apps.opportunities.services.configuration import (
     get_opportunity_rule_snapshot,
 )
 from apps.opportunities.services.create_project_candidate import create_initial_candidate
+from apps.opportunities.services.defer_records import create_defer_record
 from apps.platform.api.errors import PermissionDeniedError
 from apps.platform.application.command import CommandContext
 from apps.platform.outbox.services import OutboxMessage, register_outbox_event
@@ -30,6 +31,7 @@ from apps.stage_gates.errors import (
     MajorGateMaterialChanged,
     MajorGateRoleNotConfigured,
 )
+from apps.stage_gates.material_keys import close_gate_material_lock
 from apps.stage_gates.models import (
     GateResult,
     GateStatus,
@@ -67,6 +69,9 @@ class RecordMajorGateDecision:
     final_decision: str
     decision_summary: str
     idempotency_key: str
+    defer_reason: str = ""
+    restart_trigger: str = ""
+    next_review_quarter: str = ""
 
     def execute(self) -> MajorGateDecision:
         actor = self.context.actor
@@ -101,6 +106,19 @@ class RecordMajorGateDecision:
                 context=AuthorizationContext.current(),
             )
             if not decision.allowed:
+                raise PermissionDeniedError()
+
+            management_decision = authorize(
+                subject_for(actor),
+                action="major_gate.management_conclusion.record",
+                resource=ResourceDescriptor(
+                    resource_type="stage_gate",
+                    public_id=stage_gate.public_id,
+                    organization_id=stage_gate.organization_id,
+                ),
+                context=AuthorizationContext.current(),
+            )
+            if not management_decision.allowed:
                 raise PermissionDeniedError()
 
             existing = MajorGateDecision.objects.filter(stage_gate=stage_gate).first()
@@ -148,10 +166,33 @@ class RecordMajorGateDecision:
                 decided_at=now,
             )
 
+            close_gate_material_lock(stage_gate)
             stage_gate.status = GateStatus.DECIDED
-            stage_gate.save(update_fields=["status", "updated_at"])
+            stage_gate.save(update_fields=["status", "open_material_key", "updated_at"])
 
             self._apply_to_subject(stage_gate, subject, now)
+
+            final_result = GateResult(self.final_decision)
+            if final_result == GateResult.DEFERRED:
+                create_defer_record(
+                    organization=stage_gate.organization,
+                    subject_type=stage_gate.subject_type,
+                    subject_public_id=stage_gate.subject_public_id,
+                    stage_code=stage_gate.stage_code,
+                    defer_reason=self.defer_reason,
+                    restart_trigger=self.restart_trigger,
+                    next_review_quarter=self.next_review_quarter,
+                    last_conclusion=self.final_decision,
+                )
+                register_outbox_event(
+                    OutboxMessage(
+                        event_type="subject.deferred",
+                        aggregate_type=stage_gate.subject_type.lower(),
+                        aggregate_id=stage_gate.subject_public_id,
+                        payload={"subject_public_id": str(stage_gate.subject_public_id)},
+                        occurred_at=now,
+                    )
+                )
 
             append_event(
                 AuditRecord(

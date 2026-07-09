@@ -35,6 +35,7 @@ from apps.opportunities.models import (
 from apps.platform.api.errors import PermissionDeniedError
 from apps.platform.application.command import CommandContext
 from apps.platform.outbox.services import OutboxMessage, register_outbox_event
+from apps.stage_gates.material_keys import open_material_key
 from apps.stage_gates.models import (
     GateMaterialReference,
     GateStatus,
@@ -198,6 +199,10 @@ class SubmitProjectReview:
             status=GateStatus.OPEN,
             primary_material_type=MaterialType.CASE_ASSESSMENT,
             primary_material_public_id=candidate.public_id,
+            open_material_key=open_material_key(
+                MaterialType.CASE_ASSESSMENT,
+                candidate.public_id,
+            ),
         )
         GateMaterialReference.objects.create(
             organization=candidate.organization,

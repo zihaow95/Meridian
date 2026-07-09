@@ -32,6 +32,7 @@ from apps.opportunities.models import (
 from apps.platform.api.errors import PermissionDeniedError
 from apps.platform.application.command import CommandContext
 from apps.platform.outbox.services import OutboxMessage, register_outbox_event
+from apps.stage_gates.material_keys import open_material_key
 from apps.stage_gates.models import (
     GateMaterialReference,
     GateStatus,
@@ -120,6 +121,10 @@ class StartReconsideration:
                 primary_material_type=MaterialType.PROPOSAL_VERSION,
                 primary_material_public_id=material_public_id,
                 previous_cycle=original_cycle,
+                open_material_key=open_material_key(
+                    MaterialType.PROPOSAL_VERSION,
+                    material_public_id,
+                ),
             )
             GateMaterialReference.objects.create(
                 organization=opportunity.organization,

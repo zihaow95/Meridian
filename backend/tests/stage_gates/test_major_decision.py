@@ -4,7 +4,9 @@ from __future__ import annotations
 
 import pytest
 
+from apps.identity.models.organization import Organization
 from apps.opportunities.models import ProposalStatus
+from apps.platform.api.errors import PermissionDeniedError
 from apps.platform.application.command import CommandContext
 from apps.stage_gates.errors import MajorGateAlreadyDecided
 from apps.stage_gates.models import GateResult, GateStatus, MajorGateDecision
@@ -85,4 +87,35 @@ def test_second_distinct_decision_is_rejected(review_cycle) -> None:
             final_decision=GateResult.PASSED,
             decision_summary="Changed my mind.",
             idempotency_key="gate-2",
+        ).execute()
+
+
+@pytest.mark.django_db
+def test_gate_decision_requires_management_and_final_permissions(
+    review_cycle,
+    organization: Organization,
+    grant_action,
+) -> None:
+    from apps.identity.models.user import User, UserStatus
+
+    final_only = User.objects.create_user(
+        organization=organization,
+        display_name="Final Only",
+        status=UserStatus.ACTIVE,
+        activated_at=review_cycle.subject.updated_at,
+    )
+    grant_action(
+        final_only,
+        "major_gate.final_decision.record",
+        "stage_gate",
+        role_code="FINAL_DECISION_ONLY",
+    )
+    with pytest.raises(PermissionDeniedError):
+        RecordMajorGateDecision(
+            context=CommandContext.for_actor(final_only),
+            stage_gate_public_id=review_cycle.stage_gate.public_id,
+            management_conclusion=GateResult.APPROVED,
+            final_decision=GateResult.APPROVED,
+            decision_summary="Approved.",
+            idempotency_key="gate-perm",
         ).execute()

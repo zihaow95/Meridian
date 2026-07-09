@@ -5,12 +5,18 @@ from __future__ import annotations
 from typing import cast
 from uuid import UUID
 
+from drf_spectacular.utils import extend_schema
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.request import Request
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from apps.identity.models.user import User
+from apps.opportunities.api.schemas import (
+    DEFERRED_ITEM_SCHEMA,
+    QUARTERLY_REVIEW_REQUEST_SCHEMA,
+    QUARTERLY_REVIEW_RESPONSE_SCHEMA,
+)
 from apps.opportunities.models import DeferRecord
 from apps.opportunities.services.quarterly_review import QuarterlyReview
 from apps.platform.api.errors import ResourceNotFoundError
@@ -20,6 +26,11 @@ from apps.platform.application.command import CommandContext
 class DeferredQuarterlyReviewView(APIView):
     permission_classes = [IsAuthenticated]
 
+    @extend_schema(
+        operation_id="deferred_item_quarterly_review_create",
+        request=QUARTERLY_REVIEW_REQUEST_SCHEMA,
+        responses={200: QUARTERLY_REVIEW_RESPONSE_SCHEMA},
+    )
     def post(self, request: Request, public_id: UUID) -> Response:
         user = cast(User, request.user)
         data = request.data
@@ -43,6 +54,7 @@ class DeferredQuarterlyReviewView(APIView):
 class DeferredItemDetailView(APIView):
     permission_classes = [IsAuthenticated]
 
+    @extend_schema(operation_id="deferred_item_retrieve", responses=DEFERRED_ITEM_SCHEMA)
     def get(self, request: Request, public_id: UUID) -> Response:
         user = cast(User, request.user)
         record = DeferRecord.objects.filter(

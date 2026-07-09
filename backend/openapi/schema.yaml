@@ -161,6 +161,60 @@ paths:
       responses:
         '200':
           description: No response body
+  /api/v1/deferred-items/{public_id}:
+    get:
+      operationId: deferred_item_retrieve
+      parameters:
+      - in: path
+        name: public_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - deferred-items
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DeferredItem'
+          description: ''
+  /api/v1/deferred-items/{public_id}/quarterly-review:
+    post:
+      operationId: deferred_item_quarterly_review_create
+      parameters:
+      - in: path
+        name: public_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - deferred-items
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/QuarterlyReviewRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/QuarterlyReviewRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/QuarterlyReviewRequest'
+        required: true
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/QuarterlyReviewResponse'
+          description: ''
   /api/v1/documents/{document_public_id}/versions:
     get:
       operationId: documents_versions_retrieve
@@ -257,6 +311,20 @@ paths:
                     service: meridian-api
                   summary: ok
           description: ''
+  /api/v1/lifecycle-board:
+    get:
+      operationId: lifecycle_board_list
+      tags:
+      - lifecycle-board
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LifecycleBoardPage'
+          description: ''
   /api/v1/me:
     get:
       operationId: me_retrieve
@@ -341,6 +409,27 @@ paths:
       responses:
         '200':
           description: No response body
+  /api/v1/opportunities/{public_id}/review-cycles:
+    post:
+      operationId: opportunity_review_cycle_create
+      parameters:
+      - in: path
+        name: public_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - opportunities
+      security:
+      - cookieAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StageGateSummary'
+          description: ''
   /api/v1/opportunities/{public_id}/submit:
     post:
       operationId: opportunities_submit_create
@@ -392,6 +481,200 @@ paths:
       responses:
         '200':
           description: No response body
+  /api/v1/opportunity-pool:
+    get:
+      operationId: opportunity_pool_list
+      tags:
+      - opportunity-pool
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/product-drafts/{public_id}:
+    get:
+      operationId: product_drafts_retrieve
+      parameters:
+      - in: path
+        name: public_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - product-drafts
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/project-candidates/{public_id}:
+    get:
+      operationId: project_candidates_retrieve
+      parameters:
+      - in: path
+        name: public_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - project-candidates
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/project-candidates/{public_id}/assessments/{category_code}:
+    patch:
+      operationId: project_candidates_assessments_partial_update
+      parameters:
+      - in: path
+        name: category_code
+        schema:
+          type: string
+        required: true
+      - in: path
+        name: public_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - project-candidates
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/project-candidates/{public_id}/leadership:
+    post:
+      operationId: project_candidates_leadership_create
+      parameters:
+      - in: path
+        name: public_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - project-candidates
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/project-candidates/{public_id}/sources:
+    post:
+      operationId: project_candidates_sources_create
+      parameters:
+      - in: path
+        name: public_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - project-candidates
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/project-candidates/{public_id}/split:
+    post:
+      operationId: project_candidates_split_create
+      parameters:
+      - in: path
+        name: public_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - project-candidates
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/project-candidates/{public_id}/submit-review:
+    post:
+      operationId: project_candidates_submit_review_create
+      parameters:
+      - in: path
+        name: public_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - project-candidates
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/projects/{public_id}:
+    get:
+      operationId: projects_retrieve
+      parameters:
+      - in: path
+        name: public_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - projects
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/reconsiderations:
+    post:
+      operationId: reconsiderations_create
+      tags:
+      - reconsiderations
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/stage-gates/{public_id}/major-decision:
+    post:
+      operationId: stage_gate_major_decision_create
+      parameters:
+      - in: path
+        name: public_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - stage-gates
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MajorGateDecisionRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/MajorGateDecisionRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/MajorGateDecisionRequest'
+        required: true
+      security:
+      - cookieAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MajorGateDecisionResponse'
+          description: ''
   /api/v1/todos/my:
     get:
       operationId: todos_my_retrieve
@@ -404,6 +687,34 @@ paths:
           description: No response body
 components:
   schemas:
+    DeferredItem:
+      type: object
+      properties:
+        public_id:
+          type: string
+        subject_type:
+          type: string
+        subject_public_id:
+          type: string
+        stage_code:
+          type: string
+        defer_reason:
+          type: string
+        restart_trigger:
+          type: string
+        next_review_quarter:
+          type: string
+        status:
+          type: string
+      required:
+      - defer_reason
+      - next_review_quarter
+      - public_id
+      - restart_trigger
+      - stage_code
+      - status
+      - subject_public_id
+      - subject_type
     HealthResponse:
       type: object
       properties:
@@ -414,6 +725,105 @@ components:
       required:
       - service
       - status
+    LifecycleBoardItem:
+      type: object
+      properties:
+        item_type:
+          type: string
+        public_id:
+          type: string
+        business_no:
+          type: string
+        title:
+          type: string
+        lifecycle_stage:
+          type: string
+        status:
+          type: string
+        owner_public_id:
+          type: string
+        owner_display_name:
+          type: string
+        candidate_public_id:
+          type: string
+          nullable: true
+        updated_at:
+          type: string
+      required:
+      - business_no
+      - candidate_public_id
+      - item_type
+      - lifecycle_stage
+      - owner_display_name
+      - owner_public_id
+      - public_id
+      - status
+      - title
+      - updated_at
+    LifecycleBoardPage:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/LifecycleBoardItem'
+        page:
+          type: integer
+        page_size:
+          type: integer
+        total_count:
+          type: integer
+        has_more:
+          type: boolean
+      required:
+      - has_more
+      - items
+      - page
+      - page_size
+      - total_count
+    MajorGateDecisionRequest:
+      type: object
+      properties:
+        management_conclusion:
+          type: string
+        final_decision:
+          type: string
+        decision_summary:
+          type: string
+        idempotency_key:
+          type: string
+        defer_reason:
+          type: string
+        restart_trigger:
+          type: string
+        next_review_quarter:
+          type: string
+      required:
+      - final_decision
+      - idempotency_key
+      - management_conclusion
+    MajorGateDecisionResponse:
+      type: object
+      properties:
+        public_id:
+          type: string
+        stage_gate_public_id:
+          type: string
+        management_conclusion:
+          type: string
+        final_decision:
+          type: string
+        has_conclusion_difference:
+          type: boolean
+        decision_summary:
+          type: string
+      required:
+      - decision_summary
+      - final_decision
+      - has_conclusion_difference
+      - management_conclusion
+      - public_id
+      - stage_gate_public_id
     MeResponse:
       type: object
       properties:
@@ -428,6 +838,54 @@ components:
       - display_name
       - public_id
       - status
+    QuarterlyReviewRequest:
+      type: object
+      properties:
+        action:
+          type: string
+        note:
+          type: string
+        new_restart_trigger:
+          type: string
+        new_next_review_quarter:
+          type: string
+      required:
+      - action
+    QuarterlyReviewResponse:
+      type: object
+      properties:
+        public_id:
+          type: string
+        action:
+          type: string
+        defer_record_public_id:
+          type: string
+      required:
+      - action
+      - defer_record_public_id
+      - public_id
+    StageGateSummary:
+      type: object
+      properties:
+        public_id:
+          type: string
+        stage_code:
+          type: string
+        cycle_number:
+          type: integer
+        status:
+          type: string
+        subject_type:
+          type: string
+        subject_public_id:
+          type: string
+      required:
+      - cycle_number
+      - public_id
+      - stage_code
+      - status
+      - subject_public_id
+      - subject_type
   securitySchemes:
     cookieAuth:
       type: apiKey
