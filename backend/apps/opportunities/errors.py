@@ -47,6 +47,12 @@ class ProposalNotWithdrawable(ApiError):
     status_code = 409
 
 
+class OpportunityMemberInvitationInvalid(ApiError):
+    code = "OPPORTUNITY_MEMBER_INVITATION_INVALID"
+    message = "No pending invitation exists for this user on the opportunity."
+    status_code = 404
+
+
 class CandidateVersionConflict(ApiError):
     code = "CANDIDATE_VERSION_CONFLICT"
     message = "The project candidate was updated by another operation."

@@ -466,6 +466,48 @@ paths:
               schema:
                 $ref: '#/components/schemas/MemberInvitationResponse'
           description: ''
+  /api/v1/opportunities/{public_id}/members/invitations/accept:
+    post:
+      operationId: opportunity_member_invitation_accept_create
+      parameters:
+      - in: path
+        name: public_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - opportunities
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MemberInvitationResponse'
+          description: ''
+  /api/v1/opportunities/{public_id}/members/invitations/decline:
+    post:
+      operationId: opportunity_member_invitation_decline_create
+      parameters:
+      - in: path
+        name: public_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - opportunities
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MemberInvitationResponse'
+          description: ''
   /api/v1/opportunities/{public_id}/review-cycles:
     post:
       operationId: opportunity_review_cycle_create
@@ -825,6 +867,20 @@ paths:
               schema:
                 $ref: '#/components/schemas/ProjectDetail'
           description: ''
+  /api/v1/proposal-quotas/current:
+    get:
+      operationId: proposal_quotas_current_retrieve
+      tags:
+      - proposal-quotas
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CurrentProposalQuota'
+          description: ''
   /api/v1/reconsiderations:
     post:
       operationId: reconsideration_create
@@ -944,6 +1000,34 @@ components:
             type: string
       required:
       - opportunity_public_ids
+    CurrentProposalQuota:
+      type: object
+      properties:
+        quarter:
+          type: string
+        owner_type:
+          type: string
+        owner_public_id:
+          type: string
+        counted_submissions:
+          type: integer
+        minimum_count:
+          type: integer
+        enforcement_mode:
+          type: string
+        is_below_minimum:
+          type: boolean
+        deficit:
+          type: integer
+      required:
+      - counted_submissions
+      - deficit
+      - enforcement_mode
+      - is_below_minimum
+      - minimum_count
+      - owner_public_id
+      - owner_type
+      - quarter
     DeferredItem:
       type: object
       properties:

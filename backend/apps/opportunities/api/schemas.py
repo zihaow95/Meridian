@@ -337,6 +337,20 @@ MEMBER_INVITATION_RESPONSE_SCHEMA = inline_serializer(
     },
 )
 
+CURRENT_PROPOSAL_QUOTA_SCHEMA = inline_serializer(
+    name="CurrentProposalQuota",
+    fields={
+        "quarter": serializers.CharField(),
+        "owner_type": serializers.CharField(),
+        "owner_public_id": serializers.CharField(),
+        "counted_submissions": serializers.IntegerField(),
+        "minimum_count": serializers.IntegerField(),
+        "enforcement_mode": serializers.CharField(),
+        "is_below_minimum": serializers.BooleanField(),
+        "deficit": serializers.IntegerField(),
+    },
+)
+
 SUBMIT_PROPOSAL_REQUEST_SCHEMA = inline_serializer(
     name="SubmitProposalRequest",
     fields={

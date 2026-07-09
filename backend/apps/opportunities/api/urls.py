@@ -20,12 +20,15 @@ from apps.opportunities.api.lifecycle_board import LifecycleBoardView
 from apps.opportunities.api.opportunities import (
     OpportunityCollectionView,
     OpportunityDetailView,
+    OpportunityMemberInvitationAcceptView,
+    OpportunityMemberInvitationDeclineView,
     OpportunityMemberInvitationView,
     OpportunityPoolView,
     OpportunitySubmitView,
     OpportunityVersionsView,
     OpportunityWithdrawView,
 )
+from apps.opportunities.api.proposal_quotas import CurrentProposalQuotaView
 from apps.opportunities.api.reconsiderations import ReconsiderationCollectionView
 
 urlpatterns = [
@@ -43,6 +46,16 @@ urlpatterns = [
         "opportunities/<uuid:public_id>/members/invitations",
         OpportunityMemberInvitationView.as_view(),
         name="opportunity-member-invitations",
+    ),
+    path(
+        "opportunities/<uuid:public_id>/members/invitations/accept",
+        OpportunityMemberInvitationAcceptView.as_view(),
+        name="opportunity-member-invitation-accept",
+    ),
+    path(
+        "opportunities/<uuid:public_id>/members/invitations/decline",
+        OpportunityMemberInvitationDeclineView.as_view(),
+        name="opportunity-member-invitation-decline",
     ),
     path(
         "opportunities/<uuid:public_id>/submit",
@@ -108,6 +121,11 @@ urlpatterns = [
         "opportunity-pool",
         OpportunityPoolView.as_view(),
         name="opportunity-pool",
+    ),
+    path(
+        "proposal-quotas/current",
+        CurrentProposalQuotaView.as_view(),
+        name="proposal-quotas-current",
     ),
     path(
         "lifecycle-board",

@@ -2,17 +2,17 @@
 
 日期：2026-07-09
 
-状态：已通过本地验收（Task 2.8/2.9 代码待合入提交）
+状态：已通过（PR #7 合入；OPP-002/003 闭环补全待提交）
 
 对应计划：`docs/superpowers/plans/2026-07-08-phase-2-opportunity-to-project.md`
 
 对应测试矩阵：`docs/implementation/phase-2-test-matrix.md`
 
-分支：`codex/phase-2-opportunity-to-project`
+分支：`main`（`bde6052`）
 
 ## 已交付能力概览
 
-- **提案工作流**：创建草稿、四项核心内容校验、提交/撤回、版本链、成员邀请、额度账（WARN 模式）
+- **提案工作流**：创建草稿、四项核心内容校验、提交/撤回、版本链、成员邀请/接受/拒绝、额度账与 `GET /proposal-quotas/current`（WARN 模式）
 - **重大阶段门**：`PROPOSAL_TO_CASE`、`CASE_TO_PROJECT`；经管会结论与老板最终决策可差异记录
 - **拟立项方案**：负责人任命、八类 `CaseAssessment`、提交立项评审、合并/拆分、来源重确认
 - **暂缓/复议**：`DeferRecord`、季度回看、`Reconsideration`、候选机会池查询
@@ -20,24 +20,24 @@
 - **前端最小闭环**：我的提案、新建/工作台、重大决策页、候选池、生命周期看板首版
 - **验收**：`test_opportunity_to_project.py` 串联 API；Playwright `opportunity-to-project.spec.ts` 串联 UI + 阶段门
 
-## 提交记录（阶段2 后端主线，截至文档日）
+## 提交记录（阶段2，已合入 main）
 
 ```text
+bde6052 Merge pull request #7 from zihaow95/codex/phase-2-opportunity-to-project
+6a9174e style: fix ruff format check in project creation test
+cad234a fix: pass phase 2 quality gates and OpenAPI contracts
+b39213a docs: close phase 2 checkpoint and test matrix
+61473a2 fix: close phase 2 defer, constraint, and permission gaps
+29ad327 test: add phase 2 opportunity-to-project acceptance
+3591920 feat: add opportunity workflow UI
 fa784bb feat: create project and product draft atomically
-7cc6133 feat: add deferred reconsideration and candidate source flows
-6b06125 feat: add project candidate assessment workflow
-b276bcd feat: add proposal major stage gate
-36a3d6f feat: add proposal submission workflow
-25e2393 feat: add opportunity object identity and rule configuration
-353051b feat: add opportunity proposal and quota models
-7a4b6b5 feat: add phase 2 opportunity authorization actions
-5e77e47 docs: establish phase 2 execution baseline
+…（更早阶段2后端提交见 PR #7 完整历史）
 ```
 
-待合入（工作区已验收、尚未提交）：
+PR #7 合入后补全（本工作区待提交）：
 
-- Task 2.8：`feat: add opportunity workflow UI`（前端模块、路由、OpenAPI 类型）
-- Task 2.9：`test: add phase 2 opportunity to project acceptance`（生命周期看板 API、验收测试、E2E、`check.ps1`）
+- `AcceptOpportunityMember` / `DeclineOpportunityMember` + API + `test_member_invitation.py`
+- `GET /api/v1/proposal-quotas/current` + 前端 `ProposalQuotaPanel` 接真实数据 + `test_proposal_quota_api.py`
 
 ## 阶段2 补救（2026-07-09）
 
@@ -49,15 +49,15 @@ b276bcd feat: add proposal major stage gate
 | P1 MySQL 唯一约束 | `open_material_key`、`project_id`（无条件唯一）、`active_role_key` 替代条件唯一 | 迁移 `stage_gates/0002`、`opportunities/0004`、`projects/0002`；`test_material_uniqueness.py` |
 | P1 阶段门权限 | 同时校验 `major_gate.management_conclusion.record` 与 `major_gate.final_decision.record` | `test_gate_decision_requires_management_and_final_permissions` |
 | P2 季度回看 UPDATE_TRIGGER | `_apply_action` 更新活动 `DeferRecord.restart_trigger` / `next_review_quarter` | `test_quarterly_update_trigger_updates_active_defer_record` |
-| P2 OpenAPI（部分） | 生命周期看板、重大决策、暂缓池 API 补 `extend_schema` / inline serializer | `openapi/schema.yaml` 含 `LifecycleBoardPage`；前端 `schema.d.ts` 已再生成 |
+| P2 OpenAPI（部分） | 生命周期看板、重大决策、暂缓池、提案/候选/额度等 API 补 `extend_schema` | `openapi/schema.yaml`；阶段一平台 API 仍有约 68 条推断警告 |
 
-**仍待后续**：其余阶段二 API（提案/候选 CRUD 等）的 serializer 推断警告（约 137 条）；`spectacular --validate` 尚未作为硬失败门禁。
+**仍待后续**：阶段一平台 API serializer 推断警告；`spectacular --validate` 错误数尚未作为硬失败门禁。
 
 ## 数据库迁移（阶段2 新增）
 
 | 应用 | 迁移 |
 |---|---|
-| `opportunities` | `0001_initial`, `0002_…`, `0003_…`, `0004_remove_projectcandidate_opportunities_candidate_project_uniq_and_more` |
+| `opportunities` | `0001_initial` … `0005_remove_opportunitymember_opportunities_member_active_uniq_and_more` |
 | `stage_gates` | `0001_initial`, `0002_remove_stagegateinstance_stage_gates_active_material_uniq_and_more` |
 | `projects` | `0001_initial`, `0002_remove_projectmember_projects_member_active_uniq_and_more` |
 | `products` | `0001_initial`, `0002_initial` |
@@ -68,7 +68,7 @@ b276bcd feat: add proposal major stage gate
 scripts/preflight.ps1                          — 通过
 scripts/verify-trd.ps1                         — 通过（6 份 TRD、92 项需求、4 个重大阶段门）
 backend: ruff / mypy / pytest (MySQL, 阶段2+补救) — 55+ passed（opportunities/stage_gates/acceptance/projects）
-backend: OpenAPI spectacular --validate        — schema 已再生成；阶段二关键端点有响应体；全量 serializer 推断警告仍为非阻塞
+backend: OpenAPI spectacular --validate        — 阶段二关键端点有响应体；阶段一平台 API 约 68 条推断警告仍为非阻塞
 frontend: eslint / vue-tsc / vitest            — 16 passed
 tests/e2e/opportunity-to-project.spec.ts       — 通过（开发登录 + 两次阶段门 + 看板）
 tests/e2e/platform-kernel.spec.ts              — 未在本轮重跑（仍由 check.ps1 覆盖）
@@ -91,8 +91,8 @@ CI：`.github/workflows/ci.yml`（push/PR 触发；阶段2 E2E 纳入 `e2e` job 
 
 - **产品**：仅 `ProductAsset`/`ProductDraft` 壳层，无完整产品档案发布（阶段3）
 - **项目执行**：无 D1-L3 模板、`work_items`、任务依赖与交付物专业确认（阶段4）
-- **额度 API**：前端 `ProposalQuotaPanel` 为静态提示；`GET /proposal-quotas/current` 未实现
-- **工作台**：成员、评估、文件、来源关系的完整 UI 为占位说明
+- **额度 API**：`GET /proposal-quotas/current` 已提供当前用户季度统计；部门额度查询与 BLOCK 模式前端提示留后续
+- **成员协作 UI**：工作台尚未提供邀请接受/拒绝操作入口（API 已就绪）
 - **钉钉**：开发登录 + 假网关；真实企业验收留阶段6
 - **经营/上市/退市**：`FIRST_LAUNCH`、`PRODUCT_RETIREMENT`、经营看板留后续阶段
 

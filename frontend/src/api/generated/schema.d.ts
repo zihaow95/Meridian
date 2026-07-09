@@ -407,6 +407,38 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/opportunities/{public_id}/members/invitations/accept": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["opportunity_member_invitation_accept_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/opportunities/{public_id}/members/invitations/decline": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["opportunity_member_invitation_decline_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/opportunities/{public_id}/review-cycles": {
         parameters: {
             query?: never;
@@ -615,6 +647,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/proposal-quotas/current": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["proposal_quotas_current_retrieve"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/reconsiderations": {
         parameters: {
             query?: never;
@@ -684,6 +732,16 @@ export interface components {
         };
         CombineSourcesRequest: {
             opportunity_public_ids: string[];
+        };
+        CurrentProposalQuota: {
+            quarter: string;
+            owner_type: string;
+            owner_public_id: string;
+            counted_submissions: number;
+            minimum_count: number;
+            enforcement_mode: string;
+            is_below_minimum: boolean;
+            deficit: number;
         };
         DeferredItem: {
             public_id: string;
@@ -1483,6 +1541,48 @@ export interface operations {
             };
         };
     };
+    opportunity_member_invitation_accept_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                public_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MemberInvitationResponse"];
+                };
+            };
+        };
+    };
+    opportunity_member_invitation_decline_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                public_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MemberInvitationResponse"];
+                };
+            };
+        };
+    };
     opportunity_review_cycle_create: {
         parameters: {
             query?: never;
@@ -1793,6 +1893,25 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ProjectDetail"];
+                };
+            };
+        };
+    };
+    proposal_quotas_current_retrieve: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CurrentProposalQuota"];
                 };
             };
         };
