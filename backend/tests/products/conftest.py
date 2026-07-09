@@ -16,6 +16,9 @@ from apps.identity.models.organization import Organization
 from apps.identity.models.user import User, UserStatus
 from apps.opportunities.models import ProjectCandidate
 from apps.opportunities.services.configuration import OPPORTUNITY_RULE_DEFINITION_CODE
+from apps.platform.application.command import CommandContext
+from apps.projects.models import Project
+from apps.projects.services.create_project_from_candidate import ApproveAndCreateProject
 from tests.opportunities.factories import build_approval_ready_candidate
 
 
@@ -99,4 +102,17 @@ def approved_candidate(
         product_manager=product_manager,
         product_director=product_director,
         business_no="DRAFT",
+    )
+
+
+@pytest.fixture
+def project(approved_candidate: ProjectCandidate, boss: User) -> Project:
+    return (
+        ApproveAndCreateProject(
+            context=CommandContext.for_actor(boss),
+            candidate_public_id=approved_candidate.public_id,
+            idempotency_key="product-permissions",
+        )
+        .execute()
+        .project
     )
