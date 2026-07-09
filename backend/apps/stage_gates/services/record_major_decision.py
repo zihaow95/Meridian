@@ -14,7 +14,7 @@ from apps.audit.services.snapshots import acting_roles_snapshot
 from apps.authorization.context import AuthorizationContext, ResourceDescriptor
 from apps.authorization.policies.engine import authorize
 from apps.authorization.services.subject import subject_for
-from apps.opportunities.models import Opportunity, ProposalStatus
+from apps.opportunities.models import CandidateStatus, Opportunity, ProjectCandidate, ProposalStatus
 from apps.opportunities.services.configuration import (
     OpportunityRuleConfigurationMissing,
     get_opportunity_rule_snapshot,
@@ -23,6 +23,7 @@ from apps.opportunities.services.create_project_candidate import create_initial_
 from apps.platform.api.errors import PermissionDeniedError
 from apps.platform.application.command import CommandContext
 from apps.platform.outbox.services import OutboxMessage, register_outbox_event
+from apps.projects.services.create_project_from_candidate import ApproveAndCreateProject
 from apps.stage_gates.errors import (
     MajorGateAlreadyDecided,
     MajorGateConclusionRequired,
@@ -48,6 +49,14 @@ _PROPOSAL_STATUS_BY_RESULT = {
 
 # Final decisions that move a proposal into case and spawn a project candidate.
 _APPROVING_RESULTS = frozenset({GateResult.APPROVED, GateResult.APPROVED_WITH_EXCEPTION})
+
+_CANDIDATE_STATUS_BY_RESULT = {
+    GateResult.APPROVED: CandidateStatus.PROJECT_CREATED,
+    GateResult.APPROVED_WITH_EXCEPTION: CandidateStatus.PROJECT_CREATED,
+    GateResult.NEEDS_INFO: CandidateStatus.NEEDS_INFO,
+    GateResult.DEFERRED: CandidateStatus.DEFERRED,
+    GateResult.PASSED: CandidateStatus.PASSED,
+}
 
 
 @dataclass
@@ -112,6 +121,20 @@ class RecordMajorGateDecision:
             subject = self._locked_subject(stage_gate)
             self._assert_material_unchanged(stage_gate, subject)
 
+            if (
+                stage_gate.subject_type == SubjectType.PROJECT_CANDIDATE
+                and GateResult(self.final_decision) in _APPROVING_RESULTS
+            ):
+                result = ApproveAndCreateProject(
+                    context=self.context,
+                    candidate_public_id=stage_gate.subject_public_id,
+                    idempotency_key=self.idempotency_key,
+                    management_conclusion=self.management_conclusion,
+                    final_decision=self.final_decision,
+                    decision_summary=self.decision_summary,
+                ).execute()
+                return result.gate_decision
+
             gate_decision = MajorGateDecision.objects.create(
                 organization=stage_gate.organization,
                 stage_gate=stage_gate,
@@ -163,10 +186,23 @@ class RecordMajorGateDecision:
 
         return gate_decision
 
-    def _locked_subject(self, stage_gate: StageGateInstance) -> Opportunity:
+    def _locked_subject(self, stage_gate: StageGateInstance) -> Opportunity | ProjectCandidate:
+        if stage_gate.subject_type == SubjectType.PROJECT_CANDIDATE:
+            subject = (
+                ProjectCandidate.objects.select_for_update()
+                .filter(
+                    public_id=stage_gate.subject_public_id,
+                    organization_id=stage_gate.organization_id,
+                )
+                .first()
+            )
+            if subject is None:
+                raise MajorGateMaterialChanged()
+            return subject
+
         if stage_gate.subject_type != SubjectType.OPPORTUNITY:
             raise MajorGateMaterialChanged()
-        subject = (
+        opportunity = (
             Opportunity.objects.select_for_update()
             .select_related("current_version")
             .filter(
@@ -175,23 +211,40 @@ class RecordMajorGateDecision:
             )
             .first()
         )
-        if subject is None:
+        if opportunity is None:
             raise MajorGateMaterialChanged()
-        return subject
+        return opportunity
 
     def _assert_material_unchanged(
-        self, stage_gate: StageGateInstance, subject: Opportunity
+        self, stage_gate: StageGateInstance, subject: Opportunity | ProjectCandidate
     ) -> None:
+        if stage_gate.subject_type == SubjectType.PROJECT_CANDIDATE:
+            if stage_gate.primary_material_type != MaterialType.CASE_ASSESSMENT:
+                raise MajorGateMaterialChanged()
+            if not isinstance(subject, ProjectCandidate):
+                raise MajorGateMaterialChanged()
+            if stage_gate.primary_material_public_id != subject.public_id:
+                raise MajorGateMaterialChanged()
+            return
+
         if stage_gate.primary_material_type != MaterialType.PROPOSAL_VERSION:
             return
+        if not isinstance(subject, Opportunity):
+            raise MajorGateMaterialChanged()
         version = subject.current_version
         if version is None or version.public_id != stage_gate.primary_material_public_id:
             raise MajorGateMaterialChanged()
 
     def _apply_to_subject(
-        self, stage_gate: StageGateInstance, subject: Opportunity, now: datetime
+        self, stage_gate: StageGateInstance, subject: Opportunity | ProjectCandidate, now: datetime
     ) -> None:
         result = GateResult(self.final_decision)
+        if isinstance(subject, ProjectCandidate):
+            subject.status = _CANDIDATE_STATUS_BY_RESULT[result]
+            subject.version_no += 1
+            subject.save(update_fields=["status", "version_no", "updated_at"])
+            return
+
         subject.proposal_status = _PROPOSAL_STATUS_BY_RESULT[result]
         subject.version_no += 1
         subject.save(update_fields=["proposal_status", "version_no", "updated_at"])

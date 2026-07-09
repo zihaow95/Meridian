@@ -18,6 +18,7 @@ from apps.identity.models.organization import Organization
 from apps.identity.models.user import User, UserStatus
 from apps.opportunities.models import (
     Opportunity,
+    ProjectCandidate,
     ProposalStatus,
     ProposalVersion,
     ProposalVersionStatus,
@@ -190,3 +191,50 @@ def product_director(another_active_user: User, grant_action: Callable[..., None
         role_code="PRODUCT_DIRECTOR",
     )
     return another_active_user
+
+
+@pytest.fixture
+def boss(another_active_user: User, grant_action: Callable[..., None]) -> User:
+    grant_action(
+        another_active_user,
+        "major_gate.final_decision.record",
+        "stage_gate",
+        role_code="BOSS",
+    )
+    return another_active_user
+
+
+@pytest.fixture
+def approved_candidate(
+    organization: Organization,
+    product_manager: User,
+    product_director: User,
+    boss: User,
+    opportunity_rules: ConfigurationVersion,
+) -> ProjectCandidate:
+    from tests.opportunities.factories import build_approval_ready_candidate
+
+    return build_approval_ready_candidate(
+        organization=organization,
+        product_manager=product_manager,
+        product_director=product_director,
+        business_no="APPROVE",
+    )
+
+
+@pytest.fixture
+def rollback_candidate(
+    organization: Organization,
+    product_manager: User,
+    product_director: User,
+    boss: User,
+    opportunity_rules: ConfigurationVersion,
+) -> ProjectCandidate:
+    from tests.opportunities.factories import build_approval_ready_candidate
+
+    return build_approval_ready_candidate(
+        organization=organization,
+        product_manager=product_manager,
+        product_director=product_director,
+        business_no="ROLLBACK",
+    )
