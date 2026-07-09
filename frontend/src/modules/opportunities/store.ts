@@ -79,6 +79,17 @@ export type LifecycleBoardPage = {
   has_more: boolean
 }
 
+export type ProposalQuota = {
+  quarter: string
+  owner_type: string
+  owner_public_id: string
+  counted_submissions: number
+  minimum_count: number
+  enforcement_mode: string
+  is_below_minimum: boolean
+  deficit: number
+}
+
 export const useOpportunityStore = defineStore('opportunities', {
   state: () => ({
     items: [] as OpportunitySummary[],
@@ -125,6 +136,9 @@ export const useOpportunityStore = defineStore('opportunities', {
       } finally {
         this.loading = false
       }
+    },
+    async fetchCurrentQuota(): Promise<ProposalQuota> {
+      return apiFetch<ProposalQuota>('/api/v1/proposal-quotas/current')
     },
     async fetchLifecycleBoard(filters?: {
       lifecycle_stage?: string

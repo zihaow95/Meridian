@@ -41,7 +41,9 @@ from apps.opportunities.queries.opportunities import (
     serialize_public,
     serialize_summary,
 )
+from apps.opportunities.services.accept_member import AcceptOpportunityMember
 from apps.opportunities.services.create_draft import CreateOpportunityDraft
+from apps.opportunities.services.decline_member import DeclineOpportunityMember
 from apps.opportunities.services.invite_member import InviteOpportunityMember
 from apps.opportunities.services.submit_proposal import SubmitProposal
 from apps.opportunities.services.withdraw_proposal import WithdrawProposal
@@ -215,6 +217,50 @@ class OpportunityMemberInvitationView(APIView):
                 "invitation_status": member.invitation_status,
             },
             status=201,
+        )
+
+
+class OpportunityMemberInvitationAcceptView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    @extend_schema(
+        operation_id="opportunity_member_invitation_accept_create",
+        request=None,
+        responses={200: MEMBER_INVITATION_RESPONSE_SCHEMA},
+    )
+    def post(self, request: Request, public_id: UUID) -> Response:
+        user = cast(User, request.user)
+        member = AcceptOpportunityMember(
+            context=CommandContext.for_actor(user),
+            opportunity_public_id=public_id,
+        ).execute()
+        return Response(
+            {
+                "public_id": str(member.public_id),
+                "invitation_status": member.invitation_status,
+            }
+        )
+
+
+class OpportunityMemberInvitationDeclineView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    @extend_schema(
+        operation_id="opportunity_member_invitation_decline_create",
+        request=None,
+        responses={200: MEMBER_INVITATION_RESPONSE_SCHEMA},
+    )
+    def post(self, request: Request, public_id: UUID) -> Response:
+        user = cast(User, request.user)
+        member = DeclineOpportunityMember(
+            context=CommandContext.for_actor(user),
+            opportunity_public_id=public_id,
+        ).execute()
+        return Response(
+            {
+                "public_id": str(member.public_id),
+                "invitation_status": member.invitation_status,
+            }
         )
 
 

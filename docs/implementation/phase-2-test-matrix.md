@@ -19,8 +19,8 @@
 | 需求 | 说明 | 计划证据位置 | 状态 |
 |---|---|---|---|
 | OPP-001 | 按人工配置的资格控制正式提案提交 | `backend/tests/opportunities/test_opportunity_permissions.py`, `test_submit_proposal.py` | 已通过：`test_opportunity_permissions.py`, `test_submit_proposal.py` |
-| OPP-002 | 支持联合提案及成员协作 | `backend/tests/opportunities/test_submit_proposal.py`, `test_opportunity_api.py` | 已通过：`test_submit_proposal.py`, `test_opportunity_api.py` |
-| OPP-003 | 支持个人/部门季度额度统计 | `backend/tests/opportunities/test_quota.py` | 已通过：`test_quota.py` |
+| OPP-002 | 支持联合提案及成员协作 | `backend/tests/opportunities/test_member_invitation.py`, `test_opportunity_permissions.py`, `test_opportunity_api.py` | 已通过：`test_member_invitation.py`, `test_opportunity_permissions.py` |
+| OPP-003 | 支持个人/部门季度额度统计 | `backend/tests/opportunities/test_quota.py`, `test_proposal_quota_api.py` | 已通过：`test_quota.py`, `test_proposal_quota_api.py` |
 | OPP-004 | 强制校验四项提案核心内容 | `backend/tests/opportunities/test_submit_proposal.py` | 已通过：`test_submit_proposal.py` |
 | OPP-005 | 支持提案版本和撤回/退回 | `backend/tests/opportunities/test_opportunity_models.py`, `test_submit_proposal.py` | 已通过：`test_opportunity_models.py`, `test_submit_proposal.py` |
 | OPP-006 | 支持提案进入立案重大阶段门 | `backend/tests/stage_gates/test_major_decision.py`, `test_proposal_to_case.py` | 已通过：`test_major_decision.py`, `test_proposal_to_case.py` |
