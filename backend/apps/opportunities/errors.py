@@ -119,3 +119,45 @@ class ProjectReviewInputsMissing(ApiError):
     def __init__(self, *, missing: Iterable[str]) -> None:
         self.missing = list(missing)
         super().__init__(details={"missing": self.missing})
+
+
+class DeferInputMissing(ApiError):
+    code = "DEFER_INPUT_MISSING"
+    message = "A defer record needs at least a reason or a restart trigger."
+    status_code = 400
+
+
+class DeferRecordNotActive(ApiError):
+    code = "DEFER_RECORD_NOT_ACTIVE"
+    message = "The deferred item is no longer open for quarterly review."
+    status_code = 409
+
+
+class QuarterlyActionInvalid(ApiError):
+    code = "QUARTERLY_ACTION_INVALID"
+    message = "The quarterly review action is not recognized."
+    status_code = 400
+
+
+class SubjectNotReconsiderable(ApiError):
+    code = "SUBJECT_NOT_RECONSIDERABLE"
+    message = "Only a passed subject can be reconsidered."
+    status_code = 409
+
+
+class ReconsiderationNotAllowed(ApiError):
+    code = "RECONSIDERATION_NOT_ALLOWED"
+    message = "The initiator is not eligible to start a reconsideration."
+    status_code = 403
+
+
+class CandidateSourceNotCaseApproved(ApiError):
+    code = "CANDIDATE_SOURCE_NOT_CASE_APPROVED"
+    message = "Every source opportunity must already be approved into case."
+    status_code = 400
+
+
+class CandidateSplitInvalid(ApiError):
+    code = "CANDIDATE_SPLIT_INVALID"
+    message = "The split request must name at least one candidate."
+    status_code = 400

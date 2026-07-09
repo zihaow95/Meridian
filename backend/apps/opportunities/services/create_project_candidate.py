@@ -35,17 +35,24 @@ _CANDIDATE_TYPE_BY_INITIAL = {
 }
 
 
-def create_initial_candidate(
+def build_candidate_from_opportunity(
     *,
     opportunity: Opportunity,
     actor: User,
     now: datetime,
-    trace_id: str,
+    name: str | None = None,
+    source_role: str = SourceRole.PRIMARY,
 ) -> ProjectCandidate:
+    """Create a candidate, its source link and the eight seeded assessments.
+
+    This does not append an audit event; callers own the audit trail so the
+    action code matches the business command (create vs split).
+    """
+
     candidate = ProjectCandidate.objects.create(
         organization=opportunity.organization,
         business_no=f"PC-{uuid.uuid4().hex[:8].upper()}",
-        name=opportunity.title,
+        name=name or opportunity.title,
         candidate_type=_CANDIDATE_TYPE_BY_INITIAL.get(
             InitialType(opportunity.initial_type), CandidateType.NEW_PRODUCT
         ),
@@ -55,7 +62,7 @@ def create_initial_candidate(
         organization=opportunity.organization,
         candidate=candidate,
         opportunity=opportunity,
-        source_role=SourceRole.PRIMARY,
+        source_role=source_role,
         is_active=True,
         linked_at=now,
         linked_by=actor,
@@ -71,6 +78,17 @@ def create_initial_candidate(
             for category in CORE_ASSESSMENT_CATEGORIES
         ]
     )
+    return candidate
+
+
+def create_initial_candidate(
+    *,
+    opportunity: Opportunity,
+    actor: User,
+    now: datetime,
+    trace_id: str,
+) -> ProjectCandidate:
+    candidate = build_candidate_from_opportunity(opportunity=opportunity, actor=actor, now=now)
 
     append_event(
         AuditRecord(

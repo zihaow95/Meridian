@@ -17,6 +17,8 @@ from apps.identity.models.user import User
 from apps.opportunities.models import ProjectCandidate
 from apps.opportunities.queries.candidates import serialize_candidate_detail
 from apps.opportunities.services.assign_case_leadership import AssignCaseLeadership
+from apps.opportunities.services.combine_candidate_sources import CombineCandidateSources
+from apps.opportunities.services.split_project_candidate import SplitProjectCandidate
 from apps.opportunities.services.submit_project_review import SubmitProjectReview
 from apps.opportunities.services.update_assessment import UpdateCaseAssessment
 from apps.platform.api.errors import ResourceNotFoundError, ValidationFailedError
@@ -143,3 +145,40 @@ class ProjectCandidateSubmitReviewView(APIView):
             ),
         ).execute()
         return Response(serialize_candidate_detail(candidate))
+
+
+class ProjectCandidateSourcesView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request: Request, public_id: UUID) -> Response:
+        user = cast(User, request.user)
+        raw_ids = request.data.get("opportunity_public_ids", [])
+        if not isinstance(raw_ids, list):
+            raise ValidationFailedError(message="opportunity_public_ids must be a list.")
+        opportunity_ids = [_uuid(item, "opportunity_public_id") for item in raw_ids]
+        candidate = CombineCandidateSources(
+            context=CommandContext.for_actor(user),
+            candidate_public_id=public_id,
+            opportunity_public_ids=opportunity_ids,
+        ).execute()
+        return Response(serialize_candidate_detail(candidate))
+
+
+class ProjectCandidateSplitView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request: Request, public_id: UUID) -> Response:
+        user = cast(User, request.user)
+        raw_names = request.data.get("candidate_names", [])
+        if not isinstance(raw_names, list):
+            raise ValidationFailedError(message="candidate_names must be a list.")
+        names = [str(name) for name in raw_names if str(name).strip()]
+        created = SplitProjectCandidate(
+            context=CommandContext.for_actor(user),
+            opportunity_public_id=public_id,
+            candidate_names=names,
+        ).execute()
+        return Response(
+            [{"public_id": str(c.public_id), "name": c.name} for c in created],
+            status=201,
+        )

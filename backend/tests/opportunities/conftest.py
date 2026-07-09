@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable
+from dataclasses import dataclass
 from decimal import Decimal
 
 import pytest
@@ -23,6 +24,68 @@ from apps.opportunities.models import (
     QuotaOwnerType,
 )
 from apps.opportunities.services.configuration import OPPORTUNITY_RULE_DEFINITION_CODE
+from apps.opportunities.services.create_draft import CreateOpportunityDraft
+from apps.opportunities.services.submit_proposal import SubmitProposal
+from apps.platform.application.command import CommandContext
+from apps.stage_gates.models import StageGateInstance
+from apps.stage_gates.services.create_review_cycle import CreateProposalReviewCycle
+
+
+@dataclass
+class ReviewCycleBundle:
+    stage_gate: StageGateInstance
+    subject: Opportunity
+    final_decision_actor: User
+
+
+@pytest.fixture
+def review_cycle(
+    active_user: User,
+    another_active_user: User,
+    grant_action: Callable[..., None],
+    opportunity_rules: ConfigurationVersion,
+) -> ReviewCycleBundle:
+    grant_action(active_user, "opportunity.create", "opportunity", role_code="PROPOSER")
+    grant_action(active_user, "opportunity.submit", "opportunity", role_code="PROPOSER")
+    grant_action(
+        another_active_user,
+        "major_gate.management_conclusion.record",
+        "stage_gate",
+        role_code="BOSS",
+    )
+    grant_action(
+        another_active_user,
+        "major_gate.final_decision.record",
+        "stage_gate",
+        role_code="BOSS",
+    )
+
+    opportunity = CreateOpportunityDraft(
+        context=CommandContext.for_actor(active_user),
+        title="High protein yogurt",
+        public_summary="Breakfast protein yogurt",
+        market_analysis="Demand exists in convenience channels.",
+        core_selling_points="High protein and low sugar.",
+        target_users_needs="Breakfast replacement.",
+        suggested_retail_price=Decimal("9.90"),
+    ).execute()
+    SubmitProposal(
+        context=CommandContext.for_actor(active_user),
+        opportunity_public_id=opportunity.public_id,
+        version_no=opportunity.version_no,
+        idempotency_key="submit-review-cycle",
+    ).execute()
+
+    stage_gate = CreateProposalReviewCycle(
+        context=CommandContext.for_actor(another_active_user),
+        opportunity_public_id=opportunity.public_id,
+    ).execute()
+    opportunity.refresh_from_db()
+    return ReviewCycleBundle(
+        stage_gate=stage_gate,
+        subject=opportunity,
+        final_decision_actor=another_active_user,
+    )
 
 
 @pytest.fixture

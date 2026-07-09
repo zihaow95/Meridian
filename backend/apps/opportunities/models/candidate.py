@@ -19,6 +19,7 @@ class CandidateStatus(models.TextChoices):
     NEEDS_INFO = "NEEDS_INFO", "Needs info"
     DEFERRED = "DEFERRED", "Deferred"
     PASSED = "PASSED", "Passed"
+    SOURCE_RECONFIRM_REQUIRED = "SOURCE_RECONFIRM_REQUIRED", "Source reconfirm required"
     PROJECT_CREATED = "PROJECT_CREATED", "Project created"
 
 

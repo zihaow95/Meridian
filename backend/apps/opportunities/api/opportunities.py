@@ -23,6 +23,7 @@ from apps.opportunities.models import (
 )
 from apps.opportunities.queries.opportunities import (
     list_my_opportunities,
+    list_opportunity_pool,
     list_versions,
     serialize_detail,
     serialize_public,
@@ -220,3 +221,13 @@ class OpportunityVersionsView(APIView):
         if not _can(user, "opportunity.full.read", opportunity):
             raise ResourceNotFoundError()
         return Response(list_versions(opportunity))
+
+
+class OpportunityPoolView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    @extend_schema(operation_id="opportunity_pool_list")
+    def get(self, request: Request) -> Response:
+        user = cast(User, request.user)
+        opportunities = list_opportunity_pool(user)
+        return Response([serialize_summary(item) for item in opportunities])

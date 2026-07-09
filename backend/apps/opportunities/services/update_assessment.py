@@ -82,9 +82,7 @@ class UpdateCaseAssessment:
                 raise PermissionDeniedError()
 
             if self.deliverable_version_public_id is not None:
-                self._assert_controlled_deliverable(
-                    candidate, self.deliverable_version_public_id
-                )
+                self._assert_controlled_deliverable(candidate, self.deliverable_version_public_id)
                 assessment.deliverable_version_public_id = self.deliverable_version_public_id
             if self.conclusion is not None:
                 assessment.conclusion = self.conclusion

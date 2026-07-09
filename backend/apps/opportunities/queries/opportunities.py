@@ -34,6 +34,19 @@ def list_my_opportunities(user: User) -> list[Opportunity]:
     )
 
 
+def list_opportunity_pool(user: User) -> list[Opportunity]:
+    """Deferred and passed opportunities visible in the lifecycle pool."""
+
+    from apps.opportunities.models import ProposalStatus
+
+    return list(
+        Opportunity.objects.filter(
+            organization_id=user.organization_id,
+            proposal_status__in=[ProposalStatus.DEFERRED, ProposalStatus.PASSED],
+        ).order_by("-updated_at")
+    )
+
+
 def serialize_summary(opportunity: Opportunity) -> dict[str, Any]:
     return {
         "public_id": str(opportunity.public_id),

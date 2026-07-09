@@ -46,6 +46,7 @@ from apps.stage_gates.models import (
 
 _SUBMITTABLE = {CandidateStatus.ASSESSING, CandidateStatus.NEEDS_INFO}
 _ALREADY_SUBMITTED = {CandidateStatus.IN_PROJECT_REVIEW}
+_BLOCKED = {CandidateStatus.SOURCE_RECONFIRM_REQUIRED}
 
 
 @dataclass
@@ -88,6 +89,8 @@ class SubmitProjectReview:
 
             if candidate.status in _ALREADY_SUBMITTED:
                 return candidate
+            if candidate.status in _BLOCKED:
+                raise ProjectReviewNotSubmittable()
             if candidate.status not in _SUBMITTABLE:
                 raise ProjectReviewNotSubmittable()
             if candidate.version_no != self.version_no:

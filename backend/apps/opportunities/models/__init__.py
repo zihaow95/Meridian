@@ -16,6 +16,12 @@ from apps.opportunities.models.candidate import (
     ProjectCandidate,
     SourceRole,
 )
+from apps.opportunities.models.defer import (
+    DeferRecord,
+    DeferReviewEntry,
+    DeferStatus,
+    QuarterlyAction,
+)
 from apps.opportunities.models.member import (
     InvitationStatus,
     MemberRole,
@@ -38,6 +44,7 @@ from apps.opportunities.models.quota import (
     QuotaLedger,
     SubmissionQuota,
 )
+from apps.opportunities.models.reconsideration import Reconsideration
 
 __all__ = [
     "CORE_ASSESSMENT_CATEGORIES",
@@ -48,6 +55,9 @@ __all__ = [
     "CandidateStatus",
     "CandidateType",
     "CaseAssessment",
+    "DeferRecord",
+    "DeferReviewEntry",
+    "DeferStatus",
     "EnforcementMode",
     "InitialType",
     "InvitationStatus",
@@ -55,6 +65,8 @@ __all__ = [
     "Opportunity",
     "OpportunityMember",
     "ProjectCandidate",
+    "QuarterlyAction",
+    "Reconsideration",
     "ProposalStatus",
     "ProposalVersion",
     "ProposalVersionLocked",

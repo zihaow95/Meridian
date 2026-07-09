@@ -8,16 +8,24 @@ from apps.opportunities.api.candidates import (
     ProjectCandidateAssessmentView,
     ProjectCandidateDetailView,
     ProjectCandidateLeadershipView,
+    ProjectCandidateSourcesView,
+    ProjectCandidateSplitView,
     ProjectCandidateSubmitReviewView,
+)
+from apps.opportunities.api.deferred import (
+    DeferredItemDetailView,
+    DeferredQuarterlyReviewView,
 )
 from apps.opportunities.api.opportunities import (
     OpportunityCollectionView,
     OpportunityDetailView,
     OpportunityMemberInvitationView,
+    OpportunityPoolView,
     OpportunitySubmitView,
     OpportunityVersionsView,
     OpportunityWithdrawView,
 )
+from apps.opportunities.api.reconsiderations import ReconsiderationCollectionView
 
 urlpatterns = [
     path(
@@ -69,5 +77,35 @@ urlpatterns = [
         "project-candidates/<uuid:public_id>/submit-review",
         ProjectCandidateSubmitReviewView.as_view(),
         name="project-candidate-submit-review",
+    ),
+    path(
+        "project-candidates/<uuid:public_id>/sources",
+        ProjectCandidateSourcesView.as_view(),
+        name="project-candidate-sources",
+    ),
+    path(
+        "project-candidates/<uuid:public_id>/split",
+        ProjectCandidateSplitView.as_view(),
+        name="project-candidate-split",
+    ),
+    path(
+        "deferred-items/<uuid:public_id>/quarterly-review",
+        DeferredQuarterlyReviewView.as_view(),
+        name="deferred-quarterly-review",
+    ),
+    path(
+        "deferred-items/<uuid:public_id>",
+        DeferredItemDetailView.as_view(),
+        name="deferred-item-detail",
+    ),
+    path(
+        "reconsiderations",
+        ReconsiderationCollectionView.as_view(),
+        name="reconsideration-collection",
+    ),
+    path(
+        "opportunity-pool",
+        OpportunityPoolView.as_view(),
+        name="opportunity-pool",
     ),
 ]
