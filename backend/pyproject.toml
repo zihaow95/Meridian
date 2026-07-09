@@ -36,6 +36,7 @@ select = ["E", "W", "F", "I", "UP", "B", "C4", "DJ"]
 
 [tool.ruff.lint.per-file-ignores]
 "config/settings/*" = ["F403", "F405"]
+"tests/conftest.py" = ["E402"]
 
 [tool.mypy]
 python_version = "3.13"

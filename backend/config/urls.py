@@ -93,3 +93,23 @@ if getattr(settings, "ENABLE_DOCUMENTS_API", False):
     urlpatterns += [
         path("api/v1/", include("apps.documents.api.urls")),
     ]
+
+if getattr(settings, "ENABLE_OPPORTUNITIES_API", False):
+    urlpatterns += [
+        path("api/v1/", include("apps.opportunities.api.urls")),
+    ]
+
+if getattr(settings, "ENABLE_STAGE_GATES_API", False):
+    urlpatterns += [
+        path("api/v1/", include("apps.stage_gates.api.urls")),
+    ]
+
+if getattr(settings, "ENABLE_PROJECTS_API", False):
+    urlpatterns += [
+        path("api/v1/", include("apps.projects.api.urls")),
+    ]
+
+if getattr(settings, "ENABLE_PRODUCTS_API", False):
+    urlpatterns += [
+        path("api/v1/", include("apps.products.api.urls")),
+    ]

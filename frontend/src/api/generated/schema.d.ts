@@ -197,6 +197,38 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/deferred-items/{public_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["deferred_item_retrieve"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/deferred-items/{public_id}/quarterly-review": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["deferred_item_quarterly_review_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/documents/{document_public_id}/versions": {
         parameters: {
             query?: never;
@@ -294,6 +326,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/lifecycle-board": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["lifecycle_board_list"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/me": {
         parameters: {
             query?: never;
@@ -305,6 +353,294 @@ export interface paths {
         get: operations["me_retrieve"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/opportunities": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["opportunities_list_mine"];
+        put?: never;
+        post: operations["opportunities_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/opportunities/{public_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["opportunities_retrieve_detail"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch: operations["opportunities_partial_update"];
+        trace?: never;
+    };
+    "/api/v1/opportunities/{public_id}/members/invitations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["opportunity_member_invite_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/opportunities/{public_id}/review-cycles": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["opportunity_review_cycle_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/opportunities/{public_id}/submit": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["opportunity_submit_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/opportunities/{public_id}/versions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["opportunity_versions_list"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/opportunities/{public_id}/withdraw": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["opportunity_withdraw_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/opportunity-pool": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["opportunity_pool_list"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/product-drafts/{public_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["product_drafts_retrieve"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/project-candidates/{public_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["project_candidates_retrieve"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/project-candidates/{public_id}/assessments/{category_code}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch: operations["project_candidates_assessments_partial_update"];
+        trace?: never;
+    };
+    "/api/v1/project-candidates/{public_id}/leadership": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["project_candidates_leadership_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/project-candidates/{public_id}/sources": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["project_candidates_sources_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/project-candidates/{public_id}/split": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["project_candidates_split_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/project-candidates/{public_id}/submit-review": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["project_candidates_submit_review_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{public_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["projects_retrieve"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/reconsiderations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["reconsideration_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/stage-gates/{public_id}/major-decision": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["stage_gate_major_decision_create"];
         delete?: never;
         options?: never;
         head?: never;
@@ -331,15 +667,248 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        AssignLeadershipRequest: {
+            version_no?: number;
+            case_owner_public_id: string;
+            deputy_leader_public_id?: string | null;
+        };
+        CandidateSplitList: {
+            public_id: string;
+            name: string;
+        };
+        CaseAssessment: {
+            category_code: string;
+            status: string;
+            conclusion: string;
+            deliverable_version_public_id: string | null;
+        };
+        CombineSourcesRequest: {
+            opportunity_public_ids: string[];
+        };
+        DeferredItem: {
+            public_id: string;
+            subject_type: string;
+            subject_public_id: string;
+            stage_code: string;
+            defer_reason: string;
+            restart_trigger: string;
+            next_review_quarter: string;
+            status: string;
+        };
         HealthResponse: {
             status: string;
             service: string;
+        };
+        LifecycleBoardItem: {
+            item_type: string;
+            public_id: string;
+            business_no: string;
+            title: string;
+            lifecycle_stage: string;
+            status: string;
+            owner_public_id: string;
+            owner_display_name: string;
+            candidate_public_id: string | null;
+            updated_at: string;
+        };
+        LifecycleBoardPage: {
+            items: components["schemas"]["LifecycleBoardItem"][];
+            page: number;
+            page_size: number;
+            total_count: number;
+            has_more: boolean;
+        };
+        MajorGateDecisionRequest: {
+            management_conclusion: string;
+            final_decision: string;
+            decision_summary?: string;
+            idempotency_key: string;
+            defer_reason?: string;
+            restart_trigger?: string;
+            next_review_quarter?: string;
+        };
+        MajorGateDecisionResponse: {
+            public_id: string;
+            stage_gate_public_id: string;
+            management_conclusion: string;
+            final_decision: string;
+            has_conclusion_difference: boolean;
+            decision_summary: string;
         };
         MeResponse: {
             /** Format: uuid */
             public_id: string;
             display_name: string;
             status: string;
+        };
+        MemberInvitationRequest: {
+            invitee_public_id: string;
+            contribution_note?: string;
+        };
+        MemberInvitationResponse: {
+            public_id: string;
+            invitation_status: string;
+        };
+        OpportunityCreateRequest: {
+            title: string;
+            initial_type?: string;
+            public_summary?: string;
+            quota_owner_type?: string;
+            owner_department_id?: number | null;
+            market_analysis?: string;
+            core_selling_points?: string;
+            target_users_needs?: string;
+            suggested_retail_price?: string | null;
+        };
+        OpportunityDetail: {
+            current_version: components["schemas"]["ProposalVersion"];
+            public_id: string;
+            business_no: string;
+            title: string;
+            public_summary: string;
+            initial_type: string;
+            proposal_status: string;
+            version_no: number;
+            updated_at: string;
+            quota_owner_type: string;
+        };
+        OpportunitySummary: {
+            public_id: string;
+            business_no: string;
+            title: string;
+            public_summary: string;
+            initial_type: string;
+            proposal_status: string;
+            version_no: number;
+            updated_at: string;
+        };
+        OpportunitySummaryList: {
+            public_id: string;
+            business_no: string;
+            title: string;
+            public_summary: string;
+            initial_type: string;
+            proposal_status: string;
+            version_no: number;
+            updated_at: string;
+        };
+        PatchedAssessmentUpdateRequest: {
+            conclusion?: string;
+            status?: string;
+            deliverable_version_public_id?: string | null;
+        };
+        PatchedOpportunityEditRequest: {
+            title?: string;
+            public_summary?: string;
+            market_analysis?: string;
+            core_selling_points?: string;
+            target_users_needs?: string;
+            suggested_retail_price?: string | null;
+        };
+        ProductDraftDetail: {
+            public_id: string;
+            draft_type: string;
+            status: string;
+            title: string;
+            definition_summary: string;
+            product_asset_public_id: string;
+            product_asset_name: string;
+            target_product_asset_public_id: string | null;
+            candidate_public_id: string;
+        };
+        ProjectCandidateDetail: {
+            public_id: string;
+            business_no: string;
+            name: string;
+            candidate_type: string;
+            status: string;
+            version_no: number;
+            case_owner_public_id: string | null;
+            deputy_leader_public_id: string | null;
+            proposed_schedule: unknown;
+            resource_risk_summary: string | null;
+            active_stage_gate_public_id: string | null;
+            assessments: components["schemas"]["CaseAssessment"][];
+        };
+        ProjectDetail: {
+            public_id: string;
+            business_no: string;
+            name: string;
+            project_type: string;
+            status: string;
+            candidate_public_id: string;
+            leader_public_id: string;
+            deputy_leader_public_id: string | null;
+            product_asset_public_id: string | null;
+            product_draft_public_id: string | null;
+        };
+        ProposalVersion: {
+            public_id: string;
+            version_number: number;
+            version_status: string;
+            market_analysis: string;
+            core_selling_points: string;
+            target_users_needs: string;
+            suggested_retail_price: string | null;
+            submitted_at: string | null;
+            locked_at: string | null;
+        };
+        ProposalVersionList: {
+            public_id: string;
+            version_number: number;
+            version_status: string;
+            market_analysis: string;
+            core_selling_points: string;
+            target_users_needs: string;
+            suggested_retail_price: string | null;
+            submitted_at: string | null;
+            locked_at: string | null;
+        };
+        QuarterlyReviewRequest: {
+            action: string;
+            note?: string;
+            new_restart_trigger?: string;
+            new_next_review_quarter?: string;
+        };
+        QuarterlyReviewResponse: {
+            public_id: string;
+            action: string;
+            defer_record_public_id: string;
+        };
+        ReconsiderationRequest: {
+            original_subject_public_id: string;
+            target_stage_code?: string;
+            reason?: string;
+        };
+        ReconsiderationResponse: {
+            public_id: string;
+            original_cycle_public_id: string;
+            new_cycle_public_id: string;
+            target_stage_code: string;
+        };
+        SplitCandidateRequest: {
+            candidate_names: string[];
+        };
+        StageGateSummary: {
+            public_id: string;
+            stage_code: string;
+            cycle_number: number;
+            status: string;
+            subject_type: string;
+            subject_public_id: string;
+        };
+        SubmitCandidateReviewRequest: {
+            version_no?: number;
+            idempotency_key: string;
+            proposed_schedule?: unknown;
+            resource_risk_summary?: string;
+        };
+        SubmitProposalRequest: {
+            version_no?: number;
+            idempotency_key: string;
+        };
+        WithdrawProposalRequest: {
+            version_no?: number;
         };
     };
     responses: never;
@@ -592,6 +1161,54 @@ export interface operations {
             };
         };
     };
+    deferred_item_retrieve: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                public_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DeferredItem"];
+                };
+            };
+        };
+    };
+    deferred_item_quarterly_review_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                public_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["QuarterlyReviewRequest"];
+                "application/x-www-form-urlencoded": components["schemas"]["QuarterlyReviewRequest"];
+                "multipart/form-data": components["schemas"]["QuarterlyReviewRequest"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["QuarterlyReviewResponse"];
+                };
+            };
+        };
+    };
     documents_versions_retrieve: {
         parameters: {
             query?: never;
@@ -709,6 +1326,25 @@ export interface operations {
             };
         };
     };
+    lifecycle_board_list: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LifecycleBoardPage"];
+                };
+            };
+        };
+    };
     me_retrieve: {
         parameters: {
             query?: never;
@@ -724,6 +1360,491 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["MeResponse"];
+                };
+            };
+        };
+    };
+    opportunities_list_mine: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OpportunitySummaryList"][];
+                };
+            };
+        };
+    };
+    opportunities_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OpportunityCreateRequest"];
+                "application/x-www-form-urlencoded": components["schemas"]["OpportunityCreateRequest"];
+                "multipart/form-data": components["schemas"]["OpportunityCreateRequest"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OpportunityDetail"];
+                };
+            };
+        };
+    };
+    opportunities_retrieve_detail: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                public_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OpportunityDetail"];
+                };
+            };
+        };
+    };
+    opportunities_partial_update: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                public_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["PatchedOpportunityEditRequest"];
+                "application/x-www-form-urlencoded": components["schemas"]["PatchedOpportunityEditRequest"];
+                "multipart/form-data": components["schemas"]["PatchedOpportunityEditRequest"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OpportunityDetail"];
+                };
+            };
+        };
+    };
+    opportunity_member_invite_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                public_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MemberInvitationRequest"];
+                "application/x-www-form-urlencoded": components["schemas"]["MemberInvitationRequest"];
+                "multipart/form-data": components["schemas"]["MemberInvitationRequest"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MemberInvitationResponse"];
+                };
+            };
+        };
+    };
+    opportunity_review_cycle_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                public_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StageGateSummary"];
+                };
+            };
+        };
+    };
+    opportunity_submit_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                public_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SubmitProposalRequest"];
+                "application/x-www-form-urlencoded": components["schemas"]["SubmitProposalRequest"];
+                "multipart/form-data": components["schemas"]["SubmitProposalRequest"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OpportunitySummary"];
+                };
+            };
+        };
+    };
+    opportunity_versions_list: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                public_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProposalVersionList"][];
+                };
+            };
+        };
+    };
+    opportunity_withdraw_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                public_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["WithdrawProposalRequest"];
+                "application/x-www-form-urlencoded": components["schemas"]["WithdrawProposalRequest"];
+                "multipart/form-data": components["schemas"]["WithdrawProposalRequest"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OpportunitySummary"];
+                };
+            };
+        };
+    };
+    opportunity_pool_list: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OpportunitySummaryList"][];
+                };
+            };
+        };
+    };
+    product_drafts_retrieve: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                public_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProductDraftDetail"];
+                };
+            };
+        };
+    };
+    project_candidates_retrieve: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                public_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProjectCandidateDetail"];
+                };
+            };
+        };
+    };
+    project_candidates_assessments_partial_update: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                category_code: string;
+                public_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["PatchedAssessmentUpdateRequest"];
+                "application/x-www-form-urlencoded": components["schemas"]["PatchedAssessmentUpdateRequest"];
+                "multipart/form-data": components["schemas"]["PatchedAssessmentUpdateRequest"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CaseAssessment"];
+                };
+            };
+        };
+    };
+    project_candidates_leadership_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                public_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AssignLeadershipRequest"];
+                "application/x-www-form-urlencoded": components["schemas"]["AssignLeadershipRequest"];
+                "multipart/form-data": components["schemas"]["AssignLeadershipRequest"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProjectCandidateDetail"];
+                };
+            };
+        };
+    };
+    project_candidates_sources_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                public_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CombineSourcesRequest"];
+                "application/x-www-form-urlencoded": components["schemas"]["CombineSourcesRequest"];
+                "multipart/form-data": components["schemas"]["CombineSourcesRequest"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProjectCandidateDetail"];
+                };
+            };
+        };
+    };
+    project_candidates_split_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                public_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SplitCandidateRequest"];
+                "application/x-www-form-urlencoded": components["schemas"]["SplitCandidateRequest"];
+                "multipart/form-data": components["schemas"]["SplitCandidateRequest"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CandidateSplitList"][];
+                };
+            };
+        };
+    };
+    project_candidates_submit_review_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                public_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SubmitCandidateReviewRequest"];
+                "application/x-www-form-urlencoded": components["schemas"]["SubmitCandidateReviewRequest"];
+                "multipart/form-data": components["schemas"]["SubmitCandidateReviewRequest"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProjectCandidateDetail"];
+                };
+            };
+        };
+    };
+    projects_retrieve: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                public_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProjectDetail"];
+                };
+            };
+        };
+    };
+    reconsideration_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReconsiderationRequest"];
+                "application/x-www-form-urlencoded": components["schemas"]["ReconsiderationRequest"];
+                "multipart/form-data": components["schemas"]["ReconsiderationRequest"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReconsiderationResponse"];
+                };
+            };
+        };
+    };
+    stage_gate_major_decision_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                public_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MajorGateDecisionRequest"];
+                "application/x-www-form-urlencoded": components["schemas"]["MajorGateDecisionRequest"];
+                "multipart/form-data": components["schemas"]["MajorGateDecisionRequest"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MajorGateDecisionResponse"];
                 };
             };
         };

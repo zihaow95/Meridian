@@ -23,6 +23,9 @@ const { me } = storeToRefs(auth)
 
     <nav class="app-shell__nav">
       <RouterLink to="/todos">我的待办</RouterLink>
+      <RouterLink to="/opportunities">我的提案</RouterLink>
+      <RouterLink to="/lifecycle-board">生命周期看板</RouterLink>
+      <RouterLink to="/opportunities/pool">候选机会池</RouterLink>
       <RouterLink to="/admin/configurations">配置</RouterLink>
       <RouterLink to="/admin/documents">文件</RouterLink>
       <RouterLink to="/admin/audit">审计</RouterLink>

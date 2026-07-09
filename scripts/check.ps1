@@ -93,13 +93,13 @@ try {
         git diff --exit-code -- src/api/generated/schema.d.ts
     } $frontend
 
-    # 5. E2E platform kernel (backend + frontend dev via Playwright webServer).
+    # 5. E2E: platform kernel + phase 2 opportunity-to-project (backend + frontend dev servers).
     $e2e = Join-Path $RepoRoot 'tests/e2e'
     Invoke-Native 'E2E: install deps' { npm.cmd ci } $e2e
     Invoke-Native 'E2E: Playwright browser' { npx playwright install chromium } $e2e
-    Invoke-Native 'E2E: platform kernel' {
+    Invoke-Native 'E2E: platform kernel and phase 2 flow' {
         $env:CI = 'true'
-        npx playwright test
+        npx playwright test platform-kernel.spec.ts opportunity-to-project.spec.ts
     } $e2e
 
     # 6. Docker image builds.

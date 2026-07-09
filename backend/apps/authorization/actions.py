@@ -30,3 +30,25 @@ PLATFORM_ACTIONS: tuple[tuple[str, str, str], ...] = (
     ("document.version.download", "document.version", ActionCategory.READ),
     ("notification.todo.read", "notification.todo", ActionCategory.READ),
 )
+
+OPPORTUNITY_ACTIONS: tuple[tuple[str, str, str], ...] = (
+    ("opportunity.create", "opportunity", ActionCategory.WRITE),
+    ("opportunity.edit", "opportunity", ActionCategory.WRITE),
+    ("opportunity.submit", "opportunity", ActionCategory.WRITE),
+    ("opportunity.withdraw", "opportunity", ActionCategory.WRITE),
+    ("opportunity.full.read", "opportunity", ActionCategory.READ),
+    ("opportunity.public_summary.read", "opportunity", ActionCategory.READ),
+    ("opportunity.export", "opportunity", ActionCategory.EXPORT),
+    ("opportunity.member.invite", "opportunity", ActionCategory.WRITE),
+    ("opportunity.member.manage", "opportunity", ActionCategory.WRITE),
+    ("candidate.create", "project_candidate", ActionCategory.WRITE),
+    ("candidate.combine", "project_candidate", ActionCategory.WRITE),
+    ("candidate.split", "project_candidate", ActionCategory.WRITE),
+    ("candidate.leadership.assign", "project_candidate", ActionCategory.ADMIN),
+    ("candidate.assessment.edit", "project_candidate", ActionCategory.WRITE),
+    ("candidate.submit_review", "project_candidate", ActionCategory.WRITE),
+    ("major_gate.management_conclusion.record", "stage_gate", ActionCategory.DECIDE),
+    ("major_gate.final_decision.record", "stage_gate", ActionCategory.DECIDE),
+    ("deferred_item.review", "opportunity", ActionCategory.DECIDE),
+    ("reconsideration.create", "opportunity", ActionCategory.WRITE),
+)

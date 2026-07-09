@@ -161,6 +161,60 @@ paths:
       responses:
         '200':
           description: No response body
+  /api/v1/deferred-items/{public_id}:
+    get:
+      operationId: deferred_item_retrieve
+      parameters:
+      - in: path
+        name: public_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - deferred-items
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DeferredItem'
+          description: ''
+  /api/v1/deferred-items/{public_id}/quarterly-review:
+    post:
+      operationId: deferred_item_quarterly_review_create
+      parameters:
+      - in: path
+        name: public_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - deferred-items
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/QuarterlyReviewRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/QuarterlyReviewRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/QuarterlyReviewRequest'
+        required: true
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/QuarterlyReviewResponse'
+          description: ''
   /api/v1/documents/{document_public_id}/versions:
     get:
       operationId: documents_versions_retrieve
@@ -257,6 +311,20 @@ paths:
                     service: meridian-api
                   summary: ok
           description: ''
+  /api/v1/lifecycle-board:
+    get:
+      operationId: lifecycle_board_list
+      tags:
+      - lifecycle-board
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LifecycleBoardPage'
+          description: ''
   /api/v1/me:
     get:
       operationId: me_retrieve
@@ -272,6 +340,550 @@ paths:
               schema:
                 $ref: '#/components/schemas/MeResponse'
           description: ''
+  /api/v1/opportunities:
+    get:
+      operationId: opportunities_list_mine
+      tags:
+      - opportunities
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/OpportunitySummaryList'
+          description: ''
+    post:
+      operationId: opportunities_create
+      tags:
+      - opportunities
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OpportunityCreateRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/OpportunityCreateRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/OpportunityCreateRequest'
+        required: true
+      security:
+      - cookieAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OpportunityDetail'
+          description: ''
+  /api/v1/opportunities/{public_id}:
+    get:
+      operationId: opportunities_retrieve_detail
+      parameters:
+      - in: path
+        name: public_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - opportunities
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OpportunityDetail'
+          description: ''
+    patch:
+      operationId: opportunities_partial_update
+      parameters:
+      - in: path
+        name: public_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - opportunities
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedOpportunityEditRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedOpportunityEditRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedOpportunityEditRequest'
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OpportunityDetail'
+          description: ''
+  /api/v1/opportunities/{public_id}/members/invitations:
+    post:
+      operationId: opportunity_member_invite_create
+      parameters:
+      - in: path
+        name: public_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - opportunities
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MemberInvitationRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/MemberInvitationRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/MemberInvitationRequest'
+        required: true
+      security:
+      - cookieAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MemberInvitationResponse'
+          description: ''
+  /api/v1/opportunities/{public_id}/review-cycles:
+    post:
+      operationId: opportunity_review_cycle_create
+      parameters:
+      - in: path
+        name: public_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - opportunities
+      security:
+      - cookieAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StageGateSummary'
+          description: ''
+  /api/v1/opportunities/{public_id}/submit:
+    post:
+      operationId: opportunity_submit_create
+      parameters:
+      - in: path
+        name: public_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - opportunities
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SubmitProposalRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/SubmitProposalRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/SubmitProposalRequest'
+        required: true
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OpportunitySummary'
+          description: ''
+  /api/v1/opportunities/{public_id}/versions:
+    get:
+      operationId: opportunity_versions_list
+      parameters:
+      - in: path
+        name: public_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - opportunities
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ProposalVersionList'
+          description: ''
+  /api/v1/opportunities/{public_id}/withdraw:
+    post:
+      operationId: opportunity_withdraw_create
+      parameters:
+      - in: path
+        name: public_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - opportunities
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WithdrawProposalRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/WithdrawProposalRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/WithdrawProposalRequest'
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OpportunitySummary'
+          description: ''
+  /api/v1/opportunity-pool:
+    get:
+      operationId: opportunity_pool_list
+      tags:
+      - opportunity-pool
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/OpportunitySummaryList'
+          description: ''
+  /api/v1/product-drafts/{public_id}:
+    get:
+      operationId: product_drafts_retrieve
+      parameters:
+      - in: path
+        name: public_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - product-drafts
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProductDraftDetail'
+          description: ''
+  /api/v1/project-candidates/{public_id}:
+    get:
+      operationId: project_candidates_retrieve
+      parameters:
+      - in: path
+        name: public_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - project-candidates
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProjectCandidateDetail'
+          description: ''
+  /api/v1/project-candidates/{public_id}/assessments/{category_code}:
+    patch:
+      operationId: project_candidates_assessments_partial_update
+      parameters:
+      - in: path
+        name: category_code
+        schema:
+          type: string
+        required: true
+      - in: path
+        name: public_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - project-candidates
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedAssessmentUpdateRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedAssessmentUpdateRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedAssessmentUpdateRequest'
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CaseAssessment'
+          description: ''
+  /api/v1/project-candidates/{public_id}/leadership:
+    post:
+      operationId: project_candidates_leadership_create
+      parameters:
+      - in: path
+        name: public_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - project-candidates
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AssignLeadershipRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/AssignLeadershipRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/AssignLeadershipRequest'
+        required: true
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProjectCandidateDetail'
+          description: ''
+  /api/v1/project-candidates/{public_id}/sources:
+    post:
+      operationId: project_candidates_sources_create
+      parameters:
+      - in: path
+        name: public_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - project-candidates
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CombineSourcesRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/CombineSourcesRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/CombineSourcesRequest'
+        required: true
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProjectCandidateDetail'
+          description: ''
+  /api/v1/project-candidates/{public_id}/split:
+    post:
+      operationId: project_candidates_split_create
+      parameters:
+      - in: path
+        name: public_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - project-candidates
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SplitCandidateRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/SplitCandidateRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/SplitCandidateRequest'
+        required: true
+      security:
+      - cookieAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/CandidateSplitList'
+          description: ''
+  /api/v1/project-candidates/{public_id}/submit-review:
+    post:
+      operationId: project_candidates_submit_review_create
+      parameters:
+      - in: path
+        name: public_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - project-candidates
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SubmitCandidateReviewRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/SubmitCandidateReviewRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/SubmitCandidateReviewRequest'
+        required: true
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProjectCandidateDetail'
+          description: ''
+  /api/v1/projects/{public_id}:
+    get:
+      operationId: projects_retrieve
+      parameters:
+      - in: path
+        name: public_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - projects
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProjectDetail'
+          description: ''
+  /api/v1/reconsiderations:
+    post:
+      operationId: reconsideration_create
+      tags:
+      - reconsiderations
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReconsiderationRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/ReconsiderationRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/ReconsiderationRequest'
+        required: true
+      security:
+      - cookieAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReconsiderationResponse'
+          description: ''
+  /api/v1/stage-gates/{public_id}/major-decision:
+    post:
+      operationId: stage_gate_major_decision_create
+      parameters:
+      - in: path
+        name: public_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - stage-gates
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MajorGateDecisionRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/MajorGateDecisionRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/MajorGateDecisionRequest'
+        required: true
+      security:
+      - cookieAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MajorGateDecisionResponse'
+          description: ''
   /api/v1/todos/my:
     get:
       operationId: todos_my_retrieve
@@ -284,6 +896,82 @@ paths:
           description: No response body
 components:
   schemas:
+    AssignLeadershipRequest:
+      type: object
+      properties:
+        version_no:
+          type: integer
+        case_owner_public_id:
+          type: string
+        deputy_leader_public_id:
+          type: string
+          nullable: true
+      required:
+      - case_owner_public_id
+    CandidateSplitList:
+      type: object
+      properties:
+        public_id:
+          type: string
+        name:
+          type: string
+      required:
+      - name
+      - public_id
+    CaseAssessment:
+      type: object
+      properties:
+        category_code:
+          type: string
+        status:
+          type: string
+        conclusion:
+          type: string
+        deliverable_version_public_id:
+          type: string
+          nullable: true
+      required:
+      - category_code
+      - conclusion
+      - deliverable_version_public_id
+      - status
+    CombineSourcesRequest:
+      type: object
+      properties:
+        opportunity_public_ids:
+          type: array
+          items:
+            type: string
+      required:
+      - opportunity_public_ids
+    DeferredItem:
+      type: object
+      properties:
+        public_id:
+          type: string
+        subject_type:
+          type: string
+        subject_public_id:
+          type: string
+        stage_code:
+          type: string
+        defer_reason:
+          type: string
+        restart_trigger:
+          type: string
+        next_review_quarter:
+          type: string
+        status:
+          type: string
+      required:
+      - defer_reason
+      - next_review_quarter
+      - public_id
+      - restart_trigger
+      - stage_code
+      - status
+      - subject_public_id
+      - subject_type
     HealthResponse:
       type: object
       properties:
@@ -294,6 +982,105 @@ components:
       required:
       - service
       - status
+    LifecycleBoardItem:
+      type: object
+      properties:
+        item_type:
+          type: string
+        public_id:
+          type: string
+        business_no:
+          type: string
+        title:
+          type: string
+        lifecycle_stage:
+          type: string
+        status:
+          type: string
+        owner_public_id:
+          type: string
+        owner_display_name:
+          type: string
+        candidate_public_id:
+          type: string
+          nullable: true
+        updated_at:
+          type: string
+      required:
+      - business_no
+      - candidate_public_id
+      - item_type
+      - lifecycle_stage
+      - owner_display_name
+      - owner_public_id
+      - public_id
+      - status
+      - title
+      - updated_at
+    LifecycleBoardPage:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/LifecycleBoardItem'
+        page:
+          type: integer
+        page_size:
+          type: integer
+        total_count:
+          type: integer
+        has_more:
+          type: boolean
+      required:
+      - has_more
+      - items
+      - page
+      - page_size
+      - total_count
+    MajorGateDecisionRequest:
+      type: object
+      properties:
+        management_conclusion:
+          type: string
+        final_decision:
+          type: string
+        decision_summary:
+          type: string
+        idempotency_key:
+          type: string
+        defer_reason:
+          type: string
+        restart_trigger:
+          type: string
+        next_review_quarter:
+          type: string
+      required:
+      - final_decision
+      - idempotency_key
+      - management_conclusion
+    MajorGateDecisionResponse:
+      type: object
+      properties:
+        public_id:
+          type: string
+        stage_gate_public_id:
+          type: string
+        management_conclusion:
+          type: string
+        final_decision:
+          type: string
+        has_conclusion_difference:
+          type: boolean
+        decision_summary:
+          type: string
+      required:
+      - decision_summary
+      - final_decision
+      - has_conclusion_difference
+      - management_conclusion
+      - public_id
+      - stage_gate_public_id
     MeResponse:
       type: object
       properties:
@@ -308,6 +1095,459 @@ components:
       - display_name
       - public_id
       - status
+    MemberInvitationRequest:
+      type: object
+      properties:
+        invitee_public_id:
+          type: string
+        contribution_note:
+          type: string
+      required:
+      - invitee_public_id
+    MemberInvitationResponse:
+      type: object
+      properties:
+        public_id:
+          type: string
+        invitation_status:
+          type: string
+      required:
+      - invitation_status
+      - public_id
+    OpportunityCreateRequest:
+      type: object
+      properties:
+        title:
+          type: string
+        initial_type:
+          type: string
+        public_summary:
+          type: string
+        quota_owner_type:
+          type: string
+        owner_department_id:
+          type: integer
+          nullable: true
+        market_analysis:
+          type: string
+        core_selling_points:
+          type: string
+        target_users_needs:
+          type: string
+        suggested_retail_price:
+          type: string
+          nullable: true
+      required:
+      - title
+    OpportunityDetail:
+      type: object
+      properties:
+        current_version:
+          $ref: '#/components/schemas/ProposalVersion'
+        public_id:
+          type: string
+        business_no:
+          type: string
+        title:
+          type: string
+        public_summary:
+          type: string
+        initial_type:
+          type: string
+        proposal_status:
+          type: string
+        version_no:
+          type: integer
+        updated_at:
+          type: string
+        quota_owner_type:
+          type: string
+      required:
+      - business_no
+      - current_version
+      - initial_type
+      - proposal_status
+      - public_id
+      - public_summary
+      - quota_owner_type
+      - title
+      - updated_at
+      - version_no
+    OpportunitySummary:
+      type: object
+      properties:
+        public_id:
+          type: string
+        business_no:
+          type: string
+        title:
+          type: string
+        public_summary:
+          type: string
+        initial_type:
+          type: string
+        proposal_status:
+          type: string
+        version_no:
+          type: integer
+        updated_at:
+          type: string
+      required:
+      - business_no
+      - initial_type
+      - proposal_status
+      - public_id
+      - public_summary
+      - title
+      - updated_at
+      - version_no
+    OpportunitySummaryList:
+      type: object
+      properties:
+        public_id:
+          type: string
+        business_no:
+          type: string
+        title:
+          type: string
+        public_summary:
+          type: string
+        initial_type:
+          type: string
+        proposal_status:
+          type: string
+        version_no:
+          type: integer
+        updated_at:
+          type: string
+      required:
+      - business_no
+      - initial_type
+      - proposal_status
+      - public_id
+      - public_summary
+      - title
+      - updated_at
+      - version_no
+    PatchedAssessmentUpdateRequest:
+      type: object
+      properties:
+        conclusion:
+          type: string
+        status:
+          type: string
+        deliverable_version_public_id:
+          type: string
+          nullable: true
+    PatchedOpportunityEditRequest:
+      type: object
+      properties:
+        title:
+          type: string
+        public_summary:
+          type: string
+        market_analysis:
+          type: string
+        core_selling_points:
+          type: string
+        target_users_needs:
+          type: string
+        suggested_retail_price:
+          type: string
+          nullable: true
+    ProductDraftDetail:
+      type: object
+      properties:
+        public_id:
+          type: string
+        draft_type:
+          type: string
+        status:
+          type: string
+        title:
+          type: string
+        definition_summary:
+          type: string
+        product_asset_public_id:
+          type: string
+        product_asset_name:
+          type: string
+        target_product_asset_public_id:
+          type: string
+          nullable: true
+        candidate_public_id:
+          type: string
+      required:
+      - candidate_public_id
+      - definition_summary
+      - draft_type
+      - product_asset_name
+      - product_asset_public_id
+      - public_id
+      - status
+      - target_product_asset_public_id
+      - title
+    ProjectCandidateDetail:
+      type: object
+      properties:
+        public_id:
+          type: string
+        business_no:
+          type: string
+        name:
+          type: string
+        candidate_type:
+          type: string
+        status:
+          type: string
+        version_no:
+          type: integer
+        case_owner_public_id:
+          type: string
+          nullable: true
+        deputy_leader_public_id:
+          type: string
+          nullable: true
+        proposed_schedule:
+          nullable: true
+        resource_risk_summary:
+          type: string
+          nullable: true
+        active_stage_gate_public_id:
+          type: string
+          nullable: true
+        assessments:
+          type: array
+          items:
+            $ref: '#/components/schemas/CaseAssessment'
+      required:
+      - active_stage_gate_public_id
+      - assessments
+      - business_no
+      - candidate_type
+      - case_owner_public_id
+      - deputy_leader_public_id
+      - name
+      - proposed_schedule
+      - public_id
+      - resource_risk_summary
+      - status
+      - version_no
+    ProjectDetail:
+      type: object
+      properties:
+        public_id:
+          type: string
+        business_no:
+          type: string
+        name:
+          type: string
+        project_type:
+          type: string
+        status:
+          type: string
+        candidate_public_id:
+          type: string
+        leader_public_id:
+          type: string
+        deputy_leader_public_id:
+          type: string
+          nullable: true
+        product_asset_public_id:
+          type: string
+          nullable: true
+        product_draft_public_id:
+          type: string
+          nullable: true
+      required:
+      - business_no
+      - candidate_public_id
+      - deputy_leader_public_id
+      - leader_public_id
+      - name
+      - product_asset_public_id
+      - product_draft_public_id
+      - project_type
+      - public_id
+      - status
+    ProposalVersion:
+      type: object
+      properties:
+        public_id:
+          type: string
+        version_number:
+          type: integer
+        version_status:
+          type: string
+        market_analysis:
+          type: string
+        core_selling_points:
+          type: string
+        target_users_needs:
+          type: string
+        suggested_retail_price:
+          type: string
+          nullable: true
+        submitted_at:
+          type: string
+          nullable: true
+        locked_at:
+          type: string
+          nullable: true
+      required:
+      - core_selling_points
+      - locked_at
+      - market_analysis
+      - public_id
+      - submitted_at
+      - suggested_retail_price
+      - target_users_needs
+      - version_number
+      - version_status
+    ProposalVersionList:
+      type: object
+      properties:
+        public_id:
+          type: string
+        version_number:
+          type: integer
+        version_status:
+          type: string
+        market_analysis:
+          type: string
+        core_selling_points:
+          type: string
+        target_users_needs:
+          type: string
+        suggested_retail_price:
+          type: string
+          nullable: true
+        submitted_at:
+          type: string
+          nullable: true
+        locked_at:
+          type: string
+          nullable: true
+      required:
+      - core_selling_points
+      - locked_at
+      - market_analysis
+      - public_id
+      - submitted_at
+      - suggested_retail_price
+      - target_users_needs
+      - version_number
+      - version_status
+    QuarterlyReviewRequest:
+      type: object
+      properties:
+        action:
+          type: string
+        note:
+          type: string
+        new_restart_trigger:
+          type: string
+        new_next_review_quarter:
+          type: string
+      required:
+      - action
+    QuarterlyReviewResponse:
+      type: object
+      properties:
+        public_id:
+          type: string
+        action:
+          type: string
+        defer_record_public_id:
+          type: string
+      required:
+      - action
+      - defer_record_public_id
+      - public_id
+    ReconsiderationRequest:
+      type: object
+      properties:
+        original_subject_public_id:
+          type: string
+        target_stage_code:
+          type: string
+        reason:
+          type: string
+      required:
+      - original_subject_public_id
+    ReconsiderationResponse:
+      type: object
+      properties:
+        public_id:
+          type: string
+        original_cycle_public_id:
+          type: string
+        new_cycle_public_id:
+          type: string
+        target_stage_code:
+          type: string
+      required:
+      - new_cycle_public_id
+      - original_cycle_public_id
+      - public_id
+      - target_stage_code
+    SplitCandidateRequest:
+      type: object
+      properties:
+        candidate_names:
+          type: array
+          items:
+            type: string
+      required:
+      - candidate_names
+    StageGateSummary:
+      type: object
+      properties:
+        public_id:
+          type: string
+        stage_code:
+          type: string
+        cycle_number:
+          type: integer
+        status:
+          type: string
+        subject_type:
+          type: string
+        subject_public_id:
+          type: string
+      required:
+      - cycle_number
+      - public_id
+      - stage_code
+      - status
+      - subject_public_id
+      - subject_type
+    SubmitCandidateReviewRequest:
+      type: object
+      properties:
+        version_no:
+          type: integer
+        idempotency_key:
+          type: string
+        proposed_schedule: {}
+        resource_risk_summary:
+          type: string
+      required:
+      - idempotency_key
+    SubmitProposalRequest:
+      type: object
+      properties:
+        version_no:
+          type: integer
+        idempotency_key:
+          type: string
+      required:
+      - idempotency_key
+    WithdrawProposalRequest:
+      type: object
+      properties:
+        version_no:
+          type: integer
   securitySchemes:
     cookieAuth:
       type: apiKey
