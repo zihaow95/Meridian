@@ -16,7 +16,8 @@ D:\Projects\Meridian
 - TRD校验覆盖92项需求和4个重大阶段门；
 - 四份开发前文档已完成；
 - **阶段0工程基础与阶段1平台内核已完成**（Django 5.2 + Vue 3 正式工程，MySQL 测试门禁与 Playwright E2E 已通过 remediation 验收）；
-- 阶段2（提案工作流）尚未开始。
+- **阶段2（提案→立案→立项）已完成**（两个重大阶段门、原子项目/产品草稿创建、前端最小闭环与 E2E 验收已通过本地门禁）；
+- 阶段3（产品档案与存量迁移）尚未开始。
 
 ## 文档入口
 
@@ -39,6 +40,7 @@ D:\Projects\Meridian
 
 - [开发就绪基线](docs/development/00-development-readiness-baseline.md)
 - [分阶段实施计划](docs/development/01-phased-implementation-plan.md)
+- [阶段2完成检查点](docs/implementation/phase-2-checkpoint.md)
 - [工程规范](docs/development/02-engineering-standards.md)
 - [测试策略与质量门禁](docs/development/03-test-strategy-and-quality-gates.md)
 

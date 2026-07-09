@@ -8,7 +8,9 @@
 
 **Tech Stack:** Python 3.13、Django 5.2、Django REST Framework、MySQL 8.0、Redis、Celery 5.6、Vue 3、TypeScript、Pinia、Element Plus、Vitest、Playwright、Docker Compose、GitHub Actions。
 
-**Status:** 待执行
+**Status:** 已完成（2026-07-09）
+
+**Checkpoint:** `docs/implementation/phase-2-checkpoint.md`
 
 **Date:** 2026-07-08
 

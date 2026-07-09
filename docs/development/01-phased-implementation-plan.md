@@ -198,15 +198,17 @@ docker compose -f deploy/compose/compose.dev.yml config
 
 ## 5. 阶段2：提案到项目纵向切片
 
-**状态：** 进行中（2026-07-08 起）
+**状态：** 已完成（2026-07-09）
 
 **任务级计划：** [`docs/superpowers/plans/2026-07-08-phase-2-opportunity-to-project.md`](../superpowers/plans/2026-07-08-phase-2-opportunity-to-project.md)
 
 **测试矩阵：** [`docs/implementation/phase-2-test-matrix.md`](../implementation/phase-2-test-matrix.md)
 
+**完成检查点：** [`docs/implementation/phase-2-checkpoint.md`](../implementation/phase-2-checkpoint.md)
+
 **PR 拆分：** PR1（Task 2.1–2.3 提案提交）→ PR2（Task 2.4–2.6 阶段门/评估/暂缓复议）→ PR3（Task 2.7 原子立项）→ PR4（Task 2.8–2.10 前端/E2E/退出）
 
-目标：交付首个可供业务试用的提案—立案—立项闭环。
+目标：交付首个可供业务试用的提案—立案—立项闭环。**已达成。**
 
 ### Task 2.1：提案、成员和额度
 
@@ -216,11 +218,11 @@ docker compose -f deploy/compose/compose.dev.yml config
 - Create: `backend/tests/opportunities/`
 - Create: `frontend/src/modules/opportunities/`
 
-- [ ] 实现机会资产、提案版本、成员邀请和额度账。
-- [ ] 实现资格、四项核心内容、公开摘要和撤回校验。
-- [ ] 实现提案工作台、我的提案和额度提示。
-- [ ] 覆盖OPP-001至OPP-005、OPP-015。
-- [ ] 提交：`feat: add proposal submission workflow`
+- [x] 实现机会资产、提案版本、成员邀请和额度账。
+- [x] 实现资格、四项核心内容、公开摘要和撤回校验。
+- [x] 实现提案工作台、我的提案和额度提示。
+- [x] 覆盖OPP-001至OPP-005、OPP-015。
+- [x] 提交：`feat: add proposal submission workflow`
 
 ### Task 2.2：重大阶段门和拟立项方案
 
@@ -230,12 +232,12 @@ docker compose -f deploy/compose/compose.dev.yml config
 - Create: `backend/tests/stage_gates/`
 - Create: `frontend/src/modules/stage-gates/`
 
-- [ ] 实现统一阶段门结果和不可变评审提交。
-- [ ] 实现经管会整体结论、老板最终决策及差异展示。
-- [ ] 实现待补充、暂缓、Pass和复议。
-- [ ] 实现拟立项方案、合并、拆分和季度回看。
-- [ ] 覆盖OPP-006至OPP-009、OPP-011至OPP-014。
-- [ ] 提交：`feat: add opportunity stage gates`
+- [x] 实现统一阶段门结果和不可变评审提交。
+- [x] 实现经管会整体结论、老板最终决策及差异展示。
+- [x] 实现待补充、暂缓、Pass和复议。
+- [x] 实现拟立项方案、合并、拆分和季度回看。
+- [x] 覆盖OPP-006至OPP-009、OPP-011至OPP-014。
+- [x] 提交：`feat: add opportunity stage gates`（拆分为多个 feat 提交，见检查点）
 
 ### Task 2.3：原子创建项目和产品草稿
 
@@ -245,19 +247,19 @@ docker compose -f deploy/compose/compose.dev.yml config
 - Create: `backend/apps/products/`
 - Test: `backend/tests/opportunities/test_project_creation.py`
 
-- [ ] 编写重复立项和中途失败回滚测试。
-- [ ] 实现项目基础记录、产品/变更草稿和模板运行时初始化。
-- [ ] 建立机会—项目—产品来源关系。
-- [ ] 实现生命周期看板首个版本。
-- [ ] 覆盖OPP-010和GLB-001至GLB-003。
-- [ ] 提交：`feat: create project and product draft atomically`
+- [x] 编写重复立项和中途失败回滚测试。
+- [x] 实现项目基础记录、产品/变更草稿和模板运行时初始化。
+- [x] 建立机会—项目—产品来源关系。
+- [x] 实现生命周期看板首个版本。
+- [x] 覆盖OPP-010和GLB-001至GLB-003。
+- [x] 提交：`feat: create project and product draft atomically`（看板与 E2E 在 Task 2.9 交付）
 
 **阶段退出条件：**
 
-- 产品经理和部门负责人可提交真实提案；
-- 两个重大阶段门可完成决策；
-- 立项通过只创建一个项目和正确产品草稿；
-- 权限、文件版本和审计可完整追溯。
+- [x] 产品经理和部门负责人可提交真实提案；
+- [x] 两个重大阶段门可完成决策；
+- [x] 立项通过只创建一个项目和正确产品草稿；
+- [x] 权限、文件版本和审计可完整追溯。
 
 ## 6. 阶段3：产品档案与存量迁移
 
