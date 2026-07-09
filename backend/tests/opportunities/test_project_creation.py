@@ -78,4 +78,3 @@ def test_approve_candidate_requires_management_and_final_permissions(
             candidate_public_id=approved_candidate.public_id,
             idempotency_key="perm-check",
         ).execute()
-
