@@ -37,19 +37,13 @@ class OpportunityMember(OrganizationOwnedModel):
     )
     active_from = models.DateTimeField()
     active_to = models.DateTimeField(null=True, blank=True)
+    active_membership_key = models.CharField(max_length=96, null=True, blank=True, unique=True)
     contribution_note = models.TextField(blank=True, default="")
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
         db_table = "opportunities_opportunity_member"
-        constraints = [
-            models.UniqueConstraint(
-                fields=["opportunity", "user", "member_role"],
-                condition=models.Q(active_to__isnull=True),
-                name="opportunities_member_active_uniq",
-            ),
-        ]
         indexes = [
             models.Index(fields=["opportunity", "member_role"]),
             models.Index(fields=["user", "invitation_status"]),

@@ -16,6 +16,18 @@ from apps.authorization.context import AuthorizationContext, ResourceDescriptor
 from apps.authorization.policies.engine import authorize
 from apps.authorization.services.subject import subject_for
 from apps.identity.models.user import User
+from apps.opportunities.api.schemas import (
+    MEMBER_INVITATION_REQUEST_SCHEMA,
+    MEMBER_INVITATION_RESPONSE_SCHEMA,
+    OPPORTUNITY_CREATE_REQUEST_SCHEMA,
+    OPPORTUNITY_DETAIL_SCHEMA,
+    OPPORTUNITY_EDIT_REQUEST_SCHEMA,
+    OPPORTUNITY_SUMMARY_LIST_SCHEMA,
+    OPPORTUNITY_SUMMARY_SCHEMA,
+    PROPOSAL_VERSION_LIST_SCHEMA,
+    SUBMIT_PROPOSAL_REQUEST_SCHEMA,
+    WITHDRAW_PROPOSAL_REQUEST_SCHEMA,
+)
 from apps.opportunities.models import (
     Opportunity,
     ProposalStatus,
@@ -69,12 +81,20 @@ def _can(user: User, action: str, opportunity: Opportunity) -> bool:
 class OpportunityCollectionView(APIView):
     permission_classes = [IsAuthenticated]
 
-    @extend_schema(operation_id="opportunities_list_mine")
+    @extend_schema(
+        operation_id="opportunities_list_mine",
+        responses=OPPORTUNITY_SUMMARY_LIST_SCHEMA,
+    )
     def get(self, request: Request) -> Response:
         user = cast(User, request.user)
         opportunities = list_my_opportunities(user)
         return Response([serialize_summary(item) for item in opportunities])
 
+    @extend_schema(
+        operation_id="opportunities_create",
+        request=OPPORTUNITY_CREATE_REQUEST_SCHEMA,
+        responses={201: OPPORTUNITY_DETAIL_SCHEMA},
+    )
     def post(self, request: Request) -> Response:
         user = cast(User, request.user)
         data = request.data
@@ -113,7 +133,12 @@ class OpportunityDetailView(APIView):
             raise ResourceNotFoundError()
         return opportunity
 
-    @extend_schema(operation_id="opportunities_retrieve_detail")
+    @extend_schema(
+        operation_id="opportunities_retrieve_detail",
+        responses={
+            200: OPPORTUNITY_DETAIL_SCHEMA,
+        },
+    )
     def get(self, request: Request, public_id: UUID) -> Response:
         user = cast(User, request.user)
         opportunity = self._load(user, public_id)
@@ -123,6 +148,16 @@ class OpportunityDetailView(APIView):
             return Response(serialize_public(opportunity))
         raise ResourceNotFoundError()
 
+    @extend_schema(
+        operation_id="opportunities_partial_update",
+        request=OPPORTUNITY_EDIT_REQUEST_SCHEMA,
+        responses=OPPORTUNITY_DETAIL_SCHEMA,
+    )
+    @extend_schema(
+        operation_id="opportunities_partial_update",
+        request=OPPORTUNITY_EDIT_REQUEST_SCHEMA,
+        responses=OPPORTUNITY_DETAIL_SCHEMA,
+    )
     def patch(self, request: Request, public_id: UUID) -> Response:
         user = cast(User, request.user)
         opportunity = self._load(user, public_id)
@@ -160,6 +195,11 @@ class OpportunityDetailView(APIView):
 class OpportunityMemberInvitationView(APIView):
     permission_classes = [IsAuthenticated]
 
+    @extend_schema(
+        operation_id="opportunity_member_invite_create",
+        request=MEMBER_INVITATION_REQUEST_SCHEMA,
+        responses={201: MEMBER_INVITATION_RESPONSE_SCHEMA},
+    )
     def post(self, request: Request, public_id: UUID) -> Response:
         user = cast(User, request.user)
         invitee = _uuid(request.data.get("invitee_public_id"), "invitee_public_id")
@@ -181,6 +221,11 @@ class OpportunityMemberInvitationView(APIView):
 class OpportunitySubmitView(APIView):
     permission_classes = [IsAuthenticated]
 
+    @extend_schema(
+        operation_id="opportunity_submit_create",
+        request=SUBMIT_PROPOSAL_REQUEST_SCHEMA,
+        responses=OPPORTUNITY_SUMMARY_SCHEMA,
+    )
     def post(self, request: Request, public_id: UUID) -> Response:
         user = cast(User, request.user)
         version_no = request.data.get("version_no")
@@ -196,6 +241,11 @@ class OpportunitySubmitView(APIView):
 class OpportunityWithdrawView(APIView):
     permission_classes = [IsAuthenticated]
 
+    @extend_schema(
+        operation_id="opportunity_withdraw_create",
+        request=WITHDRAW_PROPOSAL_REQUEST_SCHEMA,
+        responses=OPPORTUNITY_SUMMARY_SCHEMA,
+    )
     def post(self, request: Request, public_id: UUID) -> Response:
         user = cast(User, request.user)
         version_no = request.data.get("version_no")
@@ -210,6 +260,10 @@ class OpportunityWithdrawView(APIView):
 class OpportunityVersionsView(APIView):
     permission_classes = [IsAuthenticated]
 
+    @extend_schema(
+        operation_id="opportunity_versions_list",
+        responses=PROPOSAL_VERSION_LIST_SCHEMA,
+    )
     def get(self, request: Request, public_id: UUID) -> Response:
         user = cast(User, request.user)
         opportunity = Opportunity.objects.filter(
@@ -226,7 +280,10 @@ class OpportunityVersionsView(APIView):
 class OpportunityPoolView(APIView):
     permission_classes = [IsAuthenticated]
 
-    @extend_schema(operation_id="opportunity_pool_list")
+    @extend_schema(
+        operation_id="opportunity_pool_list",
+        responses=OPPORTUNITY_SUMMARY_LIST_SCHEMA,
+    )
     def get(self, request: Request) -> Response:
         user = cast(User, request.user)
         opportunities = list_opportunity_pool(user)

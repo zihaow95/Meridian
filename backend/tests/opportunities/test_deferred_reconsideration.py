@@ -8,7 +8,7 @@ import pytest
 from django.utils import timezone
 
 from apps.configuration.models import ConfigurationVersion
-from apps.identity.models.user import User, UserStatus
+from apps.identity.models.user import User
 from apps.opportunities.models import (
     CandidateSource,
     CandidateStatus,
@@ -23,7 +23,6 @@ from apps.opportunities.models import (
 from apps.opportunities.services.defer_subject import DeferSubject
 from apps.opportunities.services.quarterly_review import QuarterlyReview
 from apps.opportunities.services.start_reconsideration import StartReconsideration
-from apps.platform.api.errors import PermissionDeniedError
 from apps.platform.application.command import CommandContext
 from apps.stage_gates.models import GateResult, GateStatus, StageGateInstance
 from apps.stage_gates.services.record_major_decision import RecordMajorGateDecision

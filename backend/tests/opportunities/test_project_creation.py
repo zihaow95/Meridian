@@ -4,6 +4,9 @@ from __future__ import annotations
 
 import pytest
 
+from apps.identity.models.organization import Organization
+from apps.identity.models.user import User, UserStatus
+from apps.platform.api.errors import PermissionDeniedError
 from apps.platform.application.command import CommandContext
 from apps.products.models import ProductDraft
 from apps.projects.errors import ProjectCreationFailed
@@ -49,3 +52,30 @@ def test_project_creation_failure_rolls_back_product_draft(
         ).execute()
     assert Project.objects.filter(candidate=rollback_candidate).count() == 0
     assert ProductDraft.objects.filter(project_candidate=rollback_candidate).count() == 0
+
+
+@pytest.mark.django_db(transaction=True)
+def test_approve_candidate_requires_management_and_final_permissions(
+    approved_candidate,
+    organization: Organization,
+    grant_action,
+) -> None:
+    final_only = User.objects.create_user(
+        organization=organization,
+        display_name="Final Only",
+        status=UserStatus.ACTIVE,
+        activated_at=approved_candidate.updated_at,
+    )
+    grant_action(
+        final_only,
+        "major_gate.final_decision.record",
+        "stage_gate",
+        role_code="FINAL_DECISION_ONLY",
+    )
+    with pytest.raises(PermissionDeniedError):
+        ApproveAndCreateProject(
+            context=CommandContext.for_actor(final_only),
+            candidate_public_id=approved_candidate.public_id,
+            idempotency_key="perm-check",
+        ).execute()
+

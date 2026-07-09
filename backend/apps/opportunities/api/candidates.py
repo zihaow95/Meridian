@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import Any, cast
 from uuid import UUID
 
+from drf_spectacular.utils import extend_schema
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.request import Request
 from rest_framework.response import Response
@@ -14,6 +15,16 @@ from apps.authorization.context import AuthorizationContext, ResourceDescriptor
 from apps.authorization.policies.engine import authorize
 from apps.authorization.services.subject import subject_for
 from apps.identity.models.user import User
+from apps.opportunities.api.schemas import (
+    ASSESSMENT_UPDATE_REQUEST_SCHEMA,
+    ASSIGN_LEADERSHIP_REQUEST_SCHEMA,
+    CANDIDATE_SPLIT_LIST_SCHEMA,
+    CASE_ASSESSMENT_SCHEMA,
+    COMBINE_SOURCES_REQUEST_SCHEMA,
+    PROJECT_CANDIDATE_DETAIL_SCHEMA,
+    SPLIT_CANDIDATE_REQUEST_SCHEMA,
+    SUBMIT_CANDIDATE_REVIEW_REQUEST_SCHEMA,
+)
 from apps.opportunities.models import ProjectCandidate
 from apps.opportunities.queries.candidates import serialize_candidate_detail
 from apps.opportunities.services.assign_case_leadership import AssignCaseLeadership
@@ -64,6 +75,10 @@ def _load(user: User, public_id: UUID) -> ProjectCandidate:
 class ProjectCandidateDetailView(APIView):
     permission_classes = [IsAuthenticated]
 
+    @extend_schema(
+        operation_id="project_candidates_retrieve",
+        responses=PROJECT_CANDIDATE_DETAIL_SCHEMA,
+    )
     def get(self, request: Request, public_id: UUID) -> Response:
         user = cast(User, request.user)
         candidate = _load(user, public_id)
@@ -81,6 +96,11 @@ class ProjectCandidateDetailView(APIView):
 class ProjectCandidateLeadershipView(APIView):
     permission_classes = [IsAuthenticated]
 
+    @extend_schema(
+        operation_id="project_candidates_leadership_create",
+        request=ASSIGN_LEADERSHIP_REQUEST_SCHEMA,
+        responses=PROJECT_CANDIDATE_DETAIL_SCHEMA,
+    )
     def post(self, request: Request, public_id: UUID) -> Response:
         user = cast(User, request.user)
         data = request.data
@@ -100,6 +120,11 @@ class ProjectCandidateLeadershipView(APIView):
 class ProjectCandidateAssessmentView(APIView):
     permission_classes = [IsAuthenticated]
 
+    @extend_schema(
+        operation_id="project_candidates_assessments_partial_update",
+        request=ASSESSMENT_UPDATE_REQUEST_SCHEMA,
+        responses=CASE_ASSESSMENT_SCHEMA,
+    )
     def patch(self, request: Request, public_id: UUID, category_code: str) -> Response:
         user = cast(User, request.user)
         data = request.data
@@ -126,6 +151,11 @@ class ProjectCandidateAssessmentView(APIView):
 class ProjectCandidateSubmitReviewView(APIView):
     permission_classes = [IsAuthenticated]
 
+    @extend_schema(
+        operation_id="project_candidates_submit_review_create",
+        request=SUBMIT_CANDIDATE_REVIEW_REQUEST_SCHEMA,
+        responses=PROJECT_CANDIDATE_DETAIL_SCHEMA,
+    )
     def post(self, request: Request, public_id: UUID) -> Response:
         user = cast(User, request.user)
         data = request.data
@@ -150,6 +180,11 @@ class ProjectCandidateSubmitReviewView(APIView):
 class ProjectCandidateSourcesView(APIView):
     permission_classes = [IsAuthenticated]
 
+    @extend_schema(
+        operation_id="project_candidates_sources_create",
+        request=COMBINE_SOURCES_REQUEST_SCHEMA,
+        responses=PROJECT_CANDIDATE_DETAIL_SCHEMA,
+    )
     def post(self, request: Request, public_id: UUID) -> Response:
         user = cast(User, request.user)
         raw_ids = request.data.get("opportunity_public_ids", [])
@@ -167,6 +202,11 @@ class ProjectCandidateSourcesView(APIView):
 class ProjectCandidateSplitView(APIView):
     permission_classes = [IsAuthenticated]
 
+    @extend_schema(
+        operation_id="project_candidates_split_create",
+        request=SPLIT_CANDIDATE_REQUEST_SCHEMA,
+        responses={201: CANDIDATE_SPLIT_LIST_SCHEMA},
+    )
     def post(self, request: Request, public_id: UUID) -> Response:
         user = cast(User, request.user)
         raw_names = request.data.get("candidate_names", [])

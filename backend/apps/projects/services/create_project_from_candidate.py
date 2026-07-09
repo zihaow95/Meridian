@@ -114,6 +114,19 @@ class ApproveAndCreateProject:
             if not decision.allowed:
                 raise PermissionDeniedError()
 
+            management_decision = authorize(
+                subject_for(actor),
+                action="major_gate.management_conclusion.record",
+                resource=ResourceDescriptor(
+                    resource_type="stage_gate",
+                    public_id=candidate.public_id,
+                    organization_id=candidate.organization_id,
+                ),
+                context=AuthorizationContext.current(),
+            )
+            if not management_decision.allowed:
+                raise PermissionDeniedError()
+
             existing_project = Project.objects.filter(candidate=candidate).first()
             if existing_project is not None:
                 draft = ProductDraft.objects.filter(project_candidate=candidate).first()

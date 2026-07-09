@@ -16,6 +16,7 @@ from apps.authorization.policies.engine import authorize
 from apps.authorization.services.subject import subject_for
 from apps.identity.models.user import User, UserStatus
 from apps.opportunities.errors import ProposalMemberLimitExceeded
+from apps.opportunities.member_keys import active_membership_key
 from apps.opportunities.models import (
     InvitationStatus,
     MemberRole,
@@ -102,6 +103,11 @@ class InviteOpportunityMember:
                 invitation_status=InvitationStatus.INVITED,
                 active_from=now,
                 contribution_note=self.contribution_note,
+                active_membership_key=active_membership_key(
+                    opportunity.id,
+                    invitee.id,
+                    MemberRole.COLLABORATOR,
+                ),
             )
 
             append_event(

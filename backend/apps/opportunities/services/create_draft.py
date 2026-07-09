@@ -14,6 +14,7 @@ from apps.audit.services.snapshots import acting_roles_snapshot
 from apps.authorization.context import AuthorizationContext, ResourceDescriptor
 from apps.authorization.policies.engine import authorize
 from apps.authorization.services.subject import subject_for
+from apps.opportunities.member_keys import active_membership_key
 from apps.opportunities.models import (
     InitialType,
     InvitationStatus,
@@ -109,6 +110,11 @@ class CreateOpportunityDraft:
                 member_role=MemberRole.OWNER,
                 invitation_status=InvitationStatus.ACCEPTED,
                 active_from=now,
+                active_membership_key=active_membership_key(
+                    opportunity.id,
+                    actor.id,
+                    MemberRole.OWNER,
+                ),
             )
 
             append_event(

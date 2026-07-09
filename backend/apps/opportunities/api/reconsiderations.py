@@ -5,12 +5,17 @@ from __future__ import annotations
 from typing import cast
 from uuid import UUID
 
+from drf_spectacular.utils import extend_schema
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.request import Request
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from apps.identity.models.user import User
+from apps.opportunities.api.schemas import (
+    RECONSIDERATION_REQUEST_SCHEMA,
+    RECONSIDERATION_RESPONSE_SCHEMA,
+)
 from apps.opportunities.services.start_reconsideration import StartReconsideration
 from apps.platform.application.command import CommandContext
 
@@ -18,6 +23,11 @@ from apps.platform.application.command import CommandContext
 class ReconsiderationCollectionView(APIView):
     permission_classes = [IsAuthenticated]
 
+    @extend_schema(
+        operation_id="reconsideration_create",
+        request=RECONSIDERATION_REQUEST_SCHEMA,
+        responses={201: RECONSIDERATION_RESPONSE_SCHEMA},
+    )
     def post(self, request: Request) -> Response:
         user = cast(User, request.user)
         data = request.data

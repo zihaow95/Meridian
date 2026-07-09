@@ -74,6 +74,12 @@ def product_director(another_active_user: User, grant_action: Callable[..., None
 def boss(another_active_user: User, grant_action: Callable[..., None]) -> User:
     grant_action(
         another_active_user,
+        "major_gate.management_conclusion.record",
+        "stage_gate",
+        role_code="BOSS",
+    )
+    grant_action(
+        another_active_user,
         "major_gate.final_decision.record",
         "stage_gate",
         role_code="BOSS",

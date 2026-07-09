@@ -132,7 +132,11 @@ async function submitDecision(): Promise<void> {
         <el-input v-model="restartTrigger" type="textarea" data-test="restart-trigger" />
       </el-form-item>
       <el-form-item v-if="requiresDeferDetails" label="下次回看季度">
-        <el-input v-model="nextReviewQuarter" placeholder="例如 2026Q4" data-test="next-review-quarter" />
+        <el-input
+          v-model="nextReviewQuarter"
+          placeholder="例如 2026Q4"
+          data-test="next-review-quarter"
+        />
       </el-form-item>
       <el-form-item label="决策摘要">
         <el-input v-model="decisionSummary" type="textarea" data-test="decision-summary" />
