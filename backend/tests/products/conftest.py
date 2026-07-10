@@ -254,3 +254,62 @@ def iteration_change_set(
         title="Quality update",
         created_by=product_manager,
     )
+
+
+@pytest.fixture
+def active_product(
+    organization: Organization,
+    product_manager: User,
+    published_product_schema: object,
+) -> ProductAsset:
+    del published_product_schema
+    from apps.products.models import SKU, SKUStatus
+
+    product = ProductAsset.objects.create(
+        organization=organization,
+        business_no="PRD-ACTIVE",
+        name="High protein yogurt",
+        category_code="YOGURT",
+        source_type=ProductSourceType.NEW_PROJECT,
+        lifecycle_status=ProductLifecycleStatus.ACTIVE,
+        product_owner=product_manager,
+    )
+    version = ProductVersion.objects.create(
+        organization=organization,
+        product=product,
+        version_code="V1",
+        version_name="Launch",
+        status=ProductVersionStatus.EFFECTIVE,
+        definition_summary="Active version",
+    )
+    product.primary_version = version
+    product.save(update_fields=["primary_version", "updated_at"])
+    SKU.objects.create(
+        organization=organization,
+        product_version=version,
+        sku_code="SKU-ACTIVE",
+        name="Cup",
+        specification="120g",
+        status=SKUStatus.ACTIVE,
+    )
+    group = AttributeGroupDefinition.objects.get(
+        schema_version__organization=organization,
+        group_code="PRODUCT_DEFINITION",
+    )
+    values = {"formula_summary": "12g protein per serving"}
+    AttributeGroupValue.objects.create(
+        organization=organization,
+        owner_type=AttributeOwnerType.PRODUCT,
+        owner_id=product.id,
+        group_definition=group,
+        schema_version=group.schema_version,
+        values_json=values,
+        content_hash=compute_attribute_content_hash(values),
+        value_status=AttributeValueStatus.EFFECTIVE,
+    )
+    return product
+
+
+@pytest.fixture
+def ordinary_employee(another_active_user: User) -> User:
+    return another_active_user

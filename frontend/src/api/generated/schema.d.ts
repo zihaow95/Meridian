@@ -519,6 +519,86 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/product-change-sets/{public_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["product_change_sets_retrieve"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/product-change-sets/{public_id}/diff": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["product_change_sets_diff_retrieve"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/product-change-sets/{public_id}/edit-group": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["product_change_sets_edit_group"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/product-change-sets/{public_id}/publish": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["product_change_sets_publish"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/product-change-sets/{public_id}/validate-publication": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["product_change_sets_validate_publication"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/product-drafts/{public_id}": {
         parameters: {
             query?: never;
@@ -527,6 +607,38 @@ export interface paths {
             cookie?: never;
         };
         get: operations["product_drafts_retrieve"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/products": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["products_list"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/products/{public_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["products_retrieve"];
         put?: never;
         post?: never;
         delete?: never;
@@ -753,6 +865,13 @@ export interface components {
             next_review_quarter: string;
             status: string;
         };
+        EditChangeSetRequest: {
+            version_no: number;
+            group_code: string;
+            values: {
+                [key: string]: unknown;
+            };
+        };
         HealthResponse: {
             status: string;
             service: string;
@@ -863,6 +982,27 @@ export interface components {
             target_users_needs?: string;
             suggested_retail_price?: string | null;
         };
+        ProductChangeSetDetail: {
+            /** Format: uuid */
+            public_id: string;
+            change_type: string;
+            status: string;
+            title: string;
+            version_no: number;
+            /** Format: uuid */
+            product_public_id: string;
+        };
+        ProductDetail: {
+            /** Format: uuid */
+            public_id: string;
+            business_no: string;
+            name: string;
+            lifecycle_status: string;
+            brand_code: string;
+            category_code: string;
+            formula_summary?: string;
+            versions: components["schemas"]["ProductVersionSummary"][];
+        };
         ProductDraftDetail: {
             public_id: string;
             draft_type: string;
@@ -873,6 +1013,32 @@ export interface components {
             product_asset_name: string;
             target_product_asset_public_id: string | null;
             candidate_public_id: string;
+        };
+        ProductSearchPage: {
+            items: components["schemas"]["ProductSummary"][];
+        };
+        ProductSkuSummary: {
+            /** Format: uuid */
+            public_id: string;
+            sku_code: string;
+            name: string;
+            specification: string;
+        };
+        ProductSummary: {
+            /** Format: uuid */
+            public_id: string;
+            business_no: string;
+            name: string;
+            lifecycle_status: string;
+            formula_summary?: string;
+        };
+        ProductVersionSummary: {
+            /** Format: uuid */
+            public_id: string;
+            version_code: string;
+            version_name: string;
+            status: string;
+            skus: components["schemas"]["ProductSkuSummary"][];
         };
         ProjectCandidateDetail: {
             public_id: string;
@@ -921,6 +1087,23 @@ export interface components {
             suggested_retail_price: string | null;
             submitted_at: string | null;
             locked_at: string | null;
+        };
+        PublicationBlock: {
+            code: string;
+            message: string;
+        };
+        PublicationValidation: {
+            can_publish: boolean;
+            blocks: components["schemas"]["PublicationBlock"][];
+        };
+        PublishChangeSetRequest: {
+            idempotency_key: string;
+        };
+        PublishChangeSetResponse: {
+            /** Format: uuid */
+            change_set_public_id: string;
+            /** Format: uuid */
+            product_version_public_id: string;
         };
         QuarterlyReviewRequest: {
             action: string;
@@ -1698,6 +1881,122 @@ export interface operations {
             };
         };
     };
+    product_change_sets_retrieve: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                public_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProductChangeSetDetail"];
+                };
+            };
+        };
+    };
+    product_change_sets_diff_retrieve: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                public_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No response body */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    product_change_sets_edit_group: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                public_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["EditChangeSetRequest"];
+                "application/x-www-form-urlencoded": components["schemas"]["EditChangeSetRequest"];
+                "multipart/form-data": components["schemas"]["EditChangeSetRequest"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProductChangeSetDetail"];
+                };
+            };
+        };
+    };
+    product_change_sets_publish: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                public_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PublishChangeSetRequest"];
+                "application/x-www-form-urlencoded": components["schemas"]["PublishChangeSetRequest"];
+                "multipart/form-data": components["schemas"]["PublishChangeSetRequest"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PublishChangeSetResponse"];
+                };
+            };
+        };
+    };
+    product_change_sets_validate_publication: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                public_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PublicationValidation"];
+                };
+            };
+        };
+    };
     product_drafts_retrieve: {
         parameters: {
             query?: never;
@@ -1715,6 +2014,48 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ProductDraftDetail"];
+                };
+            };
+        };
+    };
+    products_list: {
+        parameters: {
+            query?: {
+                search?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProductSearchPage"];
+                };
+            };
+        };
+    };
+    products_retrieve: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                public_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProductDetail"];
                 };
             };
         };

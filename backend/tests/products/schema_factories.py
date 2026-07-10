@@ -44,6 +44,15 @@ def build_published_product_schema(
         field_type=AttributeFieldType.TEXT,
         display_order=1,
     )
+    AttributeDefinition.objects.create(
+        organization=organization,
+        group_definition=product_definition,
+        field_code="formula_summary",
+        field_name="Formula summary",
+        field_type=AttributeFieldType.TEXT,
+        sensitivity_level="SENSITIVE_CONTROLLED",
+        display_order=2,
+    )
     quality_compliance = AttributeGroupDefinition.objects.create(
         organization=organization,
         schema_version=schema_version,

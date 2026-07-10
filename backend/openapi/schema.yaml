@@ -633,6 +633,131 @@ paths:
                 items:
                   $ref: '#/components/schemas/OpportunitySummaryList'
           description: ''
+  /api/v1/product-change-sets/{public_id}:
+    get:
+      operationId: product_change_sets_retrieve
+      parameters:
+      - in: path
+        name: public_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - product-change-sets
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProductChangeSetDetail'
+          description: ''
+  /api/v1/product-change-sets/{public_id}/diff:
+    get:
+      operationId: product_change_sets_diff_retrieve
+      parameters:
+      - in: path
+        name: public_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - product-change-sets
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/product-change-sets/{public_id}/edit-group:
+    post:
+      operationId: product_change_sets_edit_group
+      parameters:
+      - in: path
+        name: public_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - product-change-sets
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EditChangeSetRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/EditChangeSetRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/EditChangeSetRequest'
+        required: true
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProductChangeSetDetail'
+          description: ''
+  /api/v1/product-change-sets/{public_id}/publish:
+    post:
+      operationId: product_change_sets_publish
+      parameters:
+      - in: path
+        name: public_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - product-change-sets
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PublishChangeSetRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PublishChangeSetRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PublishChangeSetRequest'
+        required: true
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PublishChangeSetResponse'
+          description: ''
+  /api/v1/product-change-sets/{public_id}/validate-publication:
+    post:
+      operationId: product_change_sets_validate_publication
+      parameters:
+      - in: path
+        name: public_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - product-change-sets
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PublicationValidation'
+          description: ''
   /api/v1/product-drafts/{public_id}:
     get:
       operationId: product_drafts_retrieve
@@ -653,6 +778,46 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ProductDraftDetail'
+          description: ''
+  /api/v1/products:
+    get:
+      operationId: products_list
+      parameters:
+      - in: query
+        name: search
+        schema:
+          type: string
+      tags:
+      - products
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProductSearchPage'
+          description: ''
+  /api/v1/products/{public_id}:
+    get:
+      operationId: products_retrieve
+      parameters:
+      - in: path
+        name: public_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - products
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProductDetail'
           description: ''
   /api/v1/project-candidates/{public_id}:
     get:
@@ -1056,6 +1221,20 @@ components:
       - status
       - subject_public_id
       - subject_type
+    EditChangeSetRequest:
+      type: object
+      properties:
+        version_no:
+          type: integer
+        group_code:
+          type: string
+        values:
+          type: object
+          additionalProperties: {}
+      required:
+      - group_code
+      - values
+      - version_no
     HealthResponse:
       type: object
       properties:
@@ -1339,6 +1518,60 @@ components:
         suggested_retail_price:
           type: string
           nullable: true
+    ProductChangeSetDetail:
+      type: object
+      properties:
+        public_id:
+          type: string
+          format: uuid
+        change_type:
+          type: string
+        status:
+          type: string
+        title:
+          type: string
+        version_no:
+          type: integer
+        product_public_id:
+          type: string
+          format: uuid
+      required:
+      - change_type
+      - product_public_id
+      - public_id
+      - status
+      - title
+      - version_no
+    ProductDetail:
+      type: object
+      properties:
+        public_id:
+          type: string
+          format: uuid
+        business_no:
+          type: string
+        name:
+          type: string
+        lifecycle_status:
+          type: string
+        brand_code:
+          type: string
+        category_code:
+          type: string
+        formula_summary:
+          type: string
+        versions:
+          type: array
+          items:
+            $ref: '#/components/schemas/ProductVersionSummary'
+      required:
+      - brand_code
+      - business_no
+      - category_code
+      - lifecycle_status
+      - name
+      - public_id
+      - versions
     ProductDraftDetail:
       type: object
       properties:
@@ -1371,6 +1604,73 @@ components:
       - status
       - target_product_asset_public_id
       - title
+    ProductSearchPage:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/ProductSummary'
+      required:
+      - items
+    ProductSkuSummary:
+      type: object
+      properties:
+        public_id:
+          type: string
+          format: uuid
+        sku_code:
+          type: string
+        name:
+          type: string
+        specification:
+          type: string
+      required:
+      - name
+      - public_id
+      - sku_code
+      - specification
+    ProductSummary:
+      type: object
+      properties:
+        public_id:
+          type: string
+          format: uuid
+        business_no:
+          type: string
+        name:
+          type: string
+        lifecycle_status:
+          type: string
+        formula_summary:
+          type: string
+      required:
+      - business_no
+      - lifecycle_status
+      - name
+      - public_id
+    ProductVersionSummary:
+      type: object
+      properties:
+        public_id:
+          type: string
+          format: uuid
+        version_code:
+          type: string
+        version_name:
+          type: string
+        status:
+          type: string
+        skus:
+          type: array
+          items:
+            $ref: '#/components/schemas/ProductSkuSummary'
+      required:
+      - public_id
+      - skus
+      - status
+      - version_code
+      - version_name
     ProjectCandidateDetail:
       type: object
       properties:
@@ -1522,6 +1822,47 @@ components:
       - target_users_needs
       - version_number
       - version_status
+    PublicationBlock:
+      type: object
+      properties:
+        code:
+          type: string
+        message:
+          type: string
+      required:
+      - code
+      - message
+    PublicationValidation:
+      type: object
+      properties:
+        can_publish:
+          type: boolean
+        blocks:
+          type: array
+          items:
+            $ref: '#/components/schemas/PublicationBlock'
+      required:
+      - blocks
+      - can_publish
+    PublishChangeSetRequest:
+      type: object
+      properties:
+        idempotency_key:
+          type: string
+      required:
+      - idempotency_key
+    PublishChangeSetResponse:
+      type: object
+      properties:
+        change_set_public_id:
+          type: string
+          format: uuid
+        product_version_public_id:
+          type: string
+          format: uuid
+      required:
+      - change_set_public_id
+      - product_version_public_id
     QuarterlyReviewRequest:
       type: object
       properties:
