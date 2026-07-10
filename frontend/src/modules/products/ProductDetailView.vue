@@ -48,7 +48,11 @@ onMounted(load)
       </p>
 
       <h3>版本与 SKU</h3>
-      <el-card v-for="version in products.detail.versions" :key="version.public_id" class="product-detail__version">
+      <el-card
+        v-for="version in products.detail.versions"
+        :key="version.public_id"
+        class="product-detail__version"
+      >
         <p>
           <strong>{{ version.version_code }}</strong>
           {{ version.version_name }} ({{ version.status }})

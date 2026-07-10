@@ -5,10 +5,15 @@ from __future__ import annotations
 from django.urls import path
 
 from apps.products.api.change_sets import (
+    ApproveAttributeGroupView,
+    ApproveChangeSetView,
     ProductChangeSetDetailView,
     ProductChangeSetDiffView,
     ProductChangeSetEditView,
     PublishChangeSetView,
+    ReturnAttributeGroupView,
+    SubmitChangeSetConfirmationView,
+    UpdateChangeSetScopeView,
     ValidatePublicationView,
 )
 from apps.products.api.drafts import ProductDraftDetailView
@@ -16,6 +21,7 @@ from apps.products.api.imports import (
     ProductImportBatchConfirmView,
     ProductImportBatchCreateView,
     ProductImportBatchDetailView,
+    ProductImportItemDecideView,
     PublishLegacyBaselineView,
 )
 from apps.products.api.products import ProductDetailView, ProductListView
@@ -44,6 +50,31 @@ urlpatterns = [
         name="product-change-set-edit-group",
     ),
     path(
+        "product-change-sets/<uuid:public_id>/update-scope",
+        UpdateChangeSetScopeView.as_view(),
+        name="product-change-set-update-scope",
+    ),
+    path(
+        "product-change-sets/<uuid:public_id>/submit-confirmation",
+        SubmitChangeSetConfirmationView.as_view(),
+        name="product-change-set-submit-confirmation",
+    ),
+    path(
+        "product-change-sets/<uuid:public_id>/approve",
+        ApproveChangeSetView.as_view(),
+        name="product-change-set-approve",
+    ),
+    path(
+        "product-change-sets/<uuid:public_id>/approve-attribute-group",
+        ApproveAttributeGroupView.as_view(),
+        name="product-change-set-approve-attribute-group",
+    ),
+    path(
+        "product-change-sets/<uuid:public_id>/return-attribute-group",
+        ReturnAttributeGroupView.as_view(),
+        name="product-change-set-return-attribute-group",
+    ),
+    path(
         "product-change-sets/<uuid:public_id>/validate-publication",
         ValidatePublicationView.as_view(),
         name="product-change-set-validate-publication",
@@ -67,6 +98,11 @@ urlpatterns = [
         "product-import-batches/<uuid:public_id>/confirm",
         ProductImportBatchConfirmView.as_view(),
         name="product-import-batch-confirm",
+    ),
+    path(
+        "product-import-batches/<uuid:public_id>/decide-item",
+        ProductImportItemDecideView.as_view(),
+        name="product-import-item-decide",
     ),
     path(
         "legacy-baselines/<uuid:public_id>/publish",

@@ -12,6 +12,7 @@ from django.db import transaction
 from apps.authorization.context import AuthorizationContext, ResourceDescriptor
 from apps.authorization.policies.engine import authorize
 from apps.authorization.services.subject import subject_for
+from apps.identity.models.user import User
 from apps.platform.api.errors import PermissionDeniedError
 from apps.platform.application.command import CommandContext
 from apps.products.models import (
@@ -244,12 +245,14 @@ class ConfirmProductImportBatch:
         *,
         batch: ImportBatch,
         item: ImportItem,
-        actor,
+        actor: User,
     ) -> ConfirmImportItemResult:
         if item.baseline_change_set_id is not None:
+            baseline = item.baseline_change_set
+            assert baseline is not None
             return ConfirmImportItemResult(
                 row_number=item.row_number,
-                baseline_public_id=str(item.baseline_change_set.public_id),
+                baseline_public_id=str(baseline.public_id),
                 item_status=item.item_status,
             )
 
@@ -271,7 +274,7 @@ class ConfirmProductImportBatch:
 
         blocking = any(candidate.get("blocking") for candidate in item.duplicate_candidates)
         if item.item_status == ImportItemStatus.DUPLICATE_REVIEW and blocking:
-            if item.decision != ImportItemDecision.CREATE:
+            if item.decision not in {ImportItemDecision.CREATE, ImportItemDecision.LINK}:
                 item.item_status = ImportItemStatus.FAILED
                 item.error_code = "DUPLICATE_REQUIRES_DECISION"
                 item.save(update_fields=["item_status", "error_code", "updated_at"])
@@ -280,6 +283,9 @@ class ConfirmProductImportBatch:
                     baseline_public_id=None,
                     item_status=item.item_status,
                 )
+
+        if item.decision == ImportItemDecision.LINK:
+            return self._link_existing_product(batch=batch, item=item, actor=actor)
 
         payload: dict[str, Any] = item.normalized_payload
         business_no = str(payload.get("business_no") or f"LEG-{batch.id}-{item.row_number}")
@@ -328,3 +334,110 @@ class ConfirmProductImportBatch:
             baseline_public_id=str(change_set.public_id),
             item_status=item.item_status,
         )
+
+    def _link_existing_product(
+        self,
+        *,
+        batch: ImportBatch,
+        item: ImportItem,
+        actor: User,
+    ) -> ConfirmImportItemResult:
+        if item.target_product_id is None:
+            item.item_status = ImportItemStatus.FAILED
+            item.error_code = "LINK_TARGET_REQUIRED"
+            item.save(update_fields=["item_status", "error_code", "updated_at"])
+            return ConfirmImportItemResult(
+                row_number=item.row_number,
+                baseline_public_id=None,
+                item_status=item.item_status,
+            )
+
+        product = ProductAsset.objects.get(
+            pk=item.target_product_id,
+            organization_id=batch.organization_id,
+        )
+        change_set = ProductChangeSet.objects.create(
+            organization=batch.organization,
+            change_type=ChangeSetType.LEGACY_BASELINE,
+            status=ChangeSetStatus.DRAFT,
+            product=product,
+            migration_batch_id=batch.id,
+            title=f"Legacy baseline link: {product.name}",
+            definition_summary=str(item.normalized_payload.get("specification") or ""),
+            completeness_status=CompletenessStatus.PARTIAL,
+            change_scope={
+                "import_row_number": item.row_number,
+                "payload": item.normalized_payload,
+                "linked_existing_product": True,
+            },
+            created_by=actor,
+        )
+        item.baseline_change_set = change_set
+        item.target_product = product
+        item.item_status = ImportItemStatus.CONFIRMED
+        item.save(
+            update_fields=[
+                "baseline_change_set",
+                "target_product",
+                "item_status",
+                "updated_at",
+            ]
+        )
+        return ConfirmImportItemResult(
+            row_number=item.row_number,
+            baseline_public_id=str(change_set.public_id),
+            item_status=item.item_status,
+        )
+
+
+@dataclass
+class DecideImportItem:
+    context: CommandContext
+    batch_public_id: UUID
+    row_number: int
+    decision: str
+    target_product_public_id: UUID | None = None
+
+    def execute(self) -> ImportItem:
+        actor = self.context.actor
+        auth_decision = authorize(
+            subject_for(actor),
+            action="migration.review",
+            resource=ResourceDescriptor(
+                resource_type="migration",
+                public_id=None,
+                organization_id=actor.organization_id,
+            ),
+            context=AuthorizationContext.current(),
+        )
+        if not auth_decision.allowed:
+            raise PermissionDeniedError()
+
+        item = (
+            ImportItem.objects.select_related("batch")
+            .filter(
+                batch__public_id=self.batch_public_id,
+                batch__organization_id=actor.organization_id,
+                row_number=self.row_number,
+            )
+            .first()
+        )
+        if item is None:
+            raise PermissionDeniedError()
+
+        if self.decision not in ImportItemDecision.values:
+            raise PermissionDeniedError()
+
+        item.decision = self.decision
+        if self.target_product_public_id is not None:
+            product = ProductAsset.objects.filter(
+                public_id=self.target_product_public_id,
+                organization_id=actor.organization_id,
+            ).first()
+            if product is None:
+                raise PermissionDeniedError()
+            item.target_product = product
+            item.save(update_fields=["decision", "target_product", "updated_at"])
+        else:
+            item.save(update_fields=["decision", "updated_at"])
+        return item

@@ -2,13 +2,13 @@
 
 日期：2026-07-10
 
-状态：已通过（分支 `codex/phase-3-product-profile-migration`，待合入 main）
+状态：已通过（2026-07-10 审查补救后）
 
 对应计划：`docs/superpowers/plans/2026-07-09-phase-3-product-profile-migration.md`
 
 对应测试矩阵：`docs/implementation/phase-3-test-matrix.md`
 
-HEAD：`22c3026`（前端 UI）；后端完整历史见下方提交记录
+HEAD：见当前分支最新提交（审查补救包含审批链 API、发布 SKU/渠道写路径、外部绑定、导入决策与迁移加固）
 
 ## 已交付能力概览
 
@@ -46,8 +46,7 @@ f36888b feat: add phase 3 product authorization actions
 ## 自动化证据（本轮实际运行）
 
 ```text
-uv run pytest tests/products -q --create-db                    — 34 passed
-uv run pytest tests/acceptance/test_product_profile_migration.py -q --create-db — 2 passed
+uv run pytest tests/products tests/acceptance/test_product_profile_migration.py -q --create-db — 39 passed
 npm run test:unit -- --run ProductListView.spec.ts …          — 4 passed
 npm run typecheck                                              — 通过
 uv run python manage.py spectacular --file openapi/schema.yaml — 通过（全局推断警告非阻塞）

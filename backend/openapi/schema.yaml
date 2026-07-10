@@ -675,6 +675,56 @@ paths:
               schema:
                 $ref: '#/components/schemas/ProductChangeSetDetail'
           description: ''
+  /api/v1/product-change-sets/{public_id}/approve:
+    post:
+      operationId: product_change_sets_approve
+      parameters:
+      - in: path
+        name: public_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - product-change-sets
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProductChangeSetDetail'
+          description: ''
+  /api/v1/product-change-sets/{public_id}/approve-attribute-group:
+    post:
+      operationId: product_change_sets_approve_attribute_group
+      parameters:
+      - in: path
+        name: public_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - product-change-sets
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AttributeConfirmationRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/AttributeConfirmationRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/AttributeConfirmationRequest'
+        required: true
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          description: No response body
   /api/v1/product-change-sets/{public_id}/diff:
     get:
       operationId: product_change_sets_diff_retrieve
@@ -691,7 +741,11 @@ paths:
       - cookieAuth: []
       responses:
         '200':
-          description: No response body
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProductChangeSetDiffResponse'
+          description: ''
   /api/v1/product-change-sets/{public_id}/edit-group:
     post:
       operationId: product_change_sets_edit_group
@@ -757,6 +811,89 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/PublishChangeSetResponse'
+          description: ''
+  /api/v1/product-change-sets/{public_id}/return-attribute-group:
+    post:
+      operationId: product_change_sets_return_attribute_group
+      parameters:
+      - in: path
+        name: public_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - product-change-sets
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AttributeConfirmationRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/AttributeConfirmationRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/AttributeConfirmationRequest'
+        required: true
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/product-change-sets/{public_id}/submit-confirmation:
+    post:
+      operationId: product_change_sets_submit_confirmation
+      parameters:
+      - in: path
+        name: public_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - product-change-sets
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProductChangeSetDetail'
+          description: ''
+  /api/v1/product-change-sets/{public_id}/update-scope:
+    post:
+      operationId: product_change_sets_update_scope
+      parameters:
+      - in: path
+        name: public_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - product-change-sets
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateChangeSetScopeRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/UpdateChangeSetScopeRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/UpdateChangeSetScopeRequest'
+        required: true
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProductChangeSetDetail'
           description: ''
   /api/v1/product-change-sets/{public_id}/validate-publication:
     post:
@@ -880,6 +1017,35 @@ paths:
               schema:
                 $ref: '#/components/schemas/ConfirmImportBatchResponse'
           description: ''
+  /api/v1/product-import-batches/{public_id}/decide-item:
+    post:
+      operationId: product_import_items_decide
+      parameters:
+      - in: path
+        name: public_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - product-import-batches
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DecideImportItemRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/DecideImportItemRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/DecideImportItemRequest'
+        required: true
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          description: No response body
   /api/v1/products:
     get:
       operationId: products_list
@@ -1230,6 +1396,19 @@ components:
           nullable: true
       required:
       - case_owner_public_id
+    AttributeConfirmationRequest:
+      type: object
+      properties:
+        group_value_public_id:
+          type: string
+          format: uuid
+        content_hash:
+          type: string
+        comment:
+          type: string
+      required:
+      - content_hash
+      - group_value_public_id
     CandidateSplitList:
       type: object
       properties:
@@ -1330,6 +1509,19 @@ components:
       - owner_public_id
       - owner_type
       - quarter
+    DecideImportItemRequest:
+      type: object
+      properties:
+        row_number:
+          type: integer
+        decision:
+          type: string
+        target_product_public_id:
+          type: string
+          format: uuid
+      required:
+      - decision
+      - row_number
     DeferredItem:
       type: object
       properties:
@@ -1706,6 +1898,14 @@ components:
       - status
       - title
       - version_no
+    ProductChangeSetDiffResponse:
+      type: object
+      properties:
+        groups:
+          type: array
+          items: {}
+      required:
+      - groups
     ProductDetail:
       type: object
       properties:
@@ -2150,6 +2350,22 @@ components:
           type: string
       required:
       - idempotency_key
+    UpdateChangeSetScopeRequest:
+      type: object
+      properties:
+        version_no:
+          type: integer
+        skus:
+          type: array
+          items: {}
+        channels:
+          type: array
+          items: {}
+        scopes:
+          type: array
+          items: {}
+      required:
+      - version_no
     WithdrawProposalRequest:
       type: object
       properties:

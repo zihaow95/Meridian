@@ -27,8 +27,7 @@ const stubs = {
     name: 'ProductPublicationPanelStub',
     props: ['changeSetPublicId'],
     setup(props) {
-      return () =>
-        h('div', { 'data-test': 'publication-panel' }, props.changeSetPublicId as string)
+      return () => h('div', { 'data-test': 'publication-panel' }, props.changeSetPublicId as string)
     },
   }),
 }

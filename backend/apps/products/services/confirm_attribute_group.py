@@ -181,6 +181,12 @@ class ReturnAttributeGroup:
             if not decision.allowed:
                 raise PermissionDeniedError()
 
+            if change_set.status not in {
+                ChangeSetStatus.DRAFT,
+                ChangeSetStatus.IN_CONFIRMATION,
+            }:
+                raise ChangeSetNotEditable()
+
             group_value = AttributeGroupValue.objects.filter(
                 public_id=self.group_value_public_id,
                 change_set=change_set,

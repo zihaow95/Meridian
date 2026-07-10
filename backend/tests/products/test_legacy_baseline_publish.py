@@ -15,9 +15,8 @@ from apps.products.models import (
     ProductLifecycleStatus,
     ProductSourceType,
 )
-from apps.products.services.import_batch import ConfirmProductImportBatch
+from apps.products.services.import_batch import ConfirmProductImportBatch, CreateProductImportBatch
 from apps.products.services.import_template import sample_import_csv
-from apps.products.services.import_batch import CreateProductImportBatch
 from apps.products.services.publish_legacy_baseline import PublishLegacyBaseline
 
 

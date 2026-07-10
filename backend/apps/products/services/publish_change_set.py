@@ -13,6 +13,7 @@ from apps.audit.services.snapshots import acting_roles_snapshot
 from apps.authorization.context import AuthorizationContext, ResourceDescriptor
 from apps.authorization.policies.engine import authorize
 from apps.authorization.services.subject import subject_for
+from apps.identity.models.user import User
 from apps.platform.api.errors import PermissionDeniedError
 from apps.platform.application.command import CommandContext
 from apps.platform.outbox.services import OutboxMessage, register_outbox_event
@@ -23,11 +24,16 @@ from apps.products.models import (
     AttributeValueStatus,
     ChangeSetStatus,
     ChangeSetType,
+    ChannelConfiguration,
+    ChannelStatus,
     ProductChangeSet,
     ProductLifecycleStatus,
     ProductVersion,
+    ProductVersionScope,
     ProductVersionStatus,
     SKUStatus,
+    VersionScopeStatus,
+    VersionScopeType,
 )
 from apps.products.services.validate_publication import ValidateProductPublication
 
@@ -41,8 +47,86 @@ class ProductPublicationResult:
 def create_channel_configurations(
     *, change_set: ProductChangeSet, product_version: ProductVersion
 ) -> None:
-    """Hook for channel configuration creation during publication."""
-    del change_set, product_version
+    """Create channel configurations declared on the change set scope."""
+    scope = change_set.change_scope or {}
+    channels = scope.get("channels")
+    if not isinstance(channels, list):
+        return
+
+    sku_by_code = {sku.sku_code: sku for sku in SKU.objects.filter(product_version=product_version)}
+    for row in channels:
+        if not isinstance(row, dict):
+            continue
+        sku_code = str(row.get("sku_code") or "")
+        channel_code = str(row.get("channel_code") or "")
+        if not sku_code or not channel_code:
+            continue
+        sku = sku_by_code.get(sku_code)
+        if sku is None:
+            continue
+        ChannelConfiguration.objects.create(
+            organization=change_set.organization,
+            sku=sku,
+            channel_code=channel_code,
+            configuration_version=1,
+            channel_status=str(row.get("channel_status") or ChannelStatus.ON_SALE),
+            channel_selling_points=str(row.get("channel_selling_points") or ""),
+            change_set=change_set,
+            valid_from=product_version.effective_from,
+        )
+
+
+def _publish_skus_and_scopes(
+    *,
+    change_set: ProductChangeSet,
+    product_version: ProductVersion,
+) -> None:
+    scope = change_set.change_scope or {}
+    sku_rows = scope.get("skus")
+    if isinstance(sku_rows, list) and sku_rows:
+        for row in sku_rows:
+            if not isinstance(row, dict):
+                continue
+            sku_code = str(row.get("sku_code") or "")
+            if not sku_code:
+                continue
+            create_iteration_sku(
+                change_set=change_set,
+                product_version=product_version,
+                sku_code=sku_code,
+                name=str(row.get("name") or change_set.product.name),
+                specification=str(row.get("specification") or ""),
+                barcode=str(row.get("barcode") or ""),
+            )
+    elif change_set.change_type == ChangeSetType.NEW_PRODUCT:
+        create_iteration_sku(
+            change_set=change_set,
+            product_version=product_version,
+            sku_code=f"SKU-{change_set.product.business_no}",
+            name=change_set.product.name,
+        )
+
+    scope_rows = scope.get("scopes")
+    if isinstance(scope_rows, list) and scope_rows:
+        for row in scope_rows:
+            if not isinstance(row, dict):
+                continue
+            ProductVersionScope.objects.create(
+                organization=change_set.organization,
+                product_version=product_version,
+                scope_type=str(row.get("scope_type") or VersionScopeType.GLOBAL),
+                channel_code=str(row.get("channel_code") or ""),
+                status=str(row.get("status") or VersionScopeStatus.EFFECTIVE),
+                valid_from=product_version.effective_from,
+            )
+    else:
+        ProductVersionScope.objects.create(
+            organization=change_set.organization,
+            product_version=product_version,
+            scope_type=VersionScopeType.GLOBAL,
+            status=VersionScopeStatus.EFFECTIVE,
+            valid_from=product_version.effective_from,
+        )
 
 
 @dataclass
@@ -108,6 +192,7 @@ class PublishProductChangeSet:
 
             try:
                 product_version = self._publish_version(change_set=change_set, actor=actor, now=now)
+                _publish_skus_and_scopes(change_set=change_set, product_version=product_version)
                 create_channel_configurations(
                     change_set=change_set, product_version=product_version
                 )
@@ -171,7 +256,7 @@ class PublishProductChangeSet:
         self,
         *,
         change_set: ProductChangeSet,
-        actor,
+        actor: User,
         now,
     ) -> ProductVersion:
         version_code = self._next_version_code(change_set.product_id)
@@ -205,12 +290,16 @@ def create_iteration_sku(
     product_version: ProductVersion,
     sku_code: str,
     name: str,
+    specification: str = "",
+    barcode: str = "",
 ) -> SKU:
     return SKU.objects.create(
         organization=change_set.organization,
         product_version=product_version,
         sku_code=sku_code,
         name=name,
+        specification=specification,
+        barcode=barcode,
         status=SKUStatus.ACTIVE,
         effective_from=product_version.effective_from,
     )

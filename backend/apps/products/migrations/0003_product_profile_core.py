@@ -24,6 +24,28 @@ def backfill_change_set_project_ids(apps, schema_editor) -> None:
             row.save(update_fields=["project_id"])
 
 
+def _column_names(schema_editor, table_name: str) -> set[str]:
+    with schema_editor.connection.cursor() as cursor:
+        description = schema_editor.connection.introspection.get_table_description(cursor, table_name)
+    return {column.name for column in description}
+
+
+def add_product_asset_profile_columns(apps, schema_editor) -> None:
+    product_asset = apps.get_model("products", "ProductAsset")
+    table_name = product_asset._meta.db_table
+    existing = _column_names(schema_editor, table_name)
+    fields = (
+        ("brand_code", models.CharField(blank=True, default="", max_length=40)),
+        ("category_code", models.CharField(blank=True, default="", max_length=40)),
+        ("retired_at", models.DateTimeField(blank=True, null=True)),
+    )
+    for field_name, field in fields:
+        if field_name in existing:
+            continue
+        field.set_attributes_from_name(field_name)
+        schema_editor.add_field(product_asset, field)
+
+
 class Migration(migrations.Migration):
     dependencies = [
         ("identity", "0002_remove_user_identity_user_org_employee_no_uniq_and_more"),
@@ -34,20 +56,27 @@ class Migration(migrations.Migration):
     ]
 
     operations = [
-        migrations.AddField(
-            model_name="productasset",
-            name="brand_code",
-            field=models.CharField(blank=True, default="", max_length=40),
-        ),
-        migrations.AddField(
-            model_name="productasset",
-            name="category_code",
-            field=models.CharField(blank=True, default="", max_length=40),
-        ),
-        migrations.AddField(
-            model_name="productasset",
-            name="retired_at",
-            field=models.DateTimeField(blank=True, null=True),
+        migrations.SeparateDatabaseAndState(
+            database_operations=[
+                migrations.RunPython(add_product_asset_profile_columns, migrations.RunPython.noop),
+            ],
+            state_operations=[
+                migrations.AddField(
+                    model_name="productasset",
+                    name="brand_code",
+                    field=models.CharField(blank=True, default="", max_length=40),
+                ),
+                migrations.AddField(
+                    model_name="productasset",
+                    name="category_code",
+                    field=models.CharField(blank=True, default="", max_length=40),
+                ),
+                migrations.AddField(
+                    model_name="productasset",
+                    name="retired_at",
+                    field=models.DateTimeField(blank=True, null=True),
+                ),
+            ],
         ),
         migrations.RenameField(
             model_name="productdraft",

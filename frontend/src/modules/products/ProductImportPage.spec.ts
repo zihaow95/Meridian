@@ -16,11 +16,7 @@ const stubs = {
     props: ['disabled', 'loading', 'type'],
     setup(props, { slots, attrs }) {
       return () =>
-        h(
-          'button',
-          { ...attrs, disabled: props.disabled ? true : undefined },
-          slots.default?.(),
-        )
+        h('button', { ...attrs, disabled: props.disabled ? true : undefined }, slots.default?.())
     },
   }),
   'el-input': defineComponent({

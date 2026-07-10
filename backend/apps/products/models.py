@@ -229,7 +229,6 @@ class ProductChangeSet(OrganizationOwnedModel):
         constraints = [
             models.UniqueConstraint(
                 fields=["project_candidate"],
-                condition=models.Q(project_candidate__isnull=False),
                 name="products_draft_candidate_uniq",
             ),
         ]

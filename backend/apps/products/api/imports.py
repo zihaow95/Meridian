@@ -12,11 +12,18 @@ from rest_framework.request import Request
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from apps.authorization.context import AuthorizationContext, ResourceDescriptor
+from apps.authorization.policies.engine import authorize
+from apps.authorization.services.subject import subject_for
 from apps.identity.models.user import User
-from apps.platform.api.errors import ResourceNotFoundError
+from apps.platform.api.errors import PermissionDeniedError, ResourceNotFoundError
 from apps.platform.application.command import CommandContext
 from apps.products.models import ImportBatch
-from apps.products.services.import_batch import ConfirmProductImportBatch, CreateProductImportBatch
+from apps.products.services.import_batch import (
+    ConfirmProductImportBatch,
+    CreateProductImportBatch,
+    DecideImportItem,
+)
 from apps.products.services.publish_legacy_baseline import PublishLegacyBaseline
 
 IMPORT_BATCH_DETAIL_SCHEMA = inline_serializer(
@@ -119,6 +126,18 @@ class ProductImportBatchDetailView(APIView):
     )
     def get(self, request: Request, public_id: UUID) -> Response:
         user = cast(User, request.user)
+        decision = authorize(
+            subject_for(user),
+            action="migration.review",
+            resource=ResourceDescriptor(
+                resource_type="migration",
+                public_id=None,
+                organization_id=user.organization_id,
+            ),
+            context=AuthorizationContext.current(),
+        )
+        if not decision.allowed:
+            raise PermissionDeniedError()
         batch = (
             ImportBatch.objects.prefetch_related("items")
             .filter(public_id=public_id, organization_id=user.organization_id)
@@ -159,6 +178,42 @@ class ProductImportBatchConfirmView(APIView):
                     }
                     for item in result.items
                 ],
+            }
+        )
+
+
+class ProductImportItemDecideView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    @extend_schema(
+        operation_id="product_import_items_decide",
+        request=inline_serializer(
+            name="DecideImportItemRequest",
+            fields={
+                "row_number": serializers.IntegerField(),
+                "decision": serializers.CharField(),
+                "target_product_public_id": serializers.UUIDField(required=False),
+            },
+        ),
+    )
+    def post(self, request: Request, public_id: UUID) -> Response:
+        user = cast(User, request.user)
+        body = cast(dict[str, Any], request.data)
+        target_id = body.get("target_product_public_id")
+        item = DecideImportItem(
+            context=CommandContext.for_actor(user),
+            batch_public_id=public_id,
+            row_number=int(body["row_number"]),
+            decision=str(body["decision"]),
+            target_product_public_id=UUID(str(target_id)) if target_id else None,
+        ).execute()
+        return Response(
+            {
+                "row_number": item.row_number,
+                "decision": item.decision,
+                "target_product_public_id": str(item.target_product.public_id)
+                if item.target_product_id
+                else None,
             }
         )
 

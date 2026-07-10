@@ -9,6 +9,7 @@ from uuid import UUID
 from apps.identity.models.user import User
 from apps.platform.api.errors import PermissionDeniedError
 from apps.products.models import (
+    SKU,
     AttributeConfirmation,
     AttributeGroupValue,
     ChangeSetStatus,
@@ -17,6 +18,10 @@ from apps.products.models import (
     NutritionTable,
     ProductChangeSet,
     ProductMaterial,
+)
+from apps.products.services.attribute_schema import (
+    resolve_product_attribute_schema,
+    validate_group_values,
 )
 from apps.products.services.create_change_set import current_baseline_fingerprint
 from apps.products.services.materials import validate_material_for_publication
@@ -57,7 +62,12 @@ class ValidateProductPublication:
 
         blocks: list[PublicationBlock] = []
         blocks.extend(_status_blocks(change_set))
+        blocks.extend(_core_field_blocks(change_set))
+        blocks.extend(_schema_required_blocks(change_set))
+        blocks.extend(_sku_blocks(change_set))
         blocks.extend(_baseline_blocks(change_set))
+        blocks.extend(_approval_basis_blocks(change_set))
+        blocks.extend(_effective_time_blocks(change_set))
         blocks.extend(_confirmation_blocks(change_set))
         blocks.extend(_nutrition_blocks(change_set))
         blocks.extend(_material_blocks(change_set))
@@ -76,6 +86,156 @@ def _status_blocks(change_set: ProductChangeSet) -> list[PublicationBlock]:
     return []
 
 
+def _core_field_blocks(change_set: ProductChangeSet) -> list[PublicationBlock]:
+    product = change_set.product
+    missing: list[str] = []
+    if not product.name.strip():
+        missing.append("name")
+    if not product.business_no.strip():
+        missing.append("business_no")
+    if not product.category_code.strip():
+        missing.append("category_code")
+    if missing:
+        return [
+            PublicationBlock(
+                code="PRODUCT_REQUIRED_FIELD_MISSING",
+                message="Core product fields are incomplete.",
+                details={"fields": missing},
+            )
+        ]
+    return []
+
+
+def _schema_required_blocks(change_set: ProductChangeSet) -> list[PublicationBlock]:
+    if not change_set.product.category_code:
+        return []
+    try:
+        schema = resolve_product_attribute_schema(
+            change_set.organization_id,
+            category_code=change_set.product.category_code,
+        )
+    except Exception:
+        return [
+            PublicationBlock(
+                code="ATTRIBUTE_SCHEMA_NOT_PUBLISHED",
+                message="No published attribute schema is available.",
+                details={},
+            )
+        ]
+
+    blocks: list[PublicationBlock] = []
+    draft_values = {
+        row.group_definition_id: row
+        for row in AttributeGroupValue.objects.filter(change_set=change_set).select_related(
+            "group_definition",
+        )
+    }
+    for group_definition in schema.group_definitions:
+        group_value = draft_values.get(group_definition.id)
+        values = group_value.values_json if group_value is not None else {}
+        try:
+            validate_group_values(group_definition=group_definition, values=values)
+        except Exception as exc:
+            blocks.append(
+                PublicationBlock(
+                    code="ATTRIBUTE_VALUE_INVALID",
+                    message="Required schema attributes are missing or invalid.",
+                    details={
+                        "group_code": group_definition.group_code,
+                        "reason": str(exc),
+                    },
+                )
+            )
+    return blocks
+
+
+def _sku_blocks(change_set: ProductChangeSet) -> list[PublicationBlock]:
+    scope = change_set.change_scope or {}
+    sku_rows = scope.get("skus")
+    if not isinstance(sku_rows, list) or not sku_rows:
+        if change_set.change_type in {ChangeSetType.NEW_PRODUCT, ChangeSetType.ITERATION}:
+            return [
+                PublicationBlock(
+                    code="PRODUCT_SKU_MISSING",
+                    message="At least one SKU must be declared before publication.",
+                    details={},
+                )
+            ]
+        return []
+
+    blocks: list[PublicationBlock] = []
+    seen_codes: set[str] = set()
+    seen_barcodes: set[str] = set()
+    for row in sku_rows:
+        if not isinstance(row, dict):
+            continue
+        sku_code = str(row.get("sku_code") or "").strip()
+        barcode = str(row.get("barcode") or "").strip()
+        if not sku_code:
+            blocks.append(
+                PublicationBlock(
+                    code="PRODUCT_SKU_CODE_MISSING",
+                    message="SKU code is required.",
+                    details={},
+                )
+            )
+            continue
+        if sku_code in seen_codes:
+            blocks.append(
+                PublicationBlock(
+                    code="PRODUCT_SKU_CODE_DUPLICATE",
+                    message="Duplicate SKU code in change set scope.",
+                    details={"sku_code": sku_code},
+                )
+            )
+        seen_codes.add(sku_code)
+        if barcode:
+            if barcode in seen_barcodes:
+                blocks.append(
+                    PublicationBlock(
+                        code="PRODUCT_BARCODE_DUPLICATE",
+                        message="Duplicate barcode in change set scope.",
+                        details={"barcode": barcode},
+                    )
+                )
+            conflict = SKU.objects.filter(
+                organization_id=change_set.organization_id,
+                barcode=barcode,
+            ).exists()
+            if conflict:
+                blocks.append(
+                    PublicationBlock(
+                        code="PRODUCT_BARCODE_CONFLICT",
+                        message="Barcode already exists on another SKU.",
+                        details={"barcode": barcode},
+                    )
+                )
+            seen_barcodes.add(barcode)
+    return blocks
+
+
+def _approval_basis_blocks(change_set: ProductChangeSet) -> list[PublicationBlock]:
+    if change_set.change_type == ChangeSetType.LEGACY_BASELINE:
+        return []
+    if not change_set.approved_by_id:
+        return [
+            PublicationBlock(
+                code="CHANGE_SET_NOT_APPROVED",
+                message="The change set must be approved before publication.",
+                details={},
+            )
+        ]
+    return []
+
+
+def _effective_time_blocks(change_set: ProductChangeSet) -> list[PublicationBlock]:
+    scope = change_set.change_scope or {}
+    effective_from = scope.get("effective_from")
+    if effective_from is None:
+        return []
+    return []
+
+
 def _baseline_blocks(change_set: ProductChangeSet) -> list[PublicationBlock]:
     if change_set.change_type != ChangeSetType.ITERATION:
         return []
@@ -87,9 +247,11 @@ def _baseline_blocks(change_set: ProductChangeSet) -> list[PublicationBlock]:
                 details={},
             )
         ]
+    base_version = change_set.base_version
+    assert base_version is not None
     current = current_baseline_fingerprint(
         product=change_set.product,
-        base_version=change_set.base_version,
+        base_version=base_version,
     )
     if change_set.base_fingerprint and change_set.base_fingerprint != current:
         return [

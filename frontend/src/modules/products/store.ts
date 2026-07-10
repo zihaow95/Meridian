@@ -65,7 +65,10 @@ export const useProductStore = defineStore('products', {
         json: { idempotency_key: idempotencyKey },
       })
     },
-    async createImportBatch(csvContent: string, sourceFilename: string): Promise<ImportBatchDetail> {
+    async createImportBatch(
+      csvContent: string,
+      sourceFilename: string,
+    ): Promise<ImportBatchDetail> {
       this.loading = true
       try {
         this.importBatch = await apiFetch<ImportBatchDetail>('/api/v1/product-import-batches', {

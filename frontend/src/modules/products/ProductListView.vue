@@ -44,12 +44,7 @@ function openDetail(publicId: string): void {
     </div>
 
     <div class="product-list__search">
-      <el-input
-        v-model="searchText"
-        placeholder="按名称搜索"
-        clearable
-        @keyup.enter="load"
-      />
+      <el-input v-model="searchText" placeholder="按名称搜索" clearable @keyup.enter="load" />
       <el-button type="primary" @click="load">搜索</el-button>
     </div>
 

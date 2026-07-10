@@ -78,13 +78,26 @@ async function publishFirstBaseline(): Promise<void> {
     />
 
     <div class="product-import__actions">
-      <el-button type="primary" :loading="products.loading" data-test="parse-import" @click="uploadAndParse">
+      <el-button
+        type="primary"
+        :loading="products.loading"
+        data-test="parse-import"
+        @click="uploadAndParse"
+      >
         解析文件
       </el-button>
-      <el-button :disabled="!products.importBatch" data-test="confirm-import" @click="confirmImport">
+      <el-button
+        :disabled="!products.importBatch"
+        data-test="confirm-import"
+        @click="confirmImport"
+      >
         确认导入
       </el-button>
-      <el-button :disabled="!products.confirmResult" data-test="publish-baseline" @click="publishFirstBaseline">
+      <el-button
+        :disabled="!products.confirmResult"
+        data-test="publish-baseline"
+        @click="publishFirstBaseline"
+      >
         发布基线
       </el-button>
     </div>

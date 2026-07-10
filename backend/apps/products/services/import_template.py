@@ -48,9 +48,7 @@ def parse_import_csv(*, content: str) -> list[ParsedImportRow]:
     rows: list[ParsedImportRow] = []
     for index, raw in enumerate(reader, start=1):
         values = {
-            column: (raw.get(column) or "").strip()
-            for column in ALL_COLUMNS
-            if column in raw
+            column: (raw.get(column) or "").strip() for column in ALL_COLUMNS if column in raw
         }
         errors: list[dict[str, str]] = []
         if not values.get("name"):

@@ -69,3 +69,9 @@ class ProductBaselineChanged(ApiError):
     code = "PRODUCT_BASELINE_CHANGED"
     message = "The product baseline fingerprint has changed since the change set was created."
     status_code = 409
+
+
+class ExternalBindingConflict(ApiError):
+    code = "EXTERNAL_BINDING_CONFLICT"
+    message = "The external identifier is already bound to another internal object."
+    status_code = 409

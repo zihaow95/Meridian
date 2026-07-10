@@ -188,9 +188,28 @@ def ready_change_set(
 ) -> ProductChangeSet:
     del published_product_schema
     grant_action(product_director, "product.publish_new", "product", role_code="PRODUCT_DIRECTOR")
+    change_set.change_scope = {
+        "skus": [
+            {
+                "sku_code": "SKU-READY",
+                "name": "Yogurt cup",
+                "barcode": "6900000000100",
+                "specification": "120g",
+            }
+        ],
+        "channels": [
+            {
+                "sku_code": "SKU-READY",
+                "channel_code": "TMALL",
+                "channel_status": "ON_SALE",
+            }
+        ],
+    }
     change_set.status = ChangeSetStatus.APPROVED
     change_set.approved_by = product_director
-    change_set.save(update_fields=["status", "approved_by", "updated_at"])
+    change_set.save(
+        update_fields=["change_scope", "status", "approved_by", "updated_at"],
+    )
     return change_set
 
 

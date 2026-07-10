@@ -58,7 +58,10 @@ const stubs = {
     setup(props) {
       return () => {
         const rows = (props.data as Array<{ name: string }>) ?? []
-        return h('div', rows.map((row) => h('div', row.name)))
+        return h(
+          'div',
+          rows.map((row) => h('div', row.name)),
+        )
       }
     },
   }),
@@ -68,11 +71,6 @@ const stubs = {
       return () => h('div')
     },
   }),
-}
-
-const flush = async () => {
-  await new Promise((resolve) => setTimeout(resolve, 0))
-  await new Promise((resolve) => setTimeout(resolve, 0))
 }
 
 describe('ProductListView', () => {
