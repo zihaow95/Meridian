@@ -41,3 +41,13 @@ class AttributeGroupNotFound(ApiError):
     code = "ATTRIBUTE_GROUP_NOT_FOUND"
     message = "The requested attribute group is not defined in the published schema."
     status_code = 400
+
+
+class AttributeConfirmationInvalid(ApiError):
+    code = "ATTRIBUTE_CONFIRMATION_INVALID"
+    message = "The attribute confirmation request is invalid."
+    status_code = 409
+
+    def __init__(self, *, reason: str | None = None) -> None:
+        details = {"reason": reason} if reason else {}
+        super().__init__(details=details)

@@ -30,6 +30,7 @@ from apps.products.services.attribute_schema import (
     resolve_product_attribute_schema,
     validate_group_values,
 )
+from apps.products.services.confirm_attribute_group import supersede_stale_confirmations
 
 
 @dataclass
@@ -91,6 +92,12 @@ class EditProductChangeSet:
             content_hash = compute_attribute_content_hash(normalized_values)
             owner_id = self.owner_id if self.owner_id is not None else change_set.product_id
 
+            existing_value = AttributeGroupValue.objects.filter(
+                change_set=change_set,
+                group_definition=group_definition,
+            ).first()
+            previous_hash = existing_value.content_hash if existing_value is not None else None
+
             group_value, _created = AttributeGroupValue.objects.update_or_create(
                 change_set=change_set,
                 group_definition=group_definition,
@@ -105,6 +112,8 @@ class EditProductChangeSet:
                     "edited_by": actor,
                 },
             )
+            if previous_hash is not None and previous_hash != content_hash:
+                supersede_stale_confirmations(group_value=group_value, occurred_at=now)
 
             change_set.version_no += 1
             change_set.save(update_fields=["version_no", "updated_at"])

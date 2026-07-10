@@ -627,3 +627,158 @@ class AttributeGroupValue(OrganizationOwnedModel):
 
     def __str__(self) -> str:
         return f"{self.group_definition_id}:{self.value_status}"
+
+
+class NutritionBasis(models.TextChoices):
+    PER_100G = "PER_100G", "Per 100g"
+    PER_100ML = "PER_100ML", "Per 100ml"
+    PER_SERVING = "PER_SERVING", "Per serving"
+
+
+class NutritionTable(OrganizationOwnedModel):
+    change_set = models.ForeignKey(
+        ProductChangeSet,
+        on_delete=models.PROTECT,
+        related_name="nutrition_tables",
+    )
+    product_version = models.ForeignKey(
+        ProductVersion,
+        null=True,
+        blank=True,
+        on_delete=models.PROTECT,
+        related_name="nutrition_tables",
+    )
+    basis = models.CharField(max_length=24, choices=NutritionBasis.choices)
+    label_document_version = models.ForeignKey(
+        "documents.DocumentVersion",
+        on_delete=models.PROTECT,
+        related_name="nutrition_labels",
+    )
+    structured_summary_hash = models.CharField(max_length=64)
+    label_summary_hash = models.CharField(max_length=64)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "products_nutrition_table"
+        indexes = [
+            models.Index(fields=["change_set"]),
+            models.Index(fields=["product_version"]),
+        ]
+
+
+class NutritionItem(OrganizationOwnedModel):
+    nutrition_table = models.ForeignKey(
+        NutritionTable,
+        on_delete=models.PROTECT,
+        related_name="items",
+    )
+    nutrient_code = models.CharField(max_length=40)
+    amount_value = models.DecimalField(max_digits=14, decimal_places=4)
+    amount_unit = models.CharField(max_length=20)
+    nrv_percent = models.DecimalField(max_digits=8, decimal_places=2, null=True, blank=True)
+    source_type = models.CharField(max_length=24, blank=True, default="")
+    display_order = models.PositiveIntegerField(default=0)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "products_nutrition_item"
+        indexes = [
+            models.Index(fields=["nutrition_table", "display_order"]),
+        ]
+
+
+class MaterialType(models.TextChoices):
+    INNER_PACKAGING = "INNER_PACKAGING", "Inner packaging"
+    OUTER_PACKAGING = "OUTER_PACKAGING", "Outer packaging"
+    LABEL = "LABEL", "Label"
+    DESIGN_SOURCE = "DESIGN_SOURCE", "Design source"
+    CHANNEL_IMAGE = "CHANNEL_IMAGE", "Channel image"
+    APPROVED_PRINT = "APPROVED_PRINT", "Approved print"
+
+
+class MaterialStatus(models.TextChoices):
+    DRAFT = "DRAFT", "Draft"
+    APPROVED = "APPROVED", "Approved"
+    INACTIVE = "INACTIVE", "Inactive"
+
+
+class ProductMaterial(OrganizationOwnedModel):
+    change_set = models.ForeignKey(
+        ProductChangeSet,
+        null=True,
+        blank=True,
+        on_delete=models.PROTECT,
+        related_name="materials",
+    )
+    owner_type = models.CharField(max_length=16, choices=AttributeOwnerType.choices)
+    owner_id = models.BigIntegerField()
+    material_type = models.CharField(max_length=24, choices=MaterialType.choices)
+    document_version = models.ForeignKey(
+        "documents.DocumentVersion",
+        on_delete=models.PROTECT,
+        related_name="product_materials",
+    )
+    purpose = models.CharField(max_length=120, blank=True, default="")
+    sensitivity_level = models.CharField(max_length=32, default="INTERNAL")
+    material_status = models.CharField(
+        max_length=16,
+        choices=MaterialStatus.choices,
+        default=MaterialStatus.DRAFT,
+    )
+    valid_from = models.DateTimeField(null=True, blank=True)
+    valid_to = models.DateTimeField(null=True, blank=True)
+    confirmation = models.ForeignKey(
+        "products.AttributeConfirmation",
+        null=True,
+        blank=True,
+        on_delete=models.PROTECT,
+        related_name="materials",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "products_product_material"
+        indexes = [
+            models.Index(fields=["owner_type", "owner_id", "material_status"]),
+            models.Index(fields=["change_set", "material_type"]),
+        ]
+
+
+class ConfirmationDecision(models.TextChoices):
+    APPROVED = "APPROVED", "Approved"
+    RETURNED = "RETURNED", "Returned"
+
+
+class AttributeConfirmation(OrganizationOwnedModel):
+    change_set = models.ForeignKey(
+        ProductChangeSet,
+        on_delete=models.PROTECT,
+        related_name="attribute_confirmations",
+    )
+    group_value = models.ForeignKey(
+        AttributeGroupValue,
+        on_delete=models.PROTECT,
+        related_name="confirmations",
+    )
+    content_hash = models.CharField(max_length=64)
+    confirmer = models.ForeignKey(
+        "identity.User",
+        on_delete=models.PROTECT,
+        related_name="attribute_confirmations",
+    )
+    decision = models.CharField(max_length=16, choices=ConfirmationDecision.choices)
+    comment = models.TextField(blank=True, default="")
+    confirmed_at = models.DateTimeField()
+    superseded_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "products_attribute_confirmation"
+        indexes = [
+            models.Index(fields=["change_set", "decision"]),
+            models.Index(fields=["group_value", "superseded_at"]),
+        ]
