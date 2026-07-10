@@ -311,6 +311,27 @@ paths:
                     service: meridian-api
                   summary: ok
           description: ''
+  /api/v1/legacy-baselines/{public_id}/publish:
+    post:
+      operationId: legacy_baselines_publish
+      parameters:
+      - in: path
+        name: public_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - legacy-baselines
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PublishLegacyBaselineResponse'
+          description: ''
   /api/v1/lifecycle-board:
     get:
       operationId: lifecycle_board_list
@@ -779,6 +800,86 @@ paths:
               schema:
                 $ref: '#/components/schemas/ProductDraftDetail'
           description: ''
+  /api/v1/product-import-batches:
+    post:
+      operationId: product_import_batches_create
+      tags:
+      - product-import-batches
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateImportBatchRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/CreateImportBatchRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/CreateImportBatchRequest'
+        required: true
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ImportBatchDetail'
+          description: ''
+  /api/v1/product-import-batches/{public_id}:
+    get:
+      operationId: product_import_batches_retrieve
+      parameters:
+      - in: path
+        name: public_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - product-import-batches
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ImportBatchDetail'
+          description: ''
+  /api/v1/product-import-batches/{public_id}/confirm:
+    post:
+      operationId: product_import_batches_confirm
+      parameters:
+      - in: path
+        name: public_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - product-import-batches
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ConfirmImportBatchRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/ConfirmImportBatchRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/ConfirmImportBatchRequest'
+        required: true
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConfirmImportBatchResponse'
+          description: ''
   /api/v1/products:
     get:
       operationId: products_list
@@ -1165,6 +1266,42 @@ components:
             type: string
       required:
       - opportunity_public_ids
+    ConfirmImportBatchRequest:
+      type: object
+      properties:
+        idempotency_key:
+          type: string
+      required:
+      - idempotency_key
+    ConfirmImportBatchResponse:
+      type: object
+      properties:
+        created_count:
+          type: integer
+        linked_count:
+          type: integer
+        skipped_count:
+          type: integer
+        failed_count:
+          type: integer
+        items:
+          type: array
+          items: {}
+      required:
+      - created_count
+      - failed_count
+      - items
+      - linked_count
+      - skipped_count
+    CreateImportBatchRequest:
+      type: object
+      properties:
+        csv_content:
+          type: string
+        source_filename:
+          type: string
+      required:
+      - csv_content
     CurrentProposalQuota:
       type: object
       properties:
@@ -1245,6 +1382,33 @@ components:
       required:
       - service
       - status
+    ImportBatchDetail:
+      type: object
+      properties:
+        public_id:
+          type: string
+          format: uuid
+        status:
+          type: string
+        template_version:
+          type: string
+        total_count:
+          type: integer
+        success_count:
+          type: integer
+        failure_count:
+          type: integer
+        items:
+          type: array
+          items: {}
+      required:
+      - failure_count
+      - items
+      - public_id
+      - status
+      - success_count
+      - template_version
+      - total_count
     LifecycleBoardItem:
       type: object
       properties:
@@ -1862,6 +2026,21 @@ components:
           format: uuid
       required:
       - change_set_public_id
+      - product_version_public_id
+    PublishLegacyBaselineResponse:
+      type: object
+      properties:
+        change_set_public_id:
+          type: string
+          format: uuid
+        product_version_public_id:
+          type: string
+          format: uuid
+        product_lifecycle_status:
+          type: string
+      required:
+      - change_set_public_id
+      - product_lifecycle_status
       - product_version_public_id
     QuarterlyReviewRequest:
       type: object

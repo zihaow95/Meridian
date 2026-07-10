@@ -12,6 +12,12 @@ from apps.products.api.change_sets import (
     ValidatePublicationView,
 )
 from apps.products.api.drafts import ProductDraftDetailView
+from apps.products.api.imports import (
+    ProductImportBatchConfirmView,
+    ProductImportBatchCreateView,
+    ProductImportBatchDetailView,
+    PublishLegacyBaselineView,
+)
 from apps.products.api.products import ProductDetailView, ProductListView
 
 urlpatterns = [
@@ -46,5 +52,25 @@ urlpatterns = [
         "product-change-sets/<uuid:public_id>/publish",
         PublishChangeSetView.as_view(),
         name="product-change-set-publish",
+    ),
+    path(
+        "product-import-batches",
+        ProductImportBatchCreateView.as_view(),
+        name="product-import-batch-create",
+    ),
+    path(
+        "product-import-batches/<uuid:public_id>",
+        ProductImportBatchDetailView.as_view(),
+        name="product-import-batch-detail",
+    ),
+    path(
+        "product-import-batches/<uuid:public_id>/confirm",
+        ProductImportBatchConfirmView.as_view(),
+        name="product-import-batch-confirm",
+    ),
+    path(
+        "legacy-baselines/<uuid:public_id>/publish",
+        PublishLegacyBaselineView.as_view(),
+        name="legacy-baseline-publish",
     ),
 ]

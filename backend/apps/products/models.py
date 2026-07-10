@@ -172,6 +172,8 @@ class ProductChangeSet(OrganizationOwnedModel):
     )
     project_candidate = models.ForeignKey(
         "opportunities.ProjectCandidate",
+        null=True,
+        blank=True,
         on_delete=models.PROTECT,
         related_name="product_change_sets",
     )
@@ -227,6 +229,7 @@ class ProductChangeSet(OrganizationOwnedModel):
         constraints = [
             models.UniqueConstraint(
                 fields=["project_candidate"],
+                condition=models.Q(project_candidate__isnull=False),
                 name="products_draft_candidate_uniq",
             ),
         ]
@@ -789,4 +792,112 @@ class AttributeConfirmation(OrganizationOwnedModel):
         indexes = [
             models.Index(fields=["change_set", "decision"]),
             models.Index(fields=["group_value", "superseded_at"]),
+        ]
+
+
+class ImportBatchStatus(models.TextChoices):
+    UPLOADED = "UPLOADED", "Uploaded"
+    PARSING = "PARSING", "Parsing"
+    PARSED = "PARSED", "Parsed"
+    CONFIRMED = "CONFIRMED", "Confirmed"
+    FAILED = "FAILED", "Failed"
+
+
+class ImportItemStatus(models.TextChoices):
+    PENDING = "PENDING", "Pending"
+    VALID = "VALID", "Valid"
+    INVALID = "INVALID", "Invalid"
+    DUPLICATE_REVIEW = "DUPLICATE_REVIEW", "Duplicate review"
+    CONFIRMED = "CONFIRMED", "Confirmed"
+    FAILED = "FAILED", "Failed"
+    SKIPPED = "SKIPPED", "Skipped"
+
+
+class ImportItemDecision(models.TextChoices):
+    PENDING = "PENDING", "Pending"
+    CREATE = "CREATE", "Create"
+    LINK = "LINK", "Link"
+    SKIP = "SKIP", "Skip"
+
+
+class ImportBatch(OrganizationOwnedModel):
+    template_version = models.CharField(max_length=40)
+    status = models.CharField(
+        max_length=24,
+        choices=ImportBatchStatus.choices,
+        default=ImportBatchStatus.UPLOADED,
+    )
+    source_filename = models.CharField(max_length=255, blank=True, default="")
+    source_digest = models.CharField(max_length=64, blank=True, default="")
+    total_count = models.PositiveIntegerField(default=0)
+    success_count = models.PositiveIntegerField(default=0)
+    failure_count = models.PositiveIntegerField(default=0)
+    skip_count = models.PositiveIntegerField(default=0)
+    created_count = models.PositiveIntegerField(default=0)
+    linked_count = models.PositiveIntegerField(default=0)
+    confirm_idempotency_key = models.CharField(max_length=128, blank=True, default="")
+    created_by = models.ForeignKey(
+        "identity.User",
+        on_delete=models.PROTECT,
+        related_name="created_product_import_batches",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "products_import_batch"
+        indexes = [
+            models.Index(fields=["organization", "status", "updated_at"]),
+        ]
+
+
+class ImportItem(OrganizationOwnedModel):
+    batch = models.ForeignKey(
+        ImportBatch,
+        on_delete=models.PROTECT,
+        related_name="items",
+    )
+    row_number = models.PositiveIntegerField()
+    raw_row_digest = models.CharField(max_length=64)
+    normalized_payload = models.JSONField(default=dict)
+    validation_errors = models.JSONField(default=list, blank=True)
+    duplicate_candidates = models.JSONField(default=list, blank=True)
+    item_status = models.CharField(
+        max_length=24,
+        choices=ImportItemStatus.choices,
+        default=ImportItemStatus.PENDING,
+    )
+    decision = models.CharField(
+        max_length=16,
+        choices=ImportItemDecision.choices,
+        default=ImportItemDecision.PENDING,
+    )
+    error_code = models.CharField(max_length=64, blank=True, default="")
+    baseline_change_set = models.ForeignKey(
+        ProductChangeSet,
+        null=True,
+        blank=True,
+        on_delete=models.PROTECT,
+        related_name="import_items",
+    )
+    target_product = models.ForeignKey(
+        ProductAsset,
+        null=True,
+        blank=True,
+        on_delete=models.PROTECT,
+        related_name="import_items",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "products_import_item"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["batch", "row_number"],
+                name="products_import_item_batch_row_uniq",
+            ),
+        ]
+        indexes = [
+            models.Index(fields=["batch", "item_status"]),
         ]
