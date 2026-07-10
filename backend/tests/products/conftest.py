@@ -32,6 +32,7 @@ from apps.products.models import (
     ProductVersionStatus,
 )
 from apps.products.services.attribute_schema import compute_attribute_content_hash
+from apps.products.services.create_change_set import compute_baseline_fingerprint
 from apps.projects.models import Project
 from apps.projects.services.create_project_from_candidate import ApproveAndCreateProject
 from tests.opportunities.factories import build_approval_ready_candidate
@@ -179,6 +180,21 @@ def change_set(
 
 
 @pytest.fixture
+def ready_change_set(
+    change_set: ProductChangeSet,
+    product_director: User,
+    grant_action: Callable[..., None],
+    published_product_schema: object,
+) -> ProductChangeSet:
+    del published_product_schema
+    grant_action(product_director, "product.publish_new", "product", role_code="PRODUCT_DIRECTOR")
+    change_set.status = ChangeSetStatus.APPROVED
+    change_set.approved_by = product_director
+    change_set.save(update_fields=["status", "approved_by", "updated_at"])
+    return change_set
+
+
+@pytest.fixture
 def iteration_change_set(
     organization: Organization,
     product_manager: User,
@@ -226,12 +242,14 @@ def iteration_change_set(
         content_hash=compute_attribute_content_hash(baseline_values),
         value_status=AttributeValueStatus.EFFECTIVE,
     )
+    base_fingerprint = compute_baseline_fingerprint(product=product, base_version=base_version)
     return ProductChangeSet.objects.create(
         organization=organization,
         change_type=ChangeSetType.ITERATION,
         status=ChangeSetStatus.DRAFT,
         product=product,
         base_version=base_version,
+        base_fingerprint=base_fingerprint,
         project_candidate=iteration_candidate,
         title="Quality update",
         created_by=product_manager,

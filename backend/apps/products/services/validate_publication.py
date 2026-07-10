@@ -8,7 +8,17 @@ from uuid import UUID
 
 from apps.identity.models.user import User
 from apps.platform.api.errors import PermissionDeniedError
-from apps.products.models import NutritionTable, ProductChangeSet, ProductMaterial
+from apps.products.models import (
+    AttributeConfirmation,
+    AttributeGroupValue,
+    ChangeSetStatus,
+    ChangeSetType,
+    ConfirmationDecision,
+    NutritionTable,
+    ProductChangeSet,
+    ProductMaterial,
+)
+from apps.products.services.create_change_set import current_baseline_fingerprint
 from apps.products.services.materials import validate_material_for_publication
 
 
@@ -35,7 +45,7 @@ class ValidateProductPublication:
 
     def execute(self) -> PublicationValidationResult:
         change_set = (
-            ProductChangeSet.objects.select_related("product")
+            ProductChangeSet.objects.select_related("product", "base_version")
             .filter(
                 public_id=self.change_set_public_id,
                 organization_id=self.actor.organization_id,
@@ -46,9 +56,79 @@ class ValidateProductPublication:
             raise PermissionDeniedError()
 
         blocks: list[PublicationBlock] = []
+        blocks.extend(_status_blocks(change_set))
+        blocks.extend(_baseline_blocks(change_set))
+        blocks.extend(_confirmation_blocks(change_set))
         blocks.extend(_nutrition_blocks(change_set))
         blocks.extend(_material_blocks(change_set))
         return PublicationValidationResult(blocks=tuple(blocks))
+
+
+def _status_blocks(change_set: ProductChangeSet) -> list[PublicationBlock]:
+    if change_set.status != ChangeSetStatus.APPROVED:
+        return [
+            PublicationBlock(
+                code="CHANGE_SET_NOT_APPROVED",
+                message="The change set must be approved before publication.",
+                details={"status": change_set.status},
+            )
+        ]
+    return []
+
+
+def _baseline_blocks(change_set: ProductChangeSet) -> list[PublicationBlock]:
+    if change_set.change_type != ChangeSetType.ITERATION:
+        return []
+    if change_set.base_version_id is None:
+        return [
+            PublicationBlock(
+                code="PRODUCT_BASELINE_MISSING",
+                message="Iteration change sets require a baseline version.",
+                details={},
+            )
+        ]
+    current = current_baseline_fingerprint(
+        product=change_set.product,
+        base_version=change_set.base_version,
+    )
+    if change_set.base_fingerprint and change_set.base_fingerprint != current:
+        return [
+            PublicationBlock(
+                code="PRODUCT_BASELINE_CHANGED",
+                message="The product baseline fingerprint has changed.",
+                details={
+                    "expected": change_set.base_fingerprint,
+                    "current": current,
+                },
+            )
+        ]
+    return []
+
+
+def _confirmation_blocks(change_set: ProductChangeSet) -> list[PublicationBlock]:
+    blocks: list[PublicationBlock] = []
+    draft_values = AttributeGroupValue.objects.filter(change_set=change_set).select_related(
+        "group_definition",
+    )
+    for group_value in draft_values:
+        group_definition = group_value.group_definition
+        if not group_definition.requires_confirmation:
+            continue
+        has_active_confirmation = AttributeConfirmation.objects.filter(
+            group_value=group_value,
+            content_hash=group_value.content_hash,
+            decision=ConfirmationDecision.APPROVED,
+            superseded_at__isnull=True,
+        ).exists()
+        if not has_active_confirmation:
+            blocks.append(
+                PublicationBlock(
+                    code="ATTRIBUTE_CONFIRMATION_REQUIRED",
+                    message="A required attribute group confirmation is missing or stale.",
+                    details={"group_code": group_definition.group_code},
+                )
+            )
+    return blocks
 
 
 def _nutrition_blocks(change_set: ProductChangeSet) -> list[PublicationBlock]:

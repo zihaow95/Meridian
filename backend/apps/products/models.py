@@ -211,6 +211,14 @@ class ProductChangeSet(OrganizationOwnedModel):
         on_delete=models.PROTECT,
         related_name="created_product_change_sets",
     )
+    approved_by = models.ForeignKey(
+        "identity.User",
+        null=True,
+        blank=True,
+        on_delete=models.PROTECT,
+        related_name="approved_product_change_sets",
+    )
+    publish_idempotency_key = models.CharField(max_length=128, blank=True, default="")
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

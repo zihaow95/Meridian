@@ -51,3 +51,21 @@ class AttributeConfirmationInvalid(ApiError):
     def __init__(self, *, reason: str | None = None) -> None:
         details = {"reason": reason} if reason else {}
         super().__init__(details=details)
+
+
+class ProductPublicationFailed(ApiError):
+    code = "PRODUCT_PUBLICATION_FAILED"
+    message = "Product publication failed."
+    status_code = 500
+
+
+class ChangeSetAlreadyPublished(ApiError):
+    code = "CHANGE_SET_ALREADY_PUBLISHED"
+    message = "The product change set has already been published."
+    status_code = 409
+
+
+class ProductBaselineChanged(ApiError):
+    code = "PRODUCT_BASELINE_CHANGED"
+    message = "The product baseline fingerprint has changed since the change set was created."
+    status_code = 409
