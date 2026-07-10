@@ -1,0 +1,59 @@
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { mount } from '@vue/test-utils'
+import { createPinia, setActivePinia } from 'pinia'
+import { defineComponent, h } from 'vue'
+
+vi.mock('vue-router', () => ({
+  useRoute: () => ({ params: { publicId: 'change-set-1' } }),
+}))
+
+vi.mock('@/api/client', async () => {
+  const actual = await vi.importActual<typeof import('@/api/client')>('@/api/client')
+  return { ...actual, apiFetch: vi.fn() }
+})
+
+import { apiFetch } from '@/api/client'
+import ProductChangeSetView from '@/modules/products/ProductChangeSetView.vue'
+
+const stubs = {
+  'el-alert': defineComponent({
+    name: 'ElAlertStub',
+    props: ['title'],
+    setup(props) {
+      return () => h('div', { class: 'alert' }, props.title as string)
+    },
+  }),
+  ProductPublicationPanel: defineComponent({
+    name: 'ProductPublicationPanelStub',
+    props: ['changeSetPublicId'],
+    setup(props) {
+      return () =>
+        h('div', { 'data-test': 'publication-panel' }, props.changeSetPublicId as string)
+    },
+  }),
+}
+
+const flush = () => new Promise((resolve) => setTimeout(resolve, 0))
+
+describe('ProductChangeSetView', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia())
+    vi.mocked(apiFetch).mockReset()
+  })
+
+  it('loads change set detail and renders publication panel', async () => {
+    vi.mocked(apiFetch).mockResolvedValueOnce({
+      public_id: 'change-set-1',
+      change_type: 'NEW_PRODUCT',
+      status: 'APPROVED',
+      title: 'Yogurt draft',
+      version_no: 1,
+      product_public_id: 'prod-1',
+    })
+
+    const wrapper = mount(ProductChangeSetView, { global: { stubs } })
+    await flush()
+    expect(wrapper.get('[data-test="change-set-title"]').text()).toBe('Yogurt draft')
+    expect(wrapper.get('[data-test="publication-panel"]').text()).toBe('change-set-1')
+  })
+})
