@@ -326,6 +326,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/legacy-baselines/{public_id}/publish": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["legacy_baselines_publish"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/lifecycle-board": {
         parameters: {
             query?: never;
@@ -615,6 +631,54 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/product-import-batches": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["product_import_batches_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/product-import-batches/{public_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["product_import_batches_retrieve"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/product-import-batches/{public_id}/confirm": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["product_import_batches_confirm"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/products": {
         parameters: {
             query?: never;
@@ -845,6 +909,20 @@ export interface components {
         CombineSourcesRequest: {
             opportunity_public_ids: string[];
         };
+        ConfirmImportBatchRequest: {
+            idempotency_key: string;
+        };
+        ConfirmImportBatchResponse: {
+            created_count: number;
+            linked_count: number;
+            skipped_count: number;
+            failed_count: number;
+            items: unknown[];
+        };
+        CreateImportBatchRequest: {
+            csv_content: string;
+            source_filename?: string;
+        };
         CurrentProposalQuota: {
             quarter: string;
             owner_type: string;
@@ -875,6 +953,16 @@ export interface components {
         HealthResponse: {
             status: string;
             service: string;
+        };
+        ImportBatchDetail: {
+            /** Format: uuid */
+            public_id: string;
+            status: string;
+            template_version: string;
+            total_count: number;
+            success_count: number;
+            failure_count: number;
+            items: unknown[];
         };
         LifecycleBoardItem: {
             item_type: string;
@@ -1104,6 +1192,13 @@ export interface components {
             change_set_public_id: string;
             /** Format: uuid */
             product_version_public_id: string;
+        };
+        PublishLegacyBaselineResponse: {
+            /** Format: uuid */
+            change_set_public_id: string;
+            /** Format: uuid */
+            product_version_public_id: string;
+            product_lifecycle_status: string;
         };
         QuarterlyReviewRequest: {
             action: string;
@@ -1567,6 +1662,27 @@ export interface operations {
             };
         };
     };
+    legacy_baselines_publish: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                public_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PublishLegacyBaselineResponse"];
+                };
+            };
+        };
+    };
     lifecycle_board_list: {
         parameters: {
             query?: never;
@@ -2014,6 +2130,79 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ProductDraftDetail"];
+                };
+            };
+        };
+    };
+    product_import_batches_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateImportBatchRequest"];
+                "application/x-www-form-urlencoded": components["schemas"]["CreateImportBatchRequest"];
+                "multipart/form-data": components["schemas"]["CreateImportBatchRequest"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ImportBatchDetail"];
+                };
+            };
+        };
+    };
+    product_import_batches_retrieve: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                public_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ImportBatchDetail"];
+                };
+            };
+        };
+    };
+    product_import_batches_confirm: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                public_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ConfirmImportBatchRequest"];
+                "application/x-www-form-urlencoded": components["schemas"]["ConfirmImportBatchRequest"];
+                "multipart/form-data": components["schemas"]["ConfirmImportBatchRequest"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConfirmImportBatchResponse"];
                 };
             };
         };
