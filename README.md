@@ -17,7 +17,7 @@ D:\Projects\Meridian
 - 四份开发前文档已完成；
 - **阶段0工程基础与阶段1平台内核已完成**（Django 5.2 + Vue 3 正式工程，MySQL 测试门禁与 Playwright E2E 已通过 remediation 验收）；
 - **阶段2（提案→立案→立项）已完成**（两个重大阶段门、原子项目/产品草稿创建、前端最小闭环与 E2E 验收已通过本地门禁）；
-- 阶段3（产品档案与存量迁移）尚未开始。
+- 阶段3（产品档案与存量迁移）已完成（见 `docs/implementation/phase-3-checkpoint.md`）；阶段4尚未开始。
 
 ## 文档入口
 

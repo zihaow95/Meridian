@@ -2024,8 +2024,11 @@ components:
         product_version_public_id:
           type: string
           format: uuid
+        product_lifecycle_status:
+          type: string
       required:
       - change_set_public_id
+      - product_lifecycle_status
       - product_version_public_id
     PublishLegacyBaselineResponse:
       type: object

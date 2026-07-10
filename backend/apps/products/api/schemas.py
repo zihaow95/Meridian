@@ -98,6 +98,7 @@ PUBLISH_CHANGE_SET_RESPONSE_SCHEMA = inline_serializer(
     fields={
         "change_set_public_id": serializers.UUIDField(),
         "product_version_public_id": serializers.UUIDField(),
+        "product_lifecycle_status": serializers.CharField(),
     },
 )
 

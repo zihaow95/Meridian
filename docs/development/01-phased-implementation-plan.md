@@ -263,6 +263,8 @@ docker compose -f deploy/compose/compose.dev.yml config
 
 ## 6. 阶段3：产品档案与存量迁移
 
+**状态：** 已完成（2026-07-10，见 [`phase-3-checkpoint.md`](../implementation/phase-3-checkpoint.md)）
+
 **任务级计划：** [`docs/superpowers/plans/2026-07-09-phase-3-product-profile-migration.md`](../superpowers/plans/2026-07-09-phase-3-product-profile-migration.md)
 
 **测试矩阵：** [`docs/implementation/phase-3-test-matrix.md`](../implementation/phase-3-test-matrix.md)

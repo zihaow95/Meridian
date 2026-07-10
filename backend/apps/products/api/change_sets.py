@@ -124,5 +124,6 @@ class PublishChangeSetView(APIView):
             {
                 "change_set_public_id": str(result.change_set.public_id),
                 "product_version_public_id": str(result.product_version.public_id),
+                "product_lifecycle_status": result.change_set.product.lifecycle_status,
             }
         )
