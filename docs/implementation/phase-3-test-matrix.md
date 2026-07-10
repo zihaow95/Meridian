@@ -14,9 +14,9 @@
 |---|---|---|---|
 | PIM-001 | 产品资产/版本/SKU/渠道主模型 | `backend/tests/products/test_product_core_models.py` | 已通过 |
 | PIM-002 | 研发中草稿演进为 ChangeSet(NEW_PRODUCT) | `backend/tests/products/test_product_core_models.py`, `backend/tests/products/test_product_draft_shell.py` | 已通过 |
-| PIM-003 | 属性 Schema 版本化与校验 | `backend/tests/products/test_attribute_schema.py` | 未实现 |
-| PIM-004 | 属性组值编辑与内容哈希 | `backend/tests/products/test_attribute_schema.py` | 未实现 |
-| PIM-005 | 草稿差异与基线指纹冲突 | `backend/tests/products/test_change_set_diff.py` | 未实现 |
+| PIM-003 | 属性 Schema 版本化与校验 | `backend/tests/products/test_attribute_schema.py` | 已通过 |
+| PIM-004 | 属性组值编辑与内容哈希 | `backend/tests/products/test_attribute_schema.py` | 已通过 |
+| PIM-005 | 草稿差异与基线指纹冲突 | `backend/tests/products/test_change_set_diff.py` | 已通过（字段级差异） |
 | PIM-006 | 发布预检阻塞项 | `backend/tests/products/test_publication_validation.py` | 未实现 |
 | PIM-007 | 原子发布与幂等 | `backend/tests/products/test_publish_change_set.py` | 未实现 |
 | PIM-008 | 发布后版本并行有效范围 | `backend/tests/products/test_publish_change_set.py` | 未实现 |

@@ -203,6 +203,14 @@ class ProductChangeSet(OrganizationOwnedModel):
     title = models.CharField(max_length=200)
     definition_summary = models.TextField(blank=True, default="")
     published_at = models.DateTimeField(null=True, blank=True)
+    version_no = models.PositiveIntegerField(default=1)
+    created_by = models.ForeignKey(
+        "identity.User",
+        null=True,
+        blank=True,
+        on_delete=models.PROTECT,
+        related_name="created_product_change_sets",
+    )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -427,3 +435,195 @@ class ChannelConfiguration(OrganizationOwnedModel):
 
     def __str__(self) -> str:
         return f"{self.sku_id}:{self.channel_code}:v{self.configuration_version}"
+
+
+class AttributeSchemaStatus(models.TextChoices):
+    DRAFT = "DRAFT", "Draft"
+    PUBLISHED = "PUBLISHED", "Published"
+    RETIRED = "RETIRED", "Retired"
+
+
+class AttributeOwnerLevel(models.TextChoices):
+    PRODUCT = "PRODUCT", "Product"
+    VERSION = "VERSION", "Version"
+    SKU = "SKU", "SKU"
+    CHANNEL = "CHANNEL", "Channel"
+
+
+class AttributeFieldType(models.TextChoices):
+    TEXT = "TEXT", "Text"
+    NUMBER = "NUMBER", "Number"
+    MONEY = "MONEY", "Money"
+    DATE = "DATE", "Date"
+    SINGLE_SELECT = "SINGLE_SELECT", "Single select"
+    MULTI_SELECT = "MULTI_SELECT", "Multi select"
+    BOOLEAN = "BOOLEAN", "Boolean"
+    USER_REF = "USER_REF", "User reference"
+    DEPARTMENT_REF = "DEPARTMENT_REF", "Department reference"
+    OBJECT_REF = "OBJECT_REF", "Object reference"
+    FILE_REF = "FILE_REF", "File reference"
+    IMAGE_REF = "IMAGE_REF", "Image reference"
+    DETAIL_TABLE = "DETAIL_TABLE", "Detail table"
+
+
+class AttributeValueStatus(models.TextChoices):
+    DRAFT = "DRAFT", "Draft"
+    EFFECTIVE = "EFFECTIVE", "Effective"
+    INACTIVE = "INACTIVE", "Inactive"
+
+
+class AttributeOwnerType(models.TextChoices):
+    PRODUCT = "PRODUCT", "Product"
+    VERSION = "VERSION", "Version"
+    SKU = "SKU", "SKU"
+    CHANNEL = "CHANNEL", "Channel"
+
+
+class AttributeSchemaVersion(OrganizationOwnedModel):
+    schema_code = models.CharField(max_length=64)
+    version_number = models.PositiveIntegerField()
+    category_code = models.CharField(max_length=40)
+    status = models.CharField(
+        max_length=16,
+        choices=AttributeSchemaStatus.choices,
+        default=AttributeSchemaStatus.DRAFT,
+    )
+    published_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "products_attribute_schema_version"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["organization", "schema_code", "version_number"],
+                name="products_schema_org_code_ver_uniq",
+            ),
+        ]
+        indexes = [
+            models.Index(fields=["organization", "category_code", "status"]),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.schema_code}:v{self.version_number}"
+
+
+class AttributeGroupDefinition(OrganizationOwnedModel):
+    schema_version = models.ForeignKey(
+        AttributeSchemaVersion,
+        on_delete=models.PROTECT,
+        related_name="group_definitions",
+    )
+    group_code = models.CharField(max_length=64)
+    name = models.CharField(max_length=120)
+    owner_level = models.CharField(max_length=16, choices=AttributeOwnerLevel.choices)
+    department_code = models.CharField(max_length=40, blank=True, default="")
+    is_critical = models.BooleanField(default=False)
+    requires_confirmation = models.BooleanField(default=False)
+    sensitivity_level = models.CharField(max_length=32, default="INTERNAL")
+    display_order = models.PositiveIntegerField(default=0)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "products_attribute_group_definition"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["schema_version", "group_code"],
+                name="products_attr_group_schema_code_uniq",
+            ),
+        ]
+        indexes = [
+            models.Index(fields=["schema_version", "display_order"]),
+        ]
+
+    def __str__(self) -> str:
+        return self.group_code
+
+
+class AttributeDefinition(OrganizationOwnedModel):
+    group_definition = models.ForeignKey(
+        AttributeGroupDefinition,
+        on_delete=models.PROTECT,
+        related_name="field_definitions",
+    )
+    field_code = models.CharField(max_length=64)
+    field_name = models.CharField(max_length=120)
+    field_type = models.CharField(max_length=24, choices=AttributeFieldType.choices)
+    required = models.BooleanField(default=False)
+    dictionary_code = models.CharField(max_length=64, blank=True, default="")
+    validation_rules = models.JSONField(default=dict, blank=True)
+    sensitivity_level = models.CharField(max_length=32, default="INTERNAL")
+    searchable = models.BooleanField(default=False)
+    display_order = models.PositiveIntegerField(default=0)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "products_attribute_definition"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["group_definition", "field_code"],
+                name="products_attr_def_group_code_uniq",
+            ),
+        ]
+        indexes = [
+            models.Index(fields=["group_definition", "display_order"]),
+        ]
+
+    def __str__(self) -> str:
+        return self.field_code
+
+
+class AttributeGroupValue(OrganizationOwnedModel):
+    change_set = models.ForeignKey(
+        ProductChangeSet,
+        null=True,
+        blank=True,
+        on_delete=models.PROTECT,
+        related_name="attribute_group_values",
+    )
+    owner_type = models.CharField(max_length=16, choices=AttributeOwnerType.choices)
+    owner_id = models.BigIntegerField()
+    group_definition = models.ForeignKey(
+        AttributeGroupDefinition,
+        on_delete=models.PROTECT,
+        related_name="values",
+    )
+    schema_version = models.ForeignKey(
+        AttributeSchemaVersion,
+        on_delete=models.PROTECT,
+        related_name="group_values",
+    )
+    values_json = models.JSONField(default=dict)
+    content_hash = models.CharField(max_length=64)
+    value_status = models.CharField(
+        max_length=16,
+        choices=AttributeValueStatus.choices,
+        default=AttributeValueStatus.DRAFT,
+    )
+    edited_by = models.ForeignKey(
+        "identity.User",
+        null=True,
+        blank=True,
+        on_delete=models.PROTECT,
+        related_name="edited_attribute_group_values",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "products_attribute_group_value"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["change_set", "group_definition"],
+                name="products_attr_value_change_group_uniq",
+            ),
+        ]
+        indexes = [
+            models.Index(fields=["owner_type", "owner_id", "value_status"]),
+            models.Index(fields=["change_set", "value_status"]),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.group_definition_id}:{self.value_status}"
