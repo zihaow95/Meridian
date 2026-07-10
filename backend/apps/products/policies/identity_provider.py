@@ -1,4 +1,4 @@
-﻿"""Object identity provider granting minimal actions by product role."""
+"""Object identity provider granting minimal actions by product role."""
 
 from __future__ import annotations
 

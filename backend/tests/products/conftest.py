@@ -17,6 +17,7 @@ from apps.identity.models.user import User, UserStatus
 from apps.opportunities.models import ProjectCandidate
 from apps.opportunities.services.configuration import OPPORTUNITY_RULE_DEFINITION_CODE
 from apps.platform.application.command import CommandContext
+from apps.products.models import ProductAsset, ProductLifecycleStatus, ProductSourceType
 from apps.projects.models import Project
 from apps.projects.services.create_project_from_candidate import ApproveAndCreateProject
 from tests.opportunities.factories import build_approval_ready_candidate
@@ -88,6 +89,21 @@ def boss(another_active_user: User, grant_action: Callable[..., None]) -> User:
         role_code="BOSS",
     )
     return another_active_user
+
+
+@pytest.fixture
+def product_asset(
+    organization: Organization,
+    product_manager: User,
+) -> ProductAsset:
+    return ProductAsset.objects.create(
+        organization=organization,
+        business_no="PRD-0001",
+        name="High protein yogurt",
+        source_type=ProductSourceType.NEW_PROJECT,
+        lifecycle_status=ProductLifecycleStatus.DEVELOPING,
+        product_owner=product_manager,
+    )
 
 
 @pytest.fixture

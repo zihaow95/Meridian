@@ -1,4 +1,4 @@
-﻿"""Product authorization identity providers."""
+"""Product authorization identity providers."""
 
 from __future__ import annotations
 

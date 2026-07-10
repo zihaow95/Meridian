@@ -1,6 +1,6 @@
 ﻿# 阶段3 产品档案与存量迁移 —— 测试矩阵
 
-状态：未开始（2026-07-09）
+状态：进行中（2026-07-09，PR1 Task 3.0–3.2）
 
 对应计划：`docs/superpowers/plans/2026-07-09-phase-3-product-profile-migration.md`
 
@@ -12,8 +12,8 @@
 
 | 需求 | 说明 | 计划证据位置 | 状态 |
 |---|---|---|---|
-| PIM-001 | 产品资产/版本/SKU/渠道主模型 | `backend/tests/products/test_product_core_models.py` | 未实现 |
-| PIM-002 | 研发中草稿演进为 ChangeSet(NEW_PRODUCT) | `backend/tests/projects/test_project_shell.py` | 未实现 |
+| PIM-001 | 产品资产/版本/SKU/渠道主模型 | `backend/tests/products/test_product_core_models.py` | 已通过 |
+| PIM-002 | 研发中草稿演进为 ChangeSet(NEW_PRODUCT) | `backend/tests/products/test_product_core_models.py`, `backend/tests/products/test_product_draft_shell.py` | 已通过 |
 | PIM-003 | 属性 Schema 版本化与校验 | `backend/tests/products/test_attribute_schema.py` | 未实现 |
 | PIM-004 | 属性组值编辑与内容哈希 | `backend/tests/products/test_attribute_schema.py` | 未实现 |
 | PIM-005 | 草稿差异与基线指纹冲突 | `backend/tests/products/test_change_set_diff.py` | 未实现 |
@@ -32,7 +32,7 @@
 | 需求 | 说明 | 证据 | 状态 |
 |---|---|---|---|
 | GLB-004 | 关键写命令事务/幂等/唯一约束 | `backend/tests/products/test_product_concurrency.py` | 未实现 |
-| GLB-005 | 权限默认拒绝 + 字段级投影 + 审计 | `backend/tests/products/test_product_permissions.py` | 未实现 |
+| GLB-005 | 权限默认拒绝 + 字段级投影 + 审计 | `backend/tests/products/test_product_permissions.py` | 已通过（动作目录 + 对象身份骨架） |
 | GLB-010 | 导入/发布可追溯审计与 outbox | `backend/tests/products/test_publish_change_set.py` | 未实现 |
 | NFR-006 | 契约可用（OpenAPI + 类型 + 漂移门禁） | `backend/openapi/schema.yaml`, `frontend/src/api/generated/schema.d.ts` | 未实现 |
 

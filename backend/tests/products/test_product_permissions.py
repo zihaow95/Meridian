@@ -13,7 +13,7 @@ from apps.authorization.policies.engine import authorize
 from apps.authorization.services.subject import subject_for
 from apps.identity.models.organization import Organization
 from apps.identity.models.user import User
-from apps.products.models import ProductAsset, ProductLifecycleStatus, ProductSourceType
+from apps.products.models import ProductAsset
 from apps.projects.member_keys import active_member_key
 from apps.projects.models import Project, ProjectMember, ProjectRole
 
@@ -45,10 +45,12 @@ def product_asset(
     organization: Organization,
     product_manager: User,
 ) -> ProductAsset:
+    from apps.products.models import ProductLifecycleStatus, ProductSourceType
+
     return ProductAsset.objects.create(
         organization=organization,
-        business_no="PRD-0001",
-        name="High protein yogurt",
+        business_no="PRD-PERM",
+        name="Permission yogurt",
         source_type=ProductSourceType.NEW_PROJECT,
         lifecycle_status=ProductLifecycleStatus.DEVELOPING,
         product_owner=product_manager,

@@ -1,4 +1,4 @@
-﻿"""Phase 3 product permission actions must be seeded by migration."""
+"""Phase 3 product permission actions must be seeded by migration."""
 
 from __future__ import annotations
 
