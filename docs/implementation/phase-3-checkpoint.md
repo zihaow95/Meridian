@@ -2,11 +2,13 @@
 
 日期：2026-07-13
 
-状态：修复已落地，等待全量门禁复验通过后退出
+状态：退出条件已满足，等待验收复审
 
 对应计划：`docs/superpowers/plans/2026-07-09-phase-3-product-profile-migration.md`
 
 对应测试矩阵：`docs/implementation/phase-3-test-matrix.md`
+
+提交：`78ba3c9`（`fix: close phase 3 review blockers for auth import and confirmation`）
 
 ## 本轮 Spec/Standards P1 修复
 
@@ -17,11 +19,15 @@
 - 创建变更集 OpenAPI 响应 201；导入模板下载、Excel/CSV 上传、结果报告
 - 产品筛选：品牌/品类/状态/负责人/SKU/外部编码/渠道
 
-## 自动化证据（提交前定向）
+## 自动化证据（本机实测）
 
 ```text
-uv run pytest ... 相关产品用例 → 199 passed（全量 MySQL，check 中断前）
-uv run mypy / ruff → 通过
-frontend unit 4 passed；typecheck 通过
-scripts\check.cmd → 提交后复跑（OpenAPI drift 需提交同步后才能绿）
+scripts\check.cmd → All quality gates passed.
+  Backend: ruff / format / mypy / django check / migration drift OK
+  pytest (MySQL): 199 passed
+  OpenAPI drift: OK
+  Frontend: lint / prettier / typecheck / unit 20 passed / build OK
+  Playwright product-profile-migration: 9 passed
+  Docker backend + frontend images: OK
+  Legacy reference scan: OK
 ```
