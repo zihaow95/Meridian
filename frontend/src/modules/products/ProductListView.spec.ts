@@ -72,6 +72,13 @@ const stubs = {
       return () => h('div')
     },
   }),
+  'el-pagination': defineComponent({
+    name: 'ElPaginationStub',
+    props: ['total', 'currentPage', 'pageSize'],
+    setup(props, { attrs }) {
+      return () => h('div', { ...attrs, 'data-total': props.total }, `page ${props.currentPage}`)
+    },
+  }),
 }
 
 describe('ProductListView', () => {
@@ -94,6 +101,9 @@ describe('ProductListView', () => {
           formula_summary: '12g protein per serving',
         },
       ],
+      page: 1,
+      page_size: 20,
+      count: 1,
     })
 
     const wrapper = mount(ProductListView, {
@@ -110,5 +120,6 @@ describe('ProductListView', () => {
     expect(wrapper.text()).toContain('High protein yogurt')
     expect(wrapper.text()).not.toContain('formula')
     expect(wrapper.text()).not.toContain('12g protein')
+    expect(wrapper.get('[data-test="product-pagination"]').exists()).toBe(true)
   })
 })

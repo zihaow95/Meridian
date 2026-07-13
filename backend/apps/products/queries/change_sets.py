@@ -16,7 +16,7 @@ from apps.products.services.diff_change_set import BuildProductChangeSetDiff
 def serialize_change_set_detail(change_set: ProductChangeSet) -> dict[str, Any]:
     group_values = list(
         AttributeGroupValue.objects.filter(change_set=change_set)
-        .select_related("group_definition")
+        .select_related("group_definition", "assigned_confirmer")
         .order_by("group_definition__display_order", "group_definition__group_code")
     )
     confirmations_by_group_id = _active_confirmations_by_group_value(group_values)
@@ -34,6 +34,11 @@ def serialize_change_set_detail(change_set: ProductChangeSet) -> dict[str, Any]:
                 "confirmation_status": _confirmation_status(
                     group_value=group_value,
                     confirmation=confirmations_by_group_id.get(group_value.id),
+                ),
+                "assigned_confirmer_public_id": (
+                    str(group_value.assigned_confirmer.public_id)
+                    if group_value.assigned_confirmer is not None
+                    else None
                 ),
             }
         )

@@ -76,7 +76,11 @@ try {
     } $backend
     Invoke-Native 'Backend: pytest (MySQL)' { uv run pytest -q } $backend
     Invoke-Native 'Backend: OpenAPI drift' {
-        uv run python manage.py spectacular --file openapi/schema.yaml --validate --settings=config.settings.test
+        $spectacularOutput = uv run python manage.py spectacular --file openapi/schema.yaml --validate --settings=config.settings.test 2>&1 | Out-String
+        Write-Host $spectacularOutput
+        if ($spectacularOutput -match 'Errors:\s+[1-9]\d*') {
+            throw "OpenAPI schema generation reported errors"
+        }
         git diff --exit-code -- openapi/schema.yaml
     } $backend
 

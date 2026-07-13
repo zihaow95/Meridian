@@ -8,8 +8,8 @@ from django.http import HttpResponseBase
 from django.shortcuts import redirect
 from django.utils.decorators import method_decorator
 from django.views.decorators.csrf import csrf_protect, ensure_csrf_cookie
-from drf_spectacular.utils import extend_schema
-from rest_framework import status
+from drf_spectacular.utils import extend_schema, inline_serializer
+from rest_framework import serializers, status
 from rest_framework.permissions import AllowAny
 from rest_framework.request import Request
 from rest_framework.response import Response
@@ -68,6 +68,11 @@ class DingTalkCallbackView(APIView):
     authentication_classes: list = []
     permission_classes = [AllowAny]
 
+    @extend_schema(
+        operation_id="auth_dingtalk_callback",
+        summary="DingTalk OAuth callback",
+        responses={302: None},
+    )
     def get(self, request: Request) -> HttpResponseBase:
         code = request.query_params.get("code", "")
         state = request.query_params.get("state", "")
@@ -81,6 +86,7 @@ class DingTalkCallbackView(APIView):
 
 
 class LogoutView(APIView):
+    @extend_schema(operation_id="auth_logout", request=None, responses={204: None})
     @method_decorator(csrf_protect)
     def post(self, request: Request) -> Response:
         django_logout(request)
@@ -91,6 +97,25 @@ class DevLoginView(APIView):
     authentication_classes: list = []
     permission_classes = [AllowAny]
 
+    @extend_schema(
+        operation_id="auth_dev_login",
+        request=inline_serializer(
+            name="DevLoginRequest",
+            fields={
+                "login_key": serializers.CharField(),
+            },
+        ),
+        responses={
+            200: inline_serializer(
+                name="DevLoginResponse",
+                fields={
+                    "public_id": serializers.CharField(),
+                    "display_name": serializers.CharField(),
+                },
+            ),
+            404: None,
+        },
+    )
     @method_decorator(csrf_protect)
     def post(self, request: Request) -> Response:
         if not getattr(settings, "ENABLE_DEV_LOGIN", False):

@@ -27,6 +27,8 @@ async function load(): Promise<void> {
       sku_code: skuCode.value,
       external_id: externalId.value,
       channel_code: channelCode.value,
+      page: products.page,
+      page_size: products.pageSize,
     })
   } catch (err: unknown) {
     if (err instanceof ApiError) {
@@ -35,6 +37,11 @@ async function load(): Promise<void> {
       errorText.value = '加载产品列表失败'
     }
   }
+}
+
+async function onPageChange(page: number): Promise<void> {
+  products.page = page
+  await load()
 }
 
 onMounted(load)
@@ -104,6 +111,17 @@ function openDetail(publicId: string): void {
       <el-table-column prop="category_code" label="品类" width="120" />
       <el-table-column prop="lifecycle_status" label="状态" width="120" />
     </el-table>
+
+    <el-pagination
+      v-if="products.totalCount > 0"
+      class="product-list__pagination"
+      layout="prev, pager, next, total"
+      :current-page="products.page"
+      :page-size="products.pageSize"
+      :total="products.totalCount"
+      data-test="product-pagination"
+      @current-change="onPageChange"
+    />
   </div>
 </template>
 
@@ -133,5 +151,10 @@ function openDetail(publicId: string): void {
 
 .product-list__error {
   margin-bottom: 1rem;
+}
+
+.product-list__pagination {
+  margin-top: 1rem;
+  justify-content: flex-end;
 }
 </style>

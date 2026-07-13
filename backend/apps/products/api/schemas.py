@@ -20,6 +20,9 @@ PRODUCT_SEARCH_PAGE_SCHEMA = inline_serializer(
     name="ProductSearchPage",
     fields={
         "items": serializers.ListField(child=PRODUCT_SUMMARY_SCHEMA),
+        "page": serializers.IntegerField(),
+        "page_size": serializers.IntegerField(),
+        "count": serializers.IntegerField(),
     },
 )
 
@@ -82,6 +85,7 @@ CHANGE_SET_ATTRIBUTE_GROUP_SCHEMA = inline_serializer(
         "content_hash": serializers.CharField(),
         "values_json": serializers.DictField(),
         "confirmation_status": serializers.CharField(),
+        "assigned_confirmer_public_id": serializers.UUIDField(required=False, allow_null=True),
     },
 )
 
@@ -166,6 +170,15 @@ ATTRIBUTE_CONFIRMATION_REQUEST_SCHEMA = inline_serializer(
         "group_value_public_id": serializers.UUIDField(),
         "content_hash": serializers.CharField(),
         "comment": serializers.CharField(required=False),
+    },
+)
+
+REASSIGN_CONFIRMER_REQUEST_SCHEMA = inline_serializer(
+    name="ReassignConfirmerRequest",
+    fields={
+        "group_value_public_id": serializers.UUIDField(),
+        "confirmer_public_id": serializers.UUIDField(),
+        "reason": serializers.CharField(required=False),
     },
 )
 

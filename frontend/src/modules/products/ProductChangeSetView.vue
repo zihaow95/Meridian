@@ -3,11 +3,13 @@ import { computed, onMounted, ref } from 'vue'
 import { useRoute } from 'vue-router'
 
 import { ApiError } from '@/api/client'
+import { useAuthStore } from '@/modules/auth/store'
 import ProductPublicationPanel from '@/modules/products/ProductPublicationPanel.vue'
 import { useProductStore, type AttributeGroup } from '@/modules/products/store'
 
 const route = useRoute()
 const products = useProductStore()
+const auth = useAuthStore()
 const errorText = ref('')
 const statusMessage = ref('')
 const effectiveFrom = ref(new Date().toISOString())
@@ -18,6 +20,7 @@ const skuBarcode = ref('')
 const channelCode = ref('TMALL')
 const editGroupCode = ref('PRODUCT_DEFINITION')
 const editValuesJson = ref('{"core_selling_points":"High protein"}')
+const reassignConfirmerId = ref('')
 
 const changeSetPublicId = computed(() => String(route.params.publicId))
 const versionNo = computed(() => products.changeSet?.version_no ?? 1)
@@ -49,6 +52,10 @@ function hydrateScopeFromChangeSet(): void {
 async function load(): Promise<void> {
   errorText.value = ''
   try {
+    if (!auth.me) {
+      await auth.fetchMe()
+    }
+    reassignConfirmerId.value = auth.me?.public_id ?? ''
     await products.fetchChangeSet(changeSetPublicId.value)
     hydrateScopeFromChangeSet()
     await products.fetchChangeSetDiff(changeSetPublicId.value)
@@ -156,6 +163,28 @@ async function returnGroup(group: AttributeGroup): Promise<void> {
   }
 }
 
+async function reassignGroup(group: AttributeGroup): Promise<void> {
+  errorText.value = ''
+  if (!reassignConfirmerId.value.trim()) {
+    errorText.value = '请填写确认人 public_id'
+    return
+  }
+  try {
+    await products.reassignConfirmer(changeSetPublicId.value, {
+      group_value_public_id: group.public_id,
+      confirmer_public_id: reassignConfirmerId.value.trim(),
+      reason: 'UI reassign',
+    })
+    statusMessage.value = `${group.group_code} 已改派确认人`
+  } catch (err: unknown) {
+    if (err instanceof ApiError) {
+      errorText.value = `${err.code}: ${err.message}`
+    } else {
+      errorText.value = '改派确认人失败'
+    }
+  }
+}
+
 async function submitForConfirmation(): Promise<void> {
   errorText.value = ''
   try {
@@ -244,8 +273,22 @@ onMounted(load)
           <el-table-column prop="group_code" label="编码" width="180" />
           <el-table-column prop="group_name" label="名称" />
           <el-table-column prop="confirmation_status" label="确认状态" width="140" />
-          <el-table-column label="操作" width="200">
+          <el-table-column label="确认人" width="220">
             <template #default="{ row }">
+              <span data-test="assigned-confirmer">
+                {{ (row as AttributeGroup).assigned_confirmer_public_id || '未分配' }}
+              </span>
+            </template>
+          </el-table-column>
+          <el-table-column label="操作" width="280">
+            <template #default="{ row }">
+              <el-button
+                size="small"
+                data-test="reassign-confirmer"
+                @click="reassignGroup(row as AttributeGroup)"
+              >
+                改派
+              </el-button>
               <el-button
                 size="small"
                 data-test="approve-attribute-group"
@@ -263,6 +306,15 @@ onMounted(load)
             </template>
           </el-table-column>
         </el-table>
+        <el-form label-width="120px" class="product-change-set__reassign">
+          <el-form-item label="确认人 ID">
+            <el-input
+              v-model="reassignConfirmerId"
+              data-test="reassign-confirmer-id"
+              placeholder="确认人 public_id"
+            />
+          </el-form-item>
+        </el-form>
       </el-card>
 
       <el-card class="product-change-set__scope" data-test="change-set-diff">
@@ -330,7 +382,8 @@ onMounted(load)
 .product-change-set__error,
 .product-change-set__scope,
 .product-change-set__workflow,
-.product-change-set__groups {
+.product-change-set__groups,
+.product-change-set__reassign {
   margin-bottom: 1rem;
 }
 

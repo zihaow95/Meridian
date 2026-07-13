@@ -9,7 +9,10 @@ import pytest
 from apps.identity.models.user import User
 from apps.platform.application.command import CommandContext
 from apps.products.models import ConfirmationDecision
-from apps.products.services.confirm_attribute_group import ApproveAttributeGroup
+from apps.products.services.confirm_attribute_group import (
+    ApproveAttributeGroup,
+    ReassignAttributeConfirmer,
+)
 from apps.products.services.edit_change_set import EditProductChangeSet
 
 
@@ -25,8 +28,14 @@ def confirmer(another_active_user: User, grant_action: Callable[..., None]) -> U
 
 
 @pytest.fixture
-def confirmed_group_value(change_set, confirmer, published_product_schema):
+def confirmed_group_value(change_set, confirmer, published_product_schema, grant_action):
     del published_product_schema
+    grant_action(
+        change_set.created_by,
+        "confirmer.reassign",
+        "product_change_set",
+        role_code="PRODUCT_DIRECTOR",
+    )
     group_value = EditProductChangeSet(
         context=CommandContext.for_actor(change_set.created_by),
         change_set_public_id=change_set.public_id,
@@ -34,6 +43,13 @@ def confirmed_group_value(change_set, confirmer, published_product_schema):
         group_code="PRODUCT_DEFINITION",
         values={"core_selling_points": "High protein"},
     ).execute()
+    ReassignAttributeConfirmer(
+        context=CommandContext.for_actor(change_set.created_by),
+        change_set_public_id=change_set.public_id,
+        group_value_public_id=group_value.public_id,
+        confirmer_user_id=confirmer.id,
+    ).execute()
+    group_value.refresh_from_db()
     change_set.refresh_from_db()
     ApproveAttributeGroup(
         context=CommandContext.for_actor(confirmer),

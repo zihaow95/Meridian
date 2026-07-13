@@ -7,6 +7,8 @@ from pathlib import Path
 from typing import cast
 from uuid import UUID
 
+from drf_spectacular.utils import extend_schema, inline_serializer
+from rest_framework import serializers
 from rest_framework.parsers import FormParser, MultiPartParser
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.request import Request
@@ -34,6 +36,28 @@ class UploadSessionCreateView(APIView):
     permission_classes = [IsAuthenticated, DocumentUploadPermission]
     parser_classes = [MultiPartParser, FormParser]
 
+    @extend_schema(
+        operation_id="document_upload_sessions_create",
+        request=inline_serializer(
+            name="UploadSessionCreateRequest",
+            fields={
+                "file": serializers.FileField(),
+                "original_filename": serializers.CharField(required=False),
+                "declared_mime_type": serializers.CharField(required=False),
+            },
+        ),
+        responses={
+            201: inline_serializer(
+                name="UploadSessionCreateResponse",
+                fields={
+                    "public_id": serializers.CharField(),
+                    "original_filename": serializers.CharField(),
+                    "declared_mime_type": serializers.CharField(),
+                    "size_bytes": serializers.IntegerField(),
+                },
+            ),
+        },
+    )
     def post(self, request: Request) -> Response:
         user = cast(User, request.user)
         uploaded_file = request.FILES.get("file")
@@ -87,6 +111,24 @@ class UploadSessionCompleteView(APIView):
     def get_authorization_resource_public_id(self) -> UUID:
         return self.kwargs["public_id"]
 
+    @extend_schema(
+        operation_id="document_upload_sessions_complete",
+        request=inline_serializer(
+            name="UploadSessionCompleteRequest",
+            fields={
+                "document_code": serializers.CharField(required=False, allow_blank=True),
+                "title": serializers.CharField(required=False, allow_blank=True),
+            },
+        ),
+        responses=inline_serializer(
+            name="UploadSessionCompleteResponse",
+            fields={
+                "version_public_id": serializers.CharField(),
+                "document_public_id": serializers.CharField(),
+                "status": serializers.CharField(),
+            },
+        ),
+    )
     def post(self, request: Request, public_id: UUID) -> Response:
         user = cast(User, request.user)
         session = UploadSession.objects.filter(public_id=public_id).first()

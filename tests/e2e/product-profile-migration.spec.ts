@@ -98,6 +98,8 @@ test('published product detail shows version sku channel and supports iteration 
   await expect(page.locator('[data-test="change-set-status-message"]')).toContainText('属性组已保存')
   await expect(page.locator('[data-test="attribute-groups"]')).toBeVisible()
 
+  await page.locator('[data-test="reassign-confirmer"]').first().click()
+  await expect(page.locator('[data-test="change-set-status-message"]')).toContainText('已改派确认人')
   await page.locator('[data-test="approve-attribute-group"]').first().click()
   await expect(page.locator('[data-test="change-set-status-message"]')).toContainText('已确认')
   await expect(page.locator('[data-test="change-set-status"]')).toHaveText('DRAFT')

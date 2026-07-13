@@ -74,6 +74,11 @@ describe('ProductChangeSetView', () => {
   it('loads change set detail and renders publication panel', async () => {
     vi.mocked(apiFetch)
       .mockResolvedValueOnce({
+        public_id: 'user-1',
+        display_name: 'Owner',
+        status: 'ACTIVE',
+      })
+      .mockResolvedValueOnce({
         public_id: 'change-set-1',
         change_type: 'NEW_PRODUCT',
         status: 'APPROVED',
@@ -98,6 +103,7 @@ describe('ProductChangeSetView', () => {
     expect(wrapper.get('[data-test="attribute-editor"]').exists()).toBe(true)
     expect(wrapper.get('[data-test="change-set-diff"]').exists()).toBe(true)
     expect(wrapper.get('[data-test="scope-sku-barcode"]').exists()).toBe(true)
+    expect(wrapper.get('[data-test="reassign-confirmer-id"]').exists()).toBe(true)
     expect(wrapper.get('[data-test="publication-panel"]').text()).toBe('change-set-1')
   })
 })

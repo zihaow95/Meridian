@@ -23,6 +23,7 @@ from apps.products.api.schemas import (
     PUBLICATION_VALIDATION_SCHEMA,
     PUBLISH_CHANGE_SET_REQUEST_SCHEMA,
     PUBLISH_CHANGE_SET_RESPONSE_SCHEMA,
+    REASSIGN_CONFIRMER_REQUEST_SCHEMA,
     UPDATE_SCOPE_REQUEST_SCHEMA,
 )
 from apps.products.models import ProductChangeSet
@@ -30,6 +31,7 @@ from apps.products.queries.change_sets import serialize_change_set_detail, seria
 from apps.products.services.access import assert_can_read_change_set
 from apps.products.services.confirm_attribute_group import (
     ApproveAttributeGroup,
+    ReassignAttributeConfirmer,
     ReturnAttributeGroup,
 )
 from apps.products.services.create_change_set import CreateProductChangeSet
@@ -281,6 +283,28 @@ class ReturnAttributeGroupView(APIView):
             group_value_public_id=UUID(str(body["group_value_public_id"])),
             content_hash=str(body["content_hash"]),
             comment=str(body.get("comment") or ""),
+        ).execute()
+        change_set = ProductChangeSet.objects.select_related("product").get(public_id=public_id)
+        return Response(serialize_change_set_detail(change_set))
+
+
+class ReassignAttributeConfirmerView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    @extend_schema(
+        operation_id="product_change_sets_reassign_confirmer",
+        request=REASSIGN_CONFIRMER_REQUEST_SCHEMA,
+        responses=CHANGE_SET_DETAIL_SCHEMA,
+    )
+    def post(self, request: Request, public_id: UUID) -> Response:
+        user = cast(User, request.user)
+        body = request.data
+        ReassignAttributeConfirmer(
+            context=CommandContext.for_actor(user),
+            change_set_public_id=public_id,
+            group_value_public_id=UUID(str(body["group_value_public_id"])),
+            confirmer_public_id=UUID(str(body["confirmer_public_id"])),
+            reason=str(body.get("reason") or ""),
         ).execute()
         change_set = ProductChangeSet.objects.select_related("product").get(public_id=public_id)
         return Response(serialize_change_set_detail(change_set))

@@ -15,7 +15,7 @@ const errorText = ref('')
 const statusMessage = ref('')
 const linkTargetByRow = ref<Record<number, string>>({})
 const busy = ref(false)
-const lastPublishedSearch = ref('')
+const lastPublishedProductId = ref('')
 const fileInput = ref<HTMLInputElement | null>(null)
 
 type DuplicateCandidate = {
@@ -211,14 +211,10 @@ async function publishFirstBaseline(): Promise<void> {
   }
   busy.value = true
   try {
-    await products.publishLegacyBaseline(baselineId, 'publish-import-ui')
+    const published = await products.publishLegacyBaseline(baselineId, 'publish-import-ui')
     statusMessage.value = '基线已发布，产品可搜索'
-    const firstName =
-      csvContent.value.split('\n')[1]?.split(',')[0]?.trim() ||
-      lastPublishedSearch.value ||
-      'Legacy yogurt'
-    lastPublishedSearch.value = firstName
-    await products.fetchProducts(firstName)
+    lastPublishedProductId.value = published.product_public_id
+    await products.fetchProducts(published.product_name, { page_size: 20 })
   } catch (err: unknown) {
     if (err instanceof ApiError) {
       errorText.value = `${err.code}: ${err.message}`
@@ -231,9 +227,9 @@ async function publishFirstBaseline(): Promise<void> {
 }
 
 function openFirstSearchHit(): void {
-  const first = products.items[0]
-  if (first) {
-    void router.push(`/products/${first.public_id}`)
+  const targetId = lastPublishedProductId.value || products.items[0]?.public_id
+  if (targetId) {
+    void router.push(`/products/${targetId}`)
   }
 }
 </script>

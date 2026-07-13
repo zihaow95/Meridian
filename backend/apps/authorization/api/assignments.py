@@ -5,6 +5,8 @@ from __future__ import annotations
 from typing import cast
 from uuid import UUID
 
+from drf_spectacular.utils import extend_schema, inline_serializer
+from rest_framework import serializers
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.request import Request
 from rest_framework.response import Response
@@ -26,6 +28,20 @@ RoleAssignPermission = requires_action(
 class UserAssignmentsView(APIView):
     permission_classes = [IsAuthenticated, RoleAssignPermission]
 
+    @extend_schema(
+        operation_id="authorization_user_assignments_list",
+        responses=inline_serializer(
+            name="UserAssignmentListItem",
+            fields={
+                "public_id": serializers.CharField(),
+                "role_code": serializers.CharField(),
+                "role_name": serializers.CharField(),
+                "scope_type": serializers.CharField(),
+                "status": serializers.CharField(),
+            },
+            many=True,
+        ),
+    )
     def get(self, request: Request, public_id: UUID) -> Response:
         actor = cast(User, request.user)
         target = User.objects.filter(
@@ -49,6 +65,25 @@ class UserAssignmentsView(APIView):
             ]
         )
 
+    @extend_schema(
+        operation_id="authorization_user_assignments_create",
+        request=inline_serializer(
+            name="UserAssignmentCreateRequest",
+            fields={
+                "role_code": serializers.CharField(),
+                "approval_reference": serializers.CharField(required=False, allow_blank=True),
+            },
+        ),
+        responses={
+            201: inline_serializer(
+                name="UserAssignmentCreateResponse",
+                fields={
+                    "public_id": serializers.CharField(),
+                    "role_code": serializers.CharField(),
+                },
+            ),
+        },
+    )
     def post(self, request: Request, public_id: UUID) -> Response:
         actor = cast(User, request.user)
         target = User.objects.filter(

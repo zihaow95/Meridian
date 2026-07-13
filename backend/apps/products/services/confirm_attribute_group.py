@@ -62,19 +62,6 @@ class ApproveAttributeGroup:
             if change_set is None:
                 raise PermissionDeniedError()
 
-            decision = authorize(
-                subject_for(actor),
-                action="attribute_group.confirm",
-                resource=ResourceDescriptor(
-                    resource_type="product_change_set",
-                    public_id=change_set.public_id,
-                    organization_id=change_set.organization_id,
-                ),
-                context=AuthorizationContext.current(),
-            )
-            if not decision.allowed:
-                raise PermissionDeniedError()
-
             if change_set.status not in {
                 ChangeSetStatus.DRAFT,
                 ChangeSetStatus.IN_CONFIRMATION,
@@ -90,6 +77,22 @@ class ApproveAttributeGroup:
                 .first()
             )
             if group_value is None:
+                raise PermissionDeniedError()
+
+            decision = authorize(
+                subject_for(actor),
+                action="attribute_group.confirm",
+                resource=ResourceDescriptor(
+                    resource_type="product_change_set",
+                    public_id=change_set.public_id,
+                    organization_id=change_set.organization_id,
+                    metadata={"group_value_public_id": group_value.public_id},
+                ),
+                context=AuthorizationContext.current(),
+            )
+            if not decision.allowed:
+                raise PermissionDeniedError()
+            if group_value.assigned_confirmer_id != actor.id:
                 raise PermissionDeniedError()
 
             if group_value.content_hash != self.content_hash:
@@ -167,19 +170,6 @@ class ReturnAttributeGroup:
             if change_set is None:
                 raise PermissionDeniedError()
 
-            decision = authorize(
-                subject_for(actor),
-                action="attribute_group.return",
-                resource=ResourceDescriptor(
-                    resource_type="product_change_set",
-                    public_id=change_set.public_id,
-                    organization_id=change_set.organization_id,
-                ),
-                context=AuthorizationContext.current(),
-            )
-            if not decision.allowed:
-                raise PermissionDeniedError()
-
             if change_set.status not in {
                 ChangeSetStatus.DRAFT,
                 ChangeSetStatus.IN_CONFIRMATION,
@@ -191,6 +181,22 @@ class ReturnAttributeGroup:
                 change_set=change_set,
             ).first()
             if group_value is None:
+                raise PermissionDeniedError()
+
+            decision = authorize(
+                subject_for(actor),
+                action="attribute_group.return",
+                resource=ResourceDescriptor(
+                    resource_type="product_change_set",
+                    public_id=change_set.public_id,
+                    organization_id=change_set.organization_id,
+                    metadata={"group_value_public_id": group_value.public_id},
+                ),
+                context=AuthorizationContext.current(),
+            )
+            if not decision.allowed:
+                raise PermissionDeniedError()
+            if group_value.assigned_confirmer_id != actor.id:
                 raise PermissionDeniedError()
 
             if group_value.content_hash != self.content_hash:
@@ -236,7 +242,8 @@ class ReassignAttributeConfirmer:
     context: CommandContext
     change_set_public_id: UUID
     group_value_public_id: UUID
-    confirmer_user_id: int
+    confirmer_user_id: int | None = None
+    confirmer_public_id: UUID | None = None
     reason: str = ""
 
     def execute(self) -> AttributeGroupValue:
@@ -282,10 +289,13 @@ class ReassignAttributeConfirmer:
 
             from apps.identity.models.user import User
 
-            confirmer = User.objects.filter(
-                id=self.confirmer_user_id,
-                organization_id=actor.organization_id,
-            ).first()
+            confirmer_query = User.objects.filter(organization_id=actor.organization_id)
+            if self.confirmer_public_id is not None:
+                confirmer = confirmer_query.filter(public_id=self.confirmer_public_id).first()
+            elif self.confirmer_user_id is not None:
+                confirmer = confirmer_query.filter(id=self.confirmer_user_id).first()
+            else:
+                raise PermissionDeniedError()
             if confirmer is None:
                 raise PermissionDeniedError()
 
@@ -306,7 +316,8 @@ class ReassignAttributeConfirmer:
                     after_summary={
                         "group_value_public_id": str(group_value.public_id),
                         "previous_confirmer_user_id": previous_confirmer_id,
-                        "confirmer_user_id": self.confirmer_user_id,
+                        "confirmer_user_id": confirmer.id,
+                        "confirmer_public_id": str(confirmer.public_id),
                         "reason": self.reason,
                     },
                 )
@@ -319,7 +330,7 @@ class ReassignAttributeConfirmer:
                     payload={
                         "change_set_public_id": str(change_set.public_id),
                         "group_value_public_id": str(group_value.public_id),
-                        "confirmer_user_id": self.confirmer_user_id,
+                        "confirmer_public_id": str(confirmer.public_id),
                     },
                     occurred_at=now,
                 )

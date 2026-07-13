@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from typing import Any
 from uuid import UUID
 
@@ -20,6 +21,17 @@ from apps.products.models import (
     ProductAsset,
     ProductVersion,
 )
+
+_DEFAULT_PAGE_SIZE = 20
+_MAX_PAGE_SIZE = 100
+
+
+@dataclass(frozen=True)
+class ProductSearchPage:
+    items: list[dict[str, Any]]
+    page: int
+    page_size: int
+    count: int
 
 
 def _can_read_basic(user: User, product: ProductAsset) -> bool:
@@ -65,6 +77,28 @@ def _formula_summary(product: ProductAsset) -> str | None:
         return None
     summary = value.values_json.get("formula_summary")
     return str(summary) if summary is not None else None
+
+
+def _candidate_products_for_user(user: User) -> QuerySet[ProductAsset]:
+    """Limit candidates to products the subject could own or collaborate on."""
+    from apps.projects.models import ProjectMember, ProjectRole
+
+    membership_project_ids = ProjectMember.objects.filter(
+        user=user,
+        project_role=ProjectRole.MEMBER,
+        active_to__isnull=True,
+        project__organization_id=user.organization_id,
+    ).values_list("project_id", flat=True)
+
+    return (
+        ProductAsset.objects.filter(organization_id=user.organization_id)
+        .filter(
+            Q(product_owner_id=user.id)
+            | Q(source_project__leader_id=user.id)
+            | Q(source_project_id__in=membership_project_ids)
+        )
+        .distinct()
+    )
 
 
 def _apply_product_filters(
@@ -118,8 +152,13 @@ def search_products(
     sku_code: str = "",
     external_id: str = "",
     channel_code: str = "",
-) -> list[dict[str, Any]]:
-    queryset = ProductAsset.objects.filter(organization_id=user.organization_id)
+    page: int = 1,
+    page_size: int = _DEFAULT_PAGE_SIZE,
+) -> ProductSearchPage:
+    page = max(page, 1)
+    page_size = min(max(page_size, 1), _MAX_PAGE_SIZE)
+
+    queryset = _candidate_products_for_user(user)
     queryset = _apply_product_filters(
         queryset,
         search=search,
@@ -131,13 +170,23 @@ def search_products(
         external_id=external_id,
         channel_code=channel_code,
     )
-    queryset = queryset.order_by("name", "business_no")
-    items: list[dict[str, Any]] = []
-    for product in queryset:
+    queryset = queryset.order_by("name", "business_no", "public_id")
+
+    allowed: list[dict[str, Any]] = []
+    for product in queryset.iterator(chunk_size=200):
         if not _can_read_basic(user, product):
             continue
-        items.append(serialize_product_summary(product, user=user))
-    return items
+        allowed.append(serialize_product_summary(product, user=user))
+
+    count = len(allowed)
+    start = (page - 1) * page_size
+    end = start + page_size
+    return ProductSearchPage(
+        items=allowed[start:end],
+        page=page,
+        page_size=page_size,
+        count=count,
+    )
 
 
 def serialize_product_summary(product: ProductAsset, *, user: User) -> dict[str, Any]:

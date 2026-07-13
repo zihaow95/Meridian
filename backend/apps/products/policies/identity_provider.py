@@ -55,8 +55,6 @@ ASSIGNED_CONFIRMER_ACTIONS: frozenset[str] = frozenset(
 
 CHANGE_SET_MANAGER_ACTIONS: frozenset[str] = frozenset(
     {
-        "attribute_group.confirm",
-        "attribute_group.return",
         "confirmer.reassign",
     }
 )
@@ -160,12 +158,15 @@ class ProductChangeSetIdentityProvider:
         if project is not None and project.leader_id == subject.user.id:
             granted.update(CHANGE_SET_MANAGER_ACTIONS)
 
-        is_assigned = AttributeGroupValue.objects.filter(
-            change_set=change_set,
-            assigned_confirmer_id=subject.user.id,
-        ).exists()
-        if is_assigned:
-            granted.update(ASSIGNED_CONFIRMER_ACTIONS)
+        group_value_public_id = resource.metadata.get("group_value_public_id")
+        if group_value_public_id is not None:
+            is_assigned = AttributeGroupValue.objects.filter(
+                change_set=change_set,
+                assigned_confirmer_id=subject.user.id,
+                public_id=group_value_public_id,
+            ).exists()
+            if is_assigned:
+                granted.update(ASSIGNED_CONFIRMER_ACTIONS)
 
         return tuple(ObjectIdentity(action_code=action, resource=resource) for action in granted)
 

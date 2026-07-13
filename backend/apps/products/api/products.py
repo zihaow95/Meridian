@@ -17,6 +17,16 @@ from apps.products.api.schemas import PRODUCT_DETAIL_SCHEMA, PRODUCT_SEARCH_PAGE
 from apps.products.queries.products import get_product_detail, search_products
 
 
+def _positive_int(raw: str | None, default: int) -> int:
+    if raw is None or raw == "":
+        return default
+    try:
+        value = int(raw)
+    except (TypeError, ValueError):
+        return default
+    return value if value > 0 else default
+
+
 class ProductListView(APIView):
     permission_classes = [IsAuthenticated]
 
@@ -31,12 +41,14 @@ class ProductListView(APIView):
             OpenApiParameter(name="sku_code", type=str, location=OpenApiParameter.QUERY),
             OpenApiParameter(name="external_id", type=str, location=OpenApiParameter.QUERY),
             OpenApiParameter(name="channel_code", type=str, location=OpenApiParameter.QUERY),
+            OpenApiParameter(name="page", type=int, location=OpenApiParameter.QUERY),
+            OpenApiParameter(name="page_size", type=int, location=OpenApiParameter.QUERY),
         ],
         responses=PRODUCT_SEARCH_PAGE_SCHEMA,
     )
     def get(self, request: Request) -> Response:
         user = cast(User, request.user)
-        items = search_products(
+        page = search_products(
             user=user,
             search=request.query_params.get("search", ""),
             brand_code=request.query_params.get("brand_code", ""),
@@ -46,8 +58,17 @@ class ProductListView(APIView):
             sku_code=request.query_params.get("sku_code", ""),
             external_id=request.query_params.get("external_id", ""),
             channel_code=request.query_params.get("channel_code", ""),
+            page=_positive_int(request.query_params.get("page"), 1),
+            page_size=_positive_int(request.query_params.get("page_size"), 20),
         )
-        return Response({"items": items})
+        return Response(
+            {
+                "items": page.items,
+                "page": page.page,
+                "page_size": page.page_size,
+                "count": page.count,
+            }
+        )
 
 
 class ProductDetailView(APIView):

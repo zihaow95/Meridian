@@ -5,7 +5,8 @@ from __future__ import annotations
 from typing import Any
 from uuid import UUID
 
-from drf_spectacular.utils import extend_schema, inline_serializer
+from drf_spectacular.types import OpenApiTypes
+from drf_spectacular.utils import OpenApiResponse, extend_schema, inline_serializer
 from rest_framework import serializers
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.request import Request
@@ -66,6 +67,8 @@ PUBLISH_BASELINE_RESPONSE_SCHEMA = inline_serializer(
     fields={
         "change_set_public_id": serializers.UUIDField(),
         "product_version_public_id": serializers.UUIDField(),
+        "product_public_id": serializers.UUIDField(),
+        "product_name": serializers.CharField(),
         "product_lifecycle_status": serializers.CharField(),
     },
 )
@@ -103,13 +106,23 @@ class ProductImportBatchCreateView(APIView):
 
     @extend_schema(
         operation_id="product_import_batches_create",
-        request=inline_serializer(
-            name="CreateImportBatchRequest",
-            fields={
-                "csv_content": serializers.CharField(required=False),
-                "source_filename": serializers.CharField(required=False),
-            },
-        ),
+        request={
+            "multipart/form-data": inline_serializer(
+                name="CreateImportBatchMultipartRequest",
+                fields={
+                    "file": serializers.FileField(required=False),
+                    "csv_content": serializers.CharField(required=False),
+                    "source_filename": serializers.CharField(required=False),
+                },
+            ),
+            "application/json": inline_serializer(
+                name="CreateImportBatchJsonRequest",
+                fields={
+                    "csv_content": serializers.CharField(required=False),
+                    "source_filename": serializers.CharField(required=False),
+                },
+            ),
+        },
         responses={201: IMPORT_BATCH_DETAIL_SCHEMA},
     )
     def post(self, request: Request) -> Response:
@@ -145,7 +158,18 @@ class ProductImportBatchCreateView(APIView):
 class ProductImportTemplateDownloadView(APIView):
     permission_classes = [IsAuthenticated]
 
-    @extend_schema(operation_id="product_import_template_download")
+    @extend_schema(
+        operation_id="product_import_template_download",
+        responses={
+            (
+                200,
+                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            ): OpenApiResponse(
+                response=OpenApiTypes.BINARY,
+                description="XLSX import template",
+            ),
+        },
+    )
     def get(self, request: Request) -> Response:
         from django.http import HttpResponse
 
@@ -293,6 +317,8 @@ class PublishLegacyBaselineView(APIView):
             {
                 "change_set_public_id": str(result.change_set.public_id),
                 "product_version_public_id": str(result.product_version.public_id),
+                "product_public_id": str(result.change_set.product.public_id),
+                "product_name": result.change_set.product.name,
                 "product_lifecycle_status": result.change_set.product.lifecycle_status,
             }
         )

@@ -13,6 +13,7 @@ from apps.products.api.change_sets import (
     ProductChangeSetDiffView,
     ProductChangeSetEditView,
     PublishChangeSetView,
+    ReassignAttributeConfirmerView,
     ReturnAttributeGroupView,
     SubmitChangeSetConfirmationView,
     UpdateChangeSetScopeView,
@@ -86,6 +87,11 @@ urlpatterns = [
         "product-change-sets/<uuid:public_id>/return-attribute-group",
         ReturnAttributeGroupView.as_view(),
         name="product-change-set-return-attribute-group",
+    ),
+    path(
+        "product-change-sets/<uuid:public_id>/reassign-confirmer",
+        ReassignAttributeConfirmerView.as_view(),
+        name="product-change-set-reassign-confirmer",
     ),
     path(
         "product-change-sets/<uuid:public_id>/validate-publication",

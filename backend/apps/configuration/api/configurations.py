@@ -5,6 +5,8 @@ from __future__ import annotations
 from typing import cast
 from uuid import UUID
 
+from drf_spectacular.utils import extend_schema, inline_serializer
+from rest_framework import serializers
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.request import Request
 from rest_framework.response import Response
@@ -29,6 +31,18 @@ ConfigPublishPermission = requires_action(
 class ConfigurationDefinitionListView(APIView):
     permission_classes = [IsAuthenticated, ConfigReadPermission]
 
+    @extend_schema(
+        operation_id="configuration_definitions_list",
+        responses=inline_serializer(
+            name="ConfigurationDefinitionListItem",
+            fields={
+                "definition_code": serializers.CharField(),
+                "name": serializers.CharField(),
+                "description": serializers.CharField(),
+            },
+            many=True,
+        ),
+    )
     def get(self, request: Request) -> Response:
         user = cast(User, request.user)
         definitions = ConfigurationDefinition.objects.filter(
@@ -49,6 +63,19 @@ class ConfigurationDefinitionListView(APIView):
 class ConfigurationVersionListView(APIView):
     permission_classes = [IsAuthenticated, ConfigReadPermission]
 
+    @extend_schema(
+        operation_id="configuration_versions_list",
+        responses=inline_serializer(
+            name="ConfigurationVersionListItem",
+            fields={
+                "public_id": serializers.CharField(),
+                "version_number": serializers.IntegerField(),
+                "status": serializers.CharField(),
+                "published_at": serializers.CharField(allow_null=True),
+            },
+            many=True,
+        ),
+    )
     def get(self, request: Request, definition_code: str) -> Response:
         user = cast(User, request.user)
         definition = ConfigurationDefinition.objects.filter(
@@ -82,6 +109,18 @@ class ConfigurationVersionPublishView(APIView):
     def get_authorization_resource_public_id(self) -> UUID:
         return self.kwargs["public_id"]
 
+    @extend_schema(
+        operation_id="configuration_versions_publish",
+        request=None,
+        responses=inline_serializer(
+            name="ConfigurationVersionPublishResponse",
+            fields={
+                "public_id": serializers.CharField(),
+                "status": serializers.CharField(),
+                "version_number": serializers.IntegerField(),
+            },
+        ),
+    )
     def post(self, request: Request, public_id: UUID) -> Response:
         user = cast(User, request.user)
         version = ConfigurationVersion.objects.filter(

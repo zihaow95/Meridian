@@ -50,6 +50,22 @@ export type AttributeGroup = {
   content_hash: string
   values_json: Record<string, unknown>
   confirmation_status: string
+  assigned_confirmer_public_id?: string | null
+}
+
+export type PublishLegacyBaselineResponse = {
+  change_set_public_id: string
+  product_version_public_id: string
+  product_public_id: string
+  product_name: string
+  product_lifecycle_status: string
+}
+
+export type ProductSearchPage = {
+  items: ProductSummary[]
+  page: number
+  page_size: number
+  count: number
 }
 
 export type ChangeSetDiff = {
@@ -68,6 +84,9 @@ export const useProductStore = defineStore('products', {
     loading: false,
     search: '',
     items: [] as ProductSummary[],
+    page: 1,
+    pageSize: 20,
+    totalCount: 0,
     detail: null as ProductDetail | null,
     changeSet: null as ProductChangeSetDetail | null,
     changeSetDiff: null as ChangeSetDiff | null,
@@ -86,18 +105,28 @@ export const useProductStore = defineStore('products', {
         sku_code?: string
         external_id?: string
         channel_code?: string
+        page?: number
+        page_size?: number
       } = {},
     ): Promise<void> {
       this.loading = true
       try {
         const params = new URLSearchParams()
         if (search) params.set('search', search)
+        const page = filters.page ?? this.page
+        const pageSize = filters.page_size ?? this.pageSize
+        params.set('page', String(page))
+        params.set('page_size', String(pageSize))
         for (const [key, value] of Object.entries(filters)) {
-          if (value) params.set(key, value)
+          if (key === 'page' || key === 'page_size') continue
+          if (value) params.set(key, String(value))
         }
         const query = params.toString() ? `?${params.toString()}` : ''
-        const page = await apiFetch<{ items: ProductSummary[] }>(`/api/v1/products${query}`)
-        this.items = page.items
+        const result = await apiFetch<ProductSearchPage>(`/api/v1/products${query}`)
+        this.items = result.items
+        this.page = result.page
+        this.pageSize = result.page_size
+        this.totalCount = result.count
         this.search = search
       } finally {
         this.loading = false
@@ -161,6 +190,15 @@ export const useProductStore = defineStore('products', {
     ): Promise<void> {
       this.changeSet = await apiFetch<ProductChangeSetDetail>(
         `/api/v1/product-change-sets/${changeSetPublicId}/return-attribute-group`,
+        { method: 'POST', json: payload },
+      )
+    },
+    async reassignConfirmer(
+      changeSetPublicId: string,
+      payload: { group_value_public_id: string; confirmer_public_id: string; reason?: string },
+    ): Promise<void> {
+      this.changeSet = await apiFetch<ProductChangeSetDetail>(
+        `/api/v1/product-change-sets/${changeSetPublicId}/reassign-confirmer`,
         { method: 'POST', json: payload },
       )
     },
@@ -283,11 +321,17 @@ export const useProductStore = defineStore('products', {
         },
       )
     },
-    async publishLegacyBaseline(baselinePublicId: string, idempotencyKey: string): Promise<void> {
-      await apiFetch(`/api/v1/legacy-baselines/${baselinePublicId}/publish`, {
-        method: 'POST',
-        json: { idempotency_key: idempotencyKey },
-      })
+    async publishLegacyBaseline(
+      baselinePublicId: string,
+      idempotencyKey: string,
+    ): Promise<PublishLegacyBaselineResponse> {
+      return apiFetch<PublishLegacyBaselineResponse>(
+        `/api/v1/legacy-baselines/${baselinePublicId}/publish`,
+        {
+          method: 'POST',
+          json: { idempotency_key: idempotencyKey },
+        },
+      )
     },
   },
 })

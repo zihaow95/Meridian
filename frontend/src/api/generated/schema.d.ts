@@ -11,7 +11,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: operations["admin_audit_events_retrieve"];
+        get: operations["authorization_audit_events_list"];
         put?: never;
         post?: never;
         delete?: never;
@@ -27,7 +27,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: operations["audit_events_retrieve"];
+        get: operations["audit_events_list"];
         put?: never;
         post?: never;
         delete?: never;
@@ -61,7 +61,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        post: operations["auth_dev_login_create"];
+        post: operations["auth_dev_login"];
         delete?: never;
         options?: never;
         head?: never;
@@ -75,7 +75,8 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: operations["auth_dingtalk_callback_retrieve"];
+        /** DingTalk OAuth callback */
+        get: operations["auth_dingtalk_callback"];
         put?: never;
         post?: never;
         delete?: never;
@@ -110,7 +111,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        post: operations["auth_logout_create"];
+        post: operations["auth_logout"];
         delete?: never;
         options?: never;
         head?: never;
@@ -124,7 +125,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: operations["authorization_roles_retrieve"];
+        get: operations["authorization_roles_list"];
         put?: never;
         post?: never;
         delete?: never;
@@ -140,9 +141,9 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: operations["authorization_users_assignments_retrieve"];
+        get: operations["authorization_user_assignments_list"];
         put?: never;
-        post: operations["authorization_users_assignments_create"];
+        post: operations["authorization_user_assignments_create"];
         delete?: never;
         options?: never;
         head?: never;
@@ -156,7 +157,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: operations["configurations_definitions_retrieve"];
+        get: operations["configuration_definitions_list"];
         put?: never;
         post?: never;
         delete?: never;
@@ -172,7 +173,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: operations["configurations_definitions_versions_retrieve"];
+        get: operations["configuration_versions_list"];
         put?: never;
         post?: never;
         delete?: never;
@@ -190,7 +191,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        post: operations["configurations_versions_publish_create"];
+        post: operations["configuration_versions_publish"];
         delete?: never;
         options?: never;
         head?: never;
@@ -236,7 +237,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: operations["documents_versions_retrieve"];
+        get: operations["document_versions_list"];
         put?: never;
         post?: never;
         delete?: never;
@@ -252,7 +253,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: operations["documents_download_retrieve"];
+        get: operations["document_download"];
         put?: never;
         post?: never;
         delete?: never;
@@ -270,7 +271,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        post: operations["documents_uploads_create"];
+        post: operations["document_upload_sessions_create"];
         delete?: never;
         options?: never;
         head?: never;
@@ -286,7 +287,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        post: operations["documents_uploads_complete_create"];
+        post: operations["document_upload_sessions_complete"];
         delete?: never;
         options?: never;
         head?: never;
@@ -302,7 +303,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        post: operations["documents_versions_download_ticket_create"];
+        post: operations["document_version_download_ticket_create"];
         delete?: never;
         options?: never;
         head?: never;
@@ -625,6 +626,22 @@ export interface paths {
         get?: never;
         put?: never;
         post: operations["product_change_sets_publish"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/product-change-sets/{public_id}/reassign-confirmer": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["product_change_sets_reassign_confirmer"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1022,7 +1039,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: operations["todos_my_retrieve"];
+        get: operations["notification_todos_list"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1046,6 +1063,22 @@ export interface components {
             content_hash: string;
             comment?: string;
         };
+        AuditEventListItem: {
+            event_id: string;
+            occurred_at: string;
+            action_code: string;
+            resource_type: string;
+            resource_public_id: string | null;
+            result: string;
+        };
+        AuditEventsAdminListItem: {
+            event_id: string;
+            occurred_at: string;
+            action_code: string;
+            resource_type: string;
+            resource_public_id: string | null;
+            result: string;
+        };
         CandidateSplitList: {
             public_id: string;
             name: string;
@@ -1067,9 +1100,27 @@ export interface components {
                 [key: string]: unknown;
             };
             confirmation_status: string;
+            /** Format: uuid */
+            assigned_confirmer_public_id?: string | null;
         };
         CombineSourcesRequest: {
             opportunity_public_ids: string[];
+        };
+        ConfigurationDefinitionListItem: {
+            definition_code: string;
+            name: string;
+            description: string;
+        };
+        ConfigurationVersionListItem: {
+            public_id: string;
+            version_number: number;
+            status: string;
+            published_at: string | null;
+        };
+        ConfigurationVersionPublishResponse: {
+            public_id: string;
+            status: string;
+            version_number: number;
         };
         ConfirmImportBatchRequest: {
             idempotency_key: string;
@@ -1087,7 +1138,13 @@ export interface components {
             /** Format: uuid */
             base_version_public_id?: string;
         };
-        CreateImportBatchRequest: {
+        CreateImportBatchJsonRequest: {
+            csv_content?: string;
+            source_filename?: string;
+        };
+        CreateImportBatchMultipartRequest: {
+            /** Format: uri */
+            file?: string;
             csv_content?: string;
             source_filename?: string;
         };
@@ -1122,6 +1179,22 @@ export interface components {
             restart_trigger: string;
             next_review_quarter: string;
             status: string;
+        };
+        DevLoginRequest: {
+            login_key: string;
+        };
+        DevLoginResponse: {
+            public_id: string;
+            display_name: string;
+        };
+        DocumentVersionDownloadTicketResponse: {
+            token: string;
+        };
+        DocumentVersionListItem: {
+            public_id: string;
+            version_number: number;
+            status: string;
+            original_filename: string;
         };
         EditChangeSetRequest: {
             version_no: number;
@@ -1201,6 +1274,13 @@ export interface components {
         MemberInvitationResponse: {
             public_id: string;
             invitation_status: string;
+        };
+        MyTodoListItem: {
+            public_id: string;
+            title: string;
+            status: string;
+            due_at: string | null;
+            deep_link: string;
         };
         OpportunityCreateRequest: {
             title: string;
@@ -1302,6 +1382,9 @@ export interface components {
         };
         ProductSearchPage: {
             items: components["schemas"]["ProductSummary"][];
+            page: number;
+            page_size: number;
+            count: number;
         };
         ProductSkuSummary: {
             /** Format: uuid */
@@ -1399,6 +1482,9 @@ export interface components {
             change_set_public_id: string;
             /** Format: uuid */
             product_version_public_id: string;
+            /** Format: uuid */
+            product_public_id: string;
+            product_name: string;
             product_lifecycle_status: string;
         };
         QuarterlyReviewRequest: {
@@ -1412,6 +1498,13 @@ export interface components {
             action: string;
             defer_record_public_id: string;
         };
+        ReassignConfirmerRequest: {
+            /** Format: uuid */
+            group_value_public_id: string;
+            /** Format: uuid */
+            confirmer_public_id: string;
+            reason?: string;
+        };
         ReconsiderationRequest: {
             original_subject_public_id: string;
             target_stage_code?: string;
@@ -1422,6 +1515,13 @@ export interface components {
             original_cycle_public_id: string;
             new_cycle_public_id: string;
             target_stage_code: string;
+        };
+        RoleCatalogItem: {
+            public_id: string;
+            role_code: string;
+            name: string;
+            role_type: string;
+            is_critical: boolean;
         };
         SplitCandidateRequest: {
             candidate_names: string[];
@@ -1452,10 +1552,46 @@ export interface components {
             /** Format: date-time */
             effective_from?: string;
         };
+        UploadSessionCompleteRequest: {
+            document_code?: string;
+            title?: string;
+        };
+        UploadSessionCompleteResponse: {
+            version_public_id: string;
+            document_public_id: string;
+            status: string;
+        };
+        UploadSessionCreateRequest: {
+            /** Format: uri */
+            file: string;
+            original_filename?: string;
+            declared_mime_type?: string;
+        };
+        UploadSessionCreateResponse: {
+            public_id: string;
+            original_filename: string;
+            declared_mime_type: string;
+            size_bytes: number;
+        };
         UpsertExternalBindingRequest: {
             source_system: string;
             object_type: string;
             external_id: string;
+        };
+        UserAssignmentCreateRequest: {
+            role_code: string;
+            approval_reference?: string;
+        };
+        UserAssignmentCreateResponse: {
+            public_id: string;
+            role_code: string;
+        };
+        UserAssignmentListItem: {
+            public_id: string;
+            role_code: string;
+            role_name: string;
+            scope_type: string;
+            status: string;
         };
         WithdrawProposalRequest: {
             version_no?: number;
@@ -1469,7 +1605,7 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
-    admin_audit_events_retrieve: {
+    authorization_audit_events_list: {
         parameters: {
             query?: never;
             header?: never;
@@ -1478,16 +1614,17 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description No response body */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["AuditEventsAdminListItem"][];
+                };
             };
         };
     };
-    audit_events_retrieve: {
+    audit_events_list: {
         parameters: {
             query?: never;
             header?: never;
@@ -1496,12 +1633,13 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description No response body */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["AuditEventListItem"][];
+                };
             };
         };
     };
@@ -1523,17 +1661,31 @@ export interface operations {
             };
         };
     };
-    auth_dev_login_create: {
+    auth_dev_login: {
         parameters: {
             query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DevLoginRequest"];
+                "application/x-www-form-urlencoded": components["schemas"]["DevLoginRequest"];
+                "multipart/form-data": components["schemas"]["DevLoginRequest"];
+            };
+        };
         responses: {
-            /** @description No response body */
             200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DevLoginResponse"];
+                };
+            };
+            /** @description No response body */
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -1541,7 +1693,7 @@ export interface operations {
             };
         };
     };
-    auth_dingtalk_callback_retrieve: {
+    auth_dingtalk_callback: {
         parameters: {
             query?: never;
             header?: never;
@@ -1551,7 +1703,7 @@ export interface operations {
         requestBody?: never;
         responses: {
             /** @description No response body */
-            200: {
+            302: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -1577,7 +1729,7 @@ export interface operations {
             };
         };
     };
-    auth_logout_create: {
+    auth_logout: {
         parameters: {
             query?: never;
             header?: never;
@@ -1587,7 +1739,7 @@ export interface operations {
         requestBody?: never;
         responses: {
             /** @description No response body */
-            200: {
+            204: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -1595,7 +1747,7 @@ export interface operations {
             };
         };
     };
-    authorization_roles_retrieve: {
+    authorization_roles_list: {
         parameters: {
             query?: never;
             header?: never;
@@ -1604,16 +1756,17 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description No response body */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["RoleCatalogItem"][];
+                };
             };
         };
     };
-    authorization_users_assignments_retrieve: {
+    authorization_user_assignments_list: {
         parameters: {
             query?: never;
             header?: never;
@@ -1624,16 +1777,17 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description No response body */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["UserAssignmentListItem"][];
+                };
             };
         };
     };
-    authorization_users_assignments_create: {
+    authorization_user_assignments_create: {
         parameters: {
             query?: never;
             header?: never;
@@ -1642,18 +1796,25 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UserAssignmentCreateRequest"];
+                "application/x-www-form-urlencoded": components["schemas"]["UserAssignmentCreateRequest"];
+                "multipart/form-data": components["schemas"]["UserAssignmentCreateRequest"];
+            };
+        };
         responses: {
-            /** @description No response body */
-            200: {
+            201: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["UserAssignmentCreateResponse"];
+                };
             };
         };
     };
-    configurations_definitions_retrieve: {
+    configuration_definitions_list: {
         parameters: {
             query?: never;
             header?: never;
@@ -1662,16 +1823,17 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description No response body */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["ConfigurationDefinitionListItem"][];
+                };
             };
         };
     };
-    configurations_definitions_versions_retrieve: {
+    configuration_versions_list: {
         parameters: {
             query?: never;
             header?: never;
@@ -1682,16 +1844,17 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description No response body */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["ConfigurationVersionListItem"][];
+                };
             };
         };
     };
-    configurations_versions_publish_create: {
+    configuration_versions_publish: {
         parameters: {
             query?: never;
             header?: never;
@@ -1702,12 +1865,13 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description No response body */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["ConfigurationVersionPublishResponse"];
+                };
             };
         };
     };
@@ -1759,7 +1923,7 @@ export interface operations {
             };
         };
     };
-    documents_versions_retrieve: {
+    document_versions_list: {
         parameters: {
             query?: never;
             header?: never;
@@ -1770,16 +1934,17 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description No response body */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["DocumentVersionListItem"][];
+                };
             };
         };
     };
-    documents_download_retrieve: {
+    document_download: {
         parameters: {
             query?: never;
             header?: never;
@@ -1790,34 +1955,42 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description No response body */
+            /** @description Document file download */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": string;
+                };
             };
         };
     };
-    documents_uploads_create: {
+    document_upload_sessions_create: {
         parameters: {
             query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody: {
+            content: {
+                "multipart/form-data": components["schemas"]["UploadSessionCreateRequest"];
+                "application/x-www-form-urlencoded": components["schemas"]["UploadSessionCreateRequest"];
+            };
+        };
         responses: {
-            /** @description No response body */
-            200: {
+            201: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["UploadSessionCreateResponse"];
+                };
             };
         };
     };
-    documents_uploads_complete_create: {
+    document_upload_sessions_complete: {
         parameters: {
             query?: never;
             header?: never;
@@ -1826,18 +1999,25 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["UploadSessionCompleteRequest"];
+                "application/x-www-form-urlencoded": components["schemas"]["UploadSessionCompleteRequest"];
+                "multipart/form-data": components["schemas"]["UploadSessionCompleteRequest"];
+            };
+        };
         responses: {
-            /** @description No response body */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["UploadSessionCompleteResponse"];
+                };
             };
         };
     };
-    documents_versions_download_ticket_create: {
+    document_version_download_ticket_create: {
         parameters: {
             query?: never;
             header?: never;
@@ -1848,12 +2028,13 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description No response body */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["DocumentVersionDownloadTicketResponse"];
+                };
             };
         };
     };
@@ -2361,6 +2542,33 @@ export interface operations {
             };
         };
     };
+    product_change_sets_reassign_confirmer: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                public_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReassignConfirmerRequest"];
+                "application/x-www-form-urlencoded": components["schemas"]["ReassignConfirmerRequest"];
+                "multipart/form-data": components["schemas"]["ReassignConfirmerRequest"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProductChangeSetDetail"];
+                };
+            };
+        };
+    };
     product_change_sets_return_attribute_group: {
         parameters: {
             query?: never;
@@ -2487,9 +2695,8 @@ export interface operations {
         };
         requestBody?: {
             content: {
-                "application/json": components["schemas"]["CreateImportBatchRequest"];
-                "application/x-www-form-urlencoded": components["schemas"]["CreateImportBatchRequest"];
-                "multipart/form-data": components["schemas"]["CreateImportBatchRequest"];
+                "multipart/form-data": components["schemas"]["CreateImportBatchMultipartRequest"];
+                "application/json": components["schemas"]["CreateImportBatchJsonRequest"];
             };
         };
         responses: {
@@ -2587,12 +2794,14 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description No response body */
+            /** @description XLSX import template */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": string;
+                };
             };
         };
     };
@@ -2605,6 +2814,8 @@ export interface operations {
                 external_id?: string;
                 lifecycle_status?: string;
                 owner_public_id?: string;
+                page?: number;
+                page_size?: number;
                 search?: string;
                 sku_code?: string;
             };
@@ -2948,7 +3159,7 @@ export interface operations {
             };
         };
     };
-    todos_my_retrieve: {
+    notification_todos_list: {
         parameters: {
             query?: never;
             header?: never;
@@ -2957,12 +3168,13 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description No response body */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["MyTodoListItem"][];
+                };
             };
         };
     };
