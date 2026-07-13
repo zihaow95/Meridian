@@ -619,6 +619,13 @@ class AttributeGroupValue(OrganizationOwnedModel):
         on_delete=models.PROTECT,
         related_name="edited_attribute_group_values",
     )
+    assigned_confirmer = models.ForeignKey(
+        "identity.User",
+        null=True,
+        blank=True,
+        on_delete=models.PROTECT,
+        related_name="assigned_attribute_group_confirmations",
+    )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

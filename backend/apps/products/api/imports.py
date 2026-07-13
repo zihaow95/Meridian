@@ -76,6 +76,7 @@ def serialize_import_batch(batch: ImportBatch) -> dict[str, Any]:
         {
             "row_number": item.row_number,
             "item_status": item.item_status,
+            "decision": item.decision,
             "validation_errors": item.validation_errors,
             "duplicate_candidates": item.duplicate_candidates,
             "baseline_public_id": (
@@ -105,23 +106,72 @@ class ProductImportBatchCreateView(APIView):
         request=inline_serializer(
             name="CreateImportBatchRequest",
             fields={
-                "csv_content": serializers.CharField(),
+                "csv_content": serializers.CharField(required=False),
                 "source_filename": serializers.CharField(required=False),
             },
         ),
-        responses=IMPORT_BATCH_DETAIL_SCHEMA,
+        responses={201: IMPORT_BATCH_DETAIL_SCHEMA},
     )
     def post(self, request: Request) -> Response:
         user = request.user
         assert isinstance(user, User)
-        body = request.data
-        batch = CreateProductImportBatch(
-            context=CommandContext.for_actor(user),
-            csv_content=str(body["csv_content"]),
-            source_filename=str(body.get("source_filename") or "import.csv"),
-        ).execute()
+        uploaded = request.FILES.get("file")
+        if uploaded is not None:
+            filename = str(uploaded.name or "import.xlsx")
+            raw = uploaded.read()
+            if filename.lower().endswith(".xlsx"):
+                batch = CreateProductImportBatch(
+                    context=CommandContext.for_actor(user),
+                    xlsx_content=raw,
+                    source_filename=filename,
+                ).execute()
+            else:
+                batch = CreateProductImportBatch(
+                    context=CommandContext.for_actor(user),
+                    csv_content=raw.decode("utf-8"),
+                    source_filename=filename,
+                ).execute()
+        else:
+            body = request.data
+            batch = CreateProductImportBatch(
+                context=CommandContext.for_actor(user),
+                csv_content=str(body["csv_content"]),
+                source_filename=str(body.get("source_filename") or "import.csv"),
+            ).execute()
         batch = ImportBatch.objects.prefetch_related("items").get(pk=batch.pk)
         return Response(serialize_import_batch(batch), status=201)
+
+
+class ProductImportTemplateDownloadView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    @extend_schema(operation_id="product_import_template_download")
+    def get(self, request: Request) -> Response:
+        from django.http import HttpResponse
+
+        from apps.products.services.import_template import build_import_template_xlsx
+
+        user = request.user
+        assert isinstance(user, User)
+        decision = authorize(
+            subject_for(user),
+            action="migration.upload",
+            resource=ResourceDescriptor(
+                resource_type="migration",
+                public_id=None,
+                organization_id=user.organization_id,
+            ),
+            context=AuthorizationContext.current(),
+        )
+        if not decision.allowed:
+            raise PermissionDeniedError()
+        content = build_import_template_xlsx()
+        response = HttpResponse(
+            content,
+            content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        )
+        response["Content-Disposition"] = 'attachment; filename="legacy-product-import.xlsx"'
+        return response  # type: ignore[return-value]
 
 
 class ProductImportBatchDetailView(APIView):

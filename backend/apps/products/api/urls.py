@@ -8,6 +8,7 @@ from apps.products.api.bindings import ProductExternalBindingUpsertView
 from apps.products.api.change_sets import (
     ApproveAttributeGroupView,
     ApproveChangeSetView,
+    ProductChangeSetCreateView,
     ProductChangeSetDetailView,
     ProductChangeSetDiffView,
     ProductChangeSetEditView,
@@ -23,6 +24,7 @@ from apps.products.api.imports import (
     ProductImportBatchCreateView,
     ProductImportBatchDetailView,
     ProductImportItemDecideView,
+    ProductImportTemplateDownloadView,
     PublishLegacyBaselineView,
 )
 from apps.products.api.products import ProductDetailView, ProductListView
@@ -34,6 +36,11 @@ urlpatterns = [
         "products/<uuid:public_id>/external-bindings",
         ProductExternalBindingUpsertView.as_view(),
         name="product-external-binding-upsert",
+    ),
+    path(
+        "products/<uuid:public_id>/change-sets",
+        ProductChangeSetCreateView.as_view(),
+        name="product-change-set-create",
     ),
     path(
         "product-drafts/<uuid:public_id>",
@@ -94,6 +101,11 @@ urlpatterns = [
         "product-import-batches",
         ProductImportBatchCreateView.as_view(),
         name="product-import-batch-create",
+    ),
+    path(
+        "product-import-template",
+        ProductImportTemplateDownloadView.as_view(),
+        name="product-import-template-download",
     ),
     path(
         "product-import-batches/<uuid:public_id>",

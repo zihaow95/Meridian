@@ -10,11 +10,24 @@ const router = useRouter()
 const products = useProductStore()
 const errorText = ref('')
 const searchText = ref(typeof route.query.search === 'string' ? route.query.search : '')
+const brandCode = ref('')
+const categoryCode = ref('')
+const lifecycleStatus = ref('')
+const skuCode = ref('')
+const externalId = ref('')
+const channelCode = ref('')
 
 async function load(): Promise<void> {
   errorText.value = ''
   try {
-    await products.fetchProducts(searchText.value)
+    await products.fetchProducts(searchText.value, {
+      brand_code: brandCode.value,
+      category_code: categoryCode.value,
+      lifecycle_status: lifecycleStatus.value,
+      sku_code: skuCode.value,
+      external_id: externalId.value,
+      channel_code: channelCode.value,
+    })
   } catch (err: unknown) {
     if (err instanceof ApiError) {
       errorText.value = `${err.code}: ${err.message}`
@@ -36,7 +49,9 @@ function openDetail(publicId: string): void {
     <div class="product-list__header">
       <div>
         <h2>产品档案</h2>
-        <p class="product-list__hint">搜索已发布与开发中的产品档案。</p>
+        <p class="product-list__hint">
+          按名称、品牌、品类、状态、SKU、外部编码和渠道筛选产品档案。
+        </p>
       </div>
       <div class="product-list__actions">
         <el-button @click="router.push('/products/import')">存量导入</el-button>
@@ -45,8 +60,24 @@ function openDetail(publicId: string): void {
     </div>
 
     <div class="product-list__search">
-      <el-input v-model="searchText" placeholder="按名称搜索" clearable @keyup.enter="load" />
-      <el-button type="primary" @click="load">搜索</el-button>
+      <el-input v-model="searchText" placeholder="名称/编号" clearable @keyup.enter="load" />
+      <el-input v-model="brandCode" placeholder="品牌" clearable data-test="filter-brand" />
+      <el-input v-model="categoryCode" placeholder="品类" clearable data-test="filter-category" />
+      <el-input
+        v-model="lifecycleStatus"
+        placeholder="状态"
+        clearable
+        data-test="filter-lifecycle"
+      />
+      <el-input v-model="skuCode" placeholder="SKU" clearable data-test="filter-sku" />
+      <el-input
+        v-model="externalId"
+        placeholder="外部编码"
+        clearable
+        data-test="filter-external-id"
+      />
+      <el-input v-model="channelCode" placeholder="渠道" clearable data-test="filter-channel" />
+      <el-button type="primary" data-test="product-search" @click="load">搜索</el-button>
     </div>
 
     <el-alert
@@ -69,6 +100,8 @@ function openDetail(publicId: string): void {
     >
       <el-table-column prop="business_no" label="编号" width="140" />
       <el-table-column prop="name" label="名称" />
+      <el-table-column prop="brand_code" label="品牌" width="120" />
+      <el-table-column prop="category_code" label="品类" width="120" />
       <el-table-column prop="lifecycle_status" label="状态" width="120" />
     </el-table>
   </div>
@@ -91,6 +124,7 @@ function openDetail(publicId: string): void {
   display: flex;
   gap: 0.75rem;
   align-items: center;
+  flex-wrap: wrap;
 }
 
 .product-list__search {

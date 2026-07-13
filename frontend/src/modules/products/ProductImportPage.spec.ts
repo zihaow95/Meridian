@@ -51,6 +51,18 @@ const stubs = {
       return () => h('div')
     },
   }),
+  'el-select': defineComponent({
+    name: 'ElSelectStub',
+    setup(_props, { slots, attrs }) {
+      return () => h('select', attrs, slots.default?.())
+    },
+  }),
+  'el-option': defineComponent({
+    name: 'ElOptionStub',
+    setup() {
+      return () => h('option')
+    },
+  }),
 }
 
 describe('ProductImportPage', () => {
@@ -63,6 +75,8 @@ describe('ProductImportPage', () => {
     expect(wrapper.get('[data-test="parse-import"]').exists()).toBe(true)
     expect(wrapper.get('[data-test="confirm-import"]').exists()).toBe(true)
     expect(wrapper.get('[data-test="publish-baseline"]').exists()).toBe(true)
+    expect(wrapper.get('[data-test="download-template"]').exists()).toBe(true)
+    expect(wrapper.get('[data-test="import-file"]').exists()).toBe(true)
     expect(wrapper.text()).toContain('存量产品导入')
   })
 })

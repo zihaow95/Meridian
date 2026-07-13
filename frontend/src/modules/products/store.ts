@@ -6,8 +6,30 @@ import type { components } from '@/api/generated/schema'
 export type ProductSummary = components['schemas']['ProductSummary']
 export type ProductDetail = components['schemas']['ProductDetail'] & {
   external_bindings?: ExternalBinding[]
+  versions?: Array<{
+    public_id: string
+    version_code: string
+    version_name: string
+    status: string
+    skus: Array<{
+      public_id: string
+      sku_code: string
+      name: string
+      specification: string
+      barcode?: string
+      channels?: Array<{ channel_code: string; channel_status: string }>
+    }>
+  }>
 }
-export type ProductChangeSetDetail = components['schemas']['ProductChangeSetDetail']
+export type ProductChangeSetDetail = components['schemas']['ProductChangeSetDetail'] & {
+  attribute_groups?: AttributeGroup[]
+  change_scope?: {
+    effective_from?: string
+    skus?: Array<Record<string, unknown>>
+    channels?: Array<Record<string, unknown>>
+    scopes?: Array<Record<string, unknown>>
+  }
+}
 export type PublicationValidation = components['schemas']['PublicationValidation']
 export type ImportBatchDetail = components['schemas']['ImportBatchDetail']
 export type ConfirmImportBatchResponse = components['schemas']['ConfirmImportBatchResponse']
@@ -20,6 +42,27 @@ export type ExternalBinding = {
   binding_status: string
 }
 
+export type AttributeGroup = {
+  public_id: string
+  group_code: string
+  group_name: string
+  requires_confirmation: boolean
+  content_hash: string
+  values_json: Record<string, unknown>
+  confirmation_status: string
+}
+
+export type ChangeSetDiff = {
+  change_set_public_id: string
+  changed_fields: Array<{
+    group_code: string
+    field_code: string
+    field_name: string
+    old_value: unknown
+    new_value: unknown
+  }>
+}
+
 export const useProductStore = defineStore('products', {
   state: () => ({
     loading: false,
@@ -27,15 +70,32 @@ export const useProductStore = defineStore('products', {
     items: [] as ProductSummary[],
     detail: null as ProductDetail | null,
     changeSet: null as ProductChangeSetDetail | null,
+    changeSetDiff: null as ChangeSetDiff | null,
     publicationValidation: null as PublicationValidation | null,
     importBatch: null as ImportBatchDetail | null,
     confirmResult: null as ConfirmImportBatchResponse | null,
   }),
   actions: {
-    async fetchProducts(search = ''): Promise<void> {
+    async fetchProducts(
+      search = '',
+      filters: {
+        brand_code?: string
+        category_code?: string
+        lifecycle_status?: string
+        owner_public_id?: string
+        sku_code?: string
+        external_id?: string
+        channel_code?: string
+      } = {},
+    ): Promise<void> {
       this.loading = true
       try {
-        const query = search ? `?search=${encodeURIComponent(search)}` : ''
+        const params = new URLSearchParams()
+        if (search) params.set('search', search)
+        for (const [key, value] of Object.entries(filters)) {
+          if (value) params.set(key, value)
+        }
+        const query = params.toString() ? `?${params.toString()}` : ''
         const page = await apiFetch<{ items: ProductSummary[] }>(`/api/v1/products${query}`)
         this.items = page.items
         this.search = search
@@ -51,6 +111,17 @@ export const useProductStore = defineStore('products', {
         this.loading = false
       }
     },
+    async createChangeSet(
+      productPublicId: string,
+      payload: { change_type: string; title?: string; base_version_public_id?: string },
+    ): Promise<ProductChangeSetDetail> {
+      const changeSet = await apiFetch<ProductChangeSetDetail>(
+        `/api/v1/products/${productPublicId}/change-sets`,
+        { method: 'POST', json: payload },
+      )
+      this.changeSet = changeSet
+      return changeSet
+    },
     async fetchChangeSet(publicId: string): Promise<void> {
       this.loading = true
       try {
@@ -60,6 +131,38 @@ export const useProductStore = defineStore('products', {
       } finally {
         this.loading = false
       }
+    },
+    async fetchChangeSetDiff(publicId: string): Promise<ChangeSetDiff> {
+      const diff = await apiFetch<ChangeSetDiff>(`/api/v1/product-change-sets/${publicId}/diff`)
+      this.changeSetDiff = diff
+      return diff
+    },
+    async editAttributeGroup(
+      changeSetPublicId: string,
+      payload: { version_no: number; group_code: string; values: Record<string, unknown> },
+    ): Promise<void> {
+      this.changeSet = await apiFetch<ProductChangeSetDetail>(
+        `/api/v1/product-change-sets/${changeSetPublicId}/edit-group`,
+        { method: 'POST', json: payload },
+      )
+    },
+    async approveAttributeGroup(
+      changeSetPublicId: string,
+      payload: { group_value_public_id: string; content_hash: string; comment?: string },
+    ): Promise<void> {
+      this.changeSet = await apiFetch<ProductChangeSetDetail>(
+        `/api/v1/product-change-sets/${changeSetPublicId}/approve-attribute-group`,
+        { method: 'POST', json: payload },
+      )
+    },
+    async returnAttributeGroup(
+      changeSetPublicId: string,
+      payload: { group_value_public_id: string; content_hash: string; comment?: string },
+    ): Promise<void> {
+      this.changeSet = await apiFetch<ProductChangeSetDetail>(
+        `/api/v1/product-change-sets/${changeSetPublicId}/return-attribute-group`,
+        { method: 'POST', json: payload },
+      )
     },
     async submitChangeSet(changeSetPublicId: string): Promise<void> {
       this.changeSet = await apiFetch<ProductChangeSetDetail>(
@@ -129,6 +232,35 @@ export const useProductStore = defineStore('products', {
       } finally {
         this.loading = false
       }
+    },
+    async createImportBatchFromFile(file: File): Promise<ImportBatchDetail> {
+      this.loading = true
+      try {
+        const body = new FormData()
+        body.append('file', file)
+        this.importBatch = await apiFetch<ImportBatchDetail>('/api/v1/product-import-batches', {
+          method: 'POST',
+          body,
+        })
+        return this.importBatch
+      } finally {
+        this.loading = false
+      }
+    },
+    async downloadImportTemplate(): Promise<void> {
+      const response = await fetch('/api/v1/product-import-template', {
+        credentials: 'include',
+      })
+      if (!response.ok) {
+        throw new Error(`Request failed: ${response.status}`)
+      }
+      const blob = await response.blob()
+      const url = URL.createObjectURL(blob)
+      const anchor = document.createElement('a')
+      anchor.href = url
+      anchor.download = 'legacy-product-import.xlsx'
+      anchor.click()
+      URL.revokeObjectURL(url)
     },
     async decideImportItem(
       batchPublicId: string,

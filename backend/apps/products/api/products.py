@@ -24,13 +24,29 @@ class ProductListView(APIView):
         operation_id="products_list",
         parameters=[
             OpenApiParameter(name="search", type=str, location=OpenApiParameter.QUERY),
+            OpenApiParameter(name="brand_code", type=str, location=OpenApiParameter.QUERY),
+            OpenApiParameter(name="category_code", type=str, location=OpenApiParameter.QUERY),
+            OpenApiParameter(name="lifecycle_status", type=str, location=OpenApiParameter.QUERY),
+            OpenApiParameter(name="owner_public_id", type=str, location=OpenApiParameter.QUERY),
+            OpenApiParameter(name="sku_code", type=str, location=OpenApiParameter.QUERY),
+            OpenApiParameter(name="external_id", type=str, location=OpenApiParameter.QUERY),
+            OpenApiParameter(name="channel_code", type=str, location=OpenApiParameter.QUERY),
         ],
         responses=PRODUCT_SEARCH_PAGE_SCHEMA,
     )
     def get(self, request: Request) -> Response:
         user = cast(User, request.user)
-        search = request.query_params.get("search", "")
-        items = search_products(user=user, search=search)
+        items = search_products(
+            user=user,
+            search=request.query_params.get("search", ""),
+            brand_code=request.query_params.get("brand_code", ""),
+            category_code=request.query_params.get("category_code", ""),
+            lifecycle_status=request.query_params.get("lifecycle_status", ""),
+            owner_public_id=request.query_params.get("owner_public_id", ""),
+            sku_code=request.query_params.get("sku_code", ""),
+            external_id=request.query_params.get("external_id", ""),
+            channel_code=request.query_params.get("channel_code", ""),
+        )
         return Response({"items": items})
 
 

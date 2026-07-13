@@ -973,11 +973,10 @@ paths:
           multipart/form-data:
             schema:
               $ref: '#/components/schemas/CreateImportBatchRequest'
-        required: true
       security:
       - cookieAuth: []
       responses:
-        '200':
+        '201':
           content:
             application/json:
               schema:
@@ -1070,12 +1069,50 @@ paths:
               schema:
                 $ref: '#/components/schemas/DecideImportItemResponse'
           description: ''
+  /api/v1/product-import-template:
+    get:
+      operationId: product_import_template_download
+      tags:
+      - product-import-template
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          description: No response body
   /api/v1/products:
     get:
       operationId: products_list
       parameters:
       - in: query
+        name: brand_code
+        schema:
+          type: string
+      - in: query
+        name: category_code
+        schema:
+          type: string
+      - in: query
+        name: channel_code
+        schema:
+          type: string
+      - in: query
+        name: external_id
+        schema:
+          type: string
+      - in: query
+        name: lifecycle_status
+        schema:
+          type: string
+      - in: query
+        name: owner_public_id
+        schema:
+          type: string
+      - in: query
         name: search
+        schema:
+          type: string
+      - in: query
+        name: sku_code
         schema:
           type: string
       tags:
@@ -1109,6 +1146,39 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ProductDetail'
+          description: ''
+  /api/v1/products/{public_id}/change-sets:
+    post:
+      operationId: products_change_sets_create
+      parameters:
+      - in: path
+        name: public_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - products
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateChangeSetRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/CreateChangeSetRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/CreateChangeSetRequest'
+        required: true
+      security:
+      - cookieAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProductChangeSetDetail'
           description: ''
   /api/v1/products/{public_id}/external-bindings:
     post:
@@ -1493,6 +1563,33 @@ components:
       - conclusion
       - deliverable_version_public_id
       - status
+    ChangeSetAttributeGroup:
+      type: object
+      properties:
+        public_id:
+          type: string
+          format: uuid
+        group_code:
+          type: string
+        group_name:
+          type: string
+        requires_confirmation:
+          type: boolean
+        content_hash:
+          type: string
+        values_json:
+          type: object
+          additionalProperties: {}
+        confirmation_status:
+          type: string
+      required:
+      - confirmation_status
+      - content_hash
+      - group_code
+      - group_name
+      - public_id
+      - requires_confirmation
+      - values_json
     CombineSourcesRequest:
       type: object
       properties:
@@ -1529,6 +1626,18 @@ components:
       - items
       - linked_count
       - skipped_count
+    CreateChangeSetRequest:
+      type: object
+      properties:
+        change_type:
+          type: string
+        title:
+          type: string
+        base_version_public_id:
+          type: string
+          format: uuid
+      required:
+      - change_type
     CreateImportBatchRequest:
       type: object
       properties:
@@ -1536,8 +1645,6 @@ components:
           type: string
         source_filename:
           type: string
-      required:
-      - csv_content
     CurrentProposalQuota:
       type: object
       properties:
@@ -1982,7 +2089,15 @@ components:
         product_public_id:
           type: string
           format: uuid
+        change_scope:
+          type: object
+          additionalProperties: {}
+        attribute_groups:
+          type: array
+          items:
+            $ref: '#/components/schemas/ChangeSetAttributeGroup'
       required:
+      - attribute_groups
       - change_type
       - product_public_id
       - public_id
@@ -2089,6 +2204,11 @@ components:
           type: string
         specification:
           type: string
+        barcode:
+          type: string
+        channels:
+          type: array
+          items: {}
       required:
       - name
       - public_id

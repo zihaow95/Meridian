@@ -36,6 +36,7 @@ from apps.products.services.duplicate_detection import (
 from apps.products.services.import_template import (
     IMPORT_TEMPLATE_VERSION,
     parse_import_csv,
+    parse_import_xlsx,
 )
 
 
@@ -58,7 +59,8 @@ class ConfirmImportBatchResult:
 @dataclass
 class CreateProductImportBatch:
     context: CommandContext
-    csv_content: str
+    csv_content: str | None = None
+    xlsx_content: bytes | None = None
     source_filename: str = "import.csv"
 
     def execute(self) -> ImportBatch:
@@ -76,7 +78,16 @@ class CreateProductImportBatch:
         if not decision.allowed:
             raise PermissionDeniedError()
 
-        digest = hashlib.sha256(self.csv_content.encode()).hexdigest()
+        if self.xlsx_content is not None:
+            digest_source = self.xlsx_content
+            rows = parse_import_xlsx(content=self.xlsx_content)
+        elif self.csv_content is not None:
+            digest_source = self.csv_content.encode()
+            rows = parse_import_csv(content=self.csv_content)
+        else:
+            raise PermissionDeniedError()
+
+        digest = hashlib.sha256(digest_source).hexdigest()
         with transaction.atomic():
             batch = ImportBatch.objects.create(
                 organization_id=actor.organization_id,
@@ -86,11 +97,10 @@ class CreateProductImportBatch:
                 source_digest=digest,
                 created_by=actor,
             )
-            self._parse_rows(batch=batch, csv_content=self.csv_content)
+            self._persist_rows(batch=batch, rows=rows)
         return batch
 
-    def _parse_rows(self, *, batch: ImportBatch, csv_content: str) -> None:
-        rows = parse_import_csv(content=csv_content)
+    def _persist_rows(self, *, batch: ImportBatch, rows: list[Any]) -> None:
         success_count = 0
         failure_count = 0
         for row in rows:
@@ -401,45 +411,95 @@ class DecideImportItem:
     target_product_public_id: UUID | None = None
 
     def execute(self) -> ImportItem:
+        from apps.audit.models import AuditResult
+        from apps.audit.services.append_event import AuditRecord, append_event
+        from apps.audit.services.snapshots import acting_roles_snapshot
+        from apps.platform.outbox.services import OutboxMessage, register_outbox_event
+
         actor = self.context.actor
-        auth_decision = authorize(
-            subject_for(actor),
-            action="migration.review",
-            resource=ResourceDescriptor(
-                resource_type="migration",
-                public_id=None,
-                organization_id=actor.organization_id,
-            ),
-            context=AuthorizationContext.current(),
-        )
-        if not auth_decision.allowed:
-            raise PermissionDeniedError()
+        now = self.context.occurred_at
 
-        item = (
-            ImportItem.objects.select_related("batch")
-            .filter(
-                batch__public_id=self.batch_public_id,
-                batch__organization_id=actor.organization_id,
-                row_number=self.row_number,
+        with transaction.atomic():
+            auth_decision = authorize(
+                subject_for(actor),
+                action="migration.review",
+                resource=ResourceDescriptor(
+                    resource_type="migration",
+                    public_id=None,
+                    organization_id=actor.organization_id,
+                ),
+                context=AuthorizationContext.current(),
             )
-            .first()
-        )
-        if item is None:
-            raise PermissionDeniedError()
-
-        if self.decision not in ImportItemDecision.values:
-            raise PermissionDeniedError()
-
-        item.decision = self.decision
-        if self.target_product_public_id is not None:
-            product = ProductAsset.objects.filter(
-                public_id=self.target_product_public_id,
-                organization_id=actor.organization_id,
-            ).first()
-            if product is None:
+            if not auth_decision.allowed:
                 raise PermissionDeniedError()
-            item.target_product = product
-            item.save(update_fields=["decision", "target_product", "updated_at"])
-        else:
-            item.save(update_fields=["decision", "updated_at"])
+
+            item = (
+                ImportItem.objects.select_for_update()
+                .select_related("batch")
+                .filter(
+                    batch__public_id=self.batch_public_id,
+                    batch__organization_id=actor.organization_id,
+                    row_number=self.row_number,
+                )
+                .first()
+            )
+            if item is None:
+                raise PermissionDeniedError()
+
+            if self.decision not in {
+                ImportItemDecision.CREATE,
+                ImportItemDecision.LINK,
+                ImportItemDecision.SKIP,
+            }:
+                raise PermissionDeniedError()
+
+            item.decision = self.decision
+            target_public_id: str | None = None
+            if self.decision == ImportItemDecision.LINK:
+                if self.target_product_public_id is None:
+                    raise PermissionDeniedError()
+                product = ProductAsset.objects.filter(
+                    public_id=self.target_product_public_id,
+                    organization_id=actor.organization_id,
+                ).first()
+                if product is None:
+                    raise PermissionDeniedError()
+                item.target_product = product
+                target_public_id = str(product.public_id)
+                item.save(update_fields=["decision", "target_product", "updated_at"])
+            else:
+                item.target_product = None
+                item.save(update_fields=["decision", "target_product", "updated_at"])
+
+            append_event(
+                AuditRecord(
+                    actor=actor,
+                    action_code="migration.review",
+                    resource_type="migration",
+                    resource_public_id=item.batch.public_id,
+                    result=AuditResult.SUCCESS,
+                    trace_id=self.context.trace_id,
+                    occurred_at=now,
+                    acting_roles_snapshot=acting_roles_snapshot(actor),
+                    after_summary={
+                        "row_number": item.row_number,
+                        "decision": item.decision,
+                        "target_product_public_id": target_public_id,
+                    },
+                )
+            )
+            register_outbox_event(
+                OutboxMessage(
+                    event_type="import_item.decided",
+                    aggregate_type="migration",
+                    aggregate_id=item.batch.public_id,
+                    payload={
+                        "batch_public_id": str(item.batch.public_id),
+                        "row_number": item.row_number,
+                        "decision": item.decision,
+                        "target_product_public_id": target_public_id,
+                    },
+                    occurred_at=now,
+                )
+            )
         return item

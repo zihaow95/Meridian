@@ -110,10 +110,6 @@ class ApproveAttributeGroup:
                 confirmed_at=now,
             )
 
-            if change_set.status == ChangeSetStatus.DRAFT:
-                change_set.status = ChangeSetStatus.IN_CONFIRMATION
-                change_set.save(update_fields=["status", "updated_at"])
-
             append_event(
                 AuditRecord(
                     actor=actor,
@@ -248,10 +244,15 @@ class ReassignAttributeConfirmer:
         now = self.context.occurred_at
 
         with transaction.atomic():
-            change_set = ProductChangeSet.objects.filter(
-                public_id=self.change_set_public_id,
-                organization_id=actor.organization_id,
-            ).first()
+            change_set = (
+                ProductChangeSet.objects.select_for_update()
+                .select_related("product")
+                .filter(
+                    public_id=self.change_set_public_id,
+                    organization_id=actor.organization_id,
+                )
+                .first()
+            )
             if change_set is None:
                 raise PermissionDeniedError()
 
@@ -268,12 +269,29 @@ class ReassignAttributeConfirmer:
             if not decision.allowed:
                 raise PermissionDeniedError()
 
-            group_value = AttributeGroupValue.objects.filter(
-                public_id=self.group_value_public_id,
-                change_set=change_set,
-            ).first()
+            group_value = (
+                AttributeGroupValue.objects.select_for_update()
+                .filter(
+                    public_id=self.group_value_public_id,
+                    change_set=change_set,
+                )
+                .first()
+            )
             if group_value is None:
                 raise PermissionDeniedError()
+
+            from apps.identity.models.user import User
+
+            confirmer = User.objects.filter(
+                id=self.confirmer_user_id,
+                organization_id=actor.organization_id,
+            ).first()
+            if confirmer is None:
+                raise PermissionDeniedError()
+
+            previous_confirmer_id = group_value.assigned_confirmer_id
+            group_value.assigned_confirmer = confirmer
+            group_value.save(update_fields=["assigned_confirmer", "updated_at"])
 
             append_event(
                 AuditRecord(
@@ -287,9 +305,23 @@ class ReassignAttributeConfirmer:
                     acting_roles_snapshot=acting_roles_snapshot(actor),
                     after_summary={
                         "group_value_public_id": str(group_value.public_id),
+                        "previous_confirmer_user_id": previous_confirmer_id,
                         "confirmer_user_id": self.confirmer_user_id,
                         "reason": self.reason,
                     },
+                )
+            )
+            register_outbox_event(
+                OutboxMessage(
+                    event_type="attribute_group.confirmer_reassigned",
+                    aggregate_type="product_change_set",
+                    aggregate_id=change_set.public_id,
+                    payload={
+                        "change_set_public_id": str(change_set.public_id),
+                        "group_value_public_id": str(group_value.public_id),
+                        "confirmer_user_id": self.confirmer_user_id,
+                    },
+                    occurred_at=now,
                 )
             )
 

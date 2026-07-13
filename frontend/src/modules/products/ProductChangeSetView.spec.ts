@@ -72,18 +72,32 @@ describe('ProductChangeSetView', () => {
   })
 
   it('loads change set detail and renders publication panel', async () => {
-    vi.mocked(apiFetch).mockResolvedValueOnce({
-      public_id: 'change-set-1',
-      change_type: 'NEW_PRODUCT',
-      status: 'APPROVED',
-      title: 'Yogurt draft',
-      version_no: 1,
-      product_public_id: 'prod-1',
-    })
+    vi.mocked(apiFetch)
+      .mockResolvedValueOnce({
+        public_id: 'change-set-1',
+        change_type: 'NEW_PRODUCT',
+        status: 'APPROVED',
+        title: 'Yogurt draft',
+        version_no: 1,
+        product_public_id: 'prod-1',
+        change_scope: {},
+        attribute_groups: [],
+      })
+      .mockResolvedValueOnce({
+        change_set_public_id: 'change-set-1',
+        changed_fields: [],
+      })
+      .mockResolvedValueOnce({
+        can_publish: true,
+        blocks: [],
+      })
 
     const wrapper = mount(ProductChangeSetView, { global: { stubs } })
     await flush()
     expect(wrapper.get('[data-test="change-set-title"]').text()).toBe('Yogurt draft')
+    expect(wrapper.get('[data-test="attribute-editor"]').exists()).toBe(true)
+    expect(wrapper.get('[data-test="change-set-diff"]').exists()).toBe(true)
+    expect(wrapper.get('[data-test="scope-sku-barcode"]').exists()).toBe(true)
     expect(wrapper.get('[data-test="publication-panel"]').text()).toBe('change-set-1')
   })
 })

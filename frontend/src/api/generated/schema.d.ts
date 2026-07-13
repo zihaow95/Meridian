@@ -775,6 +775,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/product-import-template": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["product_import_template_download"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/products": {
         parameters: {
             query?: never;
@@ -801,6 +817,22 @@ export interface paths {
         get: operations["products_retrieve"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/products/{public_id}/change-sets": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["products_change_sets_create"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1024,6 +1056,18 @@ export interface components {
             conclusion: string;
             deliverable_version_public_id: string | null;
         };
+        ChangeSetAttributeGroup: {
+            /** Format: uuid */
+            public_id: string;
+            group_code: string;
+            group_name: string;
+            requires_confirmation: boolean;
+            content_hash: string;
+            values_json: {
+                [key: string]: unknown;
+            };
+            confirmation_status: string;
+        };
         CombineSourcesRequest: {
             opportunity_public_ids: string[];
         };
@@ -1037,8 +1081,14 @@ export interface components {
             failed_count: number;
             items: unknown[];
         };
+        CreateChangeSetRequest: {
+            change_type: string;
+            title?: string;
+            /** Format: uuid */
+            base_version_public_id?: string;
+        };
         CreateImportBatchRequest: {
-            csv_content: string;
+            csv_content?: string;
             source_filename?: string;
         };
         CurrentProposalQuota: {
@@ -1217,6 +1267,10 @@ export interface components {
             version_no: number;
             /** Format: uuid */
             product_public_id: string;
+            change_scope?: {
+                [key: string]: unknown;
+            };
+            attribute_groups: components["schemas"]["ChangeSetAttributeGroup"][];
         };
         ProductChangeSetDiffResponse: {
             /** Format: uuid */
@@ -1255,6 +1309,8 @@ export interface components {
             sku_code: string;
             name: string;
             specification: string;
+            barcode?: string;
+            channels?: unknown[];
         };
         ProductSummary: {
             /** Format: uuid */
@@ -2429,7 +2485,7 @@ export interface operations {
             path?: never;
             cookie?: never;
         };
-        requestBody: {
+        requestBody?: {
             content: {
                 "application/json": components["schemas"]["CreateImportBatchRequest"];
                 "application/x-www-form-urlencoded": components["schemas"]["CreateImportBatchRequest"];
@@ -2437,7 +2493,7 @@ export interface operations {
             };
         };
         responses: {
-            200: {
+            201: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -2522,10 +2578,35 @@ export interface operations {
             };
         };
     };
+    product_import_template_download: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No response body */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
     products_list: {
         parameters: {
             query?: {
+                brand_code?: string;
+                category_code?: string;
+                channel_code?: string;
+                external_id?: string;
+                lifecycle_status?: string;
+                owner_public_id?: string;
                 search?: string;
+                sku_code?: string;
             };
             header?: never;
             path?: never;
@@ -2560,6 +2641,33 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ProductDetail"];
+                };
+            };
+        };
+    };
+    products_change_sets_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                public_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateChangeSetRequest"];
+                "application/x-www-form-urlencoded": components["schemas"]["CreateChangeSetRequest"];
+                "multipart/form-data": components["schemas"]["CreateChangeSetRequest"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProductChangeSetDetail"];
                 };
             };
         };

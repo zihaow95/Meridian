@@ -30,6 +30,8 @@ PRODUCT_SKU_SCHEMA = inline_serializer(
         "sku_code": serializers.CharField(),
         "name": serializers.CharField(),
         "specification": serializers.CharField(),
+        "barcode": serializers.CharField(required=False),
+        "channels": serializers.ListField(required=False),
     },
 )
 
@@ -70,6 +72,19 @@ PRODUCT_DETAIL_SCHEMA = inline_serializer(
     },
 )
 
+CHANGE_SET_ATTRIBUTE_GROUP_SCHEMA = inline_serializer(
+    name="ChangeSetAttributeGroup",
+    fields={
+        "public_id": serializers.UUIDField(),
+        "group_code": serializers.CharField(),
+        "group_name": serializers.CharField(),
+        "requires_confirmation": serializers.BooleanField(),
+        "content_hash": serializers.CharField(),
+        "values_json": serializers.DictField(),
+        "confirmation_status": serializers.CharField(),
+    },
+)
+
 CHANGE_SET_DETAIL_SCHEMA = inline_serializer(
     name="ProductChangeSetDetail",
     fields={
@@ -79,6 +94,17 @@ CHANGE_SET_DETAIL_SCHEMA = inline_serializer(
         "title": serializers.CharField(),
         "version_no": serializers.IntegerField(),
         "product_public_id": serializers.UUIDField(),
+        "change_scope": serializers.DictField(required=False),
+        "attribute_groups": serializers.ListField(child=CHANGE_SET_ATTRIBUTE_GROUP_SCHEMA),
+    },
+)
+
+CREATE_CHANGE_SET_REQUEST_SCHEMA = inline_serializer(
+    name="CreateChangeSetRequest",
+    fields={
+        "change_type": serializers.CharField(),
+        "title": serializers.CharField(required=False),
+        "base_version_public_id": serializers.UUIDField(required=False),
     },
 )
 

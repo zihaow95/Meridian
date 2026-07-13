@@ -23,6 +23,8 @@ from apps.products.models import (
     SKU,
     ChangeSetStatus,
     ChangeSetType,
+    ChannelConfiguration,
+    ChannelStatus,
     ProductChangeSet,
     ProductLifecycleStatus,
     ProductVersion,
@@ -179,7 +181,7 @@ class PublishLegacyBaseline:
                 net_value = Decimal(str(raw_net))
             except InvalidOperation:
                 net_value = None
-        return SKU.objects.create(
+        sku = SKU.objects.create(
             organization=change_set.organization,
             product_version=product_version,
             sku_code=str(payload.get("sku_code") or f"SKU-{change_set.product.business_no}"),
@@ -191,6 +193,16 @@ class PublishLegacyBaseline:
             status=SKUStatus.ACTIVE,
             effective_from=product_version.effective_from,
         )
+        ChannelConfiguration.objects.create(
+            organization=change_set.organization,
+            sku=sku,
+            channel_code=str(payload.get("channel_code") or "DEFAULT"),
+            configuration_version=1,
+            channel_status=ChannelStatus.ON_SALE,
+            change_set=change_set,
+            valid_from=product_version.effective_from,
+        )
+        return sku
 
 
 def _import_payload(change_set: ProductChangeSet) -> dict[str, Any]:

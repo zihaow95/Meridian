@@ -18,6 +18,7 @@ from apps.products.api.schemas import (
     ATTRIBUTE_CONFIRMATION_REQUEST_SCHEMA,
     CHANGE_SET_DETAIL_SCHEMA,
     CHANGE_SET_DIFF_SCHEMA,
+    CREATE_CHANGE_SET_REQUEST_SCHEMA,
     EDIT_CHANGE_SET_REQUEST_SCHEMA,
     PUBLICATION_VALIDATION_SCHEMA,
     PUBLISH_CHANGE_SET_REQUEST_SCHEMA,
@@ -31,6 +32,7 @@ from apps.products.services.confirm_attribute_group import (
     ApproveAttributeGroup,
     ReturnAttributeGroup,
 )
+from apps.products.services.create_change_set import CreateProductChangeSet
 from apps.products.services.edit_change_set import EditProductChangeSet
 from apps.products.services.publish_change_set import PublishProductChangeSet
 from apps.products.services.update_change_set_scope import UpdateProductChangeSetScope
@@ -39,6 +41,35 @@ from apps.products.services.workflow_change_set import (
     ApproveProductChangeSet,
     SubmitProductChangeSetConfirmation,
 )
+
+
+class ProductChangeSetCreateView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    @extend_schema(
+        operation_id="products_change_sets_create",
+        request=CREATE_CHANGE_SET_REQUEST_SCHEMA,
+        responses={201: CHANGE_SET_DETAIL_SCHEMA},
+    )
+    def post(self, request: Request, public_id: UUID) -> Response:
+        user = cast(User, request.user)
+        body = request.data
+        if "change_type" not in body:
+            from apps.platform.api.errors import ValidationFailedError
+
+            raise ValidationFailedError(message="change_type is required.")
+        base_version_raw = body.get("base_version_public_id")
+        change_set = CreateProductChangeSet(
+            context=CommandContext.for_actor(user),
+            product_public_id=public_id,
+            change_type=str(body["change_type"]),
+            title=str(body["title"]) if body.get("title") is not None else None,
+            base_version_public_id=(
+                UUID(str(base_version_raw)) if base_version_raw is not None else None
+            ),
+        ).execute()
+        change_set = ProductChangeSet.objects.select_related("product").get(pk=change_set.pk)
+        return Response(serialize_change_set_detail(change_set), status=201)
 
 
 class ProductChangeSetDetailView(APIView):

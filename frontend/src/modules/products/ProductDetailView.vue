@@ -1,11 +1,12 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 
 import { ApiError } from '@/api/client'
 import { useProductStore } from '@/modules/products/store'
 
 const route = useRoute()
+const router = useRouter()
 const products = useProductStore()
 const errorText = ref('')
 const statusMessage = ref('')
@@ -46,6 +47,24 @@ async function saveBinding(): Promise<void> {
   }
 }
 
+async function startIteration(): Promise<void> {
+  if (!products.detail) return
+  errorText.value = ''
+  try {
+    const changeSet = await products.createChangeSet(products.detail.public_id, {
+      change_type: 'ITERATION',
+      title: `${products.detail.name} iteration`,
+    })
+    await router.push(`/product-change-sets/${changeSet.public_id}`)
+  } catch (err: unknown) {
+    if (err instanceof ApiError) {
+      errorText.value = `${err.code}: ${err.message}`
+    } else {
+      errorText.value = '创建迭代变更集失败'
+    }
+  }
+}
+
 onMounted(load)
 </script>
 
@@ -69,12 +88,19 @@ onMounted(load)
     />
 
     <template v-if="products.detail">
-      <h2 data-test="product-name">{{ products.detail.name }}</h2>
-      <p class="product-detail__meta">
-        <span>{{ products.detail.business_no }}</span>
-        <span>{{ products.detail.lifecycle_status }}</span>
-        <span>{{ products.detail.category_code }}</span>
-      </p>
+      <div class="product-detail__header">
+        <div>
+          <h2 data-test="product-name">{{ products.detail.name }}</h2>
+          <p class="product-detail__meta">
+            <span data-test="product-business-no">{{ products.detail.business_no }}</span>
+            <span data-test="product-lifecycle">{{ products.detail.lifecycle_status }}</span>
+            <span>{{ products.detail.category_code }}</span>
+          </p>
+        </div>
+        <el-button data-test="start-iteration" type="primary" @click="startIteration">
+          发起迭代
+        </el-button>
+      </div>
       <p v-if="products.detail.formula_summary" data-test="formula-summary">
         {{ products.detail.formula_summary }}
       </p>
@@ -84,14 +110,25 @@ onMounted(load)
         v-for="version in products.detail.versions"
         :key="version.public_id"
         class="product-detail__version"
+        data-test="product-version"
       >
         <p>
-          <strong>{{ version.version_code }}</strong>
+          <strong data-test="version-code">{{ version.version_code }}</strong>
           {{ version.version_name }} ({{ version.status }})
         </p>
         <ul>
-          <li v-for="sku in version.skus" :key="sku.public_id">
+          <li v-for="sku in version.skus" :key="sku.public_id" data-test="product-sku">
             {{ sku.sku_code }} — {{ sku.name }} {{ sku.specification }}
+            <span v-if="sku.barcode"> / {{ sku.barcode }}</span>
+            <ul v-if="sku.channels?.length">
+              <li
+                v-for="channel in sku.channels"
+                :key="`${sku.public_id}-${channel.channel_code}`"
+                data-test="product-channel"
+              >
+                {{ channel.channel_code }} ({{ channel.channel_status }})
+              </li>
+            </ul>
           </li>
         </ul>
       </el-card>
@@ -128,6 +165,13 @@ onMounted(load)
 </template>
 
 <style scoped>
+.product-detail__header {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  align-items: flex-start;
+}
+
 .product-detail__meta {
   display: flex;
   gap: 1rem;
