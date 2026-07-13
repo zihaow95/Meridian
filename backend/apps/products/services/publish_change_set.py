@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import datetime
 from uuid import UUID
 
 from django.db import DatabaseError, transaction
@@ -48,22 +49,34 @@ def create_channel_configurations(
     *, change_set: ProductChangeSet, product_version: ProductVersion
 ) -> None:
     """Create channel configurations declared on the change set scope."""
+    from apps.platform.api.errors import ValidationFailedError
+
     scope = change_set.change_scope or {}
     channels = scope.get("channels")
-    if not isinstance(channels, list):
+    if not isinstance(channels, list) or not channels:
         return
 
     sku_by_code = {sku.sku_code: sku for sku in SKU.objects.filter(product_version=product_version)}
-    for row in channels:
+    for index, row in enumerate(channels):
         if not isinstance(row, dict):
-            continue
-        sku_code = str(row.get("sku_code") or "")
-        channel_code = str(row.get("channel_code") or "")
+            raise ValidationFailedError(
+                details={"blocks": ["PRODUCT_CHANNEL_INVALID"], "index": index},
+            )
+        sku_code = str(row.get("sku_code") or "").strip()
+        channel_code = str(row.get("channel_code") or "").strip()
         if not sku_code or not channel_code:
-            continue
+            raise ValidationFailedError(
+                details={"blocks": ["PRODUCT_CHANNEL_INCOMPLETE"], "index": index},
+            )
         sku = sku_by_code.get(sku_code)
         if sku is None:
-            continue
+            raise ValidationFailedError(
+                details={
+                    "blocks": ["PRODUCT_CHANNEL_SKU_UNKNOWN"],
+                    "sku_code": sku_code,
+                    "channel_code": channel_code,
+                },
+            )
         ChannelConfiguration.objects.create(
             organization=change_set.organization,
             sku=sku,
@@ -257,9 +270,14 @@ class PublishProductChangeSet:
         *,
         change_set: ProductChangeSet,
         actor: User,
-        now,
+        now: datetime,
     ) -> ProductVersion:
         version_code = self._next_version_code(change_set.product_id)
+        scope = change_set.change_scope or {}
+        effective_from = now
+        raw_effective = scope.get("effective_from")
+        if raw_effective:
+            effective_from = datetime.fromisoformat(str(raw_effective).replace("Z", "+00:00"))
         return ProductVersion.objects.create(
             organization=change_set.organization,
             product=change_set.product,
@@ -270,14 +288,14 @@ class PublishProductChangeSet:
             definition_summary=change_set.definition_summary,
             published_at=now,
             published_by=actor,
-            effective_from=now,
+            effective_from=effective_from,
         )
 
     def _next_version_code(self, product_id: int) -> str:
         count = ProductVersion.objects.filter(product_id=product_id).count()
         return f"V{count + 1}"
 
-    def _activate_attribute_snapshots(self, *, change_set: ProductChangeSet, now) -> None:
+    def _activate_attribute_snapshots(self, *, change_set: ProductChangeSet, now: datetime) -> None:
         AttributeGroupValue.objects.filter(change_set=change_set).update(
             value_status=AttributeValueStatus.EFFECTIVE,
             updated_at=now,

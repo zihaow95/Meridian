@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from apps.identity.models.user import User
 from apps.products.models import ProductChangeSet
 from apps.products.services.diff_change_set import BuildProductChangeSetDiff
 
@@ -19,7 +20,7 @@ def serialize_change_set_detail(change_set: ProductChangeSet) -> dict[str, Any]:
     }
 
 
-def serialize_change_set_diff(*, actor, change_set: ProductChangeSet) -> dict[str, Any]:
+def serialize_change_set_diff(*, actor: User, change_set: ProductChangeSet) -> dict[str, Any]:
     diff = BuildProductChangeSetDiff(
         actor=actor,
         change_set_public_id=change_set.public_id,

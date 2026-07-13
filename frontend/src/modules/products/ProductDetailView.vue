@@ -8,6 +8,10 @@ import { useProductStore } from '@/modules/products/store'
 const route = useRoute()
 const products = useProductStore()
 const errorText = ref('')
+const statusMessage = ref('')
+const sourceSystem = ref('ERP')
+const objectType = ref('PRODUCT')
+const externalId = ref('')
 
 async function load(): Promise<void> {
   errorText.value = ''
@@ -22,6 +26,26 @@ async function load(): Promise<void> {
   }
 }
 
+async function saveBinding(): Promise<void> {
+  if (!products.detail) return
+  errorText.value = ''
+  statusMessage.value = ''
+  try {
+    await products.upsertExternalBinding(products.detail.public_id, {
+      source_system: sourceSystem.value,
+      object_type: objectType.value,
+      external_id: externalId.value,
+    })
+    statusMessage.value = '外部绑定已保存'
+  } catch (err: unknown) {
+    if (err instanceof ApiError) {
+      errorText.value = `${err.code}: ${err.message}`
+    } else {
+      errorText.value = '保存外部绑定失败'
+    }
+  }
+}
+
 onMounted(load)
 </script>
 
@@ -32,6 +56,14 @@ onMounted(load)
       type="error"
       :closable="false"
       :title="errorText"
+      show-icon
+      class="product-detail__error"
+    />
+    <el-alert
+      v-if="statusMessage"
+      type="success"
+      :closable="false"
+      :title="statusMessage"
       show-icon
       class="product-detail__error"
     />
@@ -63,6 +95,34 @@ onMounted(load)
           </li>
         </ul>
       </el-card>
+
+      <el-card class="product-detail__bindings" data-test="external-bindings">
+        <template #header>外部绑定</template>
+        <ul v-if="products.detail.external_bindings?.length">
+          <li
+            v-for="binding in products.detail.external_bindings"
+            :key="binding.public_id"
+            data-test="external-binding-row"
+          >
+            {{ binding.source_system }} / {{ binding.object_type }} / {{ binding.external_id }}
+          </li>
+        </ul>
+        <p v-else data-test="external-bindings-empty">暂无外部绑定</p>
+        <el-form label-width="100px" class="product-detail__binding-form">
+          <el-form-item label="来源系统">
+            <el-input v-model="sourceSystem" data-test="binding-source-system" />
+          </el-form-item>
+          <el-form-item label="对象类型">
+            <el-input v-model="objectType" data-test="binding-object-type" />
+          </el-form-item>
+          <el-form-item label="外部编码">
+            <el-input v-model="externalId" data-test="binding-external-id" />
+          </el-form-item>
+          <el-button data-test="save-external-binding" type="primary" @click="saveBinding">
+            保存绑定
+          </el-button>
+        </el-form>
+      </el-card>
     </template>
   </div>
 </template>
@@ -74,11 +134,13 @@ onMounted(load)
   color: #666;
 }
 
-.product-detail__version {
+.product-detail__version,
+.product-detail__bindings,
+.product-detail__error {
   margin-bottom: 0.75rem;
 }
 
-.product-detail__error {
-  margin-bottom: 1rem;
+.product-detail__binding-form {
+  margin-top: 1rem;
 }
 </style>

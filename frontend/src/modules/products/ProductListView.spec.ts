@@ -5,6 +5,7 @@ import { defineComponent, h } from 'vue'
 
 vi.mock('vue-router', () => ({
   useRouter: () => ({ push: vi.fn() }),
+  useRoute: () => ({ query: {}, params: {} }),
 }))
 
 vi.mock('@/api/client', async () => {

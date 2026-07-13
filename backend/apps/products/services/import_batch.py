@@ -225,9 +225,11 @@ class ConfirmProductImportBatch:
         items = tuple(
             ConfirmImportItemResult(
                 row_number=item.row_number,
-                baseline_public_id=str(item.baseline_change_set.public_id)
-                if item.baseline_change_set_id
-                else None,
+                baseline_public_id=(
+                    str(baseline.public_id)
+                    if (baseline := item.baseline_change_set) is not None
+                    else None
+                ),
                 item_status=item.item_status,
             )
             for item in batch.items.order_by("row_number")

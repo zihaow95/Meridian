@@ -23,6 +23,37 @@ const stubs = {
       return () => h('div', { class: 'alert' }, props.title as string)
     },
   }),
+  'el-card': defineComponent({
+    name: 'ElCardStub',
+    setup(_props, { slots }) {
+      return () => h('div', [slots.header?.(), slots.default?.()])
+    },
+  }),
+  'el-form': defineComponent({
+    name: 'ElFormStub',
+    setup(_props, { slots }) {
+      return () => h('form', slots.default?.())
+    },
+  }),
+  'el-form-item': defineComponent({
+    name: 'ElFormItemStub',
+    setup(_props, { slots }) {
+      return () => h('div', slots.default?.())
+    },
+  }),
+  'el-input': defineComponent({
+    name: 'ElInputStub',
+    props: ['modelValue'],
+    setup(props, { attrs }) {
+      return () => h('input', { ...attrs, value: props.modelValue as string })
+    },
+  }),
+  'el-button': defineComponent({
+    name: 'ElButtonStub',
+    setup(_props, { slots, attrs }) {
+      return () => h('button', attrs, slots.default?.())
+    },
+  }),
   ProductPublicationPanel: defineComponent({
     name: 'ProductPublicationPanelStub',
     props: ['changeSetPublicId'],

@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
-pytest_plugins = ["tests.opportunities.conftest"]
+pytest_plugins = [
+    "tests.opportunities.conftest",
+    "tests.products.conftest",
+]
 
 import shutil
 import uuid

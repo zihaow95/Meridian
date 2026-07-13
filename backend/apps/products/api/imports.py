@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any, cast
+from typing import Any
 from uuid import UUID
 
 from drf_spectacular.utils import extend_schema, inline_serializer
@@ -18,6 +18,10 @@ from apps.authorization.services.subject import subject_for
 from apps.identity.models.user import User
 from apps.platform.api.errors import PermissionDeniedError, ResourceNotFoundError
 from apps.platform.application.command import CommandContext
+from apps.products.api.schemas import (
+    DECIDE_IMPORT_ITEM_REQUEST_SCHEMA,
+    DECIDE_IMPORT_ITEM_RESPONSE_SCHEMA,
+)
 from apps.products.models import ImportBatch
 from apps.products.services.import_batch import (
     ConfirmProductImportBatch,
@@ -74,9 +78,11 @@ def serialize_import_batch(batch: ImportBatch) -> dict[str, Any]:
             "item_status": item.item_status,
             "validation_errors": item.validation_errors,
             "duplicate_candidates": item.duplicate_candidates,
-            "baseline_public_id": str(item.baseline_change_set.public_id)
-            if item.baseline_change_set_id
-            else None,
+            "baseline_public_id": (
+                str(baseline.public_id)
+                if (baseline := item.baseline_change_set) is not None
+                else None
+            ),
         }
         for item in batch.items.order_by("row_number")
     ]
@@ -106,8 +112,9 @@ class ProductImportBatchCreateView(APIView):
         responses=IMPORT_BATCH_DETAIL_SCHEMA,
     )
     def post(self, request: Request) -> Response:
-        user = cast(User, request.user)
-        body = cast(dict[str, Any], request.data)
+        user = request.user
+        assert isinstance(user, User)
+        body = request.data
         batch = CreateProductImportBatch(
             context=CommandContext.for_actor(user),
             csv_content=str(body["csv_content"]),
@@ -125,7 +132,8 @@ class ProductImportBatchDetailView(APIView):
         responses=IMPORT_BATCH_DETAIL_SCHEMA,
     )
     def get(self, request: Request, public_id: UUID) -> Response:
-        user = cast(User, request.user)
+        user = request.user
+        assert isinstance(user, User)
         decision = authorize(
             subject_for(user),
             action="migration.review",
@@ -157,8 +165,9 @@ class ProductImportBatchConfirmView(APIView):
         responses=CONFIRM_IMPORT_RESPONSE_SCHEMA,
     )
     def post(self, request: Request, public_id: UUID) -> Response:
-        user = cast(User, request.user)
-        body = cast(dict[str, Any], request.data)
+        user = request.user
+        assert isinstance(user, User)
+        body = request.data
         result = ConfirmProductImportBatch(
             context=CommandContext.for_actor(user),
             batch_public_id=public_id,
@@ -187,18 +196,13 @@ class ProductImportItemDecideView(APIView):
 
     @extend_schema(
         operation_id="product_import_items_decide",
-        request=inline_serializer(
-            name="DecideImportItemRequest",
-            fields={
-                "row_number": serializers.IntegerField(),
-                "decision": serializers.CharField(),
-                "target_product_public_id": serializers.UUIDField(required=False),
-            },
-        ),
+        request=DECIDE_IMPORT_ITEM_REQUEST_SCHEMA,
+        responses=DECIDE_IMPORT_ITEM_RESPONSE_SCHEMA,
     )
     def post(self, request: Request, public_id: UUID) -> Response:
-        user = cast(User, request.user)
-        body = cast(dict[str, Any], request.data)
+        user = request.user
+        assert isinstance(user, User)
+        body = request.data
         target_id = body.get("target_product_public_id")
         item = DecideImportItem(
             context=CommandContext.for_actor(user),
@@ -211,9 +215,9 @@ class ProductImportItemDecideView(APIView):
             {
                 "row_number": item.row_number,
                 "decision": item.decision,
-                "target_product_public_id": str(item.target_product.public_id)
-                if item.target_product_id
-                else None,
+                "target_product_public_id": (
+                    str(target.public_id) if (target := item.target_product) is not None else None
+                ),
             }
         )
 
@@ -223,11 +227,13 @@ class PublishLegacyBaselineView(APIView):
 
     @extend_schema(
         operation_id="legacy_baselines_publish",
+        request=CONFIRM_IMPORT_REQUEST_SCHEMA,
         responses=PUBLISH_BASELINE_RESPONSE_SCHEMA,
     )
     def post(self, request: Request, public_id: UUID) -> Response:
-        user = cast(User, request.user)
-        body = cast(dict[str, Any], request.data or {})
+        user = request.user
+        assert isinstance(user, User)
+        body = request.data or {}
         result = PublishLegacyBaseline(
             context=CommandContext.for_actor(user),
             baseline_public_id=public_id,

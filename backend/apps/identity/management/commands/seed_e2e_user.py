@@ -41,6 +41,16 @@ _PHASE2_ACTIONS: tuple[tuple[str, str, str], ...] = (
     ("candidate.submit_review", "project_candidate", "PRODUCT_DIRECTOR"),
 )
 
+_PHASE3_ACTIONS: tuple[tuple[str, str, str], ...] = (
+    ("product.search", "product", "PRODUCT_DIRECTOR"),
+    ("product.read_basic", "product", "PRODUCT_DIRECTOR"),
+    ("migration.upload", "migration", "PRODUCT_DIRECTOR"),
+    ("migration.review", "migration", "PRODUCT_DIRECTOR"),
+    ("migration.confirm", "migration", "PRODUCT_DIRECTOR"),
+    ("product.publish_baseline", "product", "PRODUCT_DIRECTOR"),
+    ("external_binding.manage", "product", "PRODUCT_DIRECTOR"),
+)
+
 
 class Command(BaseCommand):
     help = "Create or refresh the deterministic E2E active user, permissions, and sample todo."
@@ -66,6 +76,8 @@ class Command(BaseCommand):
         self._grant_action(user, "notification.todo.read", "notification.todo")
         self._grant_action(user, "configuration.version.read", "configuration.version")
         for action_code, resource_type, role_code in _PHASE2_ACTIONS:
+            self._grant_action(user, action_code, resource_type, role_code=role_code)
+        for action_code, resource_type, role_code in _PHASE3_ACTIONS:
             self._grant_action(user, action_code, resource_type, role_code=role_code)
         self._publish_opportunity_rules(organization, user)
 

@@ -807,6 +807,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/products/{public_id}/external-bindings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["products_external_bindings_upsert"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/project-candidates/{public_id}": {
         parameters: {
             query?: never;
@@ -1041,6 +1057,12 @@ export interface components {
             /** Format: uuid */
             target_product_public_id?: string;
         };
+        DecideImportItemResponse: {
+            row_number: number;
+            decision: string;
+            /** Format: uuid */
+            target_product_public_id?: string | null;
+        };
         DeferredItem: {
             public_id: string;
             subject_type: string;
@@ -1057,6 +1079,14 @@ export interface components {
             values: {
                 [key: string]: unknown;
             };
+        };
+        ExternalBinding: {
+            /** Format: uuid */
+            public_id: string;
+            source_system: string;
+            object_type: string;
+            external_id: string;
+            binding_status: string;
         };
         HealthResponse: {
             status: string;
@@ -1189,7 +1219,9 @@ export interface components {
             product_public_id: string;
         };
         ProductChangeSetDiffResponse: {
-            groups: unknown[];
+            /** Format: uuid */
+            change_set_public_id: string;
+            changed_fields: unknown[];
         };
         ProductDetail: {
             /** Format: uuid */
@@ -1201,6 +1233,7 @@ export interface components {
             category_code: string;
             formula_summary?: string;
             versions: components["schemas"]["ProductVersionSummary"][];
+            external_bindings: components["schemas"]["ExternalBinding"][];
         };
         ProductDraftDetail: {
             public_id: string;
@@ -1360,6 +1393,13 @@ export interface components {
             skus?: unknown[];
             channels?: unknown[];
             scopes?: unknown[];
+            /** Format: date-time */
+            effective_from?: string;
+        };
+        UpsertExternalBindingRequest: {
+            source_system: string;
+            object_type: string;
+            external_id: string;
         };
         WithdrawProposalRequest: {
             version_no?: number;
@@ -1789,7 +1829,13 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ConfirmImportBatchRequest"];
+                "application/x-www-form-urlencoded": components["schemas"]["ConfirmImportBatchRequest"];
+                "multipart/form-data": components["schemas"]["ConfirmImportBatchRequest"];
+            };
+        };
         responses: {
             200: {
                 headers: {
@@ -2174,12 +2220,13 @@ export interface operations {
             };
         };
         responses: {
-            /** @description No response body */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["ProductChangeSetDetail"];
+                };
             };
         };
     };
@@ -2275,12 +2322,13 @@ export interface operations {
             };
         };
         responses: {
-            /** @description No response body */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["ProductChangeSetDetail"];
+                };
             };
         };
     };
@@ -2464,12 +2512,13 @@ export interface operations {
             };
         };
         responses: {
-            /** @description No response body */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["DecideImportItemResponse"];
+                };
             };
         };
     };
@@ -2511,6 +2560,33 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ProductDetail"];
+                };
+            };
+        };
+    };
+    products_external_bindings_upsert: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                public_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpsertExternalBindingRequest"];
+                "application/x-www-form-urlencoded": components["schemas"]["UpsertExternalBindingRequest"];
+                "multipart/form-data": components["schemas"]["UpsertExternalBindingRequest"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExternalBinding"];
                 };
             };
         };

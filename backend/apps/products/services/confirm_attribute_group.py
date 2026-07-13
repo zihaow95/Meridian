@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import datetime
 from uuid import UUID
 
 from django.db import transaction
@@ -26,7 +27,9 @@ from apps.products.models import (
 )
 
 
-def supersede_stale_confirmations(*, group_value: AttributeGroupValue, occurred_at) -> int:
+def supersede_stale_confirmations(
+    *, group_value: AttributeGroupValue, occurred_at: datetime
+) -> int:
     return AttributeConfirmation.objects.filter(
         group_value=group_value,
         decision=ConfirmationDecision.APPROVED,

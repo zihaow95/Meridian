@@ -46,6 +46,98 @@ def add_product_asset_profile_columns(apps, schema_editor) -> None:
         schema_editor.add_field(product_asset, field)
 
 
+def _table_names(schema_editor) -> set[str]:
+    with schema_editor.connection.cursor() as cursor:
+        return set(schema_editor.connection.introspection.table_names(cursor))
+
+
+def idempotent_upgrade_product_draft_columns(apps, schema_editor) -> None:
+    """Apply product draft column renames/additions when a prior run stopped mid-migration."""
+    product_draft = apps.get_model("products", "ProductDraft")
+    table_name = product_draft._meta.db_table
+    if table_name not in _table_names(schema_editor):
+        return
+
+    columns = _column_names(schema_editor, table_name)
+
+    if "draft_type" in columns and "change_type" not in columns:
+        old_field = product_draft._meta.get_field("draft_type")
+        new_field = models.CharField(max_length=24)
+        new_field.set_attributes_from_name("change_type")
+        schema_editor.alter_field(product_draft, old_field, new_field)
+        columns.remove("draft_type")
+        columns.add("change_type")
+
+    if "product_asset_id" in columns and "product_id" not in columns:
+        product_asset = apps.get_model("products", "ProductAsset")
+        old_field = product_draft._meta.get_field("product_asset")
+        new_field = models.ForeignKey(
+            product_asset,
+            on_delete=old_field.remote_field.on_delete,
+            related_name="change_sets",
+        )
+        new_field.set_attributes_from_name("product")
+        schema_editor.alter_field(product_draft, old_field, new_field)
+        columns.remove("product_asset_id")
+        columns.add("product_id")
+
+    optional_fields: tuple[tuple[str, models.Field], ...] = (
+        (
+            "approval_basis_id",
+            models.BigIntegerField(blank=True, null=True),
+        ),
+        (
+            "approval_basis_type",
+            models.CharField(blank=True, default="", max_length=40),
+        ),
+        (
+            "base_fingerprint",
+            models.CharField(blank=True, default="", max_length=64),
+        ),
+        (
+            "change_scope",
+            models.JSONField(blank=True, default=dict),
+        ),
+        (
+            "completeness_status",
+            models.CharField(
+                blank=True,
+                choices=[
+                    ("COMPLETE", "Complete"),
+                    ("PARTIAL", "Partial"),
+                    ("NEEDS_SUPPLEMENT", "Needs supplement"),
+                ],
+                max_length=24,
+                default="",
+            ),
+        ),
+        (
+            "migration_batch_id",
+            models.BigIntegerField(blank=True, null=True),
+        ),
+        (
+            "project",
+            models.ForeignKey(
+                blank=True,
+                null=True,
+                on_delete=django.db.models.deletion.PROTECT,
+                related_name="product_change_sets",
+                to=apps.get_model("projects", "Project"),
+            ),
+        ),
+        (
+            "published_at",
+            models.DateTimeField(blank=True, null=True),
+        ),
+    )
+    for field_name, field in optional_fields:
+        field.set_attributes_from_name(field_name)
+        if field.column in columns:
+            continue
+        schema_editor.add_field(product_draft, field)
+        columns.add(field.column)
+
+
 class Migration(migrations.Migration):
     dependencies = [
         ("identity", "0002_remove_user_identity_user_org_employee_no_uniq_and_more"),
@@ -78,100 +170,110 @@ class Migration(migrations.Migration):
                 ),
             ],
         ),
-        migrations.RenameField(
-            model_name="productdraft",
-            old_name="draft_type",
-            new_name="change_type",
-        ),
-        migrations.RenameField(
-            model_name="productdraft",
-            old_name="product_asset",
-            new_name="product",
-        ),
-        migrations.AddField(
-            model_name="productdraft",
-            name="approval_basis_id",
-            field=models.BigIntegerField(blank=True, null=True),
-        ),
-        migrations.AddField(
-            model_name="productdraft",
-            name="approval_basis_type",
-            field=models.CharField(blank=True, default="", max_length=40),
-        ),
-        migrations.AddField(
-            model_name="productdraft",
-            name="base_fingerprint",
-            field=models.CharField(blank=True, default="", max_length=64),
-        ),
-        migrations.AddField(
-            model_name="productdraft",
-            name="change_scope",
-            field=models.JSONField(blank=True, default=dict),
-        ),
-        migrations.AddField(
-            model_name="productdraft",
-            name="completeness_status",
-            field=models.CharField(
-                blank=True,
-                choices=[
-                    ("COMPLETE", "Complete"),
-                    ("PARTIAL", "Partial"),
-                    ("NEEDS_SUPPLEMENT", "Needs supplement"),
-                ],
-                max_length=24,
-                default="",
-            ),
-        ),
-        migrations.AddField(
-            model_name="productdraft",
-            name="migration_batch_id",
-            field=models.BigIntegerField(blank=True, null=True),
-        ),
-        migrations.AddField(
-            model_name="productdraft",
-            name="project",
-            field=models.ForeignKey(
-                blank=True,
-                null=True,
-                on_delete=django.db.models.deletion.PROTECT,
-                related_name="product_change_sets",
-                to="projects.project",
-            ),
-        ),
-        migrations.AddField(
-            model_name="productdraft",
-            name="published_at",
-            field=models.DateTimeField(blank=True, null=True),
-        ),
-        migrations.AlterField(
-            model_name="productdraft",
-            name="change_type",
-            field=models.CharField(
-                choices=[
-                    ("NEW_PRODUCT", "New product"),
-                    ("ITERATION", "Product iteration"),
-                    ("LEGACY_BASELINE", "Legacy baseline"),
-                    ("CORRECTION", "Correction"),
-                ],
-                max_length=24,
-            ),
-        ),
-        migrations.AlterField(
-            model_name="productdraft",
-            name="status",
-            field=models.CharField(
-                choices=[
-                    ("DRAFT", "Draft"),
-                    ("SUBMITTED", "Submitted"),
-                    ("LOCKED", "Locked"),
-                    ("IN_CONFIRMATION", "In confirmation"),
-                    ("APPROVED", "Approved"),
-                    ("PUBLISHED", "Published"),
-                    ("REJECTED", "Rejected"),
-                ],
-                default="DRAFT",
-                max_length=24,
-            ),
+        migrations.SeparateDatabaseAndState(
+            database_operations=[
+                migrations.RunPython(
+                    idempotent_upgrade_product_draft_columns,
+                    migrations.RunPython.noop,
+                ),
+            ],
+            state_operations=[
+                migrations.RenameField(
+                    model_name="productdraft",
+                    old_name="draft_type",
+                    new_name="change_type",
+                ),
+                migrations.RenameField(
+                    model_name="productdraft",
+                    old_name="product_asset",
+                    new_name="product",
+                ),
+                migrations.AddField(
+                    model_name="productdraft",
+                    name="approval_basis_id",
+                    field=models.BigIntegerField(blank=True, null=True),
+                ),
+                migrations.AddField(
+                    model_name="productdraft",
+                    name="approval_basis_type",
+                    field=models.CharField(blank=True, default="", max_length=40),
+                ),
+                migrations.AddField(
+                    model_name="productdraft",
+                    name="base_fingerprint",
+                    field=models.CharField(blank=True, default="", max_length=64),
+                ),
+                migrations.AddField(
+                    model_name="productdraft",
+                    name="change_scope",
+                    field=models.JSONField(blank=True, default=dict),
+                ),
+                migrations.AddField(
+                    model_name="productdraft",
+                    name="completeness_status",
+                    field=models.CharField(
+                        blank=True,
+                        choices=[
+                            ("COMPLETE", "Complete"),
+                            ("PARTIAL", "Partial"),
+                            ("NEEDS_SUPPLEMENT", "Needs supplement"),
+                        ],
+                        max_length=24,
+                        default="",
+                    ),
+                ),
+                migrations.AddField(
+                    model_name="productdraft",
+                    name="migration_batch_id",
+                    field=models.BigIntegerField(blank=True, null=True),
+                ),
+                migrations.AddField(
+                    model_name="productdraft",
+                    name="project",
+                    field=models.ForeignKey(
+                        blank=True,
+                        null=True,
+                        on_delete=django.db.models.deletion.PROTECT,
+                        related_name="product_change_sets",
+                        to="projects.project",
+                    ),
+                ),
+                migrations.AddField(
+                    model_name="productdraft",
+                    name="published_at",
+                    field=models.DateTimeField(blank=True, null=True),
+                ),
+                migrations.AlterField(
+                    model_name="productdraft",
+                    name="change_type",
+                    field=models.CharField(
+                        choices=[
+                            ("NEW_PRODUCT", "New product"),
+                            ("ITERATION", "Product iteration"),
+                            ("LEGACY_BASELINE", "Legacy baseline"),
+                            ("CORRECTION", "Correction"),
+                        ],
+                        max_length=24,
+                    ),
+                ),
+                migrations.AlterField(
+                    model_name="productdraft",
+                    name="status",
+                    field=models.CharField(
+                        choices=[
+                            ("DRAFT", "Draft"),
+                            ("SUBMITTED", "Submitted"),
+                            ("LOCKED", "Locked"),
+                            ("IN_CONFIRMATION", "In confirmation"),
+                            ("APPROVED", "Approved"),
+                            ("PUBLISHED", "Published"),
+                            ("REJECTED", "Rejected"),
+                        ],
+                        default="DRAFT",
+                        max_length=24,
+                    ),
+                ),
+            ],
         ),
         migrations.RunPython(map_product_change_draft_types, migrations.RunPython.noop),
         migrations.RunPython(backfill_change_set_project_ids, migrations.RunPython.noop),

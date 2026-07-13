@@ -17,6 +17,7 @@ def test_phase_3_product_actions_are_seeded() -> None:
         "product_draft.create",
         "product_draft.edit_group",
         "product_draft.submit",
+        "product_change_set.approve",
         "attribute_group.confirm",
         "attribute_group.return",
         "confirmer.reassign",

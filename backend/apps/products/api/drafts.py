@@ -16,6 +16,7 @@ from apps.opportunities.api.schemas import PRODUCT_DRAFT_DETAIL_SCHEMA
 from apps.platform.api.errors import ResourceNotFoundError
 from apps.products.models import ProductChangeSet
 from apps.products.queries.drafts import serialize_product_draft_detail
+from apps.products.services.access import assert_can_read_change_set
 
 
 class ProductDraftDetailView(APIView):
@@ -35,4 +36,5 @@ class ProductDraftDetailView(APIView):
         )
         if change_set is None:
             raise ResourceNotFoundError()
+        assert_can_read_change_set(user=user, change_set=change_set)
         return Response(serialize_product_draft_detail(change_set))

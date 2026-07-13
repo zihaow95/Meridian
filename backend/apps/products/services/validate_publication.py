@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import datetime
 from typing import Any
 from uuid import UUID
 
@@ -65,6 +66,7 @@ class ValidateProductPublication:
         blocks.extend(_core_field_blocks(change_set))
         blocks.extend(_schema_required_blocks(change_set))
         blocks.extend(_sku_blocks(change_set))
+        blocks.extend(_channel_blocks(change_set))
         blocks.extend(_baseline_blocks(change_set))
         blocks.extend(_approval_basis_blocks(change_set))
         blocks.extend(_effective_time_blocks(change_set))
@@ -229,11 +231,139 @@ def _approval_basis_blocks(change_set: ProductChangeSet) -> list[PublicationBloc
 
 
 def _effective_time_blocks(change_set: ProductChangeSet) -> list[PublicationBlock]:
+    if change_set.change_type not in {ChangeSetType.NEW_PRODUCT, ChangeSetType.ITERATION}:
+        return []
     scope = change_set.change_scope or {}
     effective_from = scope.get("effective_from")
-    if effective_from is None:
+    if effective_from in (None, ""):
+        return [
+            PublicationBlock(
+                code="PRODUCT_EFFECTIVE_FROM_REQUIRED",
+                message="Publication requires an explicit effective_from timestamp.",
+                details={},
+            )
+        ]
+    try:
+        parsed = datetime.fromisoformat(str(effective_from).replace("Z", "+00:00"))
+    except ValueError:
+        return [
+            PublicationBlock(
+                code="PRODUCT_EFFECTIVE_FROM_INVALID",
+                message="effective_from must be an ISO-8601 datetime.",
+                details={"effective_from": effective_from},
+            )
+        ]
+    if parsed.tzinfo is None:
+        return [
+            PublicationBlock(
+                code="PRODUCT_EFFECTIVE_FROM_INVALID",
+                message="effective_from must include a timezone.",
+                details={"effective_from": effective_from},
+            )
+        ]
+    return _scope_conflict_blocks(change_set, effective_from=parsed)
+
+
+def _scope_conflict_blocks(
+    change_set: ProductChangeSet,
+    *,
+    effective_from: datetime,
+) -> list[PublicationBlock]:
+    from apps.products.models import ProductVersionScope, VersionScopeStatus
+
+    scope = change_set.change_scope or {}
+    scope_rows = scope.get("scopes")
+    if not isinstance(scope_rows, list) or not scope_rows:
         return []
-    return []
+
+    blocks: list[PublicationBlock] = []
+    for row in scope_rows:
+        if not isinstance(row, dict):
+            blocks.append(
+                PublicationBlock(
+                    code="PRODUCT_SCOPE_INVALID",
+                    message="Version scope rows must be objects.",
+                    details={},
+                )
+            )
+            continue
+        scope_type = str(row.get("scope_type") or "").strip()
+        channel_code = str(row.get("channel_code") or "").strip()
+        if not scope_type:
+            blocks.append(
+                PublicationBlock(
+                    code="PRODUCT_SCOPE_TYPE_MISSING",
+                    message="Version scope type is required.",
+                    details={},
+                )
+            )
+            continue
+        overlapping = ProductVersionScope.objects.filter(
+            product_version__product_id=change_set.product_id,
+            scope_type=scope_type,
+            channel_code=channel_code,
+            status=VersionScopeStatus.EFFECTIVE,
+            valid_to__isnull=True,
+        )
+        if change_set.base_version_id is not None:
+            overlapping = overlapping.exclude(product_version_id=change_set.base_version_id)
+        if overlapping.exists():
+            blocks.append(
+                PublicationBlock(
+                    code="PRODUCT_SCOPE_CONFLICT",
+                    message="An overlapping effective version scope already exists.",
+                    details={
+                        "scope_type": scope_type,
+                        "channel_code": channel_code,
+                        "effective_from": effective_from.isoformat(),
+                    },
+                )
+            )
+    return blocks
+
+
+def _channel_blocks(change_set: ProductChangeSet) -> list[PublicationBlock]:
+    scope = change_set.change_scope or {}
+    channels = scope.get("channels")
+    if not isinstance(channels, list) or not channels:
+        return []
+
+    sku_codes = {
+        str(row.get("sku_code") or "").strip()
+        for row in (scope.get("skus") or [])
+        if isinstance(row, dict)
+    }
+    blocks: list[PublicationBlock] = []
+    for index, row in enumerate(channels):
+        if not isinstance(row, dict):
+            blocks.append(
+                PublicationBlock(
+                    code="PRODUCT_CHANNEL_INVALID",
+                    message="Channel configuration rows must be objects.",
+                    details={"index": index},
+                )
+            )
+            continue
+        sku_code = str(row.get("sku_code") or "").strip()
+        channel_code = str(row.get("channel_code") or "").strip()
+        if not sku_code or not channel_code:
+            blocks.append(
+                PublicationBlock(
+                    code="PRODUCT_CHANNEL_INCOMPLETE",
+                    message="Channel rows require sku_code and channel_code.",
+                    details={"index": index},
+                )
+            )
+            continue
+        if sku_code not in sku_codes:
+            blocks.append(
+                PublicationBlock(
+                    code="PRODUCT_CHANNEL_SKU_UNKNOWN",
+                    message="Channel row references a SKU that is not declared in change_scope.",
+                    details={"sku_code": sku_code, "channel_code": channel_code},
+                )
+            )
+    return blocks
 
 
 def _baseline_blocks(change_set: ProductChangeSet) -> list[PublicationBlock]:

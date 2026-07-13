@@ -97,9 +97,9 @@ try {
     $e2e = Join-Path $RepoRoot 'tests/e2e'
     Invoke-Native 'E2E: install deps' { npm.cmd ci } $e2e
     Invoke-Native 'E2E: Playwright browser' { npx playwright install chromium } $e2e
-    Invoke-Native 'E2E: platform kernel and phase 2 flow' {
+    Invoke-Native 'E2E: platform kernel, phase 2, and phase 3 product profile' {
         $env:CI = 'true'
-        npx playwright test platform-kernel.spec.ts opportunity-to-project.spec.ts
+        npx playwright test platform-kernel.spec.ts opportunity-to-project.spec.ts product-profile-migration.spec.ts
     } $e2e
 
     # 6. Docker image builds.

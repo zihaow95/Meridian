@@ -189,6 +189,7 @@ def ready_change_set(
     del published_product_schema
     grant_action(product_director, "product.publish_new", "product", role_code="PRODUCT_DIRECTOR")
     change_set.change_scope = {
+        "effective_from": timezone.now().isoformat(),
         "skus": [
             {
                 "sku_code": "SKU-READY",

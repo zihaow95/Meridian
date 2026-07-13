@@ -19,6 +19,7 @@ from apps.products.models import (
     AttributeValueStatus,
     ProductChangeSet,
 )
+from apps.products.services.access import assert_can_read_change_set
 
 
 @dataclass(frozen=True)
@@ -56,6 +57,8 @@ class BuildProductChangeSetDiff:
         )
         if change_set is None:
             raise PermissionDeniedError()
+
+        assert_can_read_change_set(user=self.actor, change_set=change_set)
 
         can_read_sensitive = authorize(
             subject_for(self.actor),

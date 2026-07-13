@@ -104,9 +104,12 @@ class ApproveProductChangeSet:
             if change_set is None:
                 raise PermissionDeniedError()
 
+            if change_set.created_by_id == actor.id:
+                raise PermissionDeniedError()
+
             decision = authorize(
                 subject_for(actor),
-                action="product_draft.submit",
+                action="product_change_set.approve",
                 resource=ResourceDescriptor(
                     resource_type="product",
                     public_id=change_set.product.public_id,

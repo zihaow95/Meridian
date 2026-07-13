@@ -34,4 +34,3 @@ class Migration(migrations.Migration):
     operations = [
         migrations.RunPython(seed_product_actions, unseed_product_actions),
     ]
-

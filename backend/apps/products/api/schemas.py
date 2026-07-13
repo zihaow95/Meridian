@@ -44,6 +44,17 @@ PRODUCT_VERSION_SCHEMA = inline_serializer(
     },
 )
 
+EXTERNAL_BINDING_SCHEMA = inline_serializer(
+    name="ExternalBinding",
+    fields={
+        "public_id": serializers.UUIDField(),
+        "source_system": serializers.CharField(),
+        "object_type": serializers.CharField(),
+        "external_id": serializers.CharField(),
+        "binding_status": serializers.CharField(),
+    },
+)
+
 PRODUCT_DETAIL_SCHEMA = inline_serializer(
     name="ProductDetail",
     fields={
@@ -55,6 +66,7 @@ PRODUCT_DETAIL_SCHEMA = inline_serializer(
         "category_code": serializers.CharField(),
         "formula_summary": serializers.CharField(required=False),
         "versions": serializers.ListField(child=PRODUCT_VERSION_SCHEMA),
+        "external_bindings": serializers.ListField(child=EXTERNAL_BINDING_SCHEMA),
     },
 )
 
@@ -108,5 +120,60 @@ EDIT_CHANGE_SET_REQUEST_SCHEMA = inline_serializer(
         "version_no": serializers.IntegerField(),
         "group_code": serializers.CharField(),
         "values": serializers.DictField(),
+    },
+)
+
+UPDATE_SCOPE_REQUEST_SCHEMA = inline_serializer(
+    name="UpdateChangeSetScopeRequest",
+    fields={
+        "version_no": serializers.IntegerField(),
+        "skus": serializers.ListField(required=False),
+        "channels": serializers.ListField(required=False),
+        "scopes": serializers.ListField(required=False),
+        "effective_from": serializers.DateTimeField(required=False),
+    },
+)
+
+ATTRIBUTE_CONFIRMATION_REQUEST_SCHEMA = inline_serializer(
+    name="AttributeConfirmationRequest",
+    fields={
+        "group_value_public_id": serializers.UUIDField(),
+        "content_hash": serializers.CharField(),
+        "comment": serializers.CharField(required=False),
+    },
+)
+
+CHANGE_SET_DIFF_SCHEMA = inline_serializer(
+    name="ProductChangeSetDiffResponse",
+    fields={
+        "change_set_public_id": serializers.UUIDField(),
+        "changed_fields": serializers.ListField(),
+    },
+)
+
+UPSERT_EXTERNAL_BINDING_REQUEST_SCHEMA = inline_serializer(
+    name="UpsertExternalBindingRequest",
+    fields={
+        "source_system": serializers.CharField(),
+        "object_type": serializers.CharField(),
+        "external_id": serializers.CharField(),
+    },
+)
+
+DECIDE_IMPORT_ITEM_REQUEST_SCHEMA = inline_serializer(
+    name="DecideImportItemRequest",
+    fields={
+        "row_number": serializers.IntegerField(),
+        "decision": serializers.CharField(),
+        "target_product_public_id": serializers.UUIDField(required=False),
+    },
+)
+
+DECIDE_IMPORT_ITEM_RESPONSE_SCHEMA = inline_serializer(
+    name="DecideImportItemResponse",
+    fields={
+        "row_number": serializers.IntegerField(),
+        "decision": serializers.CharField(),
+        "target_product_public_id": serializers.UUIDField(required=False, allow_null=True),
     },
 )

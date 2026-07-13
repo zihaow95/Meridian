@@ -1,14 +1,15 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 
 import { ApiError } from '@/api/client'
 import { useProductStore, type ProductSummary } from '@/modules/products/store'
 
+const route = useRoute()
 const router = useRouter()
 const products = useProductStore()
 const errorText = ref('')
-const searchText = ref('')
+const searchText = ref(typeof route.query.search === 'string' ? route.query.search : '')
 
 async function load(): Promise<void> {
   errorText.value = ''

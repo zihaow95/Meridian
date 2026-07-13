@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from typing import Any
+from uuid import UUID
 
 from apps.authorization.context import AuthorizationContext, ResourceDescriptor
 from apps.authorization.models.role import DataSensitivityLevel
@@ -76,7 +77,7 @@ def serialize_product_summary(product: ProductAsset, *, user: User) -> dict[str,
     return payload
 
 
-def get_product_detail(*, user: User, public_id) -> dict[str, Any] | None:
+def get_product_detail(*, user: User, public_id: UUID) -> dict[str, Any] | None:
     product = (
         ProductAsset.objects.filter(
             public_id=public_id,
@@ -103,12 +104,34 @@ def serialize_product_detail(product: ProductAsset, *, user: User) -> dict[str, 
             serialize_product_version(version)
             for version in ProductVersion.objects.filter(product=product).order_by("version_code")
         ],
+        "external_bindings": list_product_external_bindings(product),
     }
     if can_sensitive:
         formula_summary = _formula_summary(product)
         if formula_summary is not None:
             payload["formula_summary"] = formula_summary
     return payload
+
+
+def list_product_external_bindings(product: ProductAsset) -> list[dict[str, Any]]:
+    from apps.integrations.models import BindingStatus, ExternalBinding
+
+    rows = ExternalBinding.objects.filter(
+        organization_id=product.organization_id,
+        internal_object_type="product",
+        internal_object_id=product.id,
+        binding_status=BindingStatus.ACTIVE,
+    ).order_by("source_system", "object_type", "external_id")
+    return [
+        {
+            "public_id": str(row.public_id),
+            "source_system": row.source_system,
+            "object_type": row.object_type,
+            "external_id": row.external_id,
+            "binding_status": row.binding_status,
+        }
+        for row in rows
+    ]
 
 
 def serialize_product_version(version: ProductVersion) -> dict[str, Any]:

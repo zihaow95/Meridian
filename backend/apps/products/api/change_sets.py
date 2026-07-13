@@ -2,11 +2,10 @@
 
 from __future__ import annotations
 
-from typing import Any, cast
+from typing import cast
 from uuid import UUID
 
-from drf_spectacular.utils import extend_schema, inline_serializer
-from rest_framework import serializers
+from drf_spectacular.utils import extend_schema
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.request import Request
 from rest_framework.response import Response
@@ -16,14 +15,18 @@ from apps.identity.models.user import User
 from apps.platform.api.errors import ResourceNotFoundError
 from apps.platform.application.command import CommandContext
 from apps.products.api.schemas import (
+    ATTRIBUTE_CONFIRMATION_REQUEST_SCHEMA,
     CHANGE_SET_DETAIL_SCHEMA,
+    CHANGE_SET_DIFF_SCHEMA,
     EDIT_CHANGE_SET_REQUEST_SCHEMA,
     PUBLICATION_VALIDATION_SCHEMA,
     PUBLISH_CHANGE_SET_REQUEST_SCHEMA,
     PUBLISH_CHANGE_SET_RESPONSE_SCHEMA,
+    UPDATE_SCOPE_REQUEST_SCHEMA,
 )
 from apps.products.models import ProductChangeSet
 from apps.products.queries.change_sets import serialize_change_set_detail, serialize_change_set_diff
+from apps.products.services.access import assert_can_read_change_set
 from apps.products.services.confirm_attribute_group import (
     ApproveAttributeGroup,
     ReturnAttributeGroup,
@@ -35,25 +38,6 @@ from apps.products.services.validate_publication import ValidateProductPublicati
 from apps.products.services.workflow_change_set import (
     ApproveProductChangeSet,
     SubmitProductChangeSetConfirmation,
-)
-
-UPDATE_SCOPE_REQUEST_SCHEMA = inline_serializer(
-    name="UpdateChangeSetScopeRequest",
-    fields={
-        "version_no": serializers.IntegerField(),
-        "skus": serializers.ListField(required=False),
-        "channels": serializers.ListField(required=False),
-        "scopes": serializers.ListField(required=False),
-    },
-)
-
-ATTRIBUTE_CONFIRMATION_REQUEST_SCHEMA = inline_serializer(
-    name="AttributeConfirmationRequest",
-    fields={
-        "group_value_public_id": serializers.UUIDField(),
-        "content_hash": serializers.CharField(),
-        "comment": serializers.CharField(required=False),
-    },
 )
 
 
@@ -70,6 +54,7 @@ class ProductChangeSetDetailView(APIView):
         )
         if change_set is None:
             raise ResourceNotFoundError()
+        assert_can_read_change_set(user=user, change_set=change_set)
         return Response(serialize_change_set_detail(change_set))
 
 
@@ -78,19 +63,21 @@ class ProductChangeSetDiffView(APIView):
 
     @extend_schema(
         operation_id="product_change_sets_diff_retrieve",
-        responses=inline_serializer(
-            name="ProductChangeSetDiffResponse",
-            fields={"groups": serializers.ListField()},
-        ),
+        responses=CHANGE_SET_DIFF_SCHEMA,
     )
     def get(self, request: Request, public_id: UUID) -> Response:
         user = cast(User, request.user)
-        change_set = ProductChangeSet.objects.filter(
-            public_id=public_id,
-            organization_id=user.organization_id,
-        ).first()
+        change_set = (
+            ProductChangeSet.objects.select_related("product")
+            .filter(
+                public_id=public_id,
+                organization_id=user.organization_id,
+            )
+            .first()
+        )
         if change_set is None:
             raise ResourceNotFoundError()
+        assert_can_read_change_set(user=user, change_set=change_set)
         return Response(serialize_change_set_diff(actor=user, change_set=change_set))
 
 
@@ -104,7 +91,7 @@ class ProductChangeSetEditView(APIView):
     )
     def post(self, request: Request, public_id: UUID) -> Response:
         user = cast(User, request.user)
-        body = cast(dict[str, Any], request.data)
+        body = request.data
         EditProductChangeSet(
             context=CommandContext.for_actor(user),
             change_set_public_id=public_id,
@@ -121,6 +108,7 @@ class ValidatePublicationView(APIView):
 
     @extend_schema(
         operation_id="product_change_sets_validate_publication",
+        request=None,
         responses=PUBLICATION_VALIDATION_SCHEMA,
     )
     def post(self, request: Request, public_id: UUID) -> Response:
@@ -149,7 +137,7 @@ class PublishChangeSetView(APIView):
     )
     def post(self, request: Request, public_id: UUID) -> Response:
         user = cast(User, request.user)
-        body = cast(dict[str, Any], request.data)
+        body = request.data
         result = PublishProductChangeSet(
             context=CommandContext.for_actor(user),
             change_set_public_id=public_id,
@@ -169,6 +157,7 @@ class SubmitChangeSetConfirmationView(APIView):
 
     @extend_schema(
         operation_id="product_change_sets_submit_confirmation",
+        request=None,
         responses=CHANGE_SET_DETAIL_SCHEMA,
     )
     def post(self, request: Request, public_id: UUID) -> Response:
@@ -185,6 +174,7 @@ class ApproveChangeSetView(APIView):
 
     @extend_schema(
         operation_id="product_change_sets_approve",
+        request=None,
         responses=CHANGE_SET_DETAIL_SCHEMA,
     )
     def post(self, request: Request, public_id: UUID) -> Response:
@@ -206,7 +196,7 @@ class UpdateChangeSetScopeView(APIView):
     )
     def post(self, request: Request, public_id: UUID) -> Response:
         user = cast(User, request.user)
-        body = cast(dict[str, Any], request.data)
+        body = request.data
         change_set = UpdateProductChangeSetScope(
             context=CommandContext.for_actor(user),
             change_set_public_id=public_id,
@@ -214,6 +204,9 @@ class UpdateChangeSetScopeView(APIView):
             skus=body.get("skus"),
             channels=body.get("channels"),
             scopes=body.get("scopes"),
+            effective_from=(
+                str(body["effective_from"]) if body.get("effective_from") is not None else None
+            ),
         ).execute()
         return Response(serialize_change_set_detail(change_set))
 
@@ -224,10 +217,11 @@ class ApproveAttributeGroupView(APIView):
     @extend_schema(
         operation_id="product_change_sets_approve_attribute_group",
         request=ATTRIBUTE_CONFIRMATION_REQUEST_SCHEMA,
+        responses=CHANGE_SET_DETAIL_SCHEMA,
     )
     def post(self, request: Request, public_id: UUID) -> Response:
         user = cast(User, request.user)
-        body = cast(dict[str, Any], request.data)
+        body = request.data
         ApproveAttributeGroup(
             context=CommandContext.for_actor(user),
             change_set_public_id=public_id,
@@ -245,10 +239,11 @@ class ReturnAttributeGroupView(APIView):
     @extend_schema(
         operation_id="product_change_sets_return_attribute_group",
         request=ATTRIBUTE_CONFIRMATION_REQUEST_SCHEMA,
+        responses=CHANGE_SET_DETAIL_SCHEMA,
     )
     def post(self, request: Request, public_id: UUID) -> Response:
         user = cast(User, request.user)
-        body = cast(dict[str, Any], request.data)
+        body = request.data
         ReturnAttributeGroup(
             context=CommandContext.for_actor(user),
             change_set_public_id=public_id,

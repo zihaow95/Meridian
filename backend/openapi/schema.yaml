@@ -323,6 +323,18 @@ paths:
         required: true
       tags:
       - legacy-baselines
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ConfirmImportBatchRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/ConfirmImportBatchRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/ConfirmImportBatchRequest'
+        required: true
       security:
       - cookieAuth: []
       responses:
@@ -724,7 +736,11 @@ paths:
       - cookieAuth: []
       responses:
         '200':
-          description: No response body
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProductChangeSetDetail'
+          description: ''
   /api/v1/product-change-sets/{public_id}/diff:
     get:
       operationId: product_change_sets_diff_retrieve
@@ -840,7 +856,11 @@ paths:
       - cookieAuth: []
       responses:
         '200':
-          description: No response body
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProductChangeSetDetail'
+          description: ''
   /api/v1/product-change-sets/{public_id}/submit-confirmation:
     post:
       operationId: product_change_sets_submit_confirmation
@@ -1045,7 +1065,11 @@ paths:
       - cookieAuth: []
       responses:
         '200':
-          description: No response body
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DecideImportItemResponse'
+          description: ''
   /api/v1/products:
     get:
       operationId: products_list
@@ -1085,6 +1109,39 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ProductDetail'
+          description: ''
+  /api/v1/products/{public_id}/external-bindings:
+    post:
+      operationId: products_external_bindings_upsert
+      parameters:
+      - in: path
+        name: public_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - products
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpsertExternalBindingRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/UpsertExternalBindingRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/UpsertExternalBindingRequest'
+        required: true
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ExternalBinding'
           description: ''
   /api/v1/project-candidates/{public_id}:
     get:
@@ -1522,6 +1579,20 @@ components:
       required:
       - decision
       - row_number
+    DecideImportItemResponse:
+      type: object
+      properties:
+        row_number:
+          type: integer
+        decision:
+          type: string
+        target_product_public_id:
+          type: string
+          format: uuid
+          nullable: true
+      required:
+      - decision
+      - row_number
     DeferredItem:
       type: object
       properties:
@@ -1564,6 +1635,26 @@ components:
       - group_code
       - values
       - version_no
+    ExternalBinding:
+      type: object
+      properties:
+        public_id:
+          type: string
+          format: uuid
+        source_system:
+          type: string
+        object_type:
+          type: string
+        external_id:
+          type: string
+        binding_status:
+          type: string
+      required:
+      - binding_status
+      - external_id
+      - object_type
+      - public_id
+      - source_system
     HealthResponse:
       type: object
       properties:
@@ -1901,11 +1992,15 @@ components:
     ProductChangeSetDiffResponse:
       type: object
       properties:
-        groups:
+        change_set_public_id:
+          type: string
+          format: uuid
+        changed_fields:
           type: array
           items: {}
       required:
-      - groups
+      - change_set_public_id
+      - changed_fields
     ProductDetail:
       type: object
       properties:
@@ -1928,10 +2023,15 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/ProductVersionSummary'
+        external_bindings:
+          type: array
+          items:
+            $ref: '#/components/schemas/ExternalBinding'
       required:
       - brand_code
       - business_no
       - category_code
+      - external_bindings
       - lifecycle_status
       - name
       - public_id
@@ -2364,8 +2464,24 @@ components:
         scopes:
           type: array
           items: {}
+        effective_from:
+          type: string
+          format: date-time
       required:
       - version_no
+    UpsertExternalBindingRequest:
+      type: object
+      properties:
+        source_system:
+          type: string
+        object_type:
+          type: string
+        external_id:
+          type: string
+      required:
+      - external_id
+      - object_type
+      - source_system
     WithdrawProposalRequest:
       type: object
       properties:

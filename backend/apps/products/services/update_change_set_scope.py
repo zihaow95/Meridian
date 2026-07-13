@@ -8,11 +8,15 @@ from uuid import UUID
 
 from django.db import transaction
 
+from apps.audit.models import AuditResult
+from apps.audit.services.append_event import AuditRecord, append_event
+from apps.audit.services.snapshots import acting_roles_snapshot
 from apps.authorization.context import AuthorizationContext, ResourceDescriptor
 from apps.authorization.policies.engine import authorize
 from apps.authorization.services.subject import subject_for
 from apps.platform.api.errors import PermissionDeniedError
 from apps.platform.application.command import CommandContext
+from apps.platform.outbox.services import OutboxMessage, register_outbox_event
 from apps.products.errors import ChangeSetNotEditable, ChangeSetVersionConflict
 from apps.products.models import ChangeSetStatus, ProductChangeSet
 
@@ -25,9 +29,11 @@ class UpdateProductChangeSetScope:
     skus: list[dict[str, Any]] | None = None
     channels: list[dict[str, Any]] | None = None
     scopes: list[dict[str, Any]] | None = None
+    effective_from: str | None = None
 
     def execute(self) -> ProductChangeSet:
         actor = self.context.actor
+        now = self.context.occurred_at
 
         with transaction.atomic():
             change_set = (
@@ -68,8 +74,39 @@ class UpdateProductChangeSetScope:
                 scope["channels"] = self.channels
             if self.scopes is not None:
                 scope["scopes"] = self.scopes
+            if self.effective_from is not None:
+                scope["effective_from"] = self.effective_from
             change_set.change_scope = scope
             change_set.version_no += 1
             change_set.save(update_fields=["change_scope", "version_no", "updated_at"])
+
+            append_event(
+                AuditRecord(
+                    actor=actor,
+                    action_code="product_draft.edit_group",
+                    resource_type="product_change_set",
+                    resource_public_id=change_set.public_id,
+                    result=AuditResult.SUCCESS,
+                    trace_id=self.context.trace_id,
+                    occurred_at=now,
+                    acting_roles_snapshot=acting_roles_snapshot(actor),
+                    after_summary={
+                        "version_no": change_set.version_no,
+                        "scope_keys": sorted(scope),
+                    },
+                )
+            )
+            register_outbox_event(
+                OutboxMessage(
+                    event_type="product_change_set.scope_updated",
+                    aggregate_type="product_change_set",
+                    aggregate_id=change_set.public_id,
+                    payload={
+                        "change_set_public_id": str(change_set.public_id),
+                        "version_no": change_set.version_no,
+                    },
+                    occurred_at=now,
+                )
+            )
 
         return change_set

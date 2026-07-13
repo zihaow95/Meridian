@@ -61,6 +61,7 @@ PRODUCT_ACTIONS: tuple[tuple[str, str, str], ...] = (
     ("product_draft.create", "product_change_set", ActionCategory.WRITE),
     ("product_draft.edit_group", "product_change_set", ActionCategory.WRITE),
     ("product_draft.submit", "product_change_set", ActionCategory.DECIDE),
+    ("product_change_set.approve", "product_change_set", ActionCategory.DECIDE),
     ("attribute_group.confirm", "product_change_set", ActionCategory.DECIDE),
     ("attribute_group.return", "product_change_set", ActionCategory.DECIDE),
     ("confirmer.reassign", "product_change_set", ActionCategory.ADMIN),

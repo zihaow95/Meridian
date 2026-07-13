@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from django.urls import path
 
+from apps.products.api.bindings import ProductExternalBindingUpsertView
 from apps.products.api.change_sets import (
     ApproveAttributeGroupView,
     ApproveChangeSetView,
@@ -29,6 +30,11 @@ from apps.products.api.products import ProductDetailView, ProductListView
 urlpatterns = [
     path("products", ProductListView.as_view(), name="product-list"),
     path("products/<uuid:public_id>", ProductDetailView.as_view(), name="product-detail"),
+    path(
+        "products/<uuid:public_id>/external-bindings",
+        ProductExternalBindingUpsertView.as_view(),
+        name="product-external-binding-upsert",
+    ),
     path(
         "product-drafts/<uuid:public_id>",
         ProductDraftDetailView.as_view(),

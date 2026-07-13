@@ -26,7 +26,7 @@ from apps.opportunities.services.configuration import get_opportunity_rule_snaps
 from apps.platform.api.errors import PermissionDeniedError
 from apps.platform.application.command import CommandContext
 from apps.platform.outbox.services import OutboxMessage, register_outbox_event
-from apps.products.models import ProductChangeSet, ProductDraft
+from apps.products.models import ProductDraft
 from apps.products.services.create_draft_from_candidate import create_product_draft
 from apps.projects.errors import ProjectCandidateNotApprovable, ProjectCreationFailed
 from apps.projects.member_keys import active_member_key
@@ -129,7 +129,7 @@ class ApproveAndCreateProject:
 
             existing_project = Project.objects.filter(candidate=candidate).first()
             if existing_project is not None:
-                draft = ProductChangeSet.objects.filter(project_candidate=candidate).first()
+                draft = ProductDraft.objects.filter(project_candidate=candidate).first()
                 gate = self._latest_case_gate(candidate)
                 gate_decision = (
                     MajorGateDecision.objects.filter(stage_gate=gate).first()
@@ -172,7 +172,7 @@ class ApproveAndCreateProject:
             if existing_decision is not None:
                 if existing_decision.idempotency_key == self.idempotency_key:
                     project = Project.objects.get(candidate=candidate)
-                    draft = ProductChangeSet.objects.get(project_candidate=candidate)
+                    draft = ProductDraft.objects.get(project_candidate=candidate)
                     return ApproveAndCreateProjectResult(
                         project=project,
                         product_draft=draft,

@@ -24,7 +24,7 @@
 | PIM-010 | 导入批次/逐行校验/错误可见 | `backend/tests/products/test_legacy_import.py` | 已通过 |
 | PIM-011 | 重复候选识别与人工处理 | `backend/tests/products/test_import_duplicates.py` | 已通过 |
 | PIM-012 | 导入确认幂等与基线发布 | `backend/tests/products/test_legacy_baseline_publish.py`, `backend/tests/acceptance/test_product_profile_migration.py` | 已通过 |
-| PIM-013 | 外部绑定与编码管理 | `backend/tests/products/test_external_binding.py` | 已通过 |
+| PIM-013 | 外部绑定与编码管理 | `backend/tests/products/test_external_binding.py` + 产品详情 API/前端 | 已通过 |
 | PIM-014 | OpenAPI 契约与前端类型漂移门禁 | `backend/openapi/schema.yaml`, `frontend/src/api/generated/schema.d.ts`, `scripts/check.ps1` | 已通过（产品 API 有 `extend_schema`；全局推断警告仍为非阻塞） |
 
 ## GLB / NFR 追踪
