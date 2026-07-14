@@ -324,3 +324,207 @@ def test_confirmer_candidates_lists_active_org_users(
     public_ids = {row["public_id"] for row in body["items"]}
     assert str(change_set.created_by.public_id) in public_ids
     assert str(another_active_user.public_id) not in public_ids
+
+
+@pytest.mark.django_db
+def test_change_set_detail_exposes_can_reassign_for_manager(
+    api_client: APIClient,
+    change_set,
+    published_product_schema,
+    grant_action: Callable[..., None],
+) -> None:
+    del published_product_schema
+    grant_action(
+        change_set.created_by,
+        "confirmer.reassign",
+        "product_change_set",
+        role_code="PRODUCT_DIRECTOR",
+    )
+    api_client.force_authenticate(user=change_set.created_by)
+    response = api_client.get(f"/api/v1/product-change-sets/{change_set.public_id}")
+    assert response.status_code == 200
+    assert response.json()["can_reassign_confirmer"] is True
+
+
+@pytest.mark.django_db
+def test_change_set_detail_hides_reassign_for_assigned_confirmer(
+    api_client: APIClient,
+    change_set,
+    organization,
+    published_product_schema,
+    grant_action: Callable[..., None],
+) -> None:
+    from django.utils import timezone
+
+    del published_product_schema
+    confirmer = User.objects.create_user(
+        organization=organization,
+        display_name="Professional Confirmer",
+        status="ACTIVE",
+        activated_at=timezone.now(),
+    )
+    grant_action(
+        confirmer,
+        "product.read_basic",
+        "product",
+        role_code="QUALITY_LEAD",
+    )
+    _edit_and_assign(
+        change_set=change_set,
+        confirmer=confirmer,
+        group_code="PRODUCT_DEFINITION",
+        values={"core_selling_points": "High protein"},
+        grant_action=grant_action,
+    )
+    api_client.force_authenticate(user=confirmer)
+    response = api_client.get(f"/api/v1/product-change-sets/{change_set.public_id}")
+    assert response.status_code == 200
+    assert response.json()["can_reassign_confirmer"] is False
+
+
+@pytest.mark.django_db
+def test_confirmer_candidates_denied_for_assigned_confirmer(
+    api_client: APIClient,
+    change_set,
+    organization,
+    published_product_schema,
+    grant_action: Callable[..., None],
+) -> None:
+    from django.utils import timezone
+
+    del published_product_schema
+    confirmer = User.objects.create_user(
+        organization=organization,
+        display_name="Professional Confirmer",
+        status="ACTIVE",
+        activated_at=timezone.now(),
+    )
+    grant_action(
+        confirmer,
+        "product.read_basic",
+        "product",
+        role_code="QUALITY_LEAD",
+    )
+    _edit_and_assign(
+        change_set=change_set,
+        confirmer=confirmer,
+        group_code="PRODUCT_DEFINITION",
+        values={"core_selling_points": "High protein"},
+        grant_action=grant_action,
+    )
+    api_client.force_authenticate(user=confirmer)
+    response = api_client.get(
+        f"/api/v1/product-change-sets/{change_set.public_id}/confirmer-candidates"
+    )
+    assert response.status_code == 404
+
+
+@pytest.mark.django_db
+def test_confirmer_candidates_paginates_and_searches_beyond_first_page(
+    api_client: APIClient,
+    change_set,
+    organization,
+    published_product_schema,
+    grant_action: Callable[..., None],
+) -> None:
+    import uuid
+
+    from django.utils import timezone
+
+    from apps.identity.models.user import UserStatus
+
+    del published_product_schema
+    grant_action(
+        change_set.created_by,
+        "confirmer.reassign",
+        "product_change_set",
+        role_code="PRODUCT_DIRECTOR",
+    )
+    User.objects.bulk_create(
+        [
+            User(
+                organization=organization,
+                display_name=f"Candidate {index:03d}",
+                status=UserStatus.ACTIVE,
+                activated_at=timezone.now(),
+                login_key=uuid.uuid4().hex,
+            )
+            for index in range(51)
+        ]
+    )
+    target = User.objects.get(organization=organization, display_name="Candidate 050")
+    api_client.force_authenticate(user=change_set.created_by)
+    url = f"/api/v1/product-change-sets/{change_set.public_id}/confirmer-candidates"
+
+    page_one = api_client.get(f"{url}?page=1&page_size=50")
+    assert page_one.status_code == 200
+    body_one = page_one.json()
+    assert body_one["count"] >= 52
+    assert len(body_one["items"]) == 50
+    assert str(target.public_id) not in {row["public_id"] for row in body_one["items"]}
+
+    page_two = api_client.get(f"{url}?page=2&page_size=50")
+    assert page_two.status_code == 200
+    assert str(target.public_id) in {row["public_id"] for row in page_two.json()["items"]}
+
+    search = api_client.get(f"{url}?search=Candidate%20050")
+    assert search.status_code == 200
+    assert any(row["public_id"] == str(target.public_id) for row in search.json()["items"])
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize(
+    "query",
+    [
+        "page=abc",
+        "page=0",
+        "page=-1",
+        "page_size=abc",
+        "page_size=0",
+        "page_size=101",
+    ],
+)
+def test_confirmer_candidates_rejects_invalid_query_params(
+    api_client: APIClient,
+    change_set,
+    published_product_schema,
+    grant_action: Callable[..., None],
+    query: str,
+) -> None:
+    del published_product_schema
+    grant_action(
+        change_set.created_by,
+        "confirmer.reassign",
+        "product_change_set",
+        role_code="PRODUCT_DIRECTOR",
+    )
+    api_client.force_authenticate(user=change_set.created_by)
+    response = api_client.get(
+        f"/api/v1/product-change-sets/{change_set.public_id}/confirmer-candidates?{query}"
+    )
+    assert response.status_code == 400
+    assert response.json()["code"] == "VALIDATION_FAILED"
+
+
+@pytest.mark.django_db
+def test_confirmer_candidates_out_of_range_page_returns_empty_items(
+    api_client: APIClient,
+    change_set,
+    published_product_schema,
+    grant_action: Callable[..., None],
+) -> None:
+    del published_product_schema
+    grant_action(
+        change_set.created_by,
+        "confirmer.reassign",
+        "product_change_set",
+        role_code="PRODUCT_DIRECTOR",
+    )
+    api_client.force_authenticate(user=change_set.created_by)
+    response = api_client.get(
+        f"/api/v1/product-change-sets/{change_set.public_id}/confirmer-candidates?page=999&page_size=50"
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert body["page"] == 999
+    assert body["items"] == []

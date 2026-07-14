@@ -1378,6 +1378,7 @@ export interface components {
                 [key: string]: unknown;
             };
             attribute_groups: components["schemas"]["ChangeSetAttributeGroup"][];
+            can_reassign_confirmer: boolean;
         };
         ProductChangeSetDiffResponse: {
             /** Format: uuid */
@@ -2496,7 +2497,11 @@ export interface operations {
     };
     product_change_sets_confirmer_candidates_list: {
         parameters: {
-            query?: never;
+            query?: {
+                page?: number;
+                page_size?: number;
+                search?: string;
+            };
             header?: never;
             path: {
                 public_id: string;

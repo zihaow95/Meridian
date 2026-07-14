@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import cast
 from uuid import UUID
 
-from drf_spectacular.utils import extend_schema
+from drf_spectacular.utils import OpenApiParameter, extend_schema
 from rest_framework import serializers
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.request import Request
@@ -80,7 +80,7 @@ class ProductChangeSetCreateView(APIView):
             ),
         ).execute()
         change_set = ProductChangeSet.objects.select_related("product").get(pk=change_set.pk)
-        return Response(serialize_change_set_detail(change_set), status=201)
+        return Response(serialize_change_set_detail(change_set, actor=user), status=201)
 
 
 class ProductChangeSetDetailView(APIView):
@@ -97,7 +97,7 @@ class ProductChangeSetDetailView(APIView):
         if change_set is None:
             raise ResourceNotFoundError()
         assert_can_read_change_set(user=user, change_set=change_set)
-        return Response(serialize_change_set_detail(change_set))
+        return Response(serialize_change_set_detail(change_set, actor=user))
 
 
 class ProductChangeSetDiffView(APIView):
@@ -142,7 +142,7 @@ class ProductChangeSetEditView(APIView):
             values=dict(body["values"]),
         ).execute()
         change_set = ProductChangeSet.objects.select_related("product").get(public_id=public_id)
-        return Response(serialize_change_set_detail(change_set))
+        return Response(serialize_change_set_detail(change_set, actor=user))
 
 
 class ValidatePublicationView(APIView):
@@ -208,7 +208,7 @@ class SubmitChangeSetConfirmationView(APIView):
             context=CommandContext.for_actor(user),
             change_set_public_id=public_id,
         ).execute()
-        return Response(serialize_change_set_detail(change_set))
+        return Response(serialize_change_set_detail(change_set, actor=user))
 
 
 class ApproveChangeSetView(APIView):
@@ -225,7 +225,7 @@ class ApproveChangeSetView(APIView):
             context=CommandContext.for_actor(user),
             change_set_public_id=public_id,
         ).execute()
-        return Response(serialize_change_set_detail(change_set))
+        return Response(serialize_change_set_detail(change_set, actor=user))
 
 
 class UpdateChangeSetScopeView(APIView):
@@ -250,7 +250,7 @@ class UpdateChangeSetScopeView(APIView):
                 str(body["effective_from"]) if body.get("effective_from") is not None else None
             ),
         ).execute()
-        return Response(serialize_change_set_detail(change_set))
+        return Response(serialize_change_set_detail(change_set, actor=user))
 
 
 class ApproveAttributeGroupView(APIView):
@@ -272,7 +272,7 @@ class ApproveAttributeGroupView(APIView):
             comment=str(body.get("comment") or ""),
         ).execute()
         change_set = ProductChangeSet.objects.select_related("product").get(public_id=public_id)
-        return Response(serialize_change_set_detail(change_set))
+        return Response(serialize_change_set_detail(change_set, actor=user))
 
 
 class ReturnAttributeGroupView(APIView):
@@ -294,7 +294,7 @@ class ReturnAttributeGroupView(APIView):
             comment=str(body.get("comment") or ""),
         ).execute()
         change_set = ProductChangeSet.objects.select_related("product").get(public_id=public_id)
-        return Response(serialize_change_set_detail(change_set))
+        return Response(serialize_change_set_detail(change_set, actor=user))
 
 
 class _ReassignConfirmerSerializer(serializers.Serializer):
@@ -325,7 +325,13 @@ class ReassignAttributeConfirmerView(APIView):
             reason=str(data.get("reason") or ""),
         ).execute()
         change_set = ProductChangeSet.objects.select_related("product").get(public_id=public_id)
-        return Response(serialize_change_set_detail(change_set))
+        return Response(serialize_change_set_detail(change_set, actor=user))
+
+
+class _ConfirmerCandidateQuerySerializer(serializers.Serializer):
+    page = serializers.IntegerField(required=False, min_value=1, default=1)
+    page_size = serializers.IntegerField(required=False, min_value=1, max_value=100, default=50)
+    search = serializers.CharField(required=False, allow_blank=True, default="")
 
 
 class ConfirmerCandidateListView(APIView):
@@ -333,6 +339,11 @@ class ConfirmerCandidateListView(APIView):
 
     @extend_schema(
         operation_id="product_change_sets_confirmer_candidates_list",
+        parameters=[
+            OpenApiParameter(name="search", type=str, location=OpenApiParameter.QUERY),
+            OpenApiParameter(name="page", type=int, location=OpenApiParameter.QUERY),
+            OpenApiParameter(name="page_size", type=int, location=OpenApiParameter.QUERY),
+        ],
         responses=CONFIRMER_CANDIDATE_PAGE_SCHEMA,
     )
     def get(self, request: Request, public_id: UUID) -> Response:
@@ -356,17 +367,21 @@ class ConfirmerCandidateListView(APIView):
         if not decision.allowed:
             raise PermissionDeniedError()
 
-        page = max(int(request.query_params.get("page") or 1), 1)
-        try:
-            page_size = int(request.query_params.get("page_size") or 50)
-        except (TypeError, ValueError):
-            page_size = 50
-        page_size = min(max(page_size, 1), 100)
+        query = _ConfirmerCandidateQuerySerializer(data=request.query_params)
+        if not query.is_valid():
+            raise ValidationFailedError(details=query.errors)
+        params = query.validated_data
+        page = params["page"]
+        page_size = params["page_size"]
+        search = str(params.get("search") or "").strip()
 
         queryset = User.objects.filter(
             organization_id=user.organization_id,
             status=UserStatus.ACTIVE,
-        ).order_by("display_name", "public_id")
+        )
+        if search:
+            queryset = queryset.filter(display_name__icontains=search)
+        queryset = queryset.order_by("display_name", "public_id")
         count = queryset.count()
         start = (page - 1) * page_size
         rows = queryset[start : start + page_size]

@@ -26,10 +26,20 @@ const editGroupCode = ref('PRODUCT_DEFINITION')
 const editValuesJson = ref('{"core_selling_points":"High protein"}')
 const reassignConfirmerId = ref('')
 const confirmerCandidates = ref<ConfirmerCandidate[]>([])
+const confirmerSearch = ref('')
+const confirmerPage = ref(1)
+const confirmerTotalCount = ref(0)
+const confirmerLoading = ref(false)
+const confirmerPageSize = 50
+let confirmerSearchTimer: ReturnType<typeof setTimeout> | undefined
 
 const changeSetPublicId = computed(() => String(route.params.publicId))
 const versionNo = computed(() => products.changeSet?.version_no ?? 1)
 const attributeGroups = computed(() => products.changeSet?.attribute_groups ?? [])
+const canReassignConfirmer = computed(() => products.changeSet?.can_reassign_confirmer === true)
+const hasMoreConfirmerCandidates = computed(
+  () => confirmerCandidates.value.length < confirmerTotalCount.value,
+)
 
 function hydrateScopeFromChangeSet(): void {
   const scope = products.changeSet?.change_scope
@@ -54,6 +64,65 @@ function hydrateScopeFromChangeSet(): void {
   }
 }
 
+async function loadConfirmerCandidates(
+  options: { reset?: boolean; search?: string } = {},
+): Promise<void> {
+  if (!canReassignConfirmer.value) {
+    return
+  }
+  const reset = options.reset ?? true
+  const search = options.search ?? confirmerSearch.value
+  if (reset) {
+    confirmerPage.value = 1
+  }
+  confirmerLoading.value = true
+  try {
+    const page = await products.fetchConfirmerCandidates(changeSetPublicId.value, {
+      page: confirmerPage.value,
+      page_size: confirmerPageSize,
+      search: search.trim() || undefined,
+    })
+    confirmerTotalCount.value = page.count
+    if (reset) {
+      confirmerCandidates.value = page.items
+    } else {
+      const existing = new Set(confirmerCandidates.value.map((row) => row.public_id))
+      confirmerCandidates.value = [
+        ...confirmerCandidates.value,
+        ...page.items.filter((row) => !existing.has(row.public_id)),
+      ]
+    }
+    if (reset && !reassignConfirmerId.value) {
+      const selfId = auth.me?.public_id
+      if (selfId && confirmerCandidates.value.some((row) => row.public_id === selfId)) {
+        reassignConfirmerId.value = selfId
+      } else {
+        reassignConfirmerId.value = confirmerCandidates.value[0]?.public_id ?? ''
+      }
+    }
+  } finally {
+    confirmerLoading.value = false
+  }
+}
+
+function searchConfirmerCandidates(query: string): void {
+  confirmerSearch.value = query
+  if (confirmerSearchTimer) {
+    clearTimeout(confirmerSearchTimer)
+  }
+  confirmerSearchTimer = setTimeout(() => {
+    void loadConfirmerCandidates({ reset: true, search: query })
+  }, 300)
+}
+
+async function loadMoreConfirmerCandidates(): Promise<void> {
+  if (!hasMoreConfirmerCandidates.value || confirmerLoading.value) {
+    return
+  }
+  confirmerPage.value += 1
+  await loadConfirmerCandidates({ reset: false })
+}
+
 async function load(): Promise<void> {
   errorText.value = ''
   try {
@@ -63,12 +132,8 @@ async function load(): Promise<void> {
     await products.fetchChangeSet(changeSetPublicId.value)
     hydrateScopeFromChangeSet()
     await products.fetchChangeSetDiff(changeSetPublicId.value)
-    confirmerCandidates.value = await products.fetchConfirmerCandidates(changeSetPublicId.value)
-    const selfId = auth.me?.public_id
-    if (selfId && confirmerCandidates.value.some((row) => row.public_id === selfId)) {
-      reassignConfirmerId.value = selfId
-    } else {
-      reassignConfirmerId.value = confirmerCandidates.value[0]?.public_id ?? ''
+    if (canReassignConfirmer.value) {
+      await loadConfirmerCandidates()
     }
   } catch (err: unknown) {
     if (err instanceof ApiError) {
@@ -294,6 +359,7 @@ onMounted(load)
           <el-table-column label="操作" width="280">
             <template #default="{ row }">
               <el-button
+                v-if="canReassignConfirmer"
                 size="small"
                 data-test="reassign-confirmer"
                 @click="reassignGroup(row as AttributeGroup)"
@@ -317,13 +383,20 @@ onMounted(load)
             </template>
           </el-table-column>
         </el-table>
-        <el-form label-width="120px" class="product-change-set__reassign">
+        <el-form
+          v-if="canReassignConfirmer"
+          label-width="120px"
+          class="product-change-set__reassign"
+        >
           <el-form-item label="确认人">
             <el-select
               v-model="reassignConfirmerId"
               data-test="reassign-confirmer-id"
-              placeholder="选择组织内有效确认人"
+              placeholder="搜索并选择组织内有效确认人"
               filterable
+              remote
+              :remote-method="searchConfirmerCandidates"
+              :loading="confirmerLoading"
               style="width: 100%"
             >
               <el-option
@@ -334,6 +407,14 @@ onMounted(load)
               />
             </el-select>
           </el-form-item>
+          <el-button
+            v-if="hasMoreConfirmerCandidates"
+            data-test="load-more-confirmer-candidates"
+            :loading="confirmerLoading"
+            @click="loadMoreConfirmerCandidates"
+          >
+            加载更多确认人
+          </el-button>
         </el-form>
       </el-card>
 

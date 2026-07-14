@@ -863,12 +863,24 @@ paths:
     get:
       operationId: product_change_sets_confirmer_candidates_list
       parameters:
+      - in: query
+        name: page
+        schema:
+          type: integer
+      - in: query
+        name: page_size
+        schema:
+          type: integer
       - in: path
         name: public_id
         schema:
           type: string
           format: uuid
         required: true
+      - in: query
+        name: search
+        schema:
+          type: string
       tags:
       - product-change-sets
       security:
@@ -2476,8 +2488,11 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/ChangeSetAttributeGroup'
+        can_reassign_confirmer:
+          type: boolean
       required:
       - attribute_groups
+      - can_reassign_confirmer
       - change_type
       - product_public_id
       - public_id

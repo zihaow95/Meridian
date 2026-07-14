@@ -4,6 +4,9 @@ from __future__ import annotations
 
 from typing import Any
 
+from apps.authorization.context import AuthorizationContext, ResourceDescriptor
+from apps.authorization.policies.engine import authorize
+from apps.authorization.services.subject import subject_for
 from apps.identity.models.user import User
 from apps.products.models import (
     AttributeConfirmation,
@@ -13,7 +16,20 @@ from apps.products.models import (
 from apps.products.services.diff_change_set import BuildProductChangeSetDiff
 
 
-def serialize_change_set_detail(change_set: ProductChangeSet) -> dict[str, Any]:
+def _can_reassign_confirmer(*, actor: User, change_set: ProductChangeSet) -> bool:
+    return authorize(
+        subject_for(actor),
+        action="confirmer.reassign",
+        resource=ResourceDescriptor(
+            resource_type="product_change_set",
+            public_id=change_set.public_id,
+            organization_id=change_set.organization_id,
+        ),
+        context=AuthorizationContext.current(),
+    ).allowed
+
+
+def serialize_change_set_detail(change_set: ProductChangeSet, *, actor: User) -> dict[str, Any]:
     group_values = list(
         AttributeGroupValue.objects.filter(change_set=change_set)
         .select_related("group_definition", "assigned_confirmer")
@@ -52,6 +68,7 @@ def serialize_change_set_detail(change_set: ProductChangeSet) -> dict[str, Any]:
         "product_public_id": str(change_set.product.public_id),
         "change_scope": change_set.change_scope or {},
         "attribute_groups": attribute_groups,
+        "can_reassign_confirmer": _can_reassign_confirmer(actor=actor, change_set=change_set),
     }
 
 

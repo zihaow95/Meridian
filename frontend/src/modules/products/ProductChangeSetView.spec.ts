@@ -101,6 +101,7 @@ describe('ProductChangeSetView', () => {
         product_public_id: 'prod-1',
         change_scope: {},
         attribute_groups: [],
+        can_reassign_confirmer: true,
       })
       .mockResolvedValueOnce({
         change_set_public_id: 'change-set-1',
@@ -125,5 +126,44 @@ describe('ProductChangeSetView', () => {
     expect(wrapper.get('[data-test="scope-sku-barcode"]').exists()).toBe(true)
     expect(wrapper.get('[data-test="reassign-confirmer-id"]').exists()).toBe(true)
     expect(wrapper.get('[data-test="publication-panel"]').text()).toBe('change-set-1')
+    expect(vi.mocked(apiFetch)).toHaveBeenCalledWith(
+      '/api/v1/product-change-sets/change-set-1/confirmer-candidates?page=1&page_size=50',
+    )
+  })
+
+  it('skips confirmer candidates when reassign is not allowed', async () => {
+    vi.mocked(apiFetch)
+      .mockResolvedValueOnce({
+        public_id: 'approver-1',
+        display_name: 'Approver',
+        status: 'ACTIVE',
+      })
+      .mockResolvedValueOnce({
+        public_id: 'change-set-1',
+        change_type: 'NEW_PRODUCT',
+        status: 'IN_CONFIRMATION',
+        title: 'Yogurt draft',
+        version_no: 1,
+        product_public_id: 'prod-1',
+        change_scope: {},
+        attribute_groups: [],
+        can_reassign_confirmer: false,
+      })
+      .mockResolvedValueOnce({
+        change_set_public_id: 'change-set-1',
+        changed_fields: [],
+      })
+      .mockResolvedValueOnce({
+        can_publish: false,
+        blocks: [],
+      })
+
+    const wrapper = mount(ProductChangeSetView, { global: { stubs } })
+    await flush()
+    expect(wrapper.find('[data-test="reassign-confirmer-id"]').exists()).toBe(false)
+    expect(wrapper.find('[data-test="reassign-confirmer"]').exists()).toBe(false)
+    expect(
+      vi.mocked(apiFetch).mock.calls.some(([url]) => String(url).includes('confirmer-candidates')),
+    ).toBe(false)
   })
 })

@@ -57,6 +57,7 @@ export type AttributeGroup = {
 }
 
 export type ConfirmerCandidate = components['schemas']['ConfirmerCandidate']
+export type ConfirmerCandidatePage = components['schemas']['ConfirmerCandidatePage']
 
 export type ChangeSetDiff = {
   change_set_public_id: string
@@ -192,11 +193,18 @@ export const useProductStore = defineStore('products', {
         { method: 'POST', json: payload },
       )
     },
-    async fetchConfirmerCandidates(changeSetPublicId: string): Promise<ConfirmerCandidate[]> {
-      const page = await apiFetch<{ items: ConfirmerCandidate[] }>(
-        `/api/v1/product-change-sets/${changeSetPublicId}/confirmer-candidates`,
+    async fetchConfirmerCandidates(
+      changeSetPublicId: string,
+      filters: { page?: number; page_size?: number; search?: string } = {},
+    ): Promise<ConfirmerCandidatePage> {
+      const params = new URLSearchParams()
+      if (filters.page) params.set('page', String(filters.page))
+      if (filters.page_size) params.set('page_size', String(filters.page_size))
+      if (filters.search) params.set('search', filters.search)
+      const query = params.toString() ? `?${params.toString()}` : ''
+      return apiFetch<ConfirmerCandidatePage>(
+        `/api/v1/product-change-sets/${changeSetPublicId}/confirmer-candidates${query}`,
       )
-      return page.items
     },
     async submitChangeSet(changeSetPublicId: string): Promise<void> {
       this.changeSet = await apiFetch<ProductChangeSetDetail>(

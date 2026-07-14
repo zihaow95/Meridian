@@ -100,6 +100,7 @@ CHANGE_SET_DETAIL_SCHEMA = inline_serializer(
         "product_public_id": serializers.UUIDField(),
         "change_scope": serializers.DictField(required=False),
         "attribute_groups": serializers.ListField(child=CHANGE_SET_ATTRIBUTE_GROUP_SCHEMA),
+        "can_reassign_confirmer": serializers.BooleanField(),
     },
 )
 
