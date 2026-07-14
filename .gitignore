@@ -6,6 +6,10 @@ Thumbs.db
 *.swp
 *.tmp
 
+# Local git worktrees
+.worktrees/
+worktrees/
+
 # Python
 __pycache__/
 *.py[cod]
