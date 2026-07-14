@@ -127,3 +127,170 @@ class TaskDependency(OrganizationOwnedModel):
 
     def __str__(self) -> str:
         return f"{self.predecessor_id}->{self.task_id}"
+
+
+class DeliverableTier(models.TextChoices):
+    CORE_REQUIRED = "CORE_REQUIRED", "Core required"
+    TEMPLATE_RECOMMENDED = "TEMPLATE_RECOMMENDED", "Template recommended"
+    PROJECT_CUSTOM = "PROJECT_CUSTOM", "Project custom"
+
+
+class DeliverableStatus(models.TextChoices):
+    NOT_STARTED = "NOT_STARTED", "Not started"
+    DRAFT = "DRAFT", "Draft"
+    SUBMITTED = "SUBMITTED", "Submitted"
+    CONFIRMED = "CONFIRMED", "Confirmed"
+    CONTROLLED = "CONTROLLED", "Controlled"
+    EXEMPTED = "EXEMPTED", "Exempted"
+    VOIDED = "VOIDED", "Voided"
+
+
+class DeliverableRevisionStatus(models.TextChoices):
+    DRAFT = "DRAFT", "Draft"
+    SUBMITTED = "SUBMITTED", "Submitted"
+    LOCKED = "LOCKED", "Locked"
+    CONTROLLED = "CONTROLLED", "Controlled"
+    SUPERSEDED = "SUPERSEDED", "Superseded"
+
+
+class ProfessionalConfirmationStatus(models.TextChoices):
+    PENDING = "PENDING", "Pending"
+    APPROVED = "APPROVED", "Approved"
+    RETURNED = "RETURNED", "Returned"
+    SUPERSEDED = "SUPERSEDED", "Superseded"
+
+
+class Deliverable(OrganizationOwnedModel):
+    project = models.ForeignKey(
+        "projects.Project",
+        on_delete=models.PROTECT,
+        related_name="deliverables",
+    )
+    stage = models.ForeignKey(
+        "projects.ProjectStage",
+        on_delete=models.PROTECT,
+        related_name="deliverables",
+    )
+    deliverable_code = models.CharField(max_length=64)
+    name = models.CharField(max_length=200)
+    tier = models.CharField(max_length=32, choices=DeliverableTier.choices)
+    status = models.CharField(
+        max_length=32,
+        choices=DeliverableStatus.choices,
+        default=DeliverableStatus.NOT_STARTED,
+    )
+    compiler_task = models.ForeignKey(
+        Task,
+        null=True,
+        blank=True,
+        on_delete=models.PROTECT,
+        related_name="compiled_deliverables",
+    )
+    requires_professional_confirmation = models.BooleanField(default=True)
+    current_revision = models.ForeignKey(
+        "work_items.DeliverableRevision",
+        null=True,
+        blank=True,
+        on_delete=models.PROTECT,
+        related_name="+",
+    )
+    planned_due_at = models.DateTimeField(null=True, blank=True)
+    exemption_reason = models.TextField(blank=True, default="")
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "work_items_deliverable"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["project", "deliverable_code"],
+                name="work_items_deliverable_project_code_uniq",
+            ),
+        ]
+        indexes = [
+            models.Index(fields=["project", "status"]),
+            models.Index(fields=["stage", "status"]),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.project_id}:{self.deliverable_code}"
+
+
+class DeliverableRevision(OrganizationOwnedModel):
+    deliverable = models.ForeignKey(
+        Deliverable,
+        on_delete=models.PROTECT,
+        related_name="revisions",
+    )
+    revision_number = models.PositiveIntegerField()
+    document_version = models.ForeignKey(
+        "documents.DocumentVersion",
+        on_delete=models.PROTECT,
+        related_name="deliverable_revisions",
+    )
+    status = models.CharField(
+        max_length=32,
+        choices=DeliverableRevisionStatus.choices,
+        default=DeliverableRevisionStatus.DRAFT,
+    )
+    content_hash = models.CharField(max_length=64)
+    submitted_by = models.ForeignKey(
+        "identity.User",
+        null=True,
+        blank=True,
+        on_delete=models.PROTECT,
+        related_name="submitted_deliverable_revisions",
+    )
+    submitted_at = models.DateTimeField(null=True, blank=True)
+    locked_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "work_items_deliverable_revision"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["deliverable", "revision_number"],
+                name="work_items_deliverable_revision_uniq",
+            ),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.deliverable_id}:r{self.revision_number}"
+
+
+class ProfessionalConfirmation(OrganizationOwnedModel):
+    deliverable_revision = models.ForeignKey(
+        DeliverableRevision,
+        on_delete=models.PROTECT,
+        related_name="confirmations",
+    )
+    confirmer = models.ForeignKey(
+        "identity.User",
+        on_delete=models.PROTECT,
+        related_name="professional_confirmations",
+    )
+    assigned_by = models.ForeignKey(
+        "identity.User",
+        on_delete=models.PROTECT,
+        related_name="assigned_professional_confirmations",
+    )
+    status = models.CharField(
+        max_length=32,
+        choices=ProfessionalConfirmationStatus.choices,
+        default=ProfessionalConfirmationStatus.PENDING,
+    )
+    comment = models.TextField(blank=True, default="")
+    confirmed_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "work_items_professional_confirmation"
+        indexes = [
+            models.Index(fields=["deliverable_revision", "status"]),
+            models.Index(fields=["confirmer", "status"]),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.deliverable_revision_id}:{self.status}"
