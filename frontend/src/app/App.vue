@@ -25,6 +25,7 @@ const { me } = storeToRefs(auth)
       <RouterLink to="/todos">我的待办</RouterLink>
       <RouterLink to="/opportunities">我的提案</RouterLink>
       <RouterLink to="/lifecycle-board">生命周期看板</RouterLink>
+      <RouterLink to="/products">产品档案</RouterLink>
       <RouterLink to="/opportunities/pool">候选机会池</RouterLink>
       <RouterLink to="/admin/configurations">配置</RouterLink>
       <RouterLink to="/admin/documents">文件</RouterLink>

@@ -8,7 +8,7 @@ from apps.identity.models.organization import Organization
 from apps.identity.models.user import User, UserStatus
 from apps.platform.api.errors import PermissionDeniedError
 from apps.platform.application.command import CommandContext
-from apps.products.models import ProductDraft
+from apps.products.models import ProductChangeSet
 from apps.projects.errors import ProjectCreationFailed
 from apps.projects.models import Project
 from apps.projects.services.create_project_from_candidate import ApproveAndCreateProject
@@ -51,7 +51,7 @@ def test_project_creation_failure_rolls_back_product_draft(
             idempotency_key="create-project-fails",
         ).execute()
     assert Project.objects.filter(candidate=rollback_candidate).count() == 0
-    assert ProductDraft.objects.filter(project_candidate=rollback_candidate).count() == 0
+    assert ProductChangeSet.objects.filter(project_candidate=rollback_candidate).count() == 0
 
 
 @pytest.mark.django_db(transaction=True)

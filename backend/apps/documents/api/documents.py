@@ -6,6 +6,9 @@ from typing import cast
 from uuid import UUID
 
 from django.http import HttpResponse
+from drf_spectacular.types import OpenApiTypes
+from drf_spectacular.utils import OpenApiResponse, extend_schema, inline_serializer
+from rest_framework import serializers
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.request import Request
 from rest_framework.response import Response
@@ -32,6 +35,19 @@ DocumentDownloadPermission = requires_action(
 class DocumentVersionListView(APIView):
     permission_classes = [IsAuthenticated, DocumentDownloadPermission]
 
+    @extend_schema(
+        operation_id="document_versions_list",
+        responses=inline_serializer(
+            name="DocumentVersionListItem",
+            fields={
+                "public_id": serializers.CharField(),
+                "version_number": serializers.IntegerField(),
+                "status": serializers.CharField(),
+                "original_filename": serializers.CharField(),
+            },
+            many=True,
+        ),
+    )
     def get(self, request: Request, document_public_id: UUID) -> Response:
         user = cast(User, request.user)
         document = Document.objects.filter(
@@ -61,6 +77,16 @@ class DocumentVersionDownloadTicketView(APIView):
     def get_authorization_resource_public_id(self) -> UUID:
         return self.kwargs["version_public_id"]
 
+    @extend_schema(
+        operation_id="document_version_download_ticket_create",
+        request=None,
+        responses=inline_serializer(
+            name="DocumentVersionDownloadTicketResponse",
+            fields={
+                "token": serializers.CharField(),
+            },
+        ),
+    )
     def post(self, request: Request, version_public_id: UUID) -> Response:
         user = cast(User, request.user)
         version = DocumentVersion.objects.filter(
@@ -78,6 +104,15 @@ class DocumentDownloadView(APIView):
     authentication_classes: list = []
     permission_classes: list = []
 
+    @extend_schema(
+        operation_id="document_download",
+        responses={
+            200: OpenApiResponse(
+                response=OpenApiTypes.BINARY,
+                description="Document file download",
+            ),
+        },
+    )
     def get(self, request: Request, token: str) -> HttpResponse:
         storage = get_file_storage()
         try:

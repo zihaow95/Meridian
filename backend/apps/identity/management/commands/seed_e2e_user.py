@@ -27,6 +27,7 @@ from apps.notifications.models import Todo, TodoStatus
 from apps.opportunities.services.configuration import OPPORTUNITY_RULE_DEFINITION_CODE
 
 E2E_LOGIN_KEY = "e2e-active-user"
+E2E_APPROVER_LOGIN_KEY = "e2e-approver-user"
 E2E_ORG_NAME = "E2E Organization"
 
 _PHASE2_ACTIONS: tuple[tuple[str, str, str], ...] = (
@@ -39,6 +40,25 @@ _PHASE2_ACTIONS: tuple[tuple[str, str, str], ...] = (
     ("candidate.leadership.assign", "project_candidate", "PRODUCT_DIRECTOR"),
     ("candidate.assessment.edit", "project_candidate", "PRODUCT_DIRECTOR"),
     ("candidate.submit_review", "project_candidate", "PRODUCT_DIRECTOR"),
+)
+
+_PHASE3_ACTIONS: tuple[tuple[str, str, str], ...] = (
+    ("product.search", "product", "PRODUCT_DIRECTOR"),
+    ("product.read_basic", "product", "PRODUCT_DIRECTOR"),
+    ("product.read_sensitive", "product", "PRODUCT_DIRECTOR"),
+    ("product_draft.create", "product_change_set", "PRODUCT_DIRECTOR"),
+    ("product_draft.edit_group", "product_change_set", "PRODUCT_DIRECTOR"),
+    ("product_draft.submit", "product_change_set", "PRODUCT_DIRECTOR"),
+    ("product_change_set.approve", "product_change_set", "PRODUCT_DIRECTOR"),
+    ("attribute_group.confirm", "product_change_set", "PRODUCT_DIRECTOR"),
+    ("attribute_group.return", "product_change_set", "PRODUCT_DIRECTOR"),
+    ("product.publish_new", "product", "PRODUCT_DIRECTOR"),
+    ("product.publish_iteration", "product", "PRODUCT_DIRECTOR"),
+    ("migration.upload", "migration", "PRODUCT_DIRECTOR"),
+    ("migration.review", "migration", "PRODUCT_DIRECTOR"),
+    ("migration.confirm", "migration", "PRODUCT_DIRECTOR"),
+    ("product.publish_baseline", "product", "PRODUCT_DIRECTOR"),
+    ("external_binding.manage", "product", "PRODUCT_DIRECTOR"),
 )
 
 
@@ -67,7 +87,11 @@ class Command(BaseCommand):
         self._grant_action(user, "configuration.version.read", "configuration.version")
         for action_code, resource_type, role_code in _PHASE2_ACTIONS:
             self._grant_action(user, action_code, resource_type, role_code=role_code)
+        for action_code, resource_type, role_code in _PHASE3_ACTIONS:
+            self._grant_action(user, action_code, resource_type, role_code=role_code)
         self._publish_opportunity_rules(organization, user)
+        self._publish_product_schema(organization)
+        self._ensure_approver(organization)
 
         source_id = uuid4()
         Todo.objects.update_or_create(
@@ -86,6 +110,35 @@ class Command(BaseCommand):
         )
 
         self.stdout.write(self.style.SUCCESS(f"E2E user ready: login_key={E2E_LOGIN_KEY}"))
+        self.stdout.write(
+            self.style.SUCCESS(f"E2E approver ready: login_key={E2E_APPROVER_LOGIN_KEY}")
+        )
+
+    def _ensure_approver(self, organization: Organization) -> None:
+        approver, created = User.objects.get_or_create(
+            login_key=E2E_APPROVER_LOGIN_KEY,
+            defaults={
+                "organization": organization,
+                "display_name": "E2E Approver",
+                "status": UserStatus.ACTIVE,
+                "activated_at": timezone.now(),
+            },
+        )
+        if not created:
+            approver.organization = organization
+            approver.display_name = "E2E Approver"
+            approver.status = UserStatus.ACTIVE
+            approver.activated_at = timezone.now()
+            approver.save(update_fields=["organization", "display_name", "status", "activated_at"])
+        for action_code, resource_type, role_code in (
+            ("product.read_basic", "product", "PRODUCT_DIRECTOR"),
+            ("product_change_set.approve", "product_change_set", "PRODUCT_DIRECTOR"),
+            ("product.publish_iteration", "product", "PRODUCT_DIRECTOR"),
+            ("product.publish_new", "product", "PRODUCT_DIRECTOR"),
+            ("attribute_group.confirm", "product_change_set", "PRODUCT_DIRECTOR"),
+            ("attribute_group.return", "product_change_set", "PRODUCT_DIRECTOR"),
+        ):
+            self._grant_action(approver, action_code, resource_type, role_code=role_code)
 
     def _grant_action(
         self,
@@ -153,5 +206,66 @@ class Command(BaseCommand):
                 "created_by": actor,
                 "published_by": actor,
                 "published_at": timezone.now(),
+            },
+        )
+
+    def _publish_product_schema(self, organization: Organization) -> None:
+        from apps.products.models import (
+            AttributeDefinition,
+            AttributeFieldType,
+            AttributeGroupDefinition,
+            AttributeOwnerLevel,
+            AttributeSchemaStatus,
+            AttributeSchemaVersion,
+        )
+
+        schema_version, created = AttributeSchemaVersion.objects.get_or_create(
+            organization=organization,
+            schema_code="PRODUCT_PROFILE",
+            version_number=1,
+            category_code="YOGURT",
+            defaults={
+                "status": AttributeSchemaStatus.PUBLISHED,
+                "published_at": timezone.now(),
+            },
+        )
+        if not created and schema_version.status != AttributeSchemaStatus.PUBLISHED:
+            schema_version.status = AttributeSchemaStatus.PUBLISHED
+            schema_version.published_at = timezone.now()
+            schema_version.save(update_fields=["status", "published_at", "updated_at"])
+
+        product_definition, created_group = AttributeGroupDefinition.objects.get_or_create(
+            organization=organization,
+            schema_version=schema_version,
+            group_code="PRODUCT_DEFINITION",
+            defaults={
+                "name": "Product definition",
+                "owner_level": AttributeOwnerLevel.PRODUCT,
+                "display_order": 1,
+                "requires_confirmation": True,
+            },
+        )
+        if not created_group and not product_definition.requires_confirmation:
+            product_definition.requires_confirmation = True
+            product_definition.save(update_fields=["requires_confirmation", "updated_at"])
+        AttributeDefinition.objects.get_or_create(
+            organization=organization,
+            group_definition=product_definition,
+            field_code="core_selling_points",
+            defaults={
+                "field_name": "Core selling points",
+                "field_type": AttributeFieldType.TEXT,
+                "display_order": 1,
+            },
+        )
+        AttributeDefinition.objects.get_or_create(
+            organization=organization,
+            group_definition=product_definition,
+            field_code="formula_summary",
+            defaults={
+                "field_name": "Formula summary",
+                "field_type": AttributeFieldType.TEXT,
+                "sensitivity_level": "SENSITIVE_CONTROLLED",
+                "display_order": 2,
             },
         )

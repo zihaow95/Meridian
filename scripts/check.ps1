@@ -76,7 +76,11 @@ try {
     } $backend
     Invoke-Native 'Backend: pytest (MySQL)' { uv run pytest -q } $backend
     Invoke-Native 'Backend: OpenAPI drift' {
-        uv run python manage.py spectacular --file openapi/schema.yaml --validate --settings=config.settings.test
+        $spectacularOutput = uv run python manage.py spectacular --file openapi/schema.yaml --validate --settings=config.settings.test 2>&1 | Out-String
+        Write-Host $spectacularOutput
+        if ($spectacularOutput -match 'Errors:\s+[1-9]\d*') {
+            throw "OpenAPI schema generation reported errors"
+        }
         git diff --exit-code -- openapi/schema.yaml
     } $backend
 
@@ -97,9 +101,9 @@ try {
     $e2e = Join-Path $RepoRoot 'tests/e2e'
     Invoke-Native 'E2E: install deps' { npm.cmd ci } $e2e
     Invoke-Native 'E2E: Playwright browser' { npx playwright install chromium } $e2e
-    Invoke-Native 'E2E: platform kernel and phase 2 flow' {
+    Invoke-Native 'E2E: platform kernel, phase 2, and phase 3 product profile' {
         $env:CI = 'true'
-        npx playwright test platform-kernel.spec.ts opportunity-to-project.spec.ts
+        npx playwright test platform-kernel.spec.ts opportunity-to-project.spec.ts product-profile-migration.spec.ts
     } $e2e
 
     # 6. Docker image builds.

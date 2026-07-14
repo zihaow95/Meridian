@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from drf_spectacular.utils import extend_schema, inline_serializer
+from rest_framework import serializers
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.request import Request
 from rest_framework.response import Response
@@ -19,6 +21,20 @@ RoleReadPermission = requires_action(
 class RoleCatalogView(APIView):
     permission_classes = [IsAuthenticated, RoleReadPermission]
 
+    @extend_schema(
+        operation_id="authorization_roles_list",
+        responses=inline_serializer(
+            name="RoleCatalogItem",
+            fields={
+                "public_id": serializers.CharField(),
+                "role_code": serializers.CharField(),
+                "name": serializers.CharField(),
+                "role_type": serializers.CharField(),
+                "is_critical": serializers.BooleanField(),
+            },
+            many=True,
+        ),
+    )
     def get(self, request: Request) -> Response:
         roles = Role.objects.filter(status="ACTIVE").order_by("role_code")
         return Response(

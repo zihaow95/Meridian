@@ -60,7 +60,7 @@ class Project(OrganizationOwnedModel):
         related_name="projects",
     )
     product_draft = models.ForeignKey(
-        "products.ProductDraft",
+        "products.ProductChangeSet",
         null=True,
         blank=True,
         on_delete=models.PROTECT,

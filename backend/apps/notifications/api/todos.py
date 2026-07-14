@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from typing import cast
 
+from drf_spectacular.utils import extend_schema, inline_serializer
+from rest_framework import serializers
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.request import Request
 from rest_framework.response import Response
@@ -24,6 +26,20 @@ TodoReadPermission = requires_action(
 class MyTodosView(APIView):
     permission_classes = [IsAuthenticated, TodoReadPermission]
 
+    @extend_schema(
+        operation_id="notification_todos_list",
+        responses=inline_serializer(
+            name="MyTodoListItem",
+            fields={
+                "public_id": serializers.CharField(),
+                "title": serializers.CharField(),
+                "status": serializers.CharField(),
+                "due_at": serializers.CharField(allow_null=True),
+                "deep_link": serializers.CharField(),
+            },
+            many=True,
+        ),
+    )
     def get(self, request: Request) -> Response:
         user = cast(User, request.user)
         status = request.query_params.get("status")

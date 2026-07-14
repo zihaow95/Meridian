@@ -11,7 +11,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: operations["admin_audit_events_retrieve"];
+        get: operations["authorization_audit_events_list"];
         put?: never;
         post?: never;
         delete?: never;
@@ -27,7 +27,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: operations["audit_events_retrieve"];
+        get: operations["audit_events_list"];
         put?: never;
         post?: never;
         delete?: never;
@@ -61,7 +61,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        post: operations["auth_dev_login_create"];
+        post: operations["auth_dev_login"];
         delete?: never;
         options?: never;
         head?: never;
@@ -75,7 +75,8 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: operations["auth_dingtalk_callback_retrieve"];
+        /** DingTalk OAuth callback */
+        get: operations["auth_dingtalk_callback"];
         put?: never;
         post?: never;
         delete?: never;
@@ -110,7 +111,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        post: operations["auth_logout_create"];
+        post: operations["auth_logout"];
         delete?: never;
         options?: never;
         head?: never;
@@ -124,7 +125,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: operations["authorization_roles_retrieve"];
+        get: operations["authorization_roles_list"];
         put?: never;
         post?: never;
         delete?: never;
@@ -140,9 +141,9 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: operations["authorization_users_assignments_retrieve"];
+        get: operations["authorization_user_assignments_list"];
         put?: never;
-        post: operations["authorization_users_assignments_create"];
+        post: operations["authorization_user_assignments_create"];
         delete?: never;
         options?: never;
         head?: never;
@@ -156,7 +157,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: operations["configurations_definitions_retrieve"];
+        get: operations["configuration_definitions_list"];
         put?: never;
         post?: never;
         delete?: never;
@@ -172,7 +173,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: operations["configurations_definitions_versions_retrieve"];
+        get: operations["configuration_versions_list"];
         put?: never;
         post?: never;
         delete?: never;
@@ -190,7 +191,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        post: operations["configurations_versions_publish_create"];
+        post: operations["configuration_versions_publish"];
         delete?: never;
         options?: never;
         head?: never;
@@ -236,7 +237,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: operations["documents_versions_retrieve"];
+        get: operations["document_versions_list"];
         put?: never;
         post?: never;
         delete?: never;
@@ -252,7 +253,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: operations["documents_download_retrieve"];
+        get: operations["document_download"];
         put?: never;
         post?: never;
         delete?: never;
@@ -270,7 +271,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        post: operations["documents_uploads_create"];
+        post: operations["document_upload_sessions_create"];
         delete?: never;
         options?: never;
         head?: never;
@@ -286,7 +287,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        post: operations["documents_uploads_complete_create"];
+        post: operations["document_upload_sessions_complete"];
         delete?: never;
         options?: never;
         head?: never;
@@ -302,7 +303,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        post: operations["documents_versions_download_ticket_create"];
+        post: operations["document_version_download_ticket_create"];
         delete?: never;
         options?: never;
         head?: never;
@@ -320,6 +321,22 @@ export interface paths {
         get: operations["health_retrieve"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/legacy-baselines/{public_id}/publish": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["legacy_baselines_publish"];
         delete?: never;
         options?: never;
         head?: never;
@@ -519,6 +536,198 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/product-change-sets/{public_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["product_change_sets_retrieve"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/product-change-sets/{public_id}/approve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["product_change_sets_approve"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/product-change-sets/{public_id}/approve-attribute-group": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["product_change_sets_approve_attribute_group"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/product-change-sets/{public_id}/confirmer-candidates": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["product_change_sets_confirmer_candidates_list"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/product-change-sets/{public_id}/diff": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["product_change_sets_diff_retrieve"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/product-change-sets/{public_id}/edit-group": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["product_change_sets_edit_group"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/product-change-sets/{public_id}/publish": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["product_change_sets_publish"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/product-change-sets/{public_id}/reassign-confirmer": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["product_change_sets_reassign_confirmer"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/product-change-sets/{public_id}/return-attribute-group": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["product_change_sets_return_attribute_group"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/product-change-sets/{public_id}/submit-confirmation": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["product_change_sets_submit_confirmation"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/product-change-sets/{public_id}/update-scope": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["product_change_sets_update_scope"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/product-change-sets/{public_id}/validate-publication": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["product_change_sets_validate_publication"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/product-drafts/{public_id}": {
         parameters: {
             query?: never;
@@ -529,6 +738,150 @@ export interface paths {
         get: operations["product_drafts_retrieve"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/product-import-batches": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["product_import_batches_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/product-import-batches/{public_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["product_import_batches_retrieve"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/product-import-batches/{public_id}/confirm": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["product_import_batches_confirm"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/product-import-batches/{public_id}/decide-item": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["product_import_items_decide"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/product-import-template": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["product_import_template_download"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/products": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["products_list"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/products/{public_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["products_retrieve"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/products/{public_id}/change-sets": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["products_change_sets_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/products/{public_id}/external-bindings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["products_external_bindings_upsert"];
         delete?: never;
         options?: never;
         head?: never;
@@ -702,7 +1055,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: operations["todos_my_retrieve"];
+        get: operations["notification_todos_list"];
         put?: never;
         post?: never;
         delete?: never;
@@ -720,6 +1073,28 @@ export interface components {
             case_owner_public_id: string;
             deputy_leader_public_id?: string | null;
         };
+        AttributeConfirmationRequest: {
+            /** Format: uuid */
+            group_value_public_id: string;
+            content_hash: string;
+            comment?: string;
+        };
+        AuditEventListItem: {
+            event_id: string;
+            occurred_at: string;
+            action_code: string;
+            resource_type: string;
+            resource_public_id: string | null;
+            result: string;
+        };
+        AuditEventsAdminListItem: {
+            event_id: string;
+            occurred_at: string;
+            action_code: string;
+            resource_type: string;
+            resource_public_id: string | null;
+            result: string;
+        };
         CandidateSplitList: {
             public_id: string;
             name: string;
@@ -730,8 +1105,75 @@ export interface components {
             conclusion: string;
             deliverable_version_public_id: string | null;
         };
+        ChangeSetAttributeGroup: {
+            /** Format: uuid */
+            public_id: string;
+            group_code: string;
+            group_name: string;
+            requires_confirmation: boolean;
+            content_hash: string;
+            values_json: {
+                [key: string]: unknown;
+            };
+            confirmation_status: string;
+            /** Format: uuid */
+            assigned_confirmer_public_id?: string | null;
+        };
         CombineSourcesRequest: {
             opportunity_public_ids: string[];
+        };
+        ConfigurationDefinitionListItem: {
+            definition_code: string;
+            name: string;
+            description: string;
+        };
+        ConfigurationVersionListItem: {
+            public_id: string;
+            version_number: number;
+            status: string;
+            published_at: string | null;
+        };
+        ConfigurationVersionPublishResponse: {
+            public_id: string;
+            status: string;
+            version_number: number;
+        };
+        ConfirmImportBatchRequest: {
+            idempotency_key: string;
+        };
+        ConfirmImportBatchResponse: {
+            created_count: number;
+            linked_count: number;
+            skipped_count: number;
+            failed_count: number;
+            items: unknown[];
+        };
+        ConfirmerCandidate: {
+            /** Format: uuid */
+            public_id: string;
+            display_name: string;
+        };
+        ConfirmerCandidatePage: {
+            items: components["schemas"]["ConfirmerCandidate"][];
+            page: number;
+            page_size: number;
+            count: number;
+        };
+        CreateChangeSetRequest: {
+            change_type: string;
+            title?: string;
+            /** Format: uuid */
+            base_version_public_id?: string;
+        };
+        CreateImportBatchJsonRequest: {
+            csv_content?: string;
+            source_filename?: string;
+        };
+        CreateImportBatchMultipartRequest: {
+            /** Format: uri */
+            file?: string;
+            csv_content?: string;
+            source_filename?: string;
         };
         CurrentProposalQuota: {
             quarter: string;
@@ -743,6 +1185,18 @@ export interface components {
             is_below_minimum: boolean;
             deficit: number;
         };
+        DecideImportItemRequest: {
+            row_number: number;
+            decision: string;
+            /** Format: uuid */
+            target_product_public_id?: string;
+        };
+        DecideImportItemResponse: {
+            row_number: number;
+            decision: string;
+            /** Format: uuid */
+            target_product_public_id?: string | null;
+        };
         DeferredItem: {
             public_id: string;
             subject_type: string;
@@ -753,9 +1207,50 @@ export interface components {
             next_review_quarter: string;
             status: string;
         };
+        DevLoginRequest: {
+            login_key: string;
+        };
+        DevLoginResponse: {
+            public_id: string;
+            display_name: string;
+        };
+        DocumentVersionDownloadTicketResponse: {
+            token: string;
+        };
+        DocumentVersionListItem: {
+            public_id: string;
+            version_number: number;
+            status: string;
+            original_filename: string;
+        };
+        EditChangeSetRequest: {
+            version_no: number;
+            group_code: string;
+            values: {
+                [key: string]: unknown;
+            };
+        };
+        ExternalBinding: {
+            /** Format: uuid */
+            public_id: string;
+            source_system: string;
+            object_type: string;
+            external_id: string;
+            binding_status: string;
+        };
         HealthResponse: {
             status: string;
             service: string;
+        };
+        ImportBatchDetail: {
+            /** Format: uuid */
+            public_id: string;
+            status: string;
+            template_version: string;
+            total_count: number;
+            success_count: number;
+            failure_count: number;
+            items: unknown[];
         };
         LifecycleBoardItem: {
             item_type: string;
@@ -806,6 +1301,13 @@ export interface components {
         MemberInvitationResponse: {
             public_id: string;
             invitation_status: string;
+        };
+        MyTodoListItem: {
+            public_id: string;
+            title: string;
+            status: string;
+            due_at: string | null;
+            deep_link: string;
         };
         OpportunityCreateRequest: {
             title: string;
@@ -863,6 +1365,38 @@ export interface components {
             target_users_needs?: string;
             suggested_retail_price?: string | null;
         };
+        ProductChangeSetDetail: {
+            /** Format: uuid */
+            public_id: string;
+            change_type: string;
+            status: string;
+            title: string;
+            version_no: number;
+            /** Format: uuid */
+            product_public_id: string;
+            change_scope?: {
+                [key: string]: unknown;
+            };
+            attribute_groups: components["schemas"]["ChangeSetAttributeGroup"][];
+            can_reassign_confirmer: boolean;
+        };
+        ProductChangeSetDiffResponse: {
+            /** Format: uuid */
+            change_set_public_id: string;
+            changed_fields: unknown[];
+        };
+        ProductDetail: {
+            /** Format: uuid */
+            public_id: string;
+            business_no: string;
+            name: string;
+            lifecycle_status: string;
+            brand_code: string;
+            category_code: string;
+            formula_summary?: string;
+            versions: components["schemas"]["ProductVersionSummary"][];
+            external_bindings: components["schemas"]["ExternalBinding"][];
+        };
         ProductDraftDetail: {
             public_id: string;
             draft_type: string;
@@ -873,6 +1407,37 @@ export interface components {
             product_asset_name: string;
             target_product_asset_public_id: string | null;
             candidate_public_id: string;
+        };
+        ProductSearchPage: {
+            items: components["schemas"]["ProductSummary"][];
+            page: number;
+            page_size: number;
+            count: number;
+        };
+        ProductSkuSummary: {
+            /** Format: uuid */
+            public_id: string;
+            sku_code: string;
+            name: string;
+            specification: string;
+            barcode?: string;
+            channels?: unknown[];
+        };
+        ProductSummary: {
+            /** Format: uuid */
+            public_id: string;
+            business_no: string;
+            name: string;
+            lifecycle_status: string;
+            formula_summary?: string;
+        };
+        ProductVersionSummary: {
+            /** Format: uuid */
+            public_id: string;
+            version_code: string;
+            version_name: string;
+            status: string;
+            skus: components["schemas"]["ProductSkuSummary"][];
         };
         ProjectCandidateDetail: {
             public_id: string;
@@ -922,6 +1487,34 @@ export interface components {
             submitted_at: string | null;
             locked_at: string | null;
         };
+        PublicationBlock: {
+            code: string;
+            message: string;
+        };
+        PublicationValidation: {
+            can_publish: boolean;
+            blocks: components["schemas"]["PublicationBlock"][];
+        };
+        PublishChangeSetRequest: {
+            idempotency_key: string;
+        };
+        PublishChangeSetResponse: {
+            /** Format: uuid */
+            change_set_public_id: string;
+            /** Format: uuid */
+            product_version_public_id: string;
+            product_lifecycle_status: string;
+        };
+        PublishLegacyBaselineResponse: {
+            /** Format: uuid */
+            change_set_public_id: string;
+            /** Format: uuid */
+            product_version_public_id: string;
+            /** Format: uuid */
+            product_public_id: string;
+            product_name: string;
+            product_lifecycle_status: string;
+        };
         QuarterlyReviewRequest: {
             action: string;
             note?: string;
@@ -933,6 +1526,13 @@ export interface components {
             action: string;
             defer_record_public_id: string;
         };
+        ReassignConfirmerRequest: {
+            /** Format: uuid */
+            group_value_public_id: string;
+            /** Format: uuid */
+            confirmer_public_id: string;
+            reason?: string;
+        };
         ReconsiderationRequest: {
             original_subject_public_id: string;
             target_stage_code?: string;
@@ -943,6 +1543,13 @@ export interface components {
             original_cycle_public_id: string;
             new_cycle_public_id: string;
             target_stage_code: string;
+        };
+        RoleCatalogItem: {
+            public_id: string;
+            role_code: string;
+            name: string;
+            role_type: string;
+            is_critical: boolean;
         };
         SplitCandidateRequest: {
             candidate_names: string[];
@@ -965,6 +1572,55 @@ export interface components {
             version_no?: number;
             idempotency_key: string;
         };
+        UpdateChangeSetScopeRequest: {
+            version_no: number;
+            skus?: unknown[];
+            channels?: unknown[];
+            scopes?: unknown[];
+            /** Format: date-time */
+            effective_from?: string;
+        };
+        UploadSessionCompleteRequest: {
+            document_code?: string;
+            title?: string;
+        };
+        UploadSessionCompleteResponse: {
+            version_public_id: string;
+            document_public_id: string;
+            status: string;
+        };
+        UploadSessionCreateRequest: {
+            /** Format: uri */
+            file: string;
+            original_filename?: string;
+            declared_mime_type?: string;
+        };
+        UploadSessionCreateResponse: {
+            public_id: string;
+            original_filename: string;
+            declared_mime_type: string;
+            size_bytes: number;
+        };
+        UpsertExternalBindingRequest: {
+            source_system: string;
+            object_type: string;
+            external_id: string;
+        };
+        UserAssignmentCreateRequest: {
+            role_code: string;
+            approval_reference?: string;
+        };
+        UserAssignmentCreateResponse: {
+            public_id: string;
+            role_code: string;
+        };
+        UserAssignmentListItem: {
+            public_id: string;
+            role_code: string;
+            role_name: string;
+            scope_type: string;
+            status: string;
+        };
         WithdrawProposalRequest: {
             version_no?: number;
         };
@@ -977,7 +1633,7 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
-    admin_audit_events_retrieve: {
+    authorization_audit_events_list: {
         parameters: {
             query?: never;
             header?: never;
@@ -986,16 +1642,17 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description No response body */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["AuditEventsAdminListItem"][];
+                };
             };
         };
     };
-    audit_events_retrieve: {
+    audit_events_list: {
         parameters: {
             query?: never;
             header?: never;
@@ -1004,12 +1661,13 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description No response body */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["AuditEventListItem"][];
+                };
             };
         };
     };
@@ -1031,17 +1689,31 @@ export interface operations {
             };
         };
     };
-    auth_dev_login_create: {
+    auth_dev_login: {
         parameters: {
             query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DevLoginRequest"];
+                "application/x-www-form-urlencoded": components["schemas"]["DevLoginRequest"];
+                "multipart/form-data": components["schemas"]["DevLoginRequest"];
+            };
+        };
         responses: {
-            /** @description No response body */
             200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DevLoginResponse"];
+                };
+            };
+            /** @description No response body */
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -1049,7 +1721,7 @@ export interface operations {
             };
         };
     };
-    auth_dingtalk_callback_retrieve: {
+    auth_dingtalk_callback: {
         parameters: {
             query?: never;
             header?: never;
@@ -1059,7 +1731,7 @@ export interface operations {
         requestBody?: never;
         responses: {
             /** @description No response body */
-            200: {
+            302: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -1085,7 +1757,7 @@ export interface operations {
             };
         };
     };
-    auth_logout_create: {
+    auth_logout: {
         parameters: {
             query?: never;
             header?: never;
@@ -1095,7 +1767,7 @@ export interface operations {
         requestBody?: never;
         responses: {
             /** @description No response body */
-            200: {
+            204: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -1103,7 +1775,7 @@ export interface operations {
             };
         };
     };
-    authorization_roles_retrieve: {
+    authorization_roles_list: {
         parameters: {
             query?: never;
             header?: never;
@@ -1112,16 +1784,17 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description No response body */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["RoleCatalogItem"][];
+                };
             };
         };
     };
-    authorization_users_assignments_retrieve: {
+    authorization_user_assignments_list: {
         parameters: {
             query?: never;
             header?: never;
@@ -1132,16 +1805,17 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description No response body */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["UserAssignmentListItem"][];
+                };
             };
         };
     };
-    authorization_users_assignments_create: {
+    authorization_user_assignments_create: {
         parameters: {
             query?: never;
             header?: never;
@@ -1150,18 +1824,25 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UserAssignmentCreateRequest"];
+                "application/x-www-form-urlencoded": components["schemas"]["UserAssignmentCreateRequest"];
+                "multipart/form-data": components["schemas"]["UserAssignmentCreateRequest"];
+            };
+        };
         responses: {
-            /** @description No response body */
-            200: {
+            201: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["UserAssignmentCreateResponse"];
+                };
             };
         };
     };
-    configurations_definitions_retrieve: {
+    configuration_definitions_list: {
         parameters: {
             query?: never;
             header?: never;
@@ -1170,16 +1851,17 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description No response body */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["ConfigurationDefinitionListItem"][];
+                };
             };
         };
     };
-    configurations_definitions_versions_retrieve: {
+    configuration_versions_list: {
         parameters: {
             query?: never;
             header?: never;
@@ -1190,16 +1872,17 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description No response body */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["ConfigurationVersionListItem"][];
+                };
             };
         };
     };
-    configurations_versions_publish_create: {
+    configuration_versions_publish: {
         parameters: {
             query?: never;
             header?: never;
@@ -1210,12 +1893,13 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description No response body */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["ConfigurationVersionPublishResponse"];
+                };
             };
         };
     };
@@ -1267,7 +1951,7 @@ export interface operations {
             };
         };
     };
-    documents_versions_retrieve: {
+    document_versions_list: {
         parameters: {
             query?: never;
             header?: never;
@@ -1278,16 +1962,17 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description No response body */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["DocumentVersionListItem"][];
+                };
             };
         };
     };
-    documents_download_retrieve: {
+    document_download: {
         parameters: {
             query?: never;
             header?: never;
@@ -1298,34 +1983,42 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description No response body */
+            /** @description Document file download */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": string;
+                };
             };
         };
     };
-    documents_uploads_create: {
+    document_upload_sessions_create: {
         parameters: {
             query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody: {
+            content: {
+                "multipart/form-data": components["schemas"]["UploadSessionCreateRequest"];
+                "application/x-www-form-urlencoded": components["schemas"]["UploadSessionCreateRequest"];
+            };
+        };
         responses: {
-            /** @description No response body */
-            200: {
+            201: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["UploadSessionCreateResponse"];
+                };
             };
         };
     };
-    documents_uploads_complete_create: {
+    document_upload_sessions_complete: {
         parameters: {
             query?: never;
             header?: never;
@@ -1334,18 +2027,25 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["UploadSessionCompleteRequest"];
+                "application/x-www-form-urlencoded": components["schemas"]["UploadSessionCompleteRequest"];
+                "multipart/form-data": components["schemas"]["UploadSessionCompleteRequest"];
+            };
+        };
         responses: {
-            /** @description No response body */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["UploadSessionCompleteResponse"];
+                };
             };
         };
     };
-    documents_versions_download_ticket_create: {
+    document_version_download_ticket_create: {
         parameters: {
             query?: never;
             header?: never;
@@ -1356,12 +2056,13 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description No response body */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["DocumentVersionDownloadTicketResponse"];
+                };
             };
         };
     };
@@ -1380,6 +2081,33 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HealthResponse"];
+                };
+            };
+        };
+    };
+    legacy_baselines_publish: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                public_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ConfirmImportBatchRequest"];
+                "application/x-www-form-urlencoded": components["schemas"]["ConfirmImportBatchRequest"];
+                "multipart/form-data": components["schemas"]["ConfirmImportBatchRequest"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PublishLegacyBaselineResponse"];
                 };
             };
         };
@@ -1698,6 +2426,298 @@ export interface operations {
             };
         };
     };
+    product_change_sets_retrieve: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                public_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProductChangeSetDetail"];
+                };
+            };
+        };
+    };
+    product_change_sets_approve: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                public_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProductChangeSetDetail"];
+                };
+            };
+        };
+    };
+    product_change_sets_approve_attribute_group: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                public_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AttributeConfirmationRequest"];
+                "application/x-www-form-urlencoded": components["schemas"]["AttributeConfirmationRequest"];
+                "multipart/form-data": components["schemas"]["AttributeConfirmationRequest"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProductChangeSetDetail"];
+                };
+            };
+        };
+    };
+    product_change_sets_confirmer_candidates_list: {
+        parameters: {
+            query?: {
+                page?: number;
+                page_size?: number;
+                search?: string;
+            };
+            header?: never;
+            path: {
+                public_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConfirmerCandidatePage"];
+                };
+            };
+        };
+    };
+    product_change_sets_diff_retrieve: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                public_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProductChangeSetDiffResponse"];
+                };
+            };
+        };
+    };
+    product_change_sets_edit_group: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                public_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["EditChangeSetRequest"];
+                "application/x-www-form-urlencoded": components["schemas"]["EditChangeSetRequest"];
+                "multipart/form-data": components["schemas"]["EditChangeSetRequest"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProductChangeSetDetail"];
+                };
+            };
+        };
+    };
+    product_change_sets_publish: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                public_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PublishChangeSetRequest"];
+                "application/x-www-form-urlencoded": components["schemas"]["PublishChangeSetRequest"];
+                "multipart/form-data": components["schemas"]["PublishChangeSetRequest"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PublishChangeSetResponse"];
+                };
+            };
+        };
+    };
+    product_change_sets_reassign_confirmer: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                public_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReassignConfirmerRequest"];
+                "application/x-www-form-urlencoded": components["schemas"]["ReassignConfirmerRequest"];
+                "multipart/form-data": components["schemas"]["ReassignConfirmerRequest"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProductChangeSetDetail"];
+                };
+            };
+        };
+    };
+    product_change_sets_return_attribute_group: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                public_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AttributeConfirmationRequest"];
+                "application/x-www-form-urlencoded": components["schemas"]["AttributeConfirmationRequest"];
+                "multipart/form-data": components["schemas"]["AttributeConfirmationRequest"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProductChangeSetDetail"];
+                };
+            };
+        };
+    };
+    product_change_sets_submit_confirmation: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                public_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProductChangeSetDetail"];
+                };
+            };
+        };
+    };
+    product_change_sets_update_scope: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                public_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateChangeSetScopeRequest"];
+                "application/x-www-form-urlencoded": components["schemas"]["UpdateChangeSetScopeRequest"];
+                "multipart/form-data": components["schemas"]["UpdateChangeSetScopeRequest"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProductChangeSetDetail"];
+                };
+            };
+        };
+    };
+    product_change_sets_validate_publication: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                public_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PublicationValidation"];
+                };
+            };
+        };
+    };
     product_drafts_retrieve: {
         parameters: {
             query?: never;
@@ -1715,6 +2735,230 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ProductDraftDetail"];
+                };
+            };
+        };
+    };
+    product_import_batches_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "multipart/form-data": components["schemas"]["CreateImportBatchMultipartRequest"];
+                "application/json": components["schemas"]["CreateImportBatchJsonRequest"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ImportBatchDetail"];
+                };
+            };
+        };
+    };
+    product_import_batches_retrieve: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                public_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ImportBatchDetail"];
+                };
+            };
+        };
+    };
+    product_import_batches_confirm: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                public_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ConfirmImportBatchRequest"];
+                "application/x-www-form-urlencoded": components["schemas"]["ConfirmImportBatchRequest"];
+                "multipart/form-data": components["schemas"]["ConfirmImportBatchRequest"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConfirmImportBatchResponse"];
+                };
+            };
+        };
+    };
+    product_import_items_decide: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                public_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DecideImportItemRequest"];
+                "application/x-www-form-urlencoded": components["schemas"]["DecideImportItemRequest"];
+                "multipart/form-data": components["schemas"]["DecideImportItemRequest"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DecideImportItemResponse"];
+                };
+            };
+        };
+    };
+    product_import_template_download: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description XLSX import template */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": string;
+                };
+            };
+        };
+    };
+    products_list: {
+        parameters: {
+            query?: {
+                brand_code?: string;
+                category_code?: string;
+                channel_code?: string;
+                external_id?: string;
+                lifecycle_status?: string;
+                owner_public_id?: string;
+                page?: number;
+                page_size?: number;
+                search?: string;
+                sku_code?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProductSearchPage"];
+                };
+            };
+        };
+    };
+    products_retrieve: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                public_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProductDetail"];
+                };
+            };
+        };
+    };
+    products_change_sets_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                public_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateChangeSetRequest"];
+                "application/x-www-form-urlencoded": components["schemas"]["CreateChangeSetRequest"];
+                "multipart/form-data": components["schemas"]["CreateChangeSetRequest"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProductChangeSetDetail"];
+                };
+            };
+        };
+    };
+    products_external_bindings_upsert: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                public_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpsertExternalBindingRequest"];
+                "application/x-www-form-urlencoded": components["schemas"]["UpsertExternalBindingRequest"];
+                "multipart/form-data": components["schemas"]["UpsertExternalBindingRequest"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExternalBinding"];
                 };
             };
         };
@@ -1968,7 +3212,7 @@ export interface operations {
             };
         };
     };
-    todos_my_retrieve: {
+    notification_todos_list: {
         parameters: {
             query?: never;
             header?: never;
@@ -1977,12 +3221,13 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description No response body */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["MyTodoListItem"][];
+                };
             };
         };
     };

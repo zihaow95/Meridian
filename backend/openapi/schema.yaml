@@ -6,24 +6,36 @@ info:
 paths:
   /api/v1/admin/audit-events:
     get:
-      operationId: admin_audit_events_retrieve
+      operationId: authorization_audit_events_list
       tags:
       - admin
       security:
       - cookieAuth: []
       responses:
         '200':
-          description: No response body
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/AuditEventsAdminListItem'
+          description: ''
   /api/v1/audit/events:
     get:
-      operationId: audit_events_retrieve
+      operationId: audit_events_list
       tags:
       - audit
       security:
       - cookieAuth: []
       responses:
         '200':
-          description: No response body
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/AuditEventListItem'
+          description: ''
   /api/v1/auth/csrf:
     get:
       operationId: auth_csrf_retrieve
@@ -36,23 +48,42 @@ paths:
           description: No response body
   /api/v1/auth/dev/login:
     post:
-      operationId: auth_dev_login_create
+      operationId: auth_dev_login
       tags:
       - auth
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DevLoginRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/DevLoginRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/DevLoginRequest'
+        required: true
       security:
       - {}
       responses:
         '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DevLoginResponse'
+          description: ''
+        '404':
           description: No response body
   /api/v1/auth/dingtalk/callback:
     get:
-      operationId: auth_dingtalk_callback_retrieve
+      operationId: auth_dingtalk_callback
+      summary: DingTalk OAuth callback
       tags:
       - auth
       security:
       - {}
       responses:
-        '200':
+        '302':
           description: No response body
   /api/v1/auth/dingtalk/start:
     get:
@@ -67,27 +98,33 @@ paths:
           description: No response body
   /api/v1/auth/logout:
     post:
-      operationId: auth_logout_create
+      operationId: auth_logout
       tags:
       - auth
       security:
       - cookieAuth: []
       responses:
-        '200':
+        '204':
           description: No response body
   /api/v1/authorization/roles:
     get:
-      operationId: authorization_roles_retrieve
+      operationId: authorization_roles_list
       tags:
       - authorization
       security:
       - cookieAuth: []
       responses:
         '200':
-          description: No response body
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/RoleCatalogItem'
+          description: ''
   /api/v1/authorization/users/{public_id}/assignments:
     get:
-      operationId: authorization_users_assignments_retrieve
+      operationId: authorization_user_assignments_list
       parameters:
       - in: path
         name: public_id
@@ -101,9 +138,15 @@ paths:
       - cookieAuth: []
       responses:
         '200':
-          description: No response body
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/UserAssignmentListItem'
+          description: ''
     post:
-      operationId: authorization_users_assignments_create
+      operationId: authorization_user_assignments_create
       parameters:
       - in: path
         name: public_id
@@ -113,24 +156,46 @@ paths:
         required: true
       tags:
       - authorization
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserAssignmentCreateRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/UserAssignmentCreateRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/UserAssignmentCreateRequest'
+        required: true
       security:
       - cookieAuth: []
       responses:
-        '200':
-          description: No response body
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserAssignmentCreateResponse'
+          description: ''
   /api/v1/configurations/definitions:
     get:
-      operationId: configurations_definitions_retrieve
+      operationId: configuration_definitions_list
       tags:
       - configurations
       security:
       - cookieAuth: []
       responses:
         '200':
-          description: No response body
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ConfigurationDefinitionListItem'
+          description: ''
   /api/v1/configurations/definitions/{definition_code}/versions:
     get:
-      operationId: configurations_definitions_versions_retrieve
+      operationId: configuration_versions_list
       parameters:
       - in: path
         name: definition_code
@@ -143,10 +208,16 @@ paths:
       - cookieAuth: []
       responses:
         '200':
-          description: No response body
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ConfigurationVersionListItem'
+          description: ''
   /api/v1/configurations/versions/{public_id}/publish:
     post:
-      operationId: configurations_versions_publish_create
+      operationId: configuration_versions_publish
       parameters:
       - in: path
         name: public_id
@@ -160,7 +231,11 @@ paths:
       - cookieAuth: []
       responses:
         '200':
-          description: No response body
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConfigurationVersionPublishResponse'
+          description: ''
   /api/v1/deferred-items/{public_id}:
     get:
       operationId: deferred_item_retrieve
@@ -217,7 +292,7 @@ paths:
           description: ''
   /api/v1/documents/{document_public_id}/versions:
     get:
-      operationId: documents_versions_retrieve
+      operationId: document_versions_list
       parameters:
       - in: path
         name: document_public_id
@@ -231,10 +306,16 @@ paths:
       - cookieAuth: []
       responses:
         '200':
-          description: No response body
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/DocumentVersionListItem'
+          description: ''
   /api/v1/documents/download/{token}:
     get:
-      operationId: documents_download_retrieve
+      operationId: document_download
       parameters:
       - in: path
         name: token
@@ -245,20 +326,38 @@ paths:
       - documents
       responses:
         '200':
-          description: No response body
+          content:
+            application/json:
+              schema:
+                type: string
+                format: binary
+          description: Document file download
   /api/v1/documents/uploads:
     post:
-      operationId: documents_uploads_create
+      operationId: document_upload_sessions_create
       tags:
       - documents
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/UploadSessionCreateRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/UploadSessionCreateRequest'
+        required: true
       security:
       - cookieAuth: []
       responses:
-        '200':
-          description: No response body
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UploadSessionCreateResponse'
+          description: ''
   /api/v1/documents/uploads/{public_id}/complete:
     post:
-      operationId: documents_uploads_complete_create
+      operationId: document_upload_sessions_complete
       parameters:
       - in: path
         name: public_id
@@ -268,14 +367,29 @@ paths:
         required: true
       tags:
       - documents
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UploadSessionCompleteRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/UploadSessionCompleteRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/UploadSessionCompleteRequest'
       security:
       - cookieAuth: []
       responses:
         '200':
-          description: No response body
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UploadSessionCompleteResponse'
+          description: ''
   /api/v1/documents/versions/{version_public_id}/download-ticket:
     post:
-      operationId: documents_versions_download_ticket_create
+      operationId: document_version_download_ticket_create
       parameters:
       - in: path
         name: version_public_id
@@ -289,7 +403,11 @@ paths:
       - cookieAuth: []
       responses:
         '200':
-          description: No response body
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DocumentVersionDownloadTicketResponse'
+          description: ''
   /api/v1/health:
     get:
       operationId: health_retrieve
@@ -310,6 +428,39 @@ paths:
                     status: ok
                     service: meridian-api
                   summary: ok
+          description: ''
+  /api/v1/legacy-baselines/{public_id}/publish:
+    post:
+      operationId: legacy_baselines_publish
+      parameters:
+      - in: path
+        name: public_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - legacy-baselines
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ConfirmImportBatchRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/ConfirmImportBatchRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/ConfirmImportBatchRequest'
+        required: true
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PublishLegacyBaselineResponse'
           description: ''
   /api/v1/lifecycle-board:
     get:
@@ -633,6 +784,342 @@ paths:
                 items:
                   $ref: '#/components/schemas/OpportunitySummaryList'
           description: ''
+  /api/v1/product-change-sets/{public_id}:
+    get:
+      operationId: product_change_sets_retrieve
+      parameters:
+      - in: path
+        name: public_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - product-change-sets
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProductChangeSetDetail'
+          description: ''
+  /api/v1/product-change-sets/{public_id}/approve:
+    post:
+      operationId: product_change_sets_approve
+      parameters:
+      - in: path
+        name: public_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - product-change-sets
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProductChangeSetDetail'
+          description: ''
+  /api/v1/product-change-sets/{public_id}/approve-attribute-group:
+    post:
+      operationId: product_change_sets_approve_attribute_group
+      parameters:
+      - in: path
+        name: public_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - product-change-sets
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AttributeConfirmationRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/AttributeConfirmationRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/AttributeConfirmationRequest'
+        required: true
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProductChangeSetDetail'
+          description: ''
+  /api/v1/product-change-sets/{public_id}/confirmer-candidates:
+    get:
+      operationId: product_change_sets_confirmer_candidates_list
+      parameters:
+      - in: query
+        name: page
+        schema:
+          type: integer
+      - in: query
+        name: page_size
+        schema:
+          type: integer
+      - in: path
+        name: public_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      - in: query
+        name: search
+        schema:
+          type: string
+      tags:
+      - product-change-sets
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConfirmerCandidatePage'
+          description: ''
+  /api/v1/product-change-sets/{public_id}/diff:
+    get:
+      operationId: product_change_sets_diff_retrieve
+      parameters:
+      - in: path
+        name: public_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - product-change-sets
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProductChangeSetDiffResponse'
+          description: ''
+  /api/v1/product-change-sets/{public_id}/edit-group:
+    post:
+      operationId: product_change_sets_edit_group
+      parameters:
+      - in: path
+        name: public_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - product-change-sets
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EditChangeSetRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/EditChangeSetRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/EditChangeSetRequest'
+        required: true
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProductChangeSetDetail'
+          description: ''
+  /api/v1/product-change-sets/{public_id}/publish:
+    post:
+      operationId: product_change_sets_publish
+      parameters:
+      - in: path
+        name: public_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - product-change-sets
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PublishChangeSetRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PublishChangeSetRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PublishChangeSetRequest'
+        required: true
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PublishChangeSetResponse'
+          description: ''
+  /api/v1/product-change-sets/{public_id}/reassign-confirmer:
+    post:
+      operationId: product_change_sets_reassign_confirmer
+      parameters:
+      - in: path
+        name: public_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - product-change-sets
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReassignConfirmerRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/ReassignConfirmerRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/ReassignConfirmerRequest'
+        required: true
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProductChangeSetDetail'
+          description: ''
+  /api/v1/product-change-sets/{public_id}/return-attribute-group:
+    post:
+      operationId: product_change_sets_return_attribute_group
+      parameters:
+      - in: path
+        name: public_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - product-change-sets
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AttributeConfirmationRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/AttributeConfirmationRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/AttributeConfirmationRequest'
+        required: true
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProductChangeSetDetail'
+          description: ''
+  /api/v1/product-change-sets/{public_id}/submit-confirmation:
+    post:
+      operationId: product_change_sets_submit_confirmation
+      parameters:
+      - in: path
+        name: public_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - product-change-sets
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProductChangeSetDetail'
+          description: ''
+  /api/v1/product-change-sets/{public_id}/update-scope:
+    post:
+      operationId: product_change_sets_update_scope
+      parameters:
+      - in: path
+        name: public_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - product-change-sets
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateChangeSetScopeRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/UpdateChangeSetScopeRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/UpdateChangeSetScopeRequest'
+        required: true
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProductChangeSetDetail'
+          description: ''
+  /api/v1/product-change-sets/{public_id}/validate-publication:
+    post:
+      operationId: product_change_sets_validate_publication
+      parameters:
+      - in: path
+        name: public_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - product-change-sets
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PublicationValidation'
+          description: ''
   /api/v1/product-drafts/{public_id}:
     get:
       operationId: product_drafts_retrieve
@@ -653,6 +1140,272 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ProductDraftDetail'
+          description: ''
+  /api/v1/product-import-batches:
+    post:
+      operationId: product_import_batches_create
+      tags:
+      - product-import-batches
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/CreateImportBatchMultipartRequest'
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateImportBatchJsonRequest'
+      security:
+      - cookieAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ImportBatchDetail'
+          description: ''
+  /api/v1/product-import-batches/{public_id}:
+    get:
+      operationId: product_import_batches_retrieve
+      parameters:
+      - in: path
+        name: public_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - product-import-batches
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ImportBatchDetail'
+          description: ''
+  /api/v1/product-import-batches/{public_id}/confirm:
+    post:
+      operationId: product_import_batches_confirm
+      parameters:
+      - in: path
+        name: public_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - product-import-batches
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ConfirmImportBatchRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/ConfirmImportBatchRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/ConfirmImportBatchRequest'
+        required: true
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConfirmImportBatchResponse'
+          description: ''
+  /api/v1/product-import-batches/{public_id}/decide-item:
+    post:
+      operationId: product_import_items_decide
+      parameters:
+      - in: path
+        name: public_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - product-import-batches
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DecideImportItemRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/DecideImportItemRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/DecideImportItemRequest'
+        required: true
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DecideImportItemResponse'
+          description: ''
+  /api/v1/product-import-template:
+    get:
+      operationId: product_import_template_download
+      tags:
+      - product-import-template
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/vnd.openxmlformats-officedocument.spreadsheetml.sheet:
+              schema:
+                type: string
+                format: binary
+          description: XLSX import template
+  /api/v1/products:
+    get:
+      operationId: products_list
+      parameters:
+      - in: query
+        name: brand_code
+        schema:
+          type: string
+      - in: query
+        name: category_code
+        schema:
+          type: string
+      - in: query
+        name: channel_code
+        schema:
+          type: string
+      - in: query
+        name: external_id
+        schema:
+          type: string
+      - in: query
+        name: lifecycle_status
+        schema:
+          type: string
+      - in: query
+        name: owner_public_id
+        schema:
+          type: string
+      - in: query
+        name: page
+        schema:
+          type: integer
+      - in: query
+        name: page_size
+        schema:
+          type: integer
+      - in: query
+        name: search
+        schema:
+          type: string
+      - in: query
+        name: sku_code
+        schema:
+          type: string
+      tags:
+      - products
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProductSearchPage'
+          description: ''
+  /api/v1/products/{public_id}:
+    get:
+      operationId: products_retrieve
+      parameters:
+      - in: path
+        name: public_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - products
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProductDetail'
+          description: ''
+  /api/v1/products/{public_id}/change-sets:
+    post:
+      operationId: products_change_sets_create
+      parameters:
+      - in: path
+        name: public_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - products
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateChangeSetRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/CreateChangeSetRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/CreateChangeSetRequest'
+        required: true
+      security:
+      - cookieAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProductChangeSetDetail'
+          description: ''
+  /api/v1/products/{public_id}/external-bindings:
+    post:
+      operationId: products_external_bindings_upsert
+      parameters:
+      - in: path
+        name: public_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - products
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpsertExternalBindingRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/UpsertExternalBindingRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/UpsertExternalBindingRequest'
+        required: true
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ExternalBinding'
           description: ''
   /api/v1/project-candidates/{public_id}:
     get:
@@ -942,14 +1695,20 @@ paths:
           description: ''
   /api/v1/todos/my:
     get:
-      operationId: todos_my_retrieve
+      operationId: notification_todos_list
       tags:
       - todos
       security:
       - cookieAuth: []
       responses:
         '200':
-          description: No response body
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/MyTodoListItem'
+          description: ''
 components:
   schemas:
     AssignLeadershipRequest:
@@ -964,6 +1723,65 @@ components:
           nullable: true
       required:
       - case_owner_public_id
+    AttributeConfirmationRequest:
+      type: object
+      properties:
+        group_value_public_id:
+          type: string
+          format: uuid
+        content_hash:
+          type: string
+        comment:
+          type: string
+      required:
+      - content_hash
+      - group_value_public_id
+    AuditEventListItem:
+      type: object
+      properties:
+        event_id:
+          type: string
+        occurred_at:
+          type: string
+        action_code:
+          type: string
+        resource_type:
+          type: string
+        resource_public_id:
+          type: string
+          nullable: true
+        result:
+          type: string
+      required:
+      - action_code
+      - event_id
+      - occurred_at
+      - resource_public_id
+      - resource_type
+      - result
+    AuditEventsAdminListItem:
+      type: object
+      properties:
+        event_id:
+          type: string
+        occurred_at:
+          type: string
+        action_code:
+          type: string
+        resource_type:
+          type: string
+        resource_public_id:
+          type: string
+          nullable: true
+        result:
+          type: string
+      required:
+      - action_code
+      - event_id
+      - occurred_at
+      - resource_public_id
+      - resource_type
+      - result
     CandidateSplitList:
       type: object
       properties:
@@ -991,6 +1809,37 @@ components:
       - conclusion
       - deliverable_version_public_id
       - status
+    ChangeSetAttributeGroup:
+      type: object
+      properties:
+        public_id:
+          type: string
+          format: uuid
+        group_code:
+          type: string
+        group_name:
+          type: string
+        requires_confirmation:
+          type: boolean
+        content_hash:
+          type: string
+        values_json:
+          type: object
+          additionalProperties: {}
+        confirmation_status:
+          type: string
+        assigned_confirmer_public_id:
+          type: string
+          format: uuid
+          nullable: true
+      required:
+      - confirmation_status
+      - content_hash
+      - group_code
+      - group_name
+      - public_id
+      - requires_confirmation
+      - values_json
     CombineSourcesRequest:
       type: object
       properties:
@@ -1000,6 +1849,134 @@ components:
             type: string
       required:
       - opportunity_public_ids
+    ConfigurationDefinitionListItem:
+      type: object
+      properties:
+        definition_code:
+          type: string
+        name:
+          type: string
+        description:
+          type: string
+      required:
+      - definition_code
+      - description
+      - name
+    ConfigurationVersionListItem:
+      type: object
+      properties:
+        public_id:
+          type: string
+        version_number:
+          type: integer
+        status:
+          type: string
+        published_at:
+          type: string
+          nullable: true
+      required:
+      - public_id
+      - published_at
+      - status
+      - version_number
+    ConfigurationVersionPublishResponse:
+      type: object
+      properties:
+        public_id:
+          type: string
+        status:
+          type: string
+        version_number:
+          type: integer
+      required:
+      - public_id
+      - status
+      - version_number
+    ConfirmImportBatchRequest:
+      type: object
+      properties:
+        idempotency_key:
+          type: string
+      required:
+      - idempotency_key
+    ConfirmImportBatchResponse:
+      type: object
+      properties:
+        created_count:
+          type: integer
+        linked_count:
+          type: integer
+        skipped_count:
+          type: integer
+        failed_count:
+          type: integer
+        items:
+          type: array
+          items: {}
+      required:
+      - created_count
+      - failed_count
+      - items
+      - linked_count
+      - skipped_count
+    ConfirmerCandidate:
+      type: object
+      properties:
+        public_id:
+          type: string
+          format: uuid
+        display_name:
+          type: string
+      required:
+      - display_name
+      - public_id
+    ConfirmerCandidatePage:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/ConfirmerCandidate'
+        page:
+          type: integer
+        page_size:
+          type: integer
+        count:
+          type: integer
+      required:
+      - count
+      - items
+      - page
+      - page_size
+    CreateChangeSetRequest:
+      type: object
+      properties:
+        change_type:
+          type: string
+        title:
+          type: string
+        base_version_public_id:
+          type: string
+          format: uuid
+      required:
+      - change_type
+    CreateImportBatchJsonRequest:
+      type: object
+      properties:
+        csv_content:
+          type: string
+        source_filename:
+          type: string
+    CreateImportBatchMultipartRequest:
+      type: object
+      properties:
+        file:
+          type: string
+          format: uri
+        csv_content:
+          type: string
+        source_filename:
+          type: string
     CurrentProposalQuota:
       type: object
       properties:
@@ -1028,6 +2005,33 @@ components:
       - owner_public_id
       - owner_type
       - quarter
+    DecideImportItemRequest:
+      type: object
+      properties:
+        row_number:
+          type: integer
+        decision:
+          type: string
+        target_product_public_id:
+          type: string
+          format: uuid
+      required:
+      - decision
+      - row_number
+    DecideImportItemResponse:
+      type: object
+      properties:
+        row_number:
+          type: integer
+        decision:
+          type: string
+        target_product_public_id:
+          type: string
+          format: uuid
+          nullable: true
+      required:
+      - decision
+      - row_number
     DeferredItem:
       type: object
       properties:
@@ -1056,6 +2060,80 @@ components:
       - status
       - subject_public_id
       - subject_type
+    DevLoginRequest:
+      type: object
+      properties:
+        login_key:
+          type: string
+      required:
+      - login_key
+    DevLoginResponse:
+      type: object
+      properties:
+        public_id:
+          type: string
+        display_name:
+          type: string
+      required:
+      - display_name
+      - public_id
+    DocumentVersionDownloadTicketResponse:
+      type: object
+      properties:
+        token:
+          type: string
+      required:
+      - token
+    DocumentVersionListItem:
+      type: object
+      properties:
+        public_id:
+          type: string
+        version_number:
+          type: integer
+        status:
+          type: string
+        original_filename:
+          type: string
+      required:
+      - original_filename
+      - public_id
+      - status
+      - version_number
+    EditChangeSetRequest:
+      type: object
+      properties:
+        version_no:
+          type: integer
+        group_code:
+          type: string
+        values:
+          type: object
+          additionalProperties: {}
+      required:
+      - group_code
+      - values
+      - version_no
+    ExternalBinding:
+      type: object
+      properties:
+        public_id:
+          type: string
+          format: uuid
+        source_system:
+          type: string
+        object_type:
+          type: string
+        external_id:
+          type: string
+        binding_status:
+          type: string
+      required:
+      - binding_status
+      - external_id
+      - object_type
+      - public_id
+      - source_system
     HealthResponse:
       type: object
       properties:
@@ -1066,6 +2144,33 @@ components:
       required:
       - service
       - status
+    ImportBatchDetail:
+      type: object
+      properties:
+        public_id:
+          type: string
+          format: uuid
+        status:
+          type: string
+        template_version:
+          type: string
+        total_count:
+          type: integer
+        success_count:
+          type: integer
+        failure_count:
+          type: integer
+        items:
+          type: array
+          items: {}
+      required:
+      - failure_count
+      - items
+      - public_id
+      - status
+      - success_count
+      - template_version
+      - total_count
     LifecycleBoardItem:
       type: object
       properties:
@@ -1198,6 +2303,26 @@ components:
       required:
       - invitation_status
       - public_id
+    MyTodoListItem:
+      type: object
+      properties:
+        public_id:
+          type: string
+        title:
+          type: string
+        status:
+          type: string
+        due_at:
+          type: string
+          nullable: true
+        deep_link:
+          type: string
+      required:
+      - deep_link
+      - due_at
+      - public_id
+      - status
+      - title
     OpportunityCreateRequest:
       type: object
       properties:
@@ -1339,6 +2464,88 @@ components:
         suggested_retail_price:
           type: string
           nullable: true
+    ProductChangeSetDetail:
+      type: object
+      properties:
+        public_id:
+          type: string
+          format: uuid
+        change_type:
+          type: string
+        status:
+          type: string
+        title:
+          type: string
+        version_no:
+          type: integer
+        product_public_id:
+          type: string
+          format: uuid
+        change_scope:
+          type: object
+          additionalProperties: {}
+        attribute_groups:
+          type: array
+          items:
+            $ref: '#/components/schemas/ChangeSetAttributeGroup'
+        can_reassign_confirmer:
+          type: boolean
+      required:
+      - attribute_groups
+      - can_reassign_confirmer
+      - change_type
+      - product_public_id
+      - public_id
+      - status
+      - title
+      - version_no
+    ProductChangeSetDiffResponse:
+      type: object
+      properties:
+        change_set_public_id:
+          type: string
+          format: uuid
+        changed_fields:
+          type: array
+          items: {}
+      required:
+      - change_set_public_id
+      - changed_fields
+    ProductDetail:
+      type: object
+      properties:
+        public_id:
+          type: string
+          format: uuid
+        business_no:
+          type: string
+        name:
+          type: string
+        lifecycle_status:
+          type: string
+        brand_code:
+          type: string
+        category_code:
+          type: string
+        formula_summary:
+          type: string
+        versions:
+          type: array
+          items:
+            $ref: '#/components/schemas/ProductVersionSummary'
+        external_bindings:
+          type: array
+          items:
+            $ref: '#/components/schemas/ExternalBinding'
+      required:
+      - brand_code
+      - business_no
+      - category_code
+      - external_bindings
+      - lifecycle_status
+      - name
+      - public_id
+      - versions
     ProductDraftDetail:
       type: object
       properties:
@@ -1371,6 +2578,87 @@ components:
       - status
       - target_product_asset_public_id
       - title
+    ProductSearchPage:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/ProductSummary'
+        page:
+          type: integer
+        page_size:
+          type: integer
+        count:
+          type: integer
+      required:
+      - count
+      - items
+      - page
+      - page_size
+    ProductSkuSummary:
+      type: object
+      properties:
+        public_id:
+          type: string
+          format: uuid
+        sku_code:
+          type: string
+        name:
+          type: string
+        specification:
+          type: string
+        barcode:
+          type: string
+        channels:
+          type: array
+          items: {}
+      required:
+      - name
+      - public_id
+      - sku_code
+      - specification
+    ProductSummary:
+      type: object
+      properties:
+        public_id:
+          type: string
+          format: uuid
+        business_no:
+          type: string
+        name:
+          type: string
+        lifecycle_status:
+          type: string
+        formula_summary:
+          type: string
+      required:
+      - business_no
+      - lifecycle_status
+      - name
+      - public_id
+    ProductVersionSummary:
+      type: object
+      properties:
+        public_id:
+          type: string
+          format: uuid
+        version_code:
+          type: string
+        version_name:
+          type: string
+        status:
+          type: string
+        skus:
+          type: array
+          items:
+            $ref: '#/components/schemas/ProductSkuSummary'
+      required:
+      - public_id
+      - skus
+      - status
+      - version_code
+      - version_name
     ProjectCandidateDetail:
       type: object
       properties:
@@ -1522,6 +2810,72 @@ components:
       - target_users_needs
       - version_number
       - version_status
+    PublicationBlock:
+      type: object
+      properties:
+        code:
+          type: string
+        message:
+          type: string
+      required:
+      - code
+      - message
+    PublicationValidation:
+      type: object
+      properties:
+        can_publish:
+          type: boolean
+        blocks:
+          type: array
+          items:
+            $ref: '#/components/schemas/PublicationBlock'
+      required:
+      - blocks
+      - can_publish
+    PublishChangeSetRequest:
+      type: object
+      properties:
+        idempotency_key:
+          type: string
+      required:
+      - idempotency_key
+    PublishChangeSetResponse:
+      type: object
+      properties:
+        change_set_public_id:
+          type: string
+          format: uuid
+        product_version_public_id:
+          type: string
+          format: uuid
+        product_lifecycle_status:
+          type: string
+      required:
+      - change_set_public_id
+      - product_lifecycle_status
+      - product_version_public_id
+    PublishLegacyBaselineResponse:
+      type: object
+      properties:
+        change_set_public_id:
+          type: string
+          format: uuid
+        product_version_public_id:
+          type: string
+          format: uuid
+        product_public_id:
+          type: string
+          format: uuid
+        product_name:
+          type: string
+        product_lifecycle_status:
+          type: string
+      required:
+      - change_set_public_id
+      - product_lifecycle_status
+      - product_name
+      - product_public_id
+      - product_version_public_id
     QuarterlyReviewRequest:
       type: object
       properties:
@@ -1548,6 +2902,20 @@ components:
       - action
       - defer_record_public_id
       - public_id
+    ReassignConfirmerRequest:
+      type: object
+      properties:
+        group_value_public_id:
+          type: string
+          format: uuid
+        confirmer_public_id:
+          type: string
+          format: uuid
+        reason:
+          type: string
+      required:
+      - confirmer_public_id
+      - group_value_public_id
     ReconsiderationRequest:
       type: object
       properties:
@@ -1575,6 +2943,25 @@ components:
       - original_cycle_public_id
       - public_id
       - target_stage_code
+    RoleCatalogItem:
+      type: object
+      properties:
+        public_id:
+          type: string
+        role_code:
+          type: string
+        name:
+          type: string
+        role_type:
+          type: string
+        is_critical:
+          type: boolean
+      required:
+      - is_critical
+      - name
+      - public_id
+      - role_code
+      - role_type
     SplitCandidateRequest:
       type: object
       properties:
@@ -1627,6 +3014,124 @@ components:
           type: string
       required:
       - idempotency_key
+    UpdateChangeSetScopeRequest:
+      type: object
+      properties:
+        version_no:
+          type: integer
+        skus:
+          type: array
+          items: {}
+        channels:
+          type: array
+          items: {}
+        scopes:
+          type: array
+          items: {}
+        effective_from:
+          type: string
+          format: date-time
+      required:
+      - version_no
+    UploadSessionCompleteRequest:
+      type: object
+      properties:
+        document_code:
+          type: string
+        title:
+          type: string
+    UploadSessionCompleteResponse:
+      type: object
+      properties:
+        version_public_id:
+          type: string
+        document_public_id:
+          type: string
+        status:
+          type: string
+      required:
+      - document_public_id
+      - status
+      - version_public_id
+    UploadSessionCreateRequest:
+      type: object
+      properties:
+        file:
+          type: string
+          format: uri
+        original_filename:
+          type: string
+        declared_mime_type:
+          type: string
+      required:
+      - file
+    UploadSessionCreateResponse:
+      type: object
+      properties:
+        public_id:
+          type: string
+        original_filename:
+          type: string
+        declared_mime_type:
+          type: string
+        size_bytes:
+          type: integer
+      required:
+      - declared_mime_type
+      - original_filename
+      - public_id
+      - size_bytes
+    UpsertExternalBindingRequest:
+      type: object
+      properties:
+        source_system:
+          type: string
+        object_type:
+          type: string
+        external_id:
+          type: string
+      required:
+      - external_id
+      - object_type
+      - source_system
+    UserAssignmentCreateRequest:
+      type: object
+      properties:
+        role_code:
+          type: string
+        approval_reference:
+          type: string
+      required:
+      - role_code
+    UserAssignmentCreateResponse:
+      type: object
+      properties:
+        public_id:
+          type: string
+        role_code:
+          type: string
+      required:
+      - public_id
+      - role_code
+    UserAssignmentListItem:
+      type: object
+      properties:
+        public_id:
+          type: string
+        role_code:
+          type: string
+        role_name:
+          type: string
+        scope_type:
+          type: string
+        status:
+          type: string
+      required:
+      - public_id
+      - role_code
+      - role_name
+      - scope_type
+      - status
     WithdrawProposalRequest:
       type: object
       properties:

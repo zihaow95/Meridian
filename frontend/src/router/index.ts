@@ -16,6 +16,10 @@ import OpportunityWorkbenchView from '@/modules/opportunities/OpportunityWorkben
 import OpportunityPoolView from '@/modules/opportunities/OpportunityPoolView.vue'
 import LifecycleBoardView from '@/modules/opportunities/LifecycleBoardView.vue'
 import MajorGateDecisionView from '@/modules/stage-gates/MajorGateDecisionView.vue'
+import ProductListView from '@/modules/products/ProductListView.vue'
+import ProductDetailView from '@/modules/products/ProductDetailView.vue'
+import ProductChangeSetView from '@/modules/products/ProductChangeSetView.vue'
+import ProductImportPage from '@/modules/products/ProductImportPage.vue'
 
 const routes: RouteRecordRaw[] = [
   { path: '/', redirect: '/todos' },
@@ -42,6 +46,18 @@ const routes: RouteRecordRaw[] = [
   {
     path: '/stage-gates/:publicId/decide',
     component: MajorGateDecisionView,
+    meta: { requiresAuth: true },
+  },
+  { path: '/products', component: ProductListView, meta: { requiresAuth: true } },
+  { path: '/products/import', component: ProductImportPage, meta: { requiresAuth: true } },
+  {
+    path: '/products/:publicId',
+    component: ProductDetailView,
+    meta: { requiresAuth: true },
+  },
+  {
+    path: '/product-change-sets/:publicId',
+    component: ProductChangeSetView,
     meta: { requiresAuth: true },
   },
   { path: '/documents/:publicId', component: AccessDeniedView, meta: { requiresAuth: true } },

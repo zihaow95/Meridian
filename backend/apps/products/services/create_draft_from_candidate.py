@@ -1,4 +1,4 @@
-"""Create a minimal product draft shell from an approved project candidate."""
+"""Create a minimal product change set shell from an approved project candidate."""
 
 from __future__ import annotations
 
@@ -10,9 +10,10 @@ from django.db import IntegrityError
 from apps.identity.models.user import User
 from apps.opportunities.models import CandidateType, ProjectCandidate
 from apps.products.models import (
-    DraftStatus,
-    DraftType,
+    ChangeSetStatus,
+    ChangeSetType,
     ProductAsset,
+    ProductChangeSet,
     ProductDraft,
     ProductLifecycleStatus,
     ProductSourceType,
@@ -42,7 +43,8 @@ def create_product_draft(
         if target_asset is None:
             raise ProjectCreationFailed(message="Target product asset was not found.")
         product_asset = target_asset
-        draft_type = DraftType.PRODUCT_CHANGE
+        change_type = ChangeSetType.ITERATION
+        target_asset_for_set = target_asset
     else:
         product_asset = ProductAsset.objects.create(
             organization=candidate.organization,
@@ -53,21 +55,22 @@ def create_product_draft(
             product_owner=case_owner,
             source_project=project,
         )
-        draft_type = DraftType.NEW_PRODUCT
-        target_asset = None
+        change_type = ChangeSetType.NEW_PRODUCT
+        target_asset_for_set = None
 
     try:
-        draft = ProductDraft.objects.create(
+        change_set = ProductChangeSet.objects.create(
             organization=candidate.organization,
-            product_asset=product_asset,
-            draft_type=draft_type,
-            status=DraftStatus.DRAFT,
-            target_product_asset=target_asset,
+            change_type=change_type,
+            status=ChangeSetStatus.DRAFT,
+            product=product_asset,
+            target_product_asset=target_asset_for_set,
             project_candidate=candidate,
+            project=project,
             title=candidate.name,
             definition_summary=candidate.resource_risk_summary,
         )
     except IntegrityError as exc:
         raise ProjectCreationFailed(message="Product draft already exists for candidate.") from exc
 
-    return product_asset, draft
+    return product_asset, ProductDraft.objects.get(pk=change_set.pk)

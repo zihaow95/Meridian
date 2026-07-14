@@ -52,3 +52,28 @@ OPPORTUNITY_ACTIONS: tuple[tuple[str, str, str], ...] = (
     ("deferred_item.review", "opportunity", ActionCategory.DECIDE),
     ("reconsideration.create", "opportunity", ActionCategory.WRITE),
 )
+
+PRODUCT_ACTIONS: tuple[tuple[str, str, str], ...] = (
+    ("product.search", "product", ActionCategory.READ),
+    ("product.read_basic", "product", ActionCategory.READ),
+    ("product.read_sensitive", "product", ActionCategory.READ),
+    ("product_version.history.read", "product", ActionCategory.READ),
+    ("product_draft.create", "product_change_set", ActionCategory.WRITE),
+    ("product_draft.edit_group", "product_change_set", ActionCategory.WRITE),
+    ("product_draft.submit", "product_change_set", ActionCategory.DECIDE),
+    ("product_change_set.approve", "product_change_set", ActionCategory.DECIDE),
+    ("attribute_group.confirm", "product_change_set", ActionCategory.DECIDE),
+    ("attribute_group.return", "product_change_set", ActionCategory.DECIDE),
+    ("confirmer.reassign", "product_change_set", ActionCategory.ADMIN),
+    ("product.publish_new", "product", ActionCategory.DECIDE),
+    ("product.publish_iteration", "product", ActionCategory.DECIDE),
+    ("product.publish_baseline", "product", ActionCategory.DECIDE),
+    ("product.correct_baseline", "product", ActionCategory.DECIDE),
+    ("product_material.preview", "product_material", ActionCategory.READ),
+    ("product_material.download_original", "product_material", ActionCategory.READ),
+    ("product.export", "product", ActionCategory.EXPORT),
+    ("external_binding.manage", "product", ActionCategory.ADMIN),
+    ("migration.upload", "migration", ActionCategory.ADMIN),
+    ("migration.review", "migration", ActionCategory.ADMIN),
+    ("migration.confirm", "migration", ActionCategory.ADMIN),
+)
