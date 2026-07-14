@@ -1,6 +1,6 @@
 ﻿# 阶段3 产品档案与存量迁移 —— 测试矩阵
 
-状态：已通过（2026-07-14，`scripts\check.cmd` 复验；确认人候选人远程搜索/分页、`can_reassign_confirmer` 权限门控、候选查询参数 400 已闭环）
+状态：已通过（2026-07-14，`scripts\check.cmd` 复验；确认人候选人远程搜索/分页、失败回滚与请求竞态、`can_reassign_confirmer` 权限门控已闭环）
 
 对应计划：`docs/superpowers/plans/2026-07-09-phase-3-product-profile-migration.md`
 
@@ -26,7 +26,7 @@
 | PIM-012 | 导入确认幂等与基线发布 | `backend/tests/products/test_legacy_baseline_publish.py`, `backend/tests/acceptance/test_product_profile_migration.py` | 已通过 |
 | PIM-013 | 外部绑定与编码管理 | `backend/tests/products/test_external_binding.py` | 已通过 |
 | PIM-014 | OpenAPI 契约与前端类型漂移门禁 | `backend/openapi/schema.yaml`, `frontend/src/api/generated/schema.d.ts`（含 `ConfirmerCandidatePage`、`can_reassign_confirmer`，产品页禁手写契约） | 已通过 |
-| PIM-015 | 属性组确认人边界与改派 | `backend/tests/products/test_attribute_confirmer_identity.py`（跨组拒绝、候选人搜索/翻页、非法 page 参数 400、非管理者 `can_reassign_confirmer=false`）；前端 `ProductChangeSetView.spec.ts`（无权限不请求候选） | 已通过 |
+| PIM-015 | 属性组确认人边界与改派 | `backend/tests/products/test_attribute_confirmer_identity.py`（跨组拒绝、候选人搜索/翻页、非法 page 参数 400、非管理者 `can_reassign_confirmer=false`）；前端 `ProductChangeSetView.spec.ts`（无权限不请求候选；搜索/加载更多失败回滚与竞态） | 已通过 |
 
 ## E2E
 

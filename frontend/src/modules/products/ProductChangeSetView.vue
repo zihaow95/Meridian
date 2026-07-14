@@ -32,6 +32,7 @@ const confirmerTotalCount = ref(0)
 const confirmerLoading = ref(false)
 const confirmerPageSize = 50
 let confirmerSearchTimer: ReturnType<typeof setTimeout> | undefined
+let confirmerRequestSeq = 0
 
 const changeSetPublicId = computed(() => String(route.params.publicId))
 const versionNo = computed(() => products.changeSet?.version_no ?? 1)
@@ -40,6 +41,20 @@ const canReassignConfirmer = computed(() => products.changeSet?.can_reassign_con
 const hasMoreConfirmerCandidates = computed(
   () => confirmerCandidates.value.length < confirmerTotalCount.value,
 )
+
+function formatConfirmerLoadError(err: unknown): string {
+  const record = typeof err === 'object' && err !== null ? (err as Record<string, unknown>) : null
+  const code = typeof record?.code === 'string' ? record.code : ''
+  const message =
+    err instanceof Error ? err.message : typeof record?.message === 'string' ? record.message : ''
+  if (code && message) {
+    return `${code}: ${message}`
+  }
+  if (message) {
+    return message
+  }
+  return '加载确认人候选失败'
+}
 
 function hydrateScopeFromChangeSet(): void {
   const scope = products.changeSet?.change_scope
@@ -65,31 +80,38 @@ function hydrateScopeFromChangeSet(): void {
 }
 
 async function loadConfirmerCandidates(
-  options: { reset?: boolean; search?: string } = {},
+  options: { reset?: boolean; search?: string; page?: number } = {},
 ): Promise<void> {
   if (!canReassignConfirmer.value) {
     return
   }
   const reset = options.reset ?? true
   const search = options.search ?? confirmerSearch.value
-  if (reset) {
-    confirmerPage.value = 1
-  }
+  const requestPage = options.page ?? (reset ? 1 : confirmerPage.value + 1)
+  const requestSeq = ++confirmerRequestSeq
   confirmerLoading.value = true
   try {
     const page = await products.fetchConfirmerCandidates(changeSetPublicId.value, {
-      page: confirmerPage.value,
+      page: requestPage,
       page_size: confirmerPageSize,
       search: search.trim() || undefined,
     })
+    if (requestSeq !== confirmerRequestSeq) {
+      return
+    }
+    if (!page || !Array.isArray(page.items) || typeof page.count !== 'number') {
+      throw new Error('invalid confirmer candidate page')
+    }
+    confirmerPage.value = requestPage
     confirmerTotalCount.value = page.count
+    const items = page.items
     if (reset) {
-      confirmerCandidates.value = page.items
+      confirmerCandidates.value = items
     } else {
       const existing = new Set(confirmerCandidates.value.map((row) => row.public_id))
       confirmerCandidates.value = [
         ...confirmerCandidates.value,
-        ...page.items.filter((row) => !existing.has(row.public_id)),
+        ...items.filter((row) => !existing.has(row.public_id)),
       ]
     }
     if (reset && !reassignConfirmerId.value) {
@@ -100,8 +122,16 @@ async function loadConfirmerCandidates(
         reassignConfirmerId.value = confirmerCandidates.value[0]?.public_id ?? ''
       }
     }
+    errorText.value = ''
+  } catch (err: unknown) {
+    if (requestSeq !== confirmerRequestSeq) {
+      return
+    }
+    errorText.value = formatConfirmerLoadError(err)
   } finally {
-    confirmerLoading.value = false
+    if (requestSeq === confirmerRequestSeq) {
+      confirmerLoading.value = false
+    }
   }
 }
 
@@ -111,7 +141,7 @@ function searchConfirmerCandidates(query: string): void {
     clearTimeout(confirmerSearchTimer)
   }
   confirmerSearchTimer = setTimeout(() => {
-    void loadConfirmerCandidates({ reset: true, search: query })
+    void loadConfirmerCandidates({ reset: true, search: query, page: 1 })
   }, 300)
 }
 
@@ -119,8 +149,7 @@ async function loadMoreConfirmerCandidates(): Promise<void> {
   if (!hasMoreConfirmerCandidates.value || confirmerLoading.value) {
     return
   }
-  confirmerPage.value += 1
-  await loadConfirmerCandidates({ reset: false })
+  await loadConfirmerCandidates({ reset: false, page: confirmerPage.value + 1 })
 }
 
 async function load(): Promise<void> {
@@ -291,6 +320,19 @@ async function approveChangeSet(): Promise<void> {
 }
 
 onMounted(load)
+
+defineExpose({
+  searchConfirmerCandidates,
+  loadMoreConfirmerCandidates,
+  loadConfirmerCandidates,
+  getConfirmerState: () => ({
+    candidates: confirmerCandidates.value,
+    page: confirmerPage.value,
+    total: confirmerTotalCount.value,
+    error: errorText.value,
+    loading: confirmerLoading.value,
+  }),
+})
 </script>
 
 <template>
