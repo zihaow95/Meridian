@@ -17,7 +17,8 @@ D:\Projects\Meridian
 - 四份开发前文档已完成；
 - **阶段0工程基础与阶段1平台内核已完成**（Django 5.2 + Vue 3 正式工程，MySQL 测试门禁与 Playwright E2E 已通过 remediation 验收）；
 - **阶段2（提案→立案→立项）已完成**（两个重大阶段门、原子项目/产品草稿创建、前端最小闭环与 E2E 验收已通过本地门禁）；
-- 阶段3（产品档案与存量迁移）已完成（见 `docs/implementation/phase-3-checkpoint.md`）；阶段4尚未开始。
+- **阶段3（产品档案与存量迁移）已完成**（见 [`phase-3-checkpoint.md`](docs/implementation/phase-3-checkpoint.md)；全量门禁 `All quality gates passed.`，pytest 199、产品迁移 E2E 9）；
+- **阶段4（开发到首次上市）尚未开始**；任务级实施计划已就绪：[`2026-07-14-phase-4-development-first-launch.md`](docs/superpowers/plans/2026-07-14-phase-4-development-first-launch.md)（覆盖 EXE-001—014，目标为 D1—L3 执行、`FIRST_LAUNCH`、产品发布与最小运营交接）。
 
 ## 文档入口
 
@@ -34,15 +35,22 @@ D:\Projects\Meridian
 ### 技术设计
 
 - [TRD索引](docs/trd/README.md)
+- [开发到首次上市 TRD](docs/trd/03-development-launch-execution-trd.md)
 - [TRD完整性审计](docs/trd/2026-06-30-trd-completeness-audit.md)
 
 ### 开发准备
 
 - [开发就绪基线](docs/development/00-development-readiness-baseline.md)
 - [分阶段实施计划](docs/development/01-phased-implementation-plan.md)
-- [阶段2完成检查点](docs/implementation/phase-2-checkpoint.md)
 - [工程规范](docs/development/02-engineering-standards.md)
 - [测试策略与质量门禁](docs/development/03-test-strategy-and-quality-gates.md)
+
+### 实施进度与计划
+
+- [阶段2完成检查点](docs/implementation/phase-2-checkpoint.md)
+- [阶段3完成检查点](docs/implementation/phase-3-checkpoint.md)
+- [阶段3测试矩阵](docs/implementation/phase-3-test-matrix.md)
+- [阶段4任务级计划](docs/superpowers/plans/2026-07-14-phase-4-development-first-launch.md)
 
 ## 开发环境
 
@@ -185,8 +193,6 @@ Major stage gates: 4
 
 ## 下一步
 
-1. 确认并提交设计基线；
-2. 编写Phase 0任务级实施计划；
-3. 初始化`backend/`、`frontend/`、`deploy/`和`tests/`；
-4. 建立CI、MySQL测试环境和质量门禁；
-5. 开始平台内核和首个纵向业务切片。
+1. 按阶段4计划 Task 4.0 建立执行基线（确认门禁、创建 `phase-4-test-matrix.md`、链接主计划）；
+2. 依次交付 Task 4.1—4.10（建议按 PR1—PR5 拆分）：运行时初始化 → 任务/R → 交付物/确认 → 阶段策略与逾期 → 阶段门与 `FIRST_LAUNCH` → 在途迁移 → API/OpenAPI → 前端工作台 → E2E与退出证据；
+3. 阶段4退出后进入阶段5（运营、迭代和退市）；本阶段不实现经营事实、指标、信号或退市门。
