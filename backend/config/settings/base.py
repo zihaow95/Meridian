@@ -49,6 +49,7 @@ INSTALLED_APPS = [
     "apps.stage_gates",
     "apps.projects",
     "apps.products",
+    "apps.work_items",
 ]
 
 AUTH_USER_MODEL = "identity.User"

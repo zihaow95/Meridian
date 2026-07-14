@@ -63,6 +63,7 @@ class InitializeProjectRuntime:
         )
 
         stages = self._expand_stages(snapshot.content_copy)
+        self._expand_tasks(snapshot.content_copy, stages)
         gates = [stage for stage in stages if stage.gate_code]
         d1 = next(stage for stage in stages if stage.stage_code == "D1")
         d1.status = ProjectStageStatus.ACTIVE
@@ -167,6 +168,66 @@ class InitializeProjectRuntime:
             )
             created.append(stage)
         return created
+
+    def _expand_tasks(self, content: dict[str, Any], stages: list[ProjectStage]) -> None:
+        from apps.identity.models.department import Department
+        from apps.work_items.models import (
+            Task,
+            TaskDependency,
+            TaskDependencyType,
+            TaskSourceType,
+            TaskStatus,
+        )
+
+        stages_by_code = {stage.stage_code: stage for stage in stages}
+        created: dict[str, Task] = {}
+        for entry in content.get("tasks") or []:
+            stage = stages_by_code.get(entry["stage_code"])
+            if stage is None:
+                raise ProjectTemplateInvalid(
+                    message=f"Task references unknown stage: {entry.get('stage_code')}"
+                )
+            department = Department.objects.filter(
+                organization=self.project.organization,
+                department_code=entry["responsible_department_code"],
+            ).first()
+            if department is None:
+                raise ProjectTemplateInvalid(
+                    message=(
+                        "Missing department for task template: "
+                        f"{entry['responsible_department_code']}"
+                    )
+                )
+            task = Task.objects.create(
+                organization=self.project.organization,
+                project=self.project,
+                stage=stage,
+                task_code=entry["task_code"],
+                name=entry["name"],
+                description=str(entry.get("description") or ""),
+                source_type=TaskSourceType.TEMPLATE,
+                is_core=bool(entry.get("is_core", True)),
+                responsible_department=department,
+                status=TaskStatus.NOT_STARTED,
+                version_no=1,
+            )
+            created[task.task_code] = task
+
+        for entry in content.get("tasks") or []:
+            task = created[entry["task_code"]]
+            for pred_code in entry.get("depends_on") or []:
+                predecessor = created.get(pred_code)
+                if predecessor is None:
+                    raise ProjectTemplateInvalid(
+                        message=f"Unknown task dependency: {pred_code}"
+                    )
+                TaskDependency.objects.create(
+                    organization=self.project.organization,
+                    task=task,
+                    predecessor=predecessor,
+                    dependency_type=entry.get("dependency_type")
+                    or TaskDependencyType.HARD,
+                )
 
 
 def validate_project_template_content(content: dict[str, Any]) -> None:

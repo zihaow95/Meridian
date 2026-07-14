@@ -77,3 +77,28 @@ PRODUCT_ACTIONS: tuple[tuple[str, str, str], ...] = (
     ("migration.review", "migration", ActionCategory.ADMIN),
     ("migration.confirm", "migration", ActionCategory.ADMIN),
 )
+
+EXECUTION_ACTIONS: tuple[tuple[str, str, str], ...] = (
+    ("project.read", "project", ActionCategory.READ),
+    ("plan.edit", "project", ActionCategory.WRITE),
+    ("member.manage", "project", ActionCategory.ADMIN),
+    ("task.create", "task", ActionCategory.WRITE),
+    ("task.assign_department_member", "task", ActionCategory.WRITE),
+    ("task.update_own", "task", ActionCategory.WRITE),
+    ("deliverable.create", "deliverable", ActionCategory.WRITE),
+    ("revision.submit", "deliverable_revision", ActionCategory.WRITE),
+    ("revision.download", "deliverable_revision", ActionCategory.READ),
+    ("professional_confirmation.decide", "professional_confirmation", ActionCategory.DECIDE),
+    ("confirmer.reassign", "product_change_set", ActionCategory.ADMIN),
+    ("stage_handling.request", "project_stage", ActionCategory.WRITE),
+    ("stage_handling.confirm", "project_stage", ActionCategory.DECIDE),
+    ("stage_gate.submit", "stage_gate", ActionCategory.WRITE),
+    ("normal_gate.decide", "stage_gate", ActionCategory.DECIDE),
+    ("first_launch.management_conclusion.record", "stage_gate", ActionCategory.DECIDE),
+    ("first_launch.final_decision.record", "stage_gate", ActionCategory.DECIDE),
+    ("project_exception.confirm", "project", ActionCategory.DECIDE),
+    ("plan_change.apply_minor", "project", ActionCategory.WRITE),
+    ("plan_change.confirm_important", "project", ActionCategory.DECIDE),
+    ("emergency_execution.create", "project", ActionCategory.WRITE),
+    ("project_migration.confirm", "project", ActionCategory.ADMIN),
+)
