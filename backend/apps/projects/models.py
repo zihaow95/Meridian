@@ -17,7 +17,27 @@ class ProjectStatus(models.TextChoices):
     ACTIVE = "ACTIVE", "Active"
     DEFERRED = "DEFERRED", "Deferred"
     PASSED = "PASSED", "Passed"
+    PUBLISH_PENDING_REPAIR = "PUBLISH_PENDING_REPAIR", "Publish pending repair"
+    OPERATING = "OPERATING", "Operating"
     CLOSED = "CLOSED", "Closed"
+
+
+class ProjectStageStatus(models.TextChoices):
+    NOT_STARTED = "NOT_STARTED", "Not started"
+    ACTIVE = "ACTIVE", "Active"
+    READY_FOR_GATE = "READY_FOR_GATE", "Ready for gate"
+    COMPLETED = "COMPLETED", "Completed"
+    DEFERRED = "DEFERRED", "Deferred"
+    PASSED = "PASSED", "Passed"
+
+
+class StageHandlingMode(models.TextChoices):
+    EXECUTE = "EXECUTE", "Execute"
+    REUSE = "REUSE", "Reuse"
+    SIMPLIFY = "SIMPLIFY", "Simplify"
+    EXEMPT = "EXEMPT", "Exempt"
+    NOT_APPLICABLE = "NOT_APPLICABLE", "Not applicable"
+    PARALLEL = "PARALLEL", "Parallel"
 
 
 class ProjectRole(models.TextChoices):
@@ -66,6 +86,24 @@ class Project(OrganizationOwnedModel):
         on_delete=models.PROTECT,
         related_name="projects",
     )
+    template_snapshot = models.ForeignKey(
+        "configuration.ConfigurationSnapshot",
+        null=True,
+        blank=True,
+        on_delete=models.PROTECT,
+        related_name="projects",
+    )
+    current_stage = models.ForeignKey(
+        "projects.ProjectStage",
+        null=True,
+        blank=True,
+        on_delete=models.PROTECT,
+        related_name="+",
+    )
+    planned_start_at = models.DateTimeField(null=True, blank=True)
+    planned_end_at = models.DateTimeField(null=True, blank=True)
+    actual_start_at = models.DateTimeField(null=True, blank=True)
+    actual_end_at = models.DateTimeField(null=True, blank=True)
     idempotency_key = models.CharField(max_length=128)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -80,11 +118,85 @@ class Project(OrganizationOwnedModel):
         ]
         indexes = [
             models.Index(fields=["organization", "status", "updated_at"]),
+            models.Index(fields=["organization", "status", "current_stage"]),
             models.Index(fields=["leader", "status"]),
         ]
 
     def __str__(self) -> str:
         return f"{self.business_no}:{self.name}"
+
+
+class ProjectTemplateSnapshot(OrganizationOwnedModel):
+    """Project-owned pointer to an immutable configuration snapshot."""
+
+    project = models.OneToOneField(
+        Project,
+        on_delete=models.PROTECT,
+        related_name="project_template_snapshot",
+    )
+    configuration_snapshot = models.ForeignKey(
+        "configuration.ConfigurationSnapshot",
+        on_delete=models.PROTECT,
+        related_name="project_template_snapshots",
+    )
+    source_version = models.ForeignKey(
+        "configuration.ConfigurationVersion",
+        on_delete=models.PROTECT,
+        related_name="project_template_snapshots",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = "projects_project_template_snapshot"
+
+    def __str__(self) -> str:
+        return f"template-snapshot:{self.project_id}"
+
+
+class ProjectStage(OrganizationOwnedModel):
+    project = models.ForeignKey(
+        Project,
+        on_delete=models.PROTECT,
+        related_name="stages",
+    )
+    stage_code = models.CharField(max_length=16)
+    name = models.CharField(max_length=200)
+    sequence_no = models.PositiveIntegerField()
+    status = models.CharField(
+        max_length=32,
+        choices=ProjectStageStatus.choices,
+        default=ProjectStageStatus.NOT_STARTED,
+    )
+    handling_mode = models.CharField(
+        max_length=32,
+        choices=StageHandlingMode.choices,
+        default=StageHandlingMode.EXECUTE,
+    )
+    gate_code = models.CharField(max_length=64, blank=True, default="")
+    gate_type = models.CharField(max_length=16, blank=True, default="")
+    depends_on = models.JSONField(default=list)
+    planned_start_at = models.DateTimeField(null=True, blank=True)
+    planned_end_at = models.DateTimeField(null=True, blank=True)
+    actual_start_at = models.DateTimeField(null=True, blank=True)
+    actual_end_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "projects_project_stage"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["project", "stage_code"],
+                name="projects_project_stage_code_uniq",
+            ),
+        ]
+        indexes = [
+            models.Index(fields=["project", "sequence_no"]),
+            models.Index(fields=["project", "status"]),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.project_id}:{self.stage_code}"
 
 
 class ProjectMember(OrganizationOwnedModel):

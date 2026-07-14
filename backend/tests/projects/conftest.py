@@ -51,6 +51,60 @@ def opportunity_rules(organization: Organization, active_user: User) -> Configur
 
 
 @pytest.fixture
+def default_project_template_content() -> dict:
+    stages = [
+        {"code": "D1", "name": "项目启动与产品定义", "sequence_no": 1, "depends_on": []},
+        {"code": "D2", "name": "配方打样与体验验证", "sequence_no": 2, "depends_on": ["D1"]},
+        {"code": "D3", "name": "工艺放大与质量验证", "sequence_no": 3, "depends_on": ["D2"]},
+        {"code": "D4", "name": "工程化与试销准备", "sequence_no": 4, "depends_on": ["D3"]},
+        {"code": "D5", "name": "上市验证/试销", "sequence_no": 5, "depends_on": ["D4"]},
+        {"code": "L1", "name": "正式上市方案", "sequence_no": 6, "depends_on": ["D5"]},
+        {
+            "code": "L2",
+            "name": "首次上市阶段门",
+            "sequence_no": 7,
+            "depends_on": ["L1"],
+            "gate": {"gate_code": "FIRST_LAUNCH", "gate_type": "MAJOR"},
+        },
+        {"code": "L3", "name": "发布与运营交接", "sequence_no": 8, "depends_on": ["L2"]},
+    ]
+    return {
+        "template_code": "NEW_PRODUCT_DEFAULT_V1",
+        "project_type": "NEW_PRODUCT",
+        "stages": stages,
+        "tasks": [],
+        "deliverables": [],
+        "gates": [
+            {"stage_code": "L2", "gate_code": "FIRST_LAUNCH", "gate_type": "MAJOR"},
+        ],
+    }
+
+
+@pytest.fixture
+def project_template_version(
+    organization: Organization,
+    active_user: User,
+    default_project_template_content: dict,
+) -> ConfigurationVersion:
+    definition = ConfigurationDefinition.objects.create(
+        organization=organization,
+        definition_code="PROJECT_EXECUTION_TEMPLATE",
+        name="Project execution template",
+    )
+    return ConfigurationVersion.objects.create(
+        organization=organization,
+        definition=definition,
+        version_number=1,
+        status=ConfigurationStatus.PUBLISHED,
+        content_json=default_project_template_content,
+        content_digest="digest-project-template-v1",
+        created_by=active_user,
+        published_by=active_user,
+        published_at=timezone.now(),
+    )
+
+
+@pytest.fixture
 def product_manager(organization: Organization, grant_action: Callable[..., None]) -> User:
     user = User.objects.create_user(
         organization=organization,
@@ -106,7 +160,11 @@ def approved_candidate(
 
 
 @pytest.fixture
-def project(approved_candidate: ProjectCandidate, boss: User) -> Project:
+def project(
+    approved_candidate: ProjectCandidate,
+    boss: User,
+    project_template_version: ConfigurationVersion,
+) -> Project:
     return (
         ApproveAndCreateProject(
             context=CommandContext.for_actor(boss),
