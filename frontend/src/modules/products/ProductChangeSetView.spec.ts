@@ -48,6 +48,20 @@ const stubs = {
       return () => h('input', { ...attrs, value: props.modelValue as string })
     },
   }),
+  'el-select': defineComponent({
+    name: 'ElSelectStub',
+    props: ['modelValue'],
+    setup(props, { attrs, slots }) {
+      return () => h('select', { ...attrs, value: props.modelValue as string }, slots.default?.())
+    },
+  }),
+  'el-option': defineComponent({
+    name: 'ElOptionStub',
+    props: ['label', 'value'],
+    setup(props) {
+      return () => h('option', { value: props.value as string }, props.label as string)
+    },
+  }),
   'el-button': defineComponent({
     name: 'ElButtonStub',
     setup(_props, { slots, attrs }) {
@@ -91,6 +105,12 @@ describe('ProductChangeSetView', () => {
       .mockResolvedValueOnce({
         change_set_public_id: 'change-set-1',
         changed_fields: [],
+      })
+      .mockResolvedValueOnce({
+        items: [{ public_id: 'user-1', display_name: 'Owner' }],
+        page: 1,
+        page_size: 50,
+        count: 1,
       })
       .mockResolvedValueOnce({
         can_publish: true,

@@ -859,6 +859,27 @@ paths:
               schema:
                 $ref: '#/components/schemas/ProductChangeSetDetail'
           description: ''
+  /api/v1/product-change-sets/{public_id}/confirmer-candidates:
+    get:
+      operationId: product_change_sets_confirmer_candidates_list
+      parameters:
+      - in: path
+        name: public_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - product-change-sets
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConfirmerCandidatePage'
+          description: ''
   /api/v1/product-change-sets/{public_id}/diff:
     get:
       operationId: product_change_sets_diff_retrieve
@@ -1886,6 +1907,35 @@ components:
       - items
       - linked_count
       - skipped_count
+    ConfirmerCandidate:
+      type: object
+      properties:
+        public_id:
+          type: string
+          format: uuid
+        display_name:
+          type: string
+      required:
+      - display_name
+      - public_id
+    ConfirmerCandidatePage:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/ConfirmerCandidate'
+        page:
+          type: integer
+        page_size:
+          type: integer
+        count:
+          type: integer
+      required:
+      - count
+      - items
+      - page
+      - page_size
     CreateChangeSetRequest:
       type: object
       properties:

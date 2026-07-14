@@ -9,7 +9,10 @@ from uuid import UUID
 from django.db.models import Q, QuerySet
 
 from apps.authorization.context import AuthorizationContext, ResourceDescriptor
-from apps.authorization.models.role import DataSensitivityLevel
+from apps.authorization.models.assignment import AssignmentStatus, RoleAssignment, ScopeType
+from apps.authorization.models.role import DataSensitivityLevel, RoleStatus
+from apps.authorization.models.special_grant import SpecialGrant, SpecialGrantStatus
+from apps.authorization.models.troubleshoot import TroubleshootAccess, TroubleshootAccessStatus
 from apps.authorization.policies.engine import authorize
 from apps.authorization.services.subject import subject_for
 from apps.identity.models.user import User
@@ -24,6 +27,7 @@ from apps.products.models import (
 
 _DEFAULT_PAGE_SIZE = 20
 _MAX_PAGE_SIZE = 100
+_READ_BASIC_ACTION = "product.read_basic"
 
 
 @dataclass(frozen=True)
@@ -37,7 +41,7 @@ class ProductSearchPage:
 def _can_read_basic(user: User, product: ProductAsset) -> bool:
     return authorize(
         subject_for(user),
-        action="product.read_basic",
+        action=_READ_BASIC_ACTION,
         resource=ResourceDescriptor(
             resource_type="product",
             public_id=product.public_id,
@@ -79,9 +83,77 @@ def _formula_summary(product: ProductAsset) -> str | None:
     return str(summary) if summary is not None else None
 
 
+def _has_org_level_product_read(user: User) -> bool:
+    """Whether RBAC grants organization-wide product.read_basic.
+
+    Mirrors authorize() for INTERNAL sensitivity: platform roles are not blocked
+    for product.read_basic unless the resource is highly sensitive.
+    """
+    context = AuthorizationContext.current()
+    return (
+        RoleAssignment.objects.filter(
+            user=user,
+            status=AssignmentStatus.ACTIVE,
+            effective_from__lte=context.as_of,
+            scope_type=ScopeType.ORGANIZATION,
+            role__status=RoleStatus.ACTIVE,
+            role__permissions__action__action_code=_READ_BASIC_ACTION,
+        )
+        .filter(Q(effective_to__isnull=True) | Q(effective_to__gt=context.as_of))
+        .exists()
+    )
+
+
+def _extra_granted_product_public_ids(user: User) -> tuple[bool, set[UUID]]:
+    """Return (covers_all_org_products, specific_public_ids) from grants/access."""
+    context = AuthorizationContext.current()
+    covers_all = False
+    public_ids: set[UUID] = set()
+
+    grants = SpecialGrant.objects.filter(
+        grantee=user,
+        status=SpecialGrantStatus.ACTIVE,
+        resource_type="product",
+        valid_from__lte=context.as_of,
+        valid_to__gt=context.as_of,
+    )
+    for grant in grants:
+        if _READ_BASIC_ACTION not in grant.actions:
+            continue
+        if grant.resource_public_id is None:
+            covers_all = True
+        else:
+            public_ids.add(grant.resource_public_id)
+
+    accesses = TroubleshootAccess.objects.filter(
+        user=user,
+        status=TroubleshootAccessStatus.ACTIVE,
+        resource_type="product",
+        valid_from__lte=context.as_of,
+        valid_to__gt=context.as_of,
+    )
+    for access in accesses:
+        if _READ_BASIC_ACTION not in access.actions:
+            continue
+        if access.resource_public_id is None:
+            covers_all = True
+        else:
+            public_ids.add(access.resource_public_id)
+
+    return covers_all, public_ids
+
+
 def _candidate_products_for_user(user: User) -> QuerySet[ProductAsset]:
-    """Limit candidates to products the subject could own or collaborate on."""
+    """Candidates covering all authorize() allow paths for product.read_basic."""
     from apps.projects.models import ProjectMember, ProjectRole
+
+    base = ProductAsset.objects.filter(organization_id=user.organization_id)
+    if _has_org_level_product_read(user):
+        return base
+
+    grant_covers_all, granted_public_ids = _extra_granted_product_public_ids(user)
+    if grant_covers_all:
+        return base
 
     membership_project_ids = ProjectMember.objects.filter(
         user=user,
@@ -90,15 +162,14 @@ def _candidate_products_for_user(user: User) -> QuerySet[ProductAsset]:
         project__organization_id=user.organization_id,
     ).values_list("project_id", flat=True)
 
-    return (
-        ProductAsset.objects.filter(organization_id=user.organization_id)
-        .filter(
-            Q(product_owner_id=user.id)
-            | Q(source_project__leader_id=user.id)
-            | Q(source_project_id__in=membership_project_ids)
-        )
-        .distinct()
+    conditions = (
+        Q(product_owner_id=user.id)
+        | Q(source_project__leader_id=user.id)
+        | Q(source_project_id__in=membership_project_ids)
     )
+    if granted_public_ids:
+        conditions |= Q(public_id__in=granted_public_ids)
+    return base.filter(conditions).distinct()
 
 
 def _apply_product_filters(
@@ -172,17 +243,29 @@ def search_products(
     )
     queryset = queryset.order_by("name", "business_no", "public_id")
 
-    allowed: list[dict[str, Any]] = []
-    for product in queryset.iterator(chunk_size=200):
-        if not _can_read_basic(user, product):
-            continue
-        allowed.append(serialize_product_summary(product, user=user))
+    allowed_ids: list[int] = []
+    for product in queryset.only("id", "public_id", "organization_id").iterator(chunk_size=200):
+        if _can_read_basic(user, product):
+            allowed_ids.append(product.id)
 
-    count = len(allowed)
+    count = len(allowed_ids)
     start = (page - 1) * page_size
     end = start + page_size
+    page_ids = allowed_ids[start:end]
+    if not page_ids:
+        return ProductSearchPage(items=[], page=page, page_size=page_size, count=count)
+
+    products_by_id = {
+        product.id: product
+        for product in ProductAsset.objects.filter(id__in=page_ids).select_related("product_owner")
+    }
+    items = [
+        serialize_product_summary(products_by_id[product_id], user=user)
+        for product_id in page_ids
+        if product_id in products_by_id
+    ]
     return ProductSearchPage(
-        items=allowed[start:end],
+        items=items,
         page=page,
         page_size=page_size,
         count=count,

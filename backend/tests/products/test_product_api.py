@@ -2,11 +2,29 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
+from datetime import timedelta
+
 import pytest
+from django.db import connection
+from django.test.utils import CaptureQueriesContext
+from django.utils import timezone
 from rest_framework.test import APIClient
 
+from apps.authorization.models.role import DataSensitivityLevel
+from apps.authorization.models.special_grant import SpecialGrant, SpecialGrantStatus
+from apps.authorization.models.troubleshoot import TroubleshootAccess, TroubleshootAccessStatus
 from apps.identity.models.user import User
-from apps.products.models import ProductAsset, ProductLifecycleStatus, ProductSourceType
+from apps.products.models import (
+    AttributeGroupDefinition,
+    AttributeGroupValue,
+    AttributeOwnerType,
+    AttributeValueStatus,
+    ProductAsset,
+    ProductLifecycleStatus,
+    ProductSourceType,
+)
+from apps.products.services.attribute_schema import compute_attribute_content_hash
 
 
 @pytest.mark.django_db
@@ -157,3 +175,152 @@ def test_product_list_candidate_filter_skips_unowned_org_products(
     public_ids = {row["public_id"] for row in response.json()["items"]}
     assert str(owned.public_id) in public_ids
     assert all(row["business_no"] != "PRD-OTHER" for row in response.json()["items"])
+
+
+@pytest.mark.django_db
+def test_org_rbac_can_list_products_owned_by_others(
+    api_client: APIClient,
+    organization,
+    product_manager: User,
+    ordinary_employee: User,
+    grant_action: Callable[..., None],
+    published_product_schema,
+) -> None:
+    del published_product_schema
+    grant_action(
+        ordinary_employee,
+        "product.read_basic",
+        "product",
+        role_code="PRODUCT_DIRECTOR",
+    )
+    other = ProductAsset.objects.create(
+        organization=organization,
+        business_no="PRD-RBAC",
+        name="RBAC visible yogurt",
+        category_code="YOGURT",
+        source_type=ProductSourceType.NEW_PROJECT,
+        lifecycle_status=ProductLifecycleStatus.ACTIVE,
+        product_owner=product_manager,
+    )
+    api_client.force_authenticate(user=ordinary_employee)
+    response = api_client.get("/api/v1/products", {"search": "RBAC visible"})
+    public_ids = {row["public_id"] for row in response.json()["items"]}
+    assert str(other.public_id) in public_ids
+
+
+@pytest.mark.django_db
+def test_special_grant_can_list_granted_product(
+    api_client: APIClient,
+    organization,
+    product_manager: User,
+    ordinary_employee: User,
+    active_product: ProductAsset,
+) -> None:
+    now = timezone.now()
+    SpecialGrant.objects.create(
+        grantee=ordinary_employee,
+        grantor=product_manager,
+        resource_type="product",
+        resource_public_id=active_product.public_id,
+        actions=["product.read_basic"],
+        max_sensitivity_level=DataSensitivityLevel.INTERNAL,
+        valid_from=now - timedelta(hours=1),
+        valid_to=now + timedelta(days=1),
+        status=SpecialGrantStatus.ACTIVE,
+        purpose="list grant",
+    )
+    api_client.force_authenticate(user=ordinary_employee)
+    response = api_client.get("/api/v1/products", {"search": active_product.name})
+    public_ids = {row["public_id"] for row in response.json()["items"]}
+    assert str(active_product.public_id) in public_ids
+
+
+@pytest.mark.django_db
+def test_troubleshoot_access_can_list_granted_product(
+    api_client: APIClient,
+    organization,
+    product_manager: User,
+    ordinary_employee: User,
+    active_product: ProductAsset,
+) -> None:
+    del organization
+    now = timezone.now()
+    TroubleshootAccess.objects.create(
+        user=ordinary_employee,
+        opened_by=product_manager,
+        resource_type="product",
+        resource_public_id=active_product.public_id,
+        actions=["product.read_basic"],
+        max_sensitivity_level=DataSensitivityLevel.INTERNAL,
+        valid_from=now - timedelta(hours=1),
+        valid_to=now + timedelta(days=1),
+        status=TroubleshootAccessStatus.ACTIVE,
+        purpose="list troubleshoot",
+    )
+    api_client.force_authenticate(user=ordinary_employee)
+    response = api_client.get("/api/v1/products", {"search": active_product.name})
+    public_ids = {row["public_id"] for row in response.json()["items"]}
+    assert str(active_product.public_id) in public_ids
+
+
+@pytest.mark.django_db
+def test_product_list_serializes_only_current_page_sensitive_fields(
+    api_client: APIClient,
+    organization,
+    product_manager: User,
+    grant_action: Callable[..., None],
+    published_product_schema,
+) -> None:
+    del published_product_schema
+    grant_action(
+        product_manager,
+        "product.read_basic",
+        "product",
+        role_code="PRODUCT_DIRECTOR",
+    )
+    grant_action(
+        product_manager,
+        "product.read_sensitive",
+        "product",
+        role_code="PRODUCT_DIRECTOR",
+    )
+    group = AttributeGroupDefinition.objects.get(
+        schema_version__organization=organization,
+        group_code="PRODUCT_DEFINITION",
+    )
+    for index in range(8):
+        product = ProductAsset.objects.create(
+            organization=organization,
+            business_no=f"PRD-Q-{index:02d}",
+            name=f"Query yogurt {index:02d}",
+            category_code="YOGURT",
+            source_type=ProductSourceType.NEW_PROJECT,
+            lifecycle_status=ProductLifecycleStatus.ACTIVE,
+            product_owner=product_manager,
+        )
+        values = {"formula_summary": f"formula-{index}"}
+        AttributeGroupValue.objects.create(
+            organization=organization,
+            owner_type=AttributeOwnerType.PRODUCT,
+            owner_id=product.id,
+            group_definition=group,
+            schema_version=group.schema_version,
+            values_json=values,
+            content_hash=compute_attribute_content_hash(values),
+            value_status=AttributeValueStatus.EFFECTIVE,
+        )
+
+    api_client.force_authenticate(user=product_manager)
+    with CaptureQueriesContext(connection) as captured:
+        response = api_client.get(
+            "/api/v1/products",
+            {"search": "Query yogurt", "page_size": 2},
+        )
+    assert response.status_code == 200
+    assert len(response.json()["items"]) == 2
+    formula_queries = [
+        query["sql"]
+        for query in captured.captured_queries
+        if "products_attribute_group_value" in query["sql"].lower()
+    ]
+    assert len(formula_queries) <= 4

@@ -182,6 +182,24 @@ REASSIGN_CONFIRMER_REQUEST_SCHEMA = inline_serializer(
     },
 )
 
+CONFIRMER_CANDIDATE_SCHEMA = inline_serializer(
+    name="ConfirmerCandidate",
+    fields={
+        "public_id": serializers.UUIDField(),
+        "display_name": serializers.CharField(),
+    },
+)
+
+CONFIRMER_CANDIDATE_PAGE_SCHEMA = inline_serializer(
+    name="ConfirmerCandidatePage",
+    fields={
+        "items": serializers.ListField(child=CONFIRMER_CANDIDATE_SCHEMA),
+        "page": serializers.IntegerField(),
+        "page_size": serializers.IntegerField(),
+        "count": serializers.IntegerField(),
+    },
+)
+
 CHANGE_SET_DIFF_SCHEMA = inline_serializer(
     name="ProductChangeSetDiffResponse",
     fields={

@@ -33,6 +33,9 @@ export type ProductChangeSetDetail = components['schemas']['ProductChangeSetDeta
 export type PublicationValidation = components['schemas']['PublicationValidation']
 export type ImportBatchDetail = components['schemas']['ImportBatchDetail']
 export type ConfirmImportBatchResponse = components['schemas']['ConfirmImportBatchResponse']
+export type PublishLegacyBaselineResponse = components['schemas']['PublishLegacyBaselineResponse']
+export type ProductSearchPage = components['schemas']['ProductSearchPage']
+export type ReassignConfirmerRequest = components['schemas']['ReassignConfirmerRequest']
 
 export type ExternalBinding = {
   public_id: string
@@ -53,20 +56,7 @@ export type AttributeGroup = {
   assigned_confirmer_public_id?: string | null
 }
 
-export type PublishLegacyBaselineResponse = {
-  change_set_public_id: string
-  product_version_public_id: string
-  product_public_id: string
-  product_name: string
-  product_lifecycle_status: string
-}
-
-export type ProductSearchPage = {
-  items: ProductSummary[]
-  page: number
-  page_size: number
-  count: number
-}
+export type ConfirmerCandidate = components['schemas']['ConfirmerCandidate']
 
 export type ChangeSetDiff = {
   change_set_public_id: string
@@ -195,12 +185,18 @@ export const useProductStore = defineStore('products', {
     },
     async reassignConfirmer(
       changeSetPublicId: string,
-      payload: { group_value_public_id: string; confirmer_public_id: string; reason?: string },
+      payload: ReassignConfirmerRequest,
     ): Promise<void> {
       this.changeSet = await apiFetch<ProductChangeSetDetail>(
         `/api/v1/product-change-sets/${changeSetPublicId}/reassign-confirmer`,
         { method: 'POST', json: payload },
       )
+    },
+    async fetchConfirmerCandidates(changeSetPublicId: string): Promise<ConfirmerCandidate[]> {
+      const page = await apiFetch<{ items: ConfirmerCandidate[] }>(
+        `/api/v1/product-change-sets/${changeSetPublicId}/confirmer-candidates`,
+      )
+      return page.items
     },
     async submitChangeSet(changeSetPublicId: string): Promise<void> {
       this.changeSet = await apiFetch<ProductChangeSetDetail>(

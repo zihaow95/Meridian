@@ -6,18 +6,27 @@ from typing import cast
 from uuid import UUID
 
 from drf_spectacular.utils import extend_schema
+from rest_framework import serializers
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.request import Request
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from apps.identity.models.user import User
-from apps.platform.api.errors import ResourceNotFoundError
+from apps.authorization.context import AuthorizationContext, ResourceDescriptor
+from apps.authorization.policies.engine import authorize
+from apps.authorization.services.subject import subject_for
+from apps.identity.models.user import User, UserStatus
+from apps.platform.api.errors import (
+    PermissionDeniedError,
+    ResourceNotFoundError,
+    ValidationFailedError,
+)
 from apps.platform.application.command import CommandContext
 from apps.products.api.schemas import (
     ATTRIBUTE_CONFIRMATION_REQUEST_SCHEMA,
     CHANGE_SET_DETAIL_SCHEMA,
     CHANGE_SET_DIFF_SCHEMA,
+    CONFIRMER_CANDIDATE_PAGE_SCHEMA,
     CREATE_CHANGE_SET_REQUEST_SCHEMA,
     EDIT_CHANGE_SET_REQUEST_SCHEMA,
     PUBLICATION_VALIDATION_SCHEMA,
@@ -288,6 +297,12 @@ class ReturnAttributeGroupView(APIView):
         return Response(serialize_change_set_detail(change_set))
 
 
+class _ReassignConfirmerSerializer(serializers.Serializer):
+    group_value_public_id = serializers.UUIDField()
+    confirmer_public_id = serializers.UUIDField()
+    reason = serializers.CharField(required=False, allow_blank=True, default="")
+
+
 class ReassignAttributeConfirmerView(APIView):
     permission_classes = [IsAuthenticated]
 
@@ -298,13 +313,71 @@ class ReassignAttributeConfirmerView(APIView):
     )
     def post(self, request: Request, public_id: UUID) -> Response:
         user = cast(User, request.user)
-        body = request.data
+        serializer = _ReassignConfirmerSerializer(data=request.data)
+        if not serializer.is_valid():
+            raise ValidationFailedError(details=serializer.errors)
+        data = serializer.validated_data
         ReassignAttributeConfirmer(
             context=CommandContext.for_actor(user),
             change_set_public_id=public_id,
-            group_value_public_id=UUID(str(body["group_value_public_id"])),
-            confirmer_public_id=UUID(str(body["confirmer_public_id"])),
-            reason=str(body.get("reason") or ""),
+            group_value_public_id=data["group_value_public_id"],
+            confirmer_public_id=data["confirmer_public_id"],
+            reason=str(data.get("reason") or ""),
         ).execute()
         change_set = ProductChangeSet.objects.select_related("product").get(public_id=public_id)
         return Response(serialize_change_set_detail(change_set))
+
+
+class ConfirmerCandidateListView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    @extend_schema(
+        operation_id="product_change_sets_confirmer_candidates_list",
+        responses=CONFIRMER_CANDIDATE_PAGE_SCHEMA,
+    )
+    def get(self, request: Request, public_id: UUID) -> Response:
+        user = cast(User, request.user)
+        change_set = ProductChangeSet.objects.filter(
+            public_id=public_id,
+            organization_id=user.organization_id,
+        ).first()
+        if change_set is None:
+            raise ResourceNotFoundError()
+        decision = authorize(
+            subject_for(user),
+            action="confirmer.reassign",
+            resource=ResourceDescriptor(
+                resource_type="product_change_set",
+                public_id=change_set.public_id,
+                organization_id=change_set.organization_id,
+            ),
+            context=AuthorizationContext.current(),
+        )
+        if not decision.allowed:
+            raise PermissionDeniedError()
+
+        page = max(int(request.query_params.get("page") or 1), 1)
+        try:
+            page_size = int(request.query_params.get("page_size") or 50)
+        except (TypeError, ValueError):
+            page_size = 50
+        page_size = min(max(page_size, 1), 100)
+
+        queryset = User.objects.filter(
+            organization_id=user.organization_id,
+            status=UserStatus.ACTIVE,
+        ).order_by("display_name", "public_id")
+        count = queryset.count()
+        start = (page - 1) * page_size
+        rows = queryset[start : start + page_size]
+        return Response(
+            {
+                "items": [
+                    {"public_id": str(row.public_id), "display_name": row.display_name}
+                    for row in rows
+                ],
+                "page": page,
+                "page_size": page_size,
+                "count": count,
+            }
+        )

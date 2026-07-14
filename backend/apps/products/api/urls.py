@@ -8,6 +8,7 @@ from apps.products.api.bindings import ProductExternalBindingUpsertView
 from apps.products.api.change_sets import (
     ApproveAttributeGroupView,
     ApproveChangeSetView,
+    ConfirmerCandidateListView,
     ProductChangeSetCreateView,
     ProductChangeSetDetailView,
     ProductChangeSetDiffView,
@@ -92,6 +93,11 @@ urlpatterns = [
         "product-change-sets/<uuid:public_id>/reassign-confirmer",
         ReassignAttributeConfirmerView.as_view(),
         name="product-change-set-reassign-confirmer",
+    ),
+    path(
+        "product-change-sets/<uuid:public_id>/confirmer-candidates",
+        ConfirmerCandidateListView.as_view(),
+        name="product-change-set-confirmer-candidates",
     ),
     path(
         "product-change-sets/<uuid:public_id>/validate-publication",

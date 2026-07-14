@@ -14,7 +14,7 @@ from apps.audit.services.snapshots import acting_roles_snapshot
 from apps.authorization.context import AuthorizationContext, ResourceDescriptor
 from apps.authorization.policies.engine import authorize
 from apps.authorization.services.subject import subject_for
-from apps.platform.api.errors import PermissionDeniedError
+from apps.platform.api.errors import PermissionDeniedError, ValidationFailedError
 from apps.platform.application.command import CommandContext
 from apps.platform.outbox.services import OutboxMessage, register_outbox_event
 from apps.products.errors import AttributeConfirmationInvalid, ChangeSetNotEditable
@@ -287,7 +287,7 @@ class ReassignAttributeConfirmer:
             if group_value is None:
                 raise PermissionDeniedError()
 
-            from apps.identity.models.user import User
+            from apps.identity.models.user import User, UserStatus
 
             confirmer_query = User.objects.filter(organization_id=actor.organization_id)
             if self.confirmer_public_id is not None:
@@ -295,9 +295,21 @@ class ReassignAttributeConfirmer:
             elif self.confirmer_user_id is not None:
                 confirmer = confirmer_query.filter(id=self.confirmer_user_id).first()
             else:
-                raise PermissionDeniedError()
+                raise ValidationFailedError(
+                    details={"confirmer_public_id": ["This field is required."]}
+                )
             if confirmer is None:
-                raise PermissionDeniedError()
+                raise ValidationFailedError(
+                    details={
+                        "confirmer_public_id": [
+                            "Confirmer was not found in the organization.",
+                        ]
+                    }
+                )
+            if confirmer.status != UserStatus.ACTIVE:
+                raise ValidationFailedError(
+                    details={"confirmer_public_id": ["Confirmer must be an active user."]}
+                )
 
             previous_confirmer_id = group_value.assigned_confirmer_id
             group_value.assigned_confirmer = confirmer

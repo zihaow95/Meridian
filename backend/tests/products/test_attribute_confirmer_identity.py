@@ -231,3 +231,96 @@ def test_reassign_confirmer_api_allows_owner_to_assign(
     assert groups[str(group_value.public_id)]["assigned_confirmer_public_id"] == str(
         another_active_user.public_id
     )
+
+
+@pytest.mark.django_db
+def test_reassign_confirmer_api_rejects_invalid_payload_with_400(
+    api_client: APIClient,
+    change_set,
+    published_product_schema,
+    grant_action: Callable[..., None],
+) -> None:
+    del published_product_schema
+    grant_action(
+        change_set.created_by,
+        "confirmer.reassign",
+        "product_change_set",
+        role_code="PRODUCT_DIRECTOR",
+    )
+    api_client.force_authenticate(user=change_set.created_by)
+    response = api_client.post(
+        f"/api/v1/product-change-sets/{change_set.public_id}/reassign-confirmer",
+        {"group_value_public_id": "not-a-uuid"},
+        format="json",
+    )
+    assert response.status_code == 400
+    assert response.json()["code"] == "VALIDATION_FAILED"
+
+
+@pytest.mark.django_db
+def test_reassign_confirmer_rejects_disabled_user(
+    api_client: APIClient,
+    change_set,
+    another_active_user: User,
+    published_product_schema,
+    grant_action: Callable[..., None],
+) -> None:
+    from apps.identity.models.user import UserStatus
+
+    del published_product_schema
+    grant_action(
+        change_set.created_by,
+        "confirmer.reassign",
+        "product_change_set",
+        role_code="PRODUCT_DIRECTOR",
+    )
+    another_active_user.status = UserStatus.DISABLED
+    another_active_user.save(update_fields=["status", "updated_at"])
+    group_value = EditProductChangeSet(
+        context=CommandContext.for_actor(change_set.created_by),
+        change_set_public_id=change_set.public_id,
+        version_no=change_set.version_no,
+        group_code="PRODUCT_DEFINITION",
+        values={"core_selling_points": "High protein"},
+    ).execute()
+    api_client.force_authenticate(user=change_set.created_by)
+    response = api_client.post(
+        f"/api/v1/product-change-sets/{change_set.public_id}/reassign-confirmer",
+        {
+            "group_value_public_id": str(group_value.public_id),
+            "confirmer_public_id": str(another_active_user.public_id),
+        },
+        format="json",
+    )
+    assert response.status_code == 400
+    assert response.json()["code"] == "VALIDATION_FAILED"
+
+
+@pytest.mark.django_db
+def test_confirmer_candidates_lists_active_org_users(
+    api_client: APIClient,
+    change_set,
+    another_active_user: User,
+    published_product_schema,
+    grant_action: Callable[..., None],
+) -> None:
+    from apps.identity.models.user import UserStatus
+
+    del published_product_schema
+    grant_action(
+        change_set.created_by,
+        "confirmer.reassign",
+        "product_change_set",
+        role_code="PRODUCT_DIRECTOR",
+    )
+    another_active_user.status = UserStatus.DISABLED
+    another_active_user.save(update_fields=["status", "updated_at"])
+    api_client.force_authenticate(user=change_set.created_by)
+    response = api_client.get(
+        f"/api/v1/product-change-sets/{change_set.public_id}/confirmer-candidates"
+    )
+    assert response.status_code == 200
+    body = response.json()
+    public_ids = {row["public_id"] for row in body["items"]}
+    assert str(change_set.created_by.public_id) in public_ids
+    assert str(another_active_user.public_id) not in public_ids

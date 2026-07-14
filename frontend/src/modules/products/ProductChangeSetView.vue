@@ -5,7 +5,11 @@ import { useRoute } from 'vue-router'
 import { ApiError } from '@/api/client'
 import { useAuthStore } from '@/modules/auth/store'
 import ProductPublicationPanel from '@/modules/products/ProductPublicationPanel.vue'
-import { useProductStore, type AttributeGroup } from '@/modules/products/store'
+import {
+  useProductStore,
+  type AttributeGroup,
+  type ConfirmerCandidate,
+} from '@/modules/products/store'
 
 const route = useRoute()
 const products = useProductStore()
@@ -21,6 +25,7 @@ const channelCode = ref('TMALL')
 const editGroupCode = ref('PRODUCT_DEFINITION')
 const editValuesJson = ref('{"core_selling_points":"High protein"}')
 const reassignConfirmerId = ref('')
+const confirmerCandidates = ref<ConfirmerCandidate[]>([])
 
 const changeSetPublicId = computed(() => String(route.params.publicId))
 const versionNo = computed(() => products.changeSet?.version_no ?? 1)
@@ -55,10 +60,16 @@ async function load(): Promise<void> {
     if (!auth.me) {
       await auth.fetchMe()
     }
-    reassignConfirmerId.value = auth.me?.public_id ?? ''
     await products.fetchChangeSet(changeSetPublicId.value)
     hydrateScopeFromChangeSet()
     await products.fetchChangeSetDiff(changeSetPublicId.value)
+    confirmerCandidates.value = await products.fetchConfirmerCandidates(changeSetPublicId.value)
+    const selfId = auth.me?.public_id
+    if (selfId && confirmerCandidates.value.some((row) => row.public_id === selfId)) {
+      reassignConfirmerId.value = selfId
+    } else {
+      reassignConfirmerId.value = confirmerCandidates.value[0]?.public_id ?? ''
+    }
   } catch (err: unknown) {
     if (err instanceof ApiError) {
       errorText.value = `${err.code}: ${err.message}`
@@ -165,14 +176,14 @@ async function returnGroup(group: AttributeGroup): Promise<void> {
 
 async function reassignGroup(group: AttributeGroup): Promise<void> {
   errorText.value = ''
-  if (!reassignConfirmerId.value.trim()) {
-    errorText.value = '请填写确认人 public_id'
+  if (!reassignConfirmerId.value) {
+    errorText.value = '请选择确认人'
     return
   }
   try {
     await products.reassignConfirmer(changeSetPublicId.value, {
       group_value_public_id: group.public_id,
-      confirmer_public_id: reassignConfirmerId.value.trim(),
+      confirmer_public_id: reassignConfirmerId.value,
       reason: 'UI reassign',
     })
     statusMessage.value = `${group.group_code} 已改派确认人`
@@ -307,12 +318,21 @@ onMounted(load)
           </el-table-column>
         </el-table>
         <el-form label-width="120px" class="product-change-set__reassign">
-          <el-form-item label="确认人 ID">
-            <el-input
+          <el-form-item label="确认人">
+            <el-select
               v-model="reassignConfirmerId"
               data-test="reassign-confirmer-id"
-              placeholder="确认人 public_id"
-            />
+              placeholder="选择组织内有效确认人"
+              filterable
+              style="width: 100%"
+            >
+              <el-option
+                v-for="candidate in confirmerCandidates"
+                :key="candidate.public_id"
+                :label="candidate.display_name"
+                :value="candidate.public_id"
+              />
+            </el-select>
           </el-form-item>
         </el-form>
       </el-card>

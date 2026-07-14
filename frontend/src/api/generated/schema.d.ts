@@ -584,6 +584,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/product-change-sets/{public_id}/confirmer-candidates": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["product_change_sets_confirmer_candidates_list"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/product-change-sets/{public_id}/diff": {
         parameters: {
             query?: never;
@@ -1131,6 +1147,17 @@ export interface components {
             skipped_count: number;
             failed_count: number;
             items: unknown[];
+        };
+        ConfirmerCandidate: {
+            /** Format: uuid */
+            public_id: string;
+            display_name: string;
+        };
+        ConfirmerCandidatePage: {
+            items: components["schemas"]["ConfirmerCandidate"][];
+            page: number;
+            page_size: number;
+            count: number;
         };
         CreateChangeSetRequest: {
             change_type: string;
@@ -2463,6 +2490,27 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ProductChangeSetDetail"];
+                };
+            };
+        };
+    };
+    product_change_sets_confirmer_candidates_list: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                public_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConfirmerCandidatePage"];
                 };
             };
         };
