@@ -27,3 +27,15 @@ class ProjectTemplateInvalid(ApiError):
     code = "PROJECT_TEMPLATE_INVALID"
     message = "The project execution template failed validation."
     status_code = 409
+
+
+class InvalidStageHandlingRequest(ApiError):
+    code = "INVALID_STAGE_HANDLING_REQUEST"
+    message = "The requested stage handling mode is not allowed."
+    status_code = 409
+
+
+class PlanChangeNotAllowed(ApiError):
+    code = "PLAN_CHANGE_NOT_ALLOWED"
+    message = "The plan change cannot be applied."
+    status_code = 409

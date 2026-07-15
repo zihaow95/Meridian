@@ -179,6 +179,13 @@ class ProjectStage(OrganizationOwnedModel):
     planned_end_at = models.DateTimeField(null=True, blank=True)
     actual_start_at = models.DateTimeField(null=True, blank=True)
     actual_end_at = models.DateTimeField(null=True, blank=True)
+    exception = models.ForeignKey(
+        "projects.ExecutionException",
+        null=True,
+        blank=True,
+        on_delete=models.PROTECT,
+        related_name="+",
+    )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -197,6 +204,151 @@ class ProjectStage(OrganizationOwnedModel):
 
     def __str__(self) -> str:
         return f"{self.project_id}:{self.stage_code}"
+
+
+class ExecutionExceptionStatus(models.TextChoices):
+    PENDING = "PENDING", "Pending"
+    CONFIRMED = "CONFIRMED", "Confirmed"
+    REJECTED = "REJECTED", "Rejected"
+    CANCELLED = "CANCELLED", "Cancelled"
+
+
+class ExecutionException(OrganizationOwnedModel):
+    project = models.ForeignKey(
+        Project,
+        on_delete=models.PROTECT,
+        related_name="execution_exceptions",
+    )
+    stage = models.ForeignKey(
+        ProjectStage,
+        on_delete=models.PROTECT,
+        related_name="execution_exceptions",
+    )
+    exception_type = models.CharField(max_length=32, choices=StageHandlingMode.choices)
+    previous_mode = models.CharField(max_length=32, choices=StageHandlingMode.choices)
+    requested_mode = models.CharField(max_length=32, choices=StageHandlingMode.choices)
+    rationale = models.TextField()
+    evidence_summary = models.JSONField(default=dict)
+    requested_by = models.ForeignKey(
+        "identity.User",
+        on_delete=models.PROTECT,
+        related_name="requested_execution_exceptions",
+    )
+    confirmed_by = models.ForeignKey(
+        "identity.User",
+        null=True,
+        blank=True,
+        on_delete=models.PROTECT,
+        related_name="confirmed_execution_exceptions",
+    )
+    status = models.CharField(
+        max_length=32,
+        choices=ExecutionExceptionStatus.choices,
+        default=ExecutionExceptionStatus.PENDING,
+    )
+    confirmed_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "projects_execution_exception"
+        indexes = [
+            models.Index(fields=["project", "status"]),
+            models.Index(fields=["stage", "status"]),
+        ]
+
+
+class PlanChangeType(models.TextChoices):
+    MINOR = "MINOR", "Minor"
+    IMPORTANT = "IMPORTANT", "Important"
+    RESOURCE_ESCALATION = "RESOURCE_ESCALATION", "Resource escalation"
+
+
+class PlanChangeStatus(models.TextChoices):
+    APPLIED = "APPLIED", "Applied"
+    PENDING_CONFIRMATION = "PENDING_CONFIRMATION", "Pending confirmation"
+    CONFIRMED = "CONFIRMED", "Confirmed"
+    REJECTED = "REJECTED", "Rejected"
+
+
+class PlanChange(OrganizationOwnedModel):
+    project = models.ForeignKey(
+        Project,
+        on_delete=models.PROTECT,
+        related_name="plan_changes",
+    )
+    change_type = models.CharField(max_length=32, choices=PlanChangeType.choices)
+    target_type = models.CharField(max_length=64)
+    target_public_id = models.UUIDField()
+    field_name = models.CharField(max_length=64)
+    before_value = models.TextField(blank=True, default="")
+    after_value = models.TextField(blank=True, default="")
+    impact_summary = models.TextField(blank=True, default="")
+    requested_by = models.ForeignKey(
+        "identity.User",
+        on_delete=models.PROTECT,
+        related_name="requested_plan_changes",
+    )
+    confirmed_by = models.ForeignKey(
+        "identity.User",
+        null=True,
+        blank=True,
+        on_delete=models.PROTECT,
+        related_name="confirmed_plan_changes",
+    )
+    status = models.CharField(
+        max_length=32,
+        choices=PlanChangeStatus.choices,
+        default=PlanChangeStatus.PENDING_CONFIRMATION,
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    confirmed_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        db_table = "projects_plan_change"
+        indexes = [
+            models.Index(fields=["project", "status"]),
+        ]
+
+
+class EmergencyExecutionStatus(models.TextChoices):
+    OPEN = "OPEN", "Open"
+    COMPLETED = "COMPLETED", "Completed"
+    OVERDUE = "OVERDUE", "Overdue"
+
+
+class EmergencyExecution(OrganizationOwnedModel):
+    project = models.ForeignKey(
+        Project,
+        on_delete=models.PROTECT,
+        related_name="emergency_executions",
+    )
+    subject_summary = models.CharField(max_length=255)
+    pending_confirmation = models.TextField()
+    started_at = models.DateTimeField()
+    due_at = models.DateTimeField()
+    initiated_by = models.ForeignKey(
+        "identity.User",
+        on_delete=models.PROTECT,
+        related_name="initiated_emergency_executions",
+    )
+    initiator_roles_snapshot = models.JSONField(default=list)
+    status = models.CharField(
+        max_length=32,
+        choices=EmergencyExecutionStatus.choices,
+        default=EmergencyExecutionStatus.OPEN,
+    )
+    completed_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "projects_emergency_execution"
+        indexes = [
+            models.Index(fields=["project", "status"]),
+            models.Index(fields=["due_at", "status"]),
+        ]
 
 
 class ProjectMember(OrganizationOwnedModel):

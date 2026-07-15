@@ -71,7 +71,44 @@ class ProjectIdentityProvider:
             return ()
         return tuple(
             ObjectIdentity(action_code=action, resource=resource)
-            for action in ("project.read", "plan.edit", "member.manage")
+            for action in (
+                "project.read",
+                "plan.edit",
+                "member.manage",
+                "plan_change.apply_minor",
+            )
+        )
+
+
+class ProjectStageIdentityProvider:
+    resource_type = "project_stage"
+
+    def resolve_identities(
+        self,
+        *,
+        subject: AuthorizationSubject,
+        resource: ResourceDescriptor,
+        context: AuthorizationContext,
+    ) -> tuple[ObjectIdentity, ...]:
+        from apps.projects.models import ProjectStage
+
+        del context
+        if resource.public_id is None:
+            return ()
+        stage = (
+            ProjectStage.objects.select_related("project")
+            .filter(
+                public_id=resource.public_id,
+                organization_id=resource.organization_id,
+            )
+            .first()
+        )
+        if stage is None:
+            return ()
+        if stage.project.leader_id != subject.user.id:
+            return ()
+        return (
+            ObjectIdentity(action_code="stage_handling.request", resource=resource),
         )
 
 
@@ -175,6 +212,7 @@ class ProfessionalConfirmationIdentityProvider:
 def register_providers() -> None:
     identity_registry.register(TaskIdentityProvider())
     identity_registry.register(ProjectIdentityProvider())
+    identity_registry.register(ProjectStageIdentityProvider())
     identity_registry.register(DeliverableIdentityProvider())
     identity_registry.register(DeliverableRevisionIdentityProvider())
     identity_registry.register(ProfessionalConfirmationIdentityProvider())
