@@ -1,4 +1,4 @@
-"""Fixtures for major stage gate tests."""
+"""Fixtures for major and execution stage gate tests."""
 
 from __future__ import annotations
 
@@ -23,6 +23,8 @@ from apps.opportunities.services.submit_proposal import SubmitProposal
 from apps.platform.application.command import CommandContext
 from apps.stage_gates.models import StageGateInstance
 from apps.stage_gates.services.create_review_cycle import CreateProposalReviewCycle
+
+pytest_plugins = ["tests.projects.conftest"]
 
 
 @pytest.fixture
