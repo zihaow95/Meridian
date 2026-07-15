@@ -8,13 +8,47 @@ from apps.projects.api.migrations import (
     ProjectMigrationBaselineConfirmView,
     ProjectMigrationBatchCreateView,
 )
-from apps.projects.api.projects import ProjectDetailView
+from apps.projects.api.workbench import (
+    ProjectDeliverablesCollectionView,
+    ProjectEmergencyExecutionsView,
+    ProjectListView,
+    ProjectPlanChangesView,
+    ProjectStagesView,
+    ProjectTasksCollectionView,
+    ProjectWorkbenchDetailView,
+)
 
 urlpatterns = [
+    path("projects", ProjectListView.as_view(), name="projects-list"),
     path(
         "projects/<uuid:public_id>",
-        ProjectDetailView.as_view(),
+        ProjectWorkbenchDetailView.as_view(),
         name="project-detail",
+    ),
+    path(
+        "projects/<uuid:public_id>/stages",
+        ProjectStagesView.as_view(),
+        name="project-stages",
+    ),
+    path(
+        "projects/<uuid:public_id>/tasks",
+        ProjectTasksCollectionView.as_view(),
+        name="project-tasks",
+    ),
+    path(
+        "projects/<uuid:public_id>/deliverables",
+        ProjectDeliverablesCollectionView.as_view(),
+        name="project-deliverables",
+    ),
+    path(
+        "projects/<uuid:public_id>/plan-changes",
+        ProjectPlanChangesView.as_view(),
+        name="project-plan-changes",
+    ),
+    path(
+        "projects/<uuid:public_id>/emergency-executions",
+        ProjectEmergencyExecutionsView.as_view(),
+        name="project-emergency-executions",
     ),
     path(
         "project-migration-batches",

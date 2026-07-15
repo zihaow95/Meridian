@@ -290,6 +290,23 @@ paths:
               schema:
                 $ref: '#/components/schemas/QuarterlyReviewResponse'
           description: ''
+  /api/v1/deliverables/{public_id}/revisions:
+    post:
+      operationId: deliverables_revisions_create
+      parameters:
+      - in: path
+        name: public_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - deliverables
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          description: No response body
   /api/v1/documents/{document_public_id}/versions:
     get:
       operationId: document_versions_list
@@ -1407,6 +1424,23 @@ paths:
               schema:
                 $ref: '#/components/schemas/ExternalBinding'
           description: ''
+  /api/v1/professional-confirmations/{public_id}/decide:
+    post:
+      operationId: professional_confirmations_decide
+      parameters:
+      - in: path
+        name: public_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - professional-confirmations
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          description: No response body
   /api/v1/project-candidates/{public_id}:
     get:
       operationId: project_candidates_retrieve
@@ -1599,9 +1633,47 @@ paths:
               schema:
                 $ref: '#/components/schemas/ProjectCandidateDetail'
           description: ''
+  /api/v1/project-migration-baselines/{public_id}/confirm:
+    post:
+      operationId: project_migration_baselines_confirm
+      parameters:
+      - in: path
+        name: public_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - project-migration-baselines
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/project-migration-batches:
+    post:
+      operationId: project_migration_batches_create
+      tags:
+      - project-migration-batches
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/projects:
+    get:
+      operationId: projects_list
+      tags:
+      - projects
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          description: No response body
   /api/v1/projects/{public_id}:
     get:
       operationId: projects_retrieve
+      description: Override detail to enforce membership visibility.
       parameters:
       - in: path
         name: public_id
@@ -1615,11 +1687,92 @@ paths:
       - cookieAuth: []
       responses:
         '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ProjectDetail'
-          description: ''
+          description: No response body
+  /api/v1/projects/{public_id}/deliverables:
+    get:
+      operationId: projects_deliverables_list
+      parameters:
+      - in: path
+        name: public_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - projects
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/projects/{public_id}/emergency-executions:
+    post:
+      operationId: projects_emergency_executions_create
+      parameters:
+      - in: path
+        name: public_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - projects
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/projects/{public_id}/plan-changes:
+    post:
+      operationId: projects_plan_changes_create
+      parameters:
+      - in: path
+        name: public_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - projects
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/projects/{public_id}/stages:
+    get:
+      operationId: projects_stages_list
+      parameters:
+      - in: path
+        name: public_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - projects
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/projects/{public_id}/tasks:
+    get:
+      operationId: projects_tasks_list
+      parameters:
+      - in: path
+        name: public_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - projects
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          description: No response body
   /api/v1/proposal-quotas/current:
     get:
       operationId: proposal_quotas_current_retrieve
@@ -1660,6 +1813,40 @@ paths:
               schema:
                 $ref: '#/components/schemas/ReconsiderationResponse'
           description: ''
+  /api/v1/stage-gates/{public_id}/decision:
+    post:
+      operationId: stage_gates_decision_create
+      parameters:
+      - in: path
+        name: public_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - stage-gates
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/stage-gates/{public_id}/first-launch-decision:
+    post:
+      operationId: stage_gates_first_launch_decision_create
+      parameters:
+      - in: path
+        name: public_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - stage-gates
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          description: No response body
   /api/v1/stage-gates/{public_id}/major-decision:
     post:
       operationId: stage_gate_major_decision_create
@@ -1693,6 +1880,74 @@ paths:
               schema:
                 $ref: '#/components/schemas/MajorGateDecisionResponse'
           description: ''
+  /api/v1/stage-gates/{public_id}/submissions:
+    post:
+      operationId: stage_gates_submissions_create
+      parameters:
+      - in: path
+        name: public_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - stage-gates
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/stage-gates/{public_id}/validate:
+    post:
+      operationId: stage_gates_validate
+      parameters:
+      - in: path
+        name: public_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - stage-gates
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/tasks/{public_id}:
+    patch:
+      operationId: tasks_partial_update
+      parameters:
+      - in: path
+        name: public_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - tasks
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/tasks/{public_id}/assign:
+    post:
+      operationId: tasks_assign
+      parameters:
+      - in: path
+        name: public_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - tasks
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          description: No response body
   /api/v1/todos/my:
     get:
       operationId: notification_todos_list
@@ -2705,43 +2960,6 @@ components:
       - resource_risk_summary
       - status
       - version_no
-    ProjectDetail:
-      type: object
-      properties:
-        public_id:
-          type: string
-        business_no:
-          type: string
-        name:
-          type: string
-        project_type:
-          type: string
-        status:
-          type: string
-        candidate_public_id:
-          type: string
-        leader_public_id:
-          type: string
-        deputy_leader_public_id:
-          type: string
-          nullable: true
-        product_asset_public_id:
-          type: string
-          nullable: true
-        product_draft_public_id:
-          type: string
-          nullable: true
-      required:
-      - business_no
-      - candidate_public_id
-      - deputy_leader_public_id
-      - leader_public_id
-      - name
-      - product_asset_public_id
-      - product_draft_public_id
-      - project_type
-      - public_id
-      - status
     ProposalVersion:
       type: object
       properties:
