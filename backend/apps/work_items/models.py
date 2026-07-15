@@ -11,6 +11,7 @@ from apps.platform.models.base import OrganizationOwnedModel
 class TaskSourceType(models.TextChoices):
     TEMPLATE = "TEMPLATE", "Template"
     PROJECT_CUSTOM = "PROJECT_CUSTOM", "Project custom"
+    MIGRATED_HISTORY = "MIGRATED_HISTORY", "Migrated history"
 
 
 class TaskStatus(models.TextChoices):

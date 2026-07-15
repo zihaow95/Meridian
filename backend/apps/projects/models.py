@@ -29,6 +29,7 @@ class ProjectStageStatus(models.TextChoices):
     COMPLETED = "COMPLETED", "Completed"
     DEFERRED = "DEFERRED", "Deferred"
     PASSED = "PASSED", "Passed"
+    MIGRATED_HISTORY = "MIGRATED_HISTORY", "Migrated history"
 
 
 class StageHandlingMode(models.TextChoices):
@@ -57,6 +58,8 @@ class Project(OrganizationOwnedModel):
     )
     candidate = models.OneToOneField(
         "opportunities.ProjectCandidate",
+        null=True,
+        blank=True,
         on_delete=models.PROTECT,
         related_name="project",
     )
@@ -99,6 +102,13 @@ class Project(OrganizationOwnedModel):
         blank=True,
         on_delete=models.PROTECT,
         related_name="+",
+    )
+    migration_baseline = models.OneToOneField(
+        "projects.MigrationBaseline",
+        null=True,
+        blank=True,
+        on_delete=models.PROTECT,
+        related_name="project",
     )
     planned_start_at = models.DateTimeField(null=True, blank=True)
     planned_end_at = models.DateTimeField(null=True, blank=True)
@@ -412,3 +422,98 @@ class ProjectOpportunitySource(OrganizationOwnedModel):
 
     def __str__(self) -> str:
         return f"{self.project_id}:{self.opportunity_id}"
+
+
+class MigrationBatchStatus(models.TextChoices):
+    OPEN = "OPEN", "Open"
+    CLOSED = "CLOSED", "Closed"
+
+
+class MigrationDisposition(models.TextChoices):
+    CONTINUE = "CONTINUE", "Continue"
+    ARCHIVE_ONLY = "ARCHIVE_ONLY", "Archive only"
+
+
+class MigrationBaselineStatus(models.TextChoices):
+    IMPORTED = "IMPORTED", "Imported"
+    CONFIRMED = "CONFIRMED", "Confirmed"
+    FAILED = "FAILED", "Failed"
+
+
+class MigrationBatch(OrganizationOwnedModel):
+    batch_key = models.CharField(max_length=128)
+    imported_by = models.ForeignKey(
+        "identity.User",
+        on_delete=models.PROTECT,
+        related_name="imported_migration_batches",
+    )
+    status = models.CharField(
+        max_length=16,
+        choices=MigrationBatchStatus.choices,
+        default=MigrationBatchStatus.OPEN,
+    )
+    source_row_count = models.PositiveIntegerField(default=0)
+    accepted_row_count = models.PositiveIntegerField(default=0)
+    error_row_count = models.PositiveIntegerField(default=0)
+    row_errors = models.JSONField(default=list)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "projects_migration_batch"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["organization", "batch_key"],
+                name="projects_migration_batch_org_key_uniq",
+            ),
+        ]
+
+
+class MigrationBaseline(OrganizationOwnedModel):
+    batch = models.ForeignKey(
+        MigrationBatch,
+        on_delete=models.PROTECT,
+        related_name="baselines",
+    )
+    external_project_id = models.CharField(max_length=128)
+    name = models.CharField(max_length=200)
+    current_stage_code = models.CharField(max_length=32)
+    leader_display_name = models.CharField(max_length=128, blank=True, default="")
+    disposition = models.CharField(
+        max_length=32,
+        choices=MigrationDisposition.choices,
+        default=MigrationDisposition.CONTINUE,
+    )
+    history_decision_summary = models.TextField(blank=True, default="")
+    plan_summary = models.JSONField(default=dict)
+    history_tasks = models.JSONField(default=list)
+    history_files = models.JSONField(default=list)
+    status = models.CharField(
+        max_length=16,
+        choices=MigrationBaselineStatus.choices,
+        default=MigrationBaselineStatus.IMPORTED,
+    )
+    confirmed_by = models.ForeignKey(
+        "identity.User",
+        null=True,
+        blank=True,
+        on_delete=models.PROTECT,
+        related_name="confirmed_migration_baselines",
+    )
+    confirmed_at = models.DateTimeField(null=True, blank=True)
+    confirm_idempotency_key = models.CharField(max_length=128, null=True, blank=True, unique=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "projects_migration_baseline"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["batch", "external_project_id"],
+                name="projects_migration_baseline_batch_external_uniq",
+            ),
+            models.UniqueConstraint(
+                fields=["organization", "external_project_id"],
+                name="projects_migration_baseline_org_external_uniq",
+            ),
+        ]
