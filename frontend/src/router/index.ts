@@ -20,6 +20,8 @@ import ProductListView from '@/modules/products/ProductListView.vue'
 import ProductDetailView from '@/modules/products/ProductDetailView.vue'
 import ProductChangeSetView from '@/modules/products/ProductChangeSetView.vue'
 import ProductImportPage from '@/modules/products/ProductImportPage.vue'
+import ProjectLifecycleBoardView from '@/modules/projects/LifecycleBoardView.vue'
+import ProjectWorkbenchView from '@/modules/projects/ProjectWorkbenchView.vue'
 
 const routes: RouteRecordRaw[] = [
   { path: '/', redirect: '/todos' },
@@ -58,6 +60,17 @@ const routes: RouteRecordRaw[] = [
   {
     path: '/product-change-sets/:publicId',
     component: ProductChangeSetView,
+    meta: { requiresAuth: true },
+  },
+  { path: '/projects', component: ProjectLifecycleBoardView, meta: { requiresAuth: true } },
+  {
+    path: '/projects/:publicId',
+    component: ProjectWorkbenchView,
+    meta: { requiresAuth: true },
+  },
+  {
+    path: '/projects/:publicId/launch-gate',
+    component: ProjectWorkbenchView,
     meta: { requiresAuth: true },
   },
   { path: '/documents/:publicId', component: AccessDeniedView, meta: { requiresAuth: true } },
