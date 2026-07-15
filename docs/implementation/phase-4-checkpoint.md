@@ -8,7 +8,7 @@
 
 对应测试矩阵：`docs/implementation/phase-4-test-matrix.md`
 
-基准审查点：`ed74816` → 原退出提交 `4cc99dc` → 本轮修复提交见 git HEAD
+基准审查点：`ed74816` → 原退出提交 `4cc99dc` → 本轮修复提交 `8ad9cc2`
 
 ## NO-GO 修复摘要（相对 `4cc99dc`）
 
