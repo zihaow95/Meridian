@@ -8,9 +8,6 @@ from uuid import UUID
 
 from django.db.models import Q, QuerySet
 
-from apps.authorization.context import AuthorizationContext, ResourceDescriptor
-from apps.authorization.policies.engine import authorize
-from apps.authorization.services.subject import subject_for
 from apps.identity.models.user import User
 from apps.projects.models import Project, ProjectMember, ProjectStage
 from apps.projects.queries.projects import serialize_project_detail
@@ -30,22 +27,11 @@ class ProjectSearchPage:
 def can_access_project(user: User, project: Project) -> bool:
     if project.leader_id == user.id or project.deputy_leader_id == user.id:
         return True
-    if ProjectMember.objects.filter(
+    return ProjectMember.objects.filter(
         project=project,
         user=user,
         active_to__isnull=True,
-    ).exists():
-        return True
-    return authorize(
-        subject_for(user),
-        action="project.read",
-        resource=ResourceDescriptor(
-            resource_type="project",
-            public_id=project.public_id,
-            organization_id=project.organization_id,
-        ),
-        context=AuthorizationContext.current(),
-    ).allowed
+    ).exists()
 
 
 def _visible_projects(user: User) -> QuerySet[Project]:

@@ -230,6 +230,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/deliverable-revisions/{public_id}/submit": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["deliverable_revisions_submit"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/deliverables/{public_id}/revisions": {
         parameters: {
             query?: never;
@@ -320,6 +336,22 @@ export interface paths {
         get?: never;
         put?: never;
         post: operations["document_version_download_ticket_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/execution-exceptions/{public_id}/confirm": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["execution_exceptions_confirm"];
         delete?: never;
         options?: never;
         head?: never;
@@ -546,6 +578,22 @@ export interface paths {
         get: operations["opportunity_pool_list"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/plan-changes/{public_id}/confirm": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["plan_changes_confirm"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1048,6 +1096,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/project-stages/{public_id}/handling-requests": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["project_stages_handling_request"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/projects": {
         parameters: {
             query?: never;
@@ -1071,7 +1135,6 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** @description Override detail to enforce membership visibility. */
         get: operations["projects_retrieve"];
         put?: never;
         post?: never;
@@ -1107,6 +1170,22 @@ export interface paths {
         get?: never;
         put?: never;
         post: operations["projects_emergency_executions_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{public_id}/members": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["projects_members_create"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1464,6 +1543,13 @@ export interface components {
             next_review_quarter: string;
             status: string;
         };
+        DeliverableRevisionResponse: {
+            /** Format: uuid */
+            public_id: string;
+            revision_number?: number;
+            status: string;
+            content_hash?: string;
+        };
         DevLoginRequest: {
             login_key: string;
         };
@@ -1696,6 +1782,12 @@ export interface components {
             status: string;
             skus: components["schemas"]["ProductSkuSummary"][];
         };
+        ProfessionalConfirmationResponse: {
+            /** Format: uuid */
+            public_id: string;
+            status: string;
+            comment?: string;
+        };
         ProjectCandidateDetail: {
             public_id: string;
             business_no: string;
@@ -1709,6 +1801,43 @@ export interface components {
             resource_risk_summary: string | null;
             active_stage_gate_public_id: string | null;
             assessments: components["schemas"]["CaseAssessment"][];
+        };
+        ProjectListItem: {
+            /** Format: uuid */
+            public_id: string;
+            business_no: string;
+            name: string;
+            project_type: string;
+            status: string;
+            /** Format: uuid */
+            leader_public_id: string;
+            current_stage_code: string | null;
+        };
+        ProjectListResponse: {
+            items: components["schemas"]["ProjectListItem"][];
+            page: number;
+            page_size: number;
+            count: number;
+        };
+        ProjectWorkbenchDetail: {
+            /** Format: uuid */
+            public_id: string;
+            business_no: string;
+            name: string;
+            project_type: string;
+            status: string;
+            /** Format: uuid */
+            candidate_public_id: string | null;
+            /** Format: uuid */
+            leader_public_id: string;
+            /** Format: uuid */
+            deputy_leader_public_id: string | null;
+            /** Format: uuid */
+            product_asset_public_id: string | null;
+            /** Format: uuid */
+            product_draft_public_id: string | null;
+            current_stage_code: string | null;
+            opportunity_sources: unknown[];
         };
         ProposalVersion: {
             public_id: string;
@@ -1731,6 +1860,13 @@ export interface components {
             suggested_retail_price: string | null;
             submitted_at: string | null;
             locked_at: string | null;
+        };
+        PublicIdStatusResponse: {
+            /** Format: uuid */
+            public_id: string;
+            status?: string;
+            result?: string;
+            version_no?: number;
         };
         PublicationBlock: {
             code: string;
@@ -1799,6 +1935,22 @@ export interface components {
         SplitCandidateRequest: {
             candidate_names: string[];
         };
+        StageGateDecisionResponse: {
+            /** Format: uuid */
+            public_id?: string;
+            /** Format: uuid */
+            decision_public_id?: string;
+            result?: string;
+            final_decision?: string;
+            handover_error?: string | null;
+            project_status?: string | null;
+        };
+        StageGateSubmissionResponse: {
+            /** Format: uuid */
+            public_id: string;
+            submission_number: number;
+            content_hash: string;
+        };
         StageGateSummary: {
             public_id: string;
             stage_code: string;
@@ -1806,6 +1958,10 @@ export interface components {
             status: string;
             subject_type: string;
             subject_public_id: string;
+        };
+        StageGateValidateResponse: {
+            blocks: unknown[];
+            warnings: unknown[];
         };
         SubmitCandidateReviewRequest: {
             version_no?: number;
@@ -1816,6 +1972,14 @@ export interface components {
         SubmitProposalRequest: {
             version_no?: number;
             idempotency_key: string;
+        };
+        TaskCommandResponse: {
+            /** Format: uuid */
+            public_id: string;
+            status?: string;
+            version_no?: number;
+            /** Format: uuid */
+            responsible_user_public_id?: string | null;
         };
         UpdateChangeSetScopeRequest: {
             version_no: number;
@@ -1868,6 +2032,9 @@ export interface components {
         };
         WithdrawProposalRequest: {
             version_no?: number;
+        };
+        WorkbenchItemsResponse: {
+            items: unknown[];
         };
     };
     responses: never;
@@ -2196,6 +2363,27 @@ export interface operations {
             };
         };
     };
+    deliverable_revisions_submit: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                public_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DeliverableRevisionResponse"];
+                };
+            };
+        };
+    };
     deliverables_revisions_create: {
         parameters: {
             query?: never;
@@ -2207,12 +2395,13 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description No response body */
-            200: {
+            201: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["DeliverableRevisionResponse"];
+                };
             };
         };
     };
@@ -2327,6 +2516,27 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["DocumentVersionDownloadTicketResponse"];
+                };
+            };
+        };
+    };
+    execution_exceptions_confirm: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                public_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PublicIdStatusResponse"];
                 };
             };
         };
@@ -2687,6 +2897,27 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["OpportunitySummaryList"][];
+                };
+            };
+        };
+    };
+    plan_changes_confirm: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                public_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PublicIdStatusResponse"];
                 };
             };
         };
@@ -3239,12 +3470,13 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description No response body */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["ProfessionalConfirmationResponse"];
+                };
             };
         };
     };
@@ -3443,6 +3675,27 @@ export interface operations {
             };
         };
     };
+    project_stages_handling_request: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                public_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PublicIdStatusResponse"];
+                };
+            };
+        };
+    };
     projects_list: {
         parameters: {
             query?: never;
@@ -3452,12 +3705,13 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description No response body */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["ProjectListResponse"];
+                };
             };
         };
     };
@@ -3472,8 +3726,16 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description No response body */
             200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProjectWorkbenchDetail"];
+                };
+            };
+            /** @description No response body */
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -3492,12 +3754,13 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description No response body */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["WorkbenchItemsResponse"];
+                };
             };
         };
     };
@@ -3512,12 +3775,34 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description No response body */
-            200: {
+            201: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["PublicIdStatusResponse"];
+                };
+            };
+        };
+    };
+    projects_members_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                public_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PublicIdStatusResponse"];
+                };
             };
         };
     };
@@ -3532,12 +3817,13 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description No response body */
-            200: {
+            201: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["PublicIdStatusResponse"];
+                };
             };
         };
     };
@@ -3552,12 +3838,13 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description No response body */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["WorkbenchItemsResponse"];
+                };
             };
         };
     };
@@ -3572,12 +3859,13 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description No response body */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["WorkbenchItemsResponse"];
+                };
             };
         };
     };
@@ -3636,12 +3924,13 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description No response body */
-            200: {
+            201: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["StageGateDecisionResponse"];
+                };
             };
         };
     };
@@ -3656,12 +3945,13 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description No response body */
-            200: {
+            201: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["StageGateDecisionResponse"];
+                };
             };
         };
     };
@@ -3703,12 +3993,13 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description No response body */
-            200: {
+            201: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["StageGateSubmissionResponse"];
+                };
             };
         };
     };
@@ -3723,12 +4014,13 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description No response body */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["StageGateValidateResponse"];
+                };
             };
         };
     };
@@ -3743,12 +4035,13 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description No response body */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["TaskCommandResponse"];
+                };
             };
         };
     };
@@ -3763,12 +4056,13 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description No response body */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["TaskCommandResponse"];
+                };
             };
         };
     };

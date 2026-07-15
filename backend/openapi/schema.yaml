@@ -290,6 +290,27 @@ paths:
               schema:
                 $ref: '#/components/schemas/QuarterlyReviewResponse'
           description: ''
+  /api/v1/deliverable-revisions/{public_id}/submit:
+    post:
+      operationId: deliverable_revisions_submit
+      parameters:
+      - in: path
+        name: public_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - deliverable-revisions
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DeliverableRevisionResponse'
+          description: ''
   /api/v1/deliverables/{public_id}/revisions:
     post:
       operationId: deliverables_revisions_create
@@ -305,8 +326,12 @@ paths:
       security:
       - cookieAuth: []
       responses:
-        '200':
-          description: No response body
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DeliverableRevisionResponse'
+          description: ''
   /api/v1/documents/{document_public_id}/versions:
     get:
       operationId: document_versions_list
@@ -424,6 +449,27 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/DocumentVersionDownloadTicketResponse'
+          description: ''
+  /api/v1/execution-exceptions/{public_id}/confirm:
+    post:
+      operationId: execution_exceptions_confirm
+      parameters:
+      - in: path
+        name: public_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - execution-exceptions
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PublicIdStatusResponse'
           description: ''
   /api/v1/health:
     get:
@@ -800,6 +846,27 @@ paths:
                 type: array
                 items:
                   $ref: '#/components/schemas/OpportunitySummaryList'
+          description: ''
+  /api/v1/plan-changes/{public_id}/confirm:
+    post:
+      operationId: plan_changes_confirm
+      parameters:
+      - in: path
+        name: public_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - plan-changes
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PublicIdStatusResponse'
           description: ''
   /api/v1/product-change-sets/{public_id}:
     get:
@@ -1440,7 +1507,11 @@ paths:
       - cookieAuth: []
       responses:
         '200':
-          description: No response body
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProfessionalConfirmationResponse'
+          description: ''
   /api/v1/project-candidates/{public_id}:
     get:
       operationId: project_candidates_retrieve
@@ -1660,6 +1731,27 @@ paths:
       responses:
         '200':
           description: No response body
+  /api/v1/project-stages/{public_id}/handling-requests:
+    post:
+      operationId: project_stages_handling_request
+      parameters:
+      - in: path
+        name: public_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - project-stages
+      security:
+      - cookieAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PublicIdStatusResponse'
+          description: ''
   /api/v1/projects:
     get:
       operationId: projects_list
@@ -1669,11 +1761,14 @@ paths:
       - cookieAuth: []
       responses:
         '200':
-          description: No response body
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProjectListResponse'
+          description: ''
   /api/v1/projects/{public_id}:
     get:
       operationId: projects_retrieve
-      description: Override detail to enforce membership visibility.
       parameters:
       - in: path
         name: public_id
@@ -1687,6 +1782,12 @@ paths:
       - cookieAuth: []
       responses:
         '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProjectWorkbenchDetail'
+          description: ''
+        '404':
           description: No response body
   /api/v1/projects/{public_id}/deliverables:
     get:
@@ -1704,7 +1805,11 @@ paths:
       - cookieAuth: []
       responses:
         '200':
-          description: No response body
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkbenchItemsResponse'
+          description: ''
   /api/v1/projects/{public_id}/emergency-executions:
     post:
       operationId: projects_emergency_executions_create
@@ -1720,8 +1825,33 @@ paths:
       security:
       - cookieAuth: []
       responses:
-        '200':
-          description: No response body
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PublicIdStatusResponse'
+          description: ''
+  /api/v1/projects/{public_id}/members:
+    post:
+      operationId: projects_members_create
+      parameters:
+      - in: path
+        name: public_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - projects
+      security:
+      - cookieAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PublicIdStatusResponse'
+          description: ''
   /api/v1/projects/{public_id}/plan-changes:
     post:
       operationId: projects_plan_changes_create
@@ -1737,8 +1867,12 @@ paths:
       security:
       - cookieAuth: []
       responses:
-        '200':
-          description: No response body
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PublicIdStatusResponse'
+          description: ''
   /api/v1/projects/{public_id}/stages:
     get:
       operationId: projects_stages_list
@@ -1755,7 +1889,11 @@ paths:
       - cookieAuth: []
       responses:
         '200':
-          description: No response body
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkbenchItemsResponse'
+          description: ''
   /api/v1/projects/{public_id}/tasks:
     get:
       operationId: projects_tasks_list
@@ -1772,7 +1910,11 @@ paths:
       - cookieAuth: []
       responses:
         '200':
-          description: No response body
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkbenchItemsResponse'
+          description: ''
   /api/v1/proposal-quotas/current:
     get:
       operationId: proposal_quotas_current_retrieve
@@ -1828,8 +1970,12 @@ paths:
       security:
       - cookieAuth: []
       responses:
-        '200':
-          description: No response body
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StageGateDecisionResponse'
+          description: ''
   /api/v1/stage-gates/{public_id}/first-launch-decision:
     post:
       operationId: stage_gates_first_launch_decision_create
@@ -1845,8 +1991,12 @@ paths:
       security:
       - cookieAuth: []
       responses:
-        '200':
-          description: No response body
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StageGateDecisionResponse'
+          description: ''
   /api/v1/stage-gates/{public_id}/major-decision:
     post:
       operationId: stage_gate_major_decision_create
@@ -1895,8 +2045,12 @@ paths:
       security:
       - cookieAuth: []
       responses:
-        '200':
-          description: No response body
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StageGateSubmissionResponse'
+          description: ''
   /api/v1/stage-gates/{public_id}/validate:
     post:
       operationId: stage_gates_validate
@@ -1913,7 +2067,11 @@ paths:
       - cookieAuth: []
       responses:
         '200':
-          description: No response body
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StageGateValidateResponse'
+          description: ''
   /api/v1/tasks/{public_id}:
     patch:
       operationId: tasks_partial_update
@@ -1930,7 +2088,11 @@ paths:
       - cookieAuth: []
       responses:
         '200':
-          description: No response body
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TaskCommandResponse'
+          description: ''
   /api/v1/tasks/{public_id}/assign:
     post:
       operationId: tasks_assign
@@ -1947,7 +2109,11 @@ paths:
       - cookieAuth: []
       responses:
         '200':
-          description: No response body
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TaskCommandResponse'
+          description: ''
   /api/v1/todos/my:
     get:
       operationId: notification_todos_list
@@ -2315,6 +2481,21 @@ components:
       - status
       - subject_public_id
       - subject_type
+    DeliverableRevisionResponse:
+      type: object
+      properties:
+        public_id:
+          type: string
+          format: uuid
+        revision_number:
+          type: integer
+        status:
+          type: string
+        content_hash:
+          type: string
+      required:
+      - public_id
+      - status
     DevLoginRequest:
       type: object
       properties:
@@ -2914,6 +3095,19 @@ components:
       - status
       - version_code
       - version_name
+    ProfessionalConfirmationResponse:
+      type: object
+      properties:
+        public_id:
+          type: string
+          format: uuid
+        status:
+          type: string
+        comment:
+          type: string
+      required:
+      - public_id
+      - status
     ProjectCandidateDetail:
       type: object
       properties:
@@ -2960,6 +3154,104 @@ components:
       - resource_risk_summary
       - status
       - version_no
+    ProjectListItem:
+      type: object
+      properties:
+        public_id:
+          type: string
+          format: uuid
+        business_no:
+          type: string
+        name:
+          type: string
+        project_type:
+          type: string
+        status:
+          type: string
+        leader_public_id:
+          type: string
+          format: uuid
+        current_stage_code:
+          type: string
+          nullable: true
+      required:
+      - business_no
+      - current_stage_code
+      - leader_public_id
+      - name
+      - project_type
+      - public_id
+      - status
+    ProjectListResponse:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/ProjectListItem'
+        page:
+          type: integer
+        page_size:
+          type: integer
+        count:
+          type: integer
+      required:
+      - count
+      - items
+      - page
+      - page_size
+    ProjectWorkbenchDetail:
+      type: object
+      properties:
+        public_id:
+          type: string
+          format: uuid
+        business_no:
+          type: string
+        name:
+          type: string
+        project_type:
+          type: string
+        status:
+          type: string
+        candidate_public_id:
+          type: string
+          format: uuid
+          nullable: true
+        leader_public_id:
+          type: string
+          format: uuid
+        deputy_leader_public_id:
+          type: string
+          format: uuid
+          nullable: true
+        product_asset_public_id:
+          type: string
+          format: uuid
+          nullable: true
+        product_draft_public_id:
+          type: string
+          format: uuid
+          nullable: true
+        current_stage_code:
+          type: string
+          nullable: true
+        opportunity_sources:
+          type: array
+          items: {}
+      required:
+      - business_no
+      - candidate_public_id
+      - current_stage_code
+      - deputy_leader_public_id
+      - leader_public_id
+      - name
+      - opportunity_sources
+      - product_asset_public_id
+      - product_draft_public_id
+      - project_type
+      - public_id
+      - status
     ProposalVersion:
       type: object
       properties:
@@ -3028,6 +3320,20 @@ components:
       - target_users_needs
       - version_number
       - version_status
+    PublicIdStatusResponse:
+      type: object
+      properties:
+        public_id:
+          type: string
+          format: uuid
+        status:
+          type: string
+        result:
+          type: string
+        version_no:
+          type: integer
+      required:
+      - public_id
     PublicationBlock:
       type: object
       properties:
@@ -3189,6 +3495,39 @@ components:
             type: string
       required:
       - candidate_names
+    StageGateDecisionResponse:
+      type: object
+      properties:
+        public_id:
+          type: string
+          format: uuid
+        decision_public_id:
+          type: string
+          format: uuid
+        result:
+          type: string
+        final_decision:
+          type: string
+        handover_error:
+          type: string
+          nullable: true
+        project_status:
+          type: string
+          nullable: true
+    StageGateSubmissionResponse:
+      type: object
+      properties:
+        public_id:
+          type: string
+          format: uuid
+        submission_number:
+          type: integer
+        content_hash:
+          type: string
+      required:
+      - content_hash
+      - public_id
+      - submission_number
     StageGateSummary:
       type: object
       properties:
@@ -3211,6 +3550,18 @@ components:
       - status
       - subject_public_id
       - subject_type
+    StageGateValidateResponse:
+      type: object
+      properties:
+        blocks:
+          type: array
+          items: {}
+        warnings:
+          type: array
+          items: {}
+      required:
+      - blocks
+      - warnings
     SubmitCandidateReviewRequest:
       type: object
       properties:
@@ -3232,6 +3583,22 @@ components:
           type: string
       required:
       - idempotency_key
+    TaskCommandResponse:
+      type: object
+      properties:
+        public_id:
+          type: string
+          format: uuid
+        status:
+          type: string
+        version_no:
+          type: integer
+        responsible_user_public_id:
+          type: string
+          format: uuid
+          nullable: true
+      required:
+      - public_id
     UpdateChangeSetScopeRequest:
       type: object
       properties:
@@ -3355,6 +3722,14 @@ components:
       properties:
         version_no:
           type: integer
+    WorkbenchItemsResponse:
+      type: object
+      properties:
+        items:
+          type: array
+          items: {}
+      required:
+      - items
   securitySchemes:
     cookieAuth:
       type: apiKey

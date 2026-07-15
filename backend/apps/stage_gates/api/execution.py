@@ -5,7 +5,8 @@ from __future__ import annotations
 from typing import cast
 from uuid import UUID
 
-from drf_spectacular.utils import extend_schema
+from drf_spectacular.utils import extend_schema, inline_serializer
+from rest_framework import serializers
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.request import Request
 from rest_framework.response import Response
@@ -19,11 +20,40 @@ from apps.stage_gates.services.record_normal_decision import RecordNormalGateDec
 from apps.stage_gates.services.submit_execution_gate import SubmitExecutionGate
 from apps.stage_gates.services.validate_execution_gate import ValidateExecutionGate
 
+GATE_VALIDATE_RESPONSE = inline_serializer(
+    name="StageGateValidateResponse",
+    fields={
+        "blocks": serializers.ListField(),
+        "warnings": serializers.ListField(),
+    },
+)
+
+GATE_SUBMIT_RESPONSE = inline_serializer(
+    name="StageGateSubmissionResponse",
+    fields={
+        "public_id": serializers.UUIDField(),
+        "submission_number": serializers.IntegerField(),
+        "content_hash": serializers.CharField(),
+    },
+)
+
+GATE_DECISION_RESPONSE = inline_serializer(
+    name="StageGateDecisionResponse",
+    fields={
+        "public_id": serializers.UUIDField(required=False),
+        "decision_public_id": serializers.UUIDField(required=False),
+        "result": serializers.CharField(required=False),
+        "final_decision": serializers.CharField(required=False),
+        "handover_error": serializers.CharField(required=False, allow_null=True),
+        "project_status": serializers.CharField(required=False, allow_null=True),
+    },
+)
+
 
 class StageGateValidateView(APIView):
     permission_classes = [IsAuthenticated]
 
-    @extend_schema(operation_id="stage_gates_validate")
+    @extend_schema(operation_id="stage_gates_validate", responses={200: GATE_VALIDATE_RESPONSE})
     def post(self, request: Request, public_id: UUID) -> Response:
         user = cast(User, request.user)
         result = ValidateExecutionGate(
@@ -36,7 +66,10 @@ class StageGateValidateView(APIView):
 class StageGateSubmissionsView(APIView):
     permission_classes = [IsAuthenticated]
 
-    @extend_schema(operation_id="stage_gates_submissions_create")
+    @extend_schema(
+        operation_id="stage_gates_submissions_create",
+        responses={201: GATE_SUBMIT_RESPONSE},
+    )
     def post(self, request: Request, public_id: UUID) -> Response:
         user = cast(User, request.user)
         idempotency_key = str(request.data.get("idempotency_key") or "").strip()
@@ -60,7 +93,10 @@ class StageGateSubmissionsView(APIView):
 class StageGateNormalDecisionView(APIView):
     permission_classes = [IsAuthenticated]
 
-    @extend_schema(operation_id="stage_gates_decision_create")
+    @extend_schema(
+        operation_id="stage_gates_decision_create",
+        responses={201: GATE_DECISION_RESPONSE},
+    )
     def post(self, request: Request, public_id: UUID) -> Response:
         user = cast(User, request.user)
         result = str(request.data.get("result") or "")
@@ -87,7 +123,10 @@ class StageGateNormalDecisionView(APIView):
 class StageGateFirstLaunchDecisionView(APIView):
     permission_classes = [IsAuthenticated]
 
-    @extend_schema(operation_id="stage_gates_first_launch_decision_create")
+    @extend_schema(
+        operation_id="stage_gates_first_launch_decision_create",
+        responses={201: GATE_DECISION_RESPONSE},
+    )
     def post(self, request: Request, public_id: UUID) -> Response:
         user = cast(User, request.user)
         management_conclusion = str(request.data.get("management_conclusion") or "")

@@ -5,7 +5,8 @@ from __future__ import annotations
 from typing import cast
 from uuid import UUID
 
-from drf_spectacular.utils import extend_schema
+from drf_spectacular.utils import extend_schema, inline_serializer
+from rest_framework import serializers
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.request import Request
 from rest_framework.response import Response
@@ -16,11 +17,21 @@ from apps.platform.api.errors import ValidationFailedError
 from apps.platform.application.command import CommandContext
 from apps.work_items.services.manage_tasks import AssignTaskResponsible, TransitionTask
 
+TASK_RESPONSE = inline_serializer(
+    name="TaskCommandResponse",
+    fields={
+        "public_id": serializers.UUIDField(),
+        "status": serializers.CharField(required=False),
+        "version_no": serializers.IntegerField(required=False),
+        "responsible_user_public_id": serializers.UUIDField(required=False, allow_null=True),
+    },
+)
+
 
 class TaskUpdateView(APIView):
     permission_classes = [IsAuthenticated]
 
-    @extend_schema(operation_id="tasks_partial_update")
+    @extend_schema(operation_id="tasks_partial_update", responses={200: TASK_RESPONSE})
     def patch(self, request: Request, public_id: UUID) -> Response:
         user = cast(User, request.user)
         target_status = request.data.get("status")
@@ -45,7 +56,7 @@ class TaskUpdateView(APIView):
 class TaskAssignView(APIView):
     permission_classes = [IsAuthenticated]
 
-    @extend_schema(operation_id="tasks_assign")
+    @extend_schema(operation_id="tasks_assign", responses={200: TASK_RESPONSE})
     def post(self, request: Request, public_id: UUID) -> Response:
         user = cast(User, request.user)
         user_public_id = request.data.get("user_public_id")

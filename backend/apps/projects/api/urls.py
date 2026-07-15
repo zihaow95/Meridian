@@ -9,10 +9,14 @@ from apps.projects.api.migrations import (
     ProjectMigrationBatchCreateView,
 )
 from apps.projects.api.workbench import (
+    ExecutionExceptionConfirmView,
+    PlanChangeConfirmView,
     ProjectDeliverablesCollectionView,
     ProjectEmergencyExecutionsView,
     ProjectListView,
+    ProjectMembersView,
     ProjectPlanChangesView,
+    ProjectStageHandlingRequestView,
     ProjectStagesView,
     ProjectTasksCollectionView,
     ProjectWorkbenchDetailView,
@@ -29,6 +33,11 @@ urlpatterns = [
         "projects/<uuid:public_id>/stages",
         ProjectStagesView.as_view(),
         name="project-stages",
+    ),
+    path(
+        "projects/<uuid:public_id>/members",
+        ProjectMembersView.as_view(),
+        name="project-members",
     ),
     path(
         "projects/<uuid:public_id>/tasks",
@@ -49,6 +58,21 @@ urlpatterns = [
         "projects/<uuid:public_id>/emergency-executions",
         ProjectEmergencyExecutionsView.as_view(),
         name="project-emergency-executions",
+    ),
+    path(
+        "project-stages/<uuid:public_id>/handling-requests",
+        ProjectStageHandlingRequestView.as_view(),
+        name="project-stage-handling-requests",
+    ),
+    path(
+        "execution-exceptions/<uuid:public_id>/confirm",
+        ExecutionExceptionConfirmView.as_view(),
+        name="execution-exceptions-confirm",
+    ),
+    path(
+        "plan-changes/<uuid:public_id>/confirm",
+        PlanChangeConfirmView.as_view(),
+        name="plan-changes-confirm",
     ),
     path(
         "project-migration-batches",

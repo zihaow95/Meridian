@@ -5,6 +5,7 @@ from __future__ import annotations
 from django.urls import path
 
 from apps.work_items.api.deliverables import (
+    DeliverableRevisionSubmitView,
     DeliverableRevisionsView,
     ProfessionalConfirmationDecideView,
 )
@@ -17,6 +18,11 @@ urlpatterns = [
         "deliverables/<uuid:public_id>/revisions",
         DeliverableRevisionsView.as_view(),
         name="deliverables-revisions-create",
+    ),
+    path(
+        "deliverable-revisions/<uuid:public_id>/submit",
+        DeliverableRevisionSubmitView.as_view(),
+        name="deliverable-revisions-submit",
     ),
     path(
         "professional-confirmations/<uuid:public_id>/decide",

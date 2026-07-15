@@ -15,7 +15,12 @@ from rest_framework.views import APIView
 from apps.identity.models.user import User
 from apps.platform.api.errors import ResourceNotFoundError, ValidationFailedError
 from apps.platform.application.command import CommandContext
-from apps.projects.api.projects import ProjectDetailView
+from apps.projects.api.schemas import (
+    ITEMS_RESPONSE,
+    PROJECT_DETAIL_RESPONSE,
+    PROJECT_LIST_RESPONSE,
+    PUBLIC_ID_STATUS,
+)
 from apps.projects.queries.workbench import (
     get_project_for_user,
     list_project_deliverables,
@@ -24,18 +29,26 @@ from apps.projects.queries.workbench import (
     search_projects,
     serialize_workbench_project,
 )
+from apps.projects.services.appoint_member import AppointProjectMember
 from apps.projects.services.emergency_execution import CreateEmergencyExecution
-from apps.projects.services.plan_changes import ApplyPlanChange
+from apps.projects.services.exceptions import (
+    ConfirmExecutionException,
+    RequestStageHandlingMode,
+)
+from apps.projects.services.plan_changes import ApplyPlanChange, ConfirmPlanChange
 
 
 class ProjectListView(APIView):
     permission_classes = [IsAuthenticated]
 
-    @extend_schema(operation_id="projects_list")
+    @extend_schema(operation_id="projects_list", responses={200: PROJECT_LIST_RESPONSE})
     def get(self, request: Request) -> Response:
         user = cast(User, request.user)
-        page = int(request.query_params.get("page") or 1)
-        page_size = int(request.query_params.get("page_size") or 20)
+        try:
+            page = int(request.query_params.get("page") or 1)
+            page_size = int(request.query_params.get("page_size") or 20)
+        except ValueError as exc:
+            raise ValidationFailedError(message="Invalid page or page_size.") from exc
         status = request.query_params.get("status") or None
         result = search_projects(user, page=page, page_size=page_size, status=status)
         return Response(
@@ -48,10 +61,13 @@ class ProjectListView(APIView):
         )
 
 
-class ProjectWorkbenchDetailView(ProjectDetailView):
-    """Override detail to enforce membership visibility."""
+class ProjectWorkbenchDetailView(APIView):
+    permission_classes = [IsAuthenticated]
 
-    @extend_schema(operation_id="projects_retrieve")
+    @extend_schema(
+        operation_id="projects_retrieve",
+        responses={200: PROJECT_DETAIL_RESPONSE, 404: None},
+    )
     def get(self, request: Request, public_id: UUID) -> Response:
         user = cast(User, request.user)
         project = get_project_for_user(user, public_id)
@@ -63,7 +79,7 @@ class ProjectWorkbenchDetailView(ProjectDetailView):
 class ProjectStagesView(APIView):
     permission_classes = [IsAuthenticated]
 
-    @extend_schema(operation_id="projects_stages_list")
+    @extend_schema(operation_id="projects_stages_list", responses={200: ITEMS_RESPONSE})
     def get(self, request: Request, public_id: UUID) -> Response:
         user = cast(User, request.user)
         items = list_project_stages(user, public_id)
@@ -72,10 +88,34 @@ class ProjectStagesView(APIView):
         return Response({"items": items})
 
 
+class ProjectMembersView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    @extend_schema(operation_id="projects_members_create", responses={201: PUBLIC_ID_STATUS})
+    def post(self, request: Request, public_id: UUID) -> Response:
+        user = cast(User, request.user)
+        user_public_id = request.data.get("user_public_id")
+        if not user_public_id:
+            raise ValidationFailedError(message="user_public_id is required.")
+        member = AppointProjectMember(
+            context=CommandContext.for_actor(user),
+            project_public_id=public_id,
+            user_public_id=UUID(str(user_public_id)),
+            project_role=str(request.data.get("project_role") or "MEMBER"),
+        ).execute()
+        return Response(
+            {
+                "public_id": str(member.public_id),
+                "status": member.project_role,
+            },
+            status=201,
+        )
+
+
 class ProjectTasksCollectionView(APIView):
     permission_classes = [IsAuthenticated]
 
-    @extend_schema(operation_id="projects_tasks_list")
+    @extend_schema(operation_id="projects_tasks_list", responses={200: ITEMS_RESPONSE})
     def get(self, request: Request, public_id: UUID) -> Response:
         user = cast(User, request.user)
         items = list_project_tasks(user, public_id)
@@ -87,7 +127,7 @@ class ProjectTasksCollectionView(APIView):
 class ProjectDeliverablesCollectionView(APIView):
     permission_classes = [IsAuthenticated]
 
-    @extend_schema(operation_id="projects_deliverables_list")
+    @extend_schema(operation_id="projects_deliverables_list", responses={200: ITEMS_RESPONSE})
     def get(self, request: Request, public_id: UUID) -> Response:
         user = cast(User, request.user)
         items = list_project_deliverables(user, public_id)
@@ -99,26 +139,24 @@ class ProjectDeliverablesCollectionView(APIView):
 class ProjectPlanChangesView(APIView):
     permission_classes = [IsAuthenticated]
 
-    @extend_schema(operation_id="projects_plan_changes_create")
+    @extend_schema(operation_id="projects_plan_changes_create", responses={201: PUBLIC_ID_STATUS})
     def post(self, request: Request, public_id: UUID) -> Response:
         user = cast(User, request.user)
-        stage_public_id = request.data.get("target_public_id") or request.data.get(
-            "stage_public_id"
-        )
+        target_public_id = request.data.get("target_public_id")
         change_type = str(request.data.get("change_type") or "")
         field_name = str(request.data.get("field_name") or "")
         after_value = str(request.data.get("after_value") or "")
         before_value = str(request.data.get("before_value") or "")
         impact_summary = str(request.data.get("impact_summary") or "")
         target_type = str(request.data.get("target_type") or "project_stage")
-        if not stage_public_id:
+        if not target_public_id:
             raise ValidationFailedError(message="target_public_id is required.")
         change = ApplyPlanChange(
             context=CommandContext.for_actor(user),
             project_public_id=public_id,
             change_type=change_type,
             target_type=target_type,
-            target_public_id=UUID(str(stage_public_id)),
+            target_public_id=UUID(str(target_public_id)),
             field_name=field_name,
             before_value=before_value,
             after_value=after_value,
@@ -127,17 +165,69 @@ class ProjectPlanChangesView(APIView):
         return Response(
             {
                 "public_id": str(change.public_id),
-                "change_type": change.change_type,
                 "status": change.status,
             },
             status=201,
         )
 
 
+class PlanChangeConfirmView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    @extend_schema(operation_id="plan_changes_confirm", responses={200: PUBLIC_ID_STATUS})
+    def post(self, request: Request, public_id: UUID) -> Response:
+        user = cast(User, request.user)
+        change = ConfirmPlanChange(
+            context=CommandContext.for_actor(user),
+            change_public_id=public_id,
+        ).execute()
+        return Response({"public_id": str(change.public_id), "status": change.status})
+
+
+class ProjectStageHandlingRequestView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    @extend_schema(
+        operation_id="project_stages_handling_request",
+        responses={201: PUBLIC_ID_STATUS},
+    )
+    def post(self, request: Request, public_id: UUID) -> Response:
+        user = cast(User, request.user)
+        exception = RequestStageHandlingMode(
+            context=CommandContext.for_actor(user),
+            stage_public_id=public_id,
+            requested_mode=str(request.data.get("requested_mode") or ""),
+            rationale=str(request.data.get("rationale") or ""),
+        ).execute()
+        return Response(
+            {"public_id": str(exception.public_id), "status": exception.status},
+            status=201,
+        )
+
+
+class ExecutionExceptionConfirmView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    @extend_schema(
+        operation_id="execution_exceptions_confirm",
+        responses={200: PUBLIC_ID_STATUS},
+    )
+    def post(self, request: Request, public_id: UUID) -> Response:
+        user = cast(User, request.user)
+        exception = ConfirmExecutionException(
+            context=CommandContext.for_actor(user),
+            exception_public_id=public_id,
+        ).execute()
+        return Response({"public_id": str(exception.public_id), "status": exception.status})
+
+
 class ProjectEmergencyExecutionsView(APIView):
     permission_classes = [IsAuthenticated]
 
-    @extend_schema(operation_id="projects_emergency_executions_create")
+    @extend_schema(
+        operation_id="projects_emergency_executions_create",
+        responses={201: PUBLIC_ID_STATUS},
+    )
     def post(self, request: Request, public_id: UUID) -> Response:
         user = cast(User, request.user)
         due_raw = request.data.get("due_at")
@@ -155,7 +245,6 @@ class ProjectEmergencyExecutionsView(APIView):
             {
                 "public_id": str(item.public_id),
                 "status": item.status,
-                "due_at": item.due_at.isoformat(),
             },
             status=201,
         )
