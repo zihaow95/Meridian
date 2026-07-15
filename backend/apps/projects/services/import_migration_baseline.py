@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from uuid import UUID
 
 from django.db import IntegrityError, transaction
 
@@ -82,7 +81,15 @@ class ImportProjectMigrationBatch:
                 try:
                     baseline = self._import_row(batch=batch, row=row)
                     accepted.append(baseline)
-                except (KeyError, ValueError, IntegrityError) as exc:
+                except IntegrityError:
+                    errors.append(
+                        {
+                            "row_index": index,
+                            "external_project_id": row.get("external_project_id"),
+                            "error": "Row conflicted with existing data.",
+                        }
+                    )
+                except (KeyError, ValueError) as exc:
                     errors.append(
                         {
                             "row_index": index,

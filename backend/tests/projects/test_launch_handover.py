@@ -66,9 +66,7 @@ def _prepare_publishable_draft(project: Project, actor: User) -> ProductChangeSe
     draft.status = ChangeSetStatus.APPROVED
     draft.approved_by = actor
     draft.change_type = ChangeSetType.NEW_PRODUCT
-    draft.save(
-        update_fields=["change_scope", "status", "approved_by", "change_type", "updated_at"]
-    )
+    draft.save(update_fields=["change_scope", "status", "approved_by", "change_type", "updated_at"])
     product = draft.product
     product.category_code = product.category_code or "YOGURT"
     product.save(update_fields=["category_code", "updated_at"])
@@ -78,19 +76,31 @@ def _prepare_publishable_draft(project: Project, actor: User) -> ProductChangeSe
 @pytest.fixture
 def first_launch_gate(project: Project) -> StageGateInstance:
     stage = project.stages.get(stage_code="L2")
-    return StageGateInstance.objects.create(
-        organization=project.organization,
-        subject_type=SubjectType.PROJECT,
-        subject_public_id=project.public_id,
+    gate = StageGateInstance.objects.filter(
+        project=project,
         stage_code="FIRST_LAUNCH",
         cycle_number=1,
-        status=GateStatus.SUBMITTED,
-        gate_type=GateType.MAJOR,
-        project=project,
-        project_stage=stage,
-        primary_material_type=MaterialType.PROJECT_STAGE,
-        primary_material_public_id=stage.public_id,
-    )
+    ).first()
+    if gate is None:
+        gate = StageGateInstance.objects.create(
+            organization=project.organization,
+            subject_type=SubjectType.PROJECT,
+            subject_public_id=project.public_id,
+            stage_code="FIRST_LAUNCH",
+            cycle_number=1,
+            status=GateStatus.SUBMITTED,
+            gate_type=GateType.MAJOR,
+            project=project,
+            project_stage=stage,
+            primary_material_type=MaterialType.PROJECT_STAGE,
+            primary_material_public_id=stage.public_id,
+        )
+    else:
+        gate.status = GateStatus.SUBMITTED
+        gate.gate_type = GateType.MAJOR
+        gate.project_stage = stage
+        gate.save(update_fields=["status", "gate_type", "project_stage", "updated_at"])
+    return gate
 
 
 @pytest.fixture

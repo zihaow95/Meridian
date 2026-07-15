@@ -27,7 +27,6 @@ from apps.stage_gates.services.submit_execution_gate import SubmitExecutionGate
 from apps.work_items.models import (
     Deliverable,
     DeliverableStatus,
-    DeliverableTier,
     Task,
     TaskStatus,
 )
@@ -58,6 +57,12 @@ def director(organization: Organization, grant_action) -> User:
 
 def _ready_gate(project: Project, department: Department) -> StageGateInstance:
     stage = project.stages.get(stage_code="D1")
+    Task.objects.filter(project=project, stage=stage).update(status=TaskStatus.COMPLETED)
+    Deliverable.objects.filter(project=project, stage=stage).update(
+        status=DeliverableStatus.EXEMPTED,
+        exemption_reason="ok",
+        requires_professional_confirmation=False,
+    )
     Task.objects.create(
         organization=project.organization,
         project=project,
@@ -70,30 +75,29 @@ def _ready_gate(project: Project, department: Department) -> StageGateInstance:
         status=TaskStatus.COMPLETED,
         version_no=1,
     )
-    Deliverable.objects.create(
-        organization=project.organization,
+    gate = StageGateInstance.objects.filter(
         project=project,
-        stage=stage,
-        deliverable_code="D1-RDY-DEL",
-        name="Ready del",
-        tier=DeliverableTier.CORE_REQUIRED,
-        status=DeliverableStatus.EXEMPTED,
-        requires_professional_confirmation=False,
-        exemption_reason="ok",
-    )
-    return StageGateInstance.objects.create(
-        organization=project.organization,
-        subject_type=SubjectType.PROJECT,
-        subject_public_id=project.public_id,
-        stage_code="D1",
+        stage_code="D1_GATE",
         cycle_number=1,
-        status=GateStatus.READY,
-        gate_type="NORMAL",
-        project=project,
-        project_stage=stage,
-        primary_material_type="PROJECT_STAGE",
-        primary_material_public_id=stage.public_id,
-    )
+    ).first()
+    if gate is None:
+        return StageGateInstance.objects.create(
+            organization=project.organization,
+            subject_type=SubjectType.PROJECT,
+            subject_public_id=project.public_id,
+            stage_code="D1_GATE",
+            cycle_number=1,
+            status=GateStatus.READY,
+            gate_type="NORMAL",
+            project=project,
+            project_stage=stage,
+            primary_material_type="PROJECT_STAGE",
+            primary_material_public_id=stage.public_id,
+        )
+    gate.status = GateStatus.READY
+    gate.project_stage = stage
+    gate.save(update_fields=["status", "project_stage", "updated_at"])
+    return gate
 
 
 @pytest.mark.django_db

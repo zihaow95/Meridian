@@ -118,9 +118,12 @@ def test_continue_from_d3_skips_prior_gates_and_confirmations(
     assert "D2" not in stage_codes
     assert StageGateInstance.objects.filter(project=project, stage_code="D1").count() == 0
     assert StageGateInstance.objects.filter(project=project, stage_code="D2").count() == 0
-    assert ProfessionalConfirmation.objects.filter(
-        deliverable_revision__deliverable__project=project
-    ).count() == 0
+    assert (
+        ProfessionalConfirmation.objects.filter(
+            deliverable_revision__deliverable__project=project
+        ).count()
+        == 0
+    )
     assert Task.objects.filter(project=project, source_type="MIGRATED_HISTORY").count() == 2
     assert project.current_stage.stage_code == "D3"
     assert project.current_stage.status == ProjectStageStatus.ACTIVE
@@ -148,10 +151,13 @@ def test_archive_only_creates_no_project_or_todos(
     baseline.refresh_from_db()
     assert baseline.disposition == MigrationDisposition.ARCHIVE_ONLY
     assert Project.objects.filter(migration_baseline=baseline).count() == 0
-    assert Todo.objects.filter(
-        organization=migrator.organization,
-        title__icontains="EXT-ARC-1",
-    ).count() == 0
+    assert (
+        Todo.objects.filter(
+            organization=migrator.organization,
+            title__icontains="EXT-ARC-1",
+        ).count()
+        == 0
+    )
 
 
 @pytest.mark.django_db

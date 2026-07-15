@@ -3,11 +3,11 @@
 from __future__ import annotations
 
 import pytest
+from django.utils import timezone
 from rest_framework.test import APIClient
 
 from apps.identity.models.user import User, UserStatus
 from apps.projects.models import Project
-from django.utils import timezone
 
 
 @pytest.fixture

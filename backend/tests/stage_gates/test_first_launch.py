@@ -30,19 +30,30 @@ from apps.stage_gates.services.record_first_launch_decision import RecordFirstLa
 def first_launch_gate(project: Project) -> StageGateInstance:
     stage = project.stages.get(stage_code="L2")
     assert stage.gate_code == "FIRST_LAUNCH"
-    return StageGateInstance.objects.create(
-        organization=project.organization,
-        subject_type=SubjectType.PROJECT,
-        subject_public_id=project.public_id,
+    gate = StageGateInstance.objects.filter(
+        project=project,
         stage_code="FIRST_LAUNCH",
         cycle_number=1,
-        status=GateStatus.SUBMITTED,
-        gate_type=GateType.MAJOR,
-        project=project,
-        project_stage=stage,
-        primary_material_type=MaterialType.PROJECT_STAGE,
-        primary_material_public_id=stage.public_id,
-    )
+    ).first()
+    if gate is None:
+        return StageGateInstance.objects.create(
+            organization=project.organization,
+            subject_type=SubjectType.PROJECT,
+            subject_public_id=project.public_id,
+            stage_code="FIRST_LAUNCH",
+            cycle_number=1,
+            status=GateStatus.SUBMITTED,
+            gate_type=GateType.MAJOR,
+            project=project,
+            project_stage=stage,
+            primary_material_type=MaterialType.PROJECT_STAGE,
+            primary_material_public_id=stage.public_id,
+        )
+    gate.status = GateStatus.SUBMITTED
+    gate.gate_type = GateType.MAJOR
+    gate.project_stage = stage
+    gate.save(update_fields=["status", "gate_type", "project_stage", "updated_at"])
+    return gate
 
 
 @pytest.fixture

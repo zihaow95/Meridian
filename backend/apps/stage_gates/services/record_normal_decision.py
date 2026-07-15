@@ -23,6 +23,7 @@ from apps.projects.models import (
     ProjectStageStatus,
     StageHandlingMode,
 )
+from apps.projects.services.publish_and_handover import PublishAndHandover
 from apps.stage_gates.errors import GateAlreadyDecided, GateDecisionNotAllowed
 from apps.stage_gates.models import (
     GateDecision,
@@ -46,7 +47,12 @@ class RecordNormalGateDecision:
         with transaction.atomic():
             gate = (
                 StageGateInstance.objects.select_for_update()
-                .select_related("project", "project_stage", "current_submission")
+                .select_related(
+                    "project",
+                    "project_stage",
+                    "project__product_draft",
+                    "current_submission",
+                )
                 .filter(
                     public_id=self.stage_gate_public_id,
                     organization_id=actor.organization_id,
@@ -55,21 +61,6 @@ class RecordNormalGateDecision:
             )
             if gate is None:
                 raise PermissionDeniedError()
-
-            existing = GateDecision.objects.filter(idempotency_key=self.idempotency_key).first()
-            if existing is not None:
-                return existing
-            if gate.status in {
-                GateStatus.APPROVED,
-                GateStatus.DEFERRED,
-                GateStatus.PASSED,
-                GateStatus.DECIDED,
-            }:
-                raise GateAlreadyDecided()
-            if gate.current_submission_id and GateDecision.objects.filter(
-                submission_id=gate.current_submission_id
-            ).exists():
-                raise GateAlreadyDecided()
 
             decision = authorize(
                 subject_for(actor),
@@ -83,6 +74,27 @@ class RecordNormalGateDecision:
             )
             if not decision.allowed:
                 raise PermissionDeniedError()
+
+            existing = GateDecision.objects.filter(
+                organization_id=gate.organization_id,
+                stage_gate=gate,
+                idempotency_key=self.idempotency_key,
+            ).first()
+            if existing is not None:
+                return existing
+            if gate.status in {
+                GateStatus.APPROVED,
+                GateStatus.DEFERRED,
+                GateStatus.PASSED,
+                GateStatus.DECIDED,
+            }:
+                raise GateAlreadyDecided()
+            if (
+                gate.current_submission_id
+                and GateDecision.objects.filter(submission_id=gate.current_submission_id).exists()
+            ):
+                raise GateAlreadyDecided()
+
             if self.result == GateResult.APPROVED_WITH_EXCEPTION:
                 from django.db.models import Q
 
@@ -100,8 +112,7 @@ class RecordNormalGateDecision:
                         effective_from__lte=self.context.occurred_at,
                     )
                     .filter(
-                        Q(effective_to__isnull=True)
-                        | Q(effective_to__gt=self.context.occurred_at)
+                        Q(effective_to__isnull=True) | Q(effective_to__gt=self.context.occurred_at)
                     )
                     .exists()
                 )
@@ -114,11 +125,15 @@ class RecordNormalGateDecision:
             if self.result == GateResult.APPROVED_WITH_EXCEPTION and not self.exception_rationale:
                 raise GateDecisionNotAllowed(message="Exception rationale is required.")
 
+            submission = gate.current_submission
+            if submission is None:
+                raise GateDecisionNotAllowed(message="Gate must be submitted before decision.")
+
             try:
                 record = GateDecision.objects.create(
                     organization=gate.organization,
                     stage_gate=gate,
-                    submission=gate.current_submission,
+                    submission=submission,
                     result=self.result,
                     decided_by=actor,
                     decision_summary=self.decision_summary,
@@ -127,9 +142,7 @@ class RecordNormalGateDecision:
                     decided_at=self.context.occurred_at,
                 )
             except IntegrityError as exc:
-                if GateDecision.objects.filter(
-                    submission_id=gate.current_submission_id
-                ).exists():
+                if GateDecision.objects.filter(submission_id=gate.current_submission_id).exists():
                     raise GateAlreadyDecided() from exc
                 raise
             stage = gate.project_stage
@@ -139,7 +152,11 @@ class RecordNormalGateDecision:
                     stage.status = ProjectStageStatus.COMPLETED
                     stage.save(update_fields=["status", "updated_at"])
                     self._activate_next_stage(stage)
-                if self.result == GateResult.APPROVED_WITH_EXCEPTION and stage is not None:
+                if (
+                    self.result == GateResult.APPROVED_WITH_EXCEPTION
+                    and stage is not None
+                    and gate.project_id is not None
+                ):
                     ExecutionException.objects.create(
                         organization=gate.organization,
                         project_id=gate.project_id,
@@ -198,6 +215,20 @@ class RecordNormalGateDecision:
                     occurred_at=self.context.occurred_at,
                 )
             )
+            gate_code = stage.gate_code if stage is not None else ""
+            draft = gate.project.product_draft if gate.project is not None else None
+            if (
+                self.result in {GateResult.APPROVED, GateResult.APPROVED_WITH_EXCEPTION}
+                and gate_code == "CHANGE_EFFECTIVE"
+                and gate.project is not None
+                and draft is not None
+            ):
+                PublishAndHandover(
+                    context=self.context,
+                    project_public_id=gate.project.public_id,
+                    decision_public_id=record.public_id,
+                    idempotency_key=f"{record.public_id}:{draft.public_id}",
+                ).execute()
             return record
 
     def _activate_next_stage(self, stage: ProjectStage) -> None:

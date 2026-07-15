@@ -215,22 +215,18 @@ def project_template_version(
     organization: Organization,
     active_user: User,
 ) -> ConfigurationVersion:
-    stages = [
-        {"code": "D1", "name": "项目启动与产品定义", "sequence_no": 1, "depends_on": []},
-        {"code": "D2", "name": "配方打样与体验验证", "sequence_no": 2, "depends_on": ["D1"]},
-        {"code": "D3", "name": "工艺放大与质量验证", "sequence_no": 3, "depends_on": ["D2"]},
-        {"code": "D4", "name": "工程化与试销准备", "sequence_no": 4, "depends_on": ["D3"]},
-        {"code": "D5", "name": "上市验证/试销", "sequence_no": 5, "depends_on": ["D4"]},
-        {"code": "L1", "name": "正式上市方案", "sequence_no": 6, "depends_on": ["D5"]},
-        {
-            "code": "L2",
-            "name": "首次上市阶段门",
-            "sequence_no": 7,
-            "depends_on": ["L1"],
-            "gate": {"gate_code": "FIRST_LAUNCH", "gate_type": "MAJOR"},
-        },
-        {"code": "L3", "name": "发布与运营交接", "sequence_no": 8, "depends_on": ["L2"]},
-    ]
+    import json
+    from pathlib import Path
+
+    content = json.loads(
+        (
+            Path(__file__).resolve().parents[2]
+            / "apps"
+            / "configuration"
+            / "defaults"
+            / "project_template_v1.json"
+        ).read_text(encoding="utf-8")
+    )
     definition = ConfigurationDefinition.objects.create(
         organization=organization,
         definition_code="PROJECT_EXECUTION_TEMPLATE",
@@ -241,16 +237,7 @@ def project_template_version(
         definition=definition,
         version_number=1,
         status=ConfigurationStatus.PUBLISHED,
-        content_json={
-            "template_code": "NEW_PRODUCT_DEFAULT_V1",
-            "project_type": "NEW_PRODUCT",
-            "stages": stages,
-            "tasks": [],
-            "deliverables": [],
-            "gates": [
-                {"stage_code": "L2", "gate_code": "FIRST_LAUNCH", "gate_type": "MAJOR"},
-            ],
-        },
+        content_json=content,
         content_digest="digest-project-template-v1",
         created_by=active_user,
         published_by=active_user,

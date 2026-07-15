@@ -43,7 +43,7 @@ class StageGateIdentityProvider:
         )
         if gate is None:
             return ()
-        if gate.subject_type != SubjectType.PROJECT or gate.project_id is None:
+        if gate.subject_type != SubjectType.PROJECT or gate.project is None:
             return ()
         if gate.project.leader_id != subject.user.id:
             return ()

@@ -73,9 +73,7 @@ class DecideProfessionalConfirmation:
             confirmation.status = self.decision
             confirmation.comment = self.comment
             confirmation.confirmed_at = now
-            confirmation.save(
-                update_fields=["status", "comment", "confirmed_at", "updated_at"]
-            )
+            confirmation.save(update_fields=["status", "comment", "confirmed_at", "updated_at"])
 
             revision = confirmation.deliverable_revision
             deliverable = revision.deliverable

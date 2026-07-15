@@ -150,10 +150,13 @@ export const useProjectStore = defineStore('projects', {
       taskPublicId: string,
       payload: { status: string; version_no: number },
     ): Promise<TaskCommandResponse> {
-      const result = await apiFetch<TaskCommandResponse>(`/api/v1/tasks/${taskPublicId}`, {
-        method: 'PATCH',
-        json: payload,
-      })
+      const result = await apiFetch<TaskCommandResponse>(
+        `/api/v1/tasks/${taskPublicId}/transition`,
+        {
+          method: 'POST',
+          json: payload,
+        },
+      )
       const index = this.tasks.findIndex((task) => task.public_id === taskPublicId)
       if (index >= 0 && result.status && result.version_no !== undefined) {
         this.tasks[index] = {

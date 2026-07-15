@@ -143,9 +143,7 @@ class ConfirmExecutionException:
             exception.status = ExecutionExceptionStatus.CONFIRMED
             exception.confirmed_by = actor
             exception.confirmed_at = self.context.occurred_at
-            exception.save(
-                update_fields=["status", "confirmed_by", "confirmed_at", "updated_at"]
-            )
+            exception.save(update_fields=["status", "confirmed_by", "confirmed_at", "updated_at"])
             append_event(
                 AuditRecord(
                     actor=actor,

@@ -28,7 +28,8 @@ const stubs = {
     name: 'ElAlertStub',
     props: ['title', 'type'],
     setup(props) {
-      return () => h('div', { class: 'alert', 'data-type': props.type as string }, props.title as string)
+      return () =>
+        h('div', { class: 'alert', 'data-type': props.type as string }, props.title as string)
     },
   }),
   'el-select': defineComponent({
@@ -97,7 +98,13 @@ describe('StageGatePanel', () => {
     vi.mocked(apiFetch)
       .mockResolvedValueOnce({ blocks: [], warnings: [] })
       .mockImplementation(
-        () => new Promise((resolve) => setTimeout(() => resolve({ public_id: 'sub-1', submission_number: 1, content_hash: 'h' }), 50)),
+        () =>
+          new Promise((resolve) =>
+            setTimeout(
+              () => resolve({ public_id: 'sub-1', submission_number: 1, content_hash: 'h' }),
+              50,
+            ),
+          ),
       )
 
     const wrapper = mount(StageGatePanel, {
@@ -113,7 +120,10 @@ describe('StageGatePanel', () => {
     await submit.trigger('click')
     expect(submit.attributes('disabled')).toBeDefined()
     await submit.trigger('click')
-    expect(vi.mocked(apiFetch).mock.calls.filter((call) => String(call[0]).includes('/submissions')).length).toBe(1)
+    expect(
+      vi.mocked(apiFetch).mock.calls.filter((call) => String(call[0]).includes('/submissions'))
+        .length,
+    ).toBe(1)
   })
 
   it('shows publish pending repair state after first launch handover error', async () => {

@@ -67,7 +67,8 @@ const stubs = {
     name: 'ElAlertStub',
     props: ['title', 'type'],
     setup(props) {
-      return () => h('div', { class: 'alert', 'data-type': props.type as string }, props.title as string)
+      return () =>
+        h('div', { class: 'alert', 'data-type': props.type as string }, props.title as string)
     },
   }),
 }

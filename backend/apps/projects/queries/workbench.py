@@ -42,11 +42,7 @@ def _visible_projects(user: User) -> QuerySet[Project]:
     ).values_list("project_id", flat=True)
     return (
         Project.objects.filter(organization_id=user.organization_id)
-        .filter(
-            Q(leader=user)
-            | Q(deputy_leader=user)
-            | Q(id__in=membership_ids)
-        )
+        .filter(Q(leader=user) | Q(deputy_leader=user) | Q(id__in=membership_ids))
         .select_related(
             "leader",
             "deputy_leader",
@@ -82,7 +78,7 @@ def search_projects(
             "status": project.status,
             "leader_public_id": str(project.leader.public_id),
             "current_stage_code": (
-                project.current_stage.stage_code if project.current_stage_id else None
+                project.current_stage.stage_code if project.current_stage is not None else None
             ),
         }
         for project in qs[offset : offset + page_size]
@@ -111,22 +107,35 @@ def get_project_for_user(user: User, public_id: UUID) -> Project | None:
 def serialize_workbench_project(project: Project) -> dict[str, Any]:
     payload = serialize_project_detail(project)
     payload["current_stage_code"] = (
-        project.current_stage.stage_code if project.current_stage_id else None
+        project.current_stage.stage_code if project.current_stage is not None else None
     )
     return payload
 
 
-def list_project_stages(user: User, project_public_id: UUID) -> list[dict[str, Any]] | None:
+def list_project_stages(
+    user: User,
+    project_public_id: UUID,
+    *,
+    page: int = 1,
+    page_size: int = _DEFAULT_PAGE_SIZE,
+) -> ProjectSearchPage | None:
     from apps.stage_gates.models import StageGateInstance
 
     project = get_project_for_user(user, project_public_id)
     if project is None:
         return None
+    page = max(page, 1)
+    page_size = min(max(page_size, 1), _MAX_PAGE_SIZE)
     gates_by_stage = {
         gate.project_stage_id: gate
-        for gate in StageGateInstance.objects.filter(project=project, project_stage_id__isnull=False)
+        for gate in StageGateInstance.objects.filter(
+            project=project, project_stage_id__isnull=False
+        )
     }
-    return [
+    qs = ProjectStage.objects.filter(project=project).order_by("sequence_no")
+    count = qs.count()
+    offset = (page - 1) * page_size
+    items = [
         {
             "public_id": str(stage.public_id),
             "stage_code": stage.stage_code,
@@ -141,17 +150,33 @@ def list_project_stages(user: User, project_public_id: UUID) -> list[dict[str, A
                 str(gates_by_stage[stage.id].public_id) if stage.id in gates_by_stage else None
             ),
         }
-        for stage in ProjectStage.objects.filter(project=project).order_by("sequence_no")
+        for stage in qs[offset : offset + page_size]
     ]
+    return ProjectSearchPage(items=items, page=page, page_size=page_size, count=count)
 
 
-def list_project_tasks(user: User, project_public_id: UUID) -> list[dict[str, Any]] | None:
+def list_project_tasks(
+    user: User,
+    project_public_id: UUID,
+    *,
+    page: int = 1,
+    page_size: int = _DEFAULT_PAGE_SIZE,
+) -> ProjectSearchPage | None:
     from apps.work_items.models import Task
 
     project = get_project_for_user(user, project_public_id)
     if project is None:
         return None
-    return [
+    page = max(page, 1)
+    page_size = min(max(page_size, 1), _MAX_PAGE_SIZE)
+    qs = (
+        Task.objects.filter(project=project)
+        .select_related("stage", "responsible_user", "responsible_department")
+        .order_by("stage__sequence_no", "task_code")
+    )
+    count = qs.count()
+    offset = (page - 1) * page_size
+    items = [
         {
             "public_id": str(task.public_id),
             "task_code": task.task_code,
@@ -161,25 +186,37 @@ def list_project_tasks(user: User, project_public_id: UUID) -> list[dict[str, An
             "is_core": task.is_core,
             "version_no": task.version_no,
             "responsible_user_public_id": (
-                str(task.responsible_user.public_id) if task.responsible_user_id else None
+                str(task.responsible_user.public_id) if task.responsible_user is not None else None
             ),
             "responsible_department_public_id": str(task.responsible_department.public_id),
         }
-        for task in Task.objects.filter(project=project)
-        .select_related("stage", "responsible_user", "responsible_department")
-        .order_by("stage__sequence_no", "task_code")
+        for task in qs[offset : offset + page_size]
     ]
+    return ProjectSearchPage(items=items, page=page, page_size=page_size, count=count)
 
 
 def list_project_deliverables(
-    user: User, project_public_id: UUID
-) -> list[dict[str, Any]] | None:
+    user: User,
+    project_public_id: UUID,
+    *,
+    page: int = 1,
+    page_size: int = _DEFAULT_PAGE_SIZE,
+) -> ProjectSearchPage | None:
     from apps.work_items.models import Deliverable
 
     project = get_project_for_user(user, project_public_id)
     if project is None:
         return None
-    return [
+    page = max(page, 1)
+    page_size = min(max(page_size, 1), _MAX_PAGE_SIZE)
+    qs = (
+        Deliverable.objects.filter(project=project)
+        .select_related("stage", "current_revision")
+        .order_by("stage__sequence_no", "deliverable_code")
+    )
+    count = qs.count()
+    offset = (page - 1) * page_size
+    items = [
         {
             "public_id": str(item.public_id),
             "deliverable_code": item.deliverable_code,
@@ -188,10 +225,9 @@ def list_project_deliverables(
             "tier": item.tier,
             "status": item.status,
             "current_revision_public_id": (
-                str(item.current_revision.public_id) if item.current_revision_id else None
+                str(item.current_revision.public_id) if item.current_revision is not None else None
             ),
         }
-        for item in Deliverable.objects.filter(project=project)
-        .select_related("stage", "current_revision")
-        .order_by("stage__sequence_no", "deliverable_code")
+        for item in qs[offset : offset + page_size]
     ]
+    return ProjectSearchPage(items=items, page=page, page_size=page_size, count=count)

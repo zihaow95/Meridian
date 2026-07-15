@@ -232,7 +232,9 @@ class ApproveAndCreateProject:
             except ProjectTemplateNotPublished:
                 raise
             except Exception as exc:
-                raise ProjectCreationFailed(message="Project runtime initialization failed.") from exc
+                raise ProjectCreationFailed(
+                    message="Project runtime initialization failed."
+                ) from exc
 
             candidate.status = CandidateStatus.PROJECT_CREATED
             candidate.project_id = project.id

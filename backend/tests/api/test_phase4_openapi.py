@@ -6,7 +6,6 @@ from typing import Any
 
 from drf_spectacular.generators import SchemaGenerator
 
-
 REQUIRED_PATHS = (
     "/api/v1/projects",
     "/api/v1/projects/{public_id}",

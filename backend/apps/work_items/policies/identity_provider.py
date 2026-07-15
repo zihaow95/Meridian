@@ -10,11 +10,8 @@ from apps.authorization.context import (
 )
 from apps.authorization.policies.identity_provider import identity_registry
 
-
 RESPONSIBLE_ACTIONS: frozenset[str] = frozenset({"task.update_own"})
-LEADER_DELIVERABLE_ACTIONS: frozenset[str] = frozenset(
-    {"deliverable.create", "revision.submit"}
-)
+LEADER_DELIVERABLE_ACTIONS: frozenset[str] = frozenset({"deliverable.create", "revision.submit"})
 
 
 class TaskIdentityProvider:
@@ -107,9 +104,7 @@ class ProjectStageIdentityProvider:
             return ()
         if stage.project.leader_id != subject.user.id:
             return ()
-        return (
-            ObjectIdentity(action_code="stage_handling.request", resource=resource),
-        )
+        return (ObjectIdentity(action_code="stage_handling.request", resource=resource),)
 
 
 class DeliverableIdentityProvider:
@@ -172,10 +167,7 @@ class DeliverableRevisionIdentityProvider:
             return ()
         if revision.deliverable.project.leader_id != subject.user.id:
             return ()
-        return tuple(
-            ObjectIdentity(action_code="revision.submit", resource=resource)
-            for _ in (1,)
-        )
+        return tuple(ObjectIdentity(action_code="revision.submit", resource=resource) for _ in (1,))
 
 
 class ProfessionalConfirmationIdentityProvider:

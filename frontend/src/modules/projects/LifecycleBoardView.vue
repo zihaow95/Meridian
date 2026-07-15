@@ -62,19 +62,17 @@ function onRowClick(row: ProjectListItem): void {
     />
 
     <div class="lifecycle-board__filters">
-      <el-select
-        v-model="statusFilter"
-        clearable
-        placeholder="项目状态"
-        data-test="filter-status"
-      >
+      <el-select v-model="statusFilter" clearable placeholder="项目状态" data-test="filter-status">
         <el-option label="执行中" value="EXECUTING" />
         <el-option label="运营中" value="OPERATING" />
         <el-option label="待修复发布" value="PUBLISH_PENDING_REPAIR" />
       </el-select>
     </div>
 
-    <el-empty v-if="!projects.loading && projects.items.length === 0" description="暂无可访问项目" />
+    <el-empty
+      v-if="!projects.loading && projects.items.length === 0"
+      description="暂无可访问项目"
+    />
 
     <el-table
       v-else

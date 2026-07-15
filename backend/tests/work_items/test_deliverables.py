@@ -24,7 +24,6 @@ from apps.projects.models import Project
 from apps.work_items.errors import (
     CoreDeliverableProtected,
     InactiveFileObject,
-    DeliverableRevisionConflict,
 )
 from apps.work_items.models import (
     Deliverable,
@@ -40,7 +39,9 @@ from apps.work_items.services.deliverables import (
 )
 
 
-def _active_document_version(*, organization, actor: User, sha: str | None = None) -> DocumentVersion:
+def _active_document_version(
+    *, organization, actor: User, sha: str | None = None
+) -> DocumentVersion:
     digest = sha or hashlib.sha256(uuid4().bytes).hexdigest()
     file_object = FileObject.objects.create(
         organization=organization,

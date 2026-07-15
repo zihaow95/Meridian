@@ -90,9 +90,9 @@ class SubmitExecutionGate:
                 json.dumps(snapshot, sort_keys=True, separators=(",", ":")).encode()
             ).hexdigest()
             next_number = (
-                GateSubmission.objects.filter(stage_gate=gate).aggregate(
-                    Max("submission_number")
-                )["submission_number__max"]
+                GateSubmission.objects.filter(stage_gate=gate).aggregate(Max("submission_number"))[
+                    "submission_number__max"
+                ]
                 or 0
             ) + 1
 
@@ -189,13 +189,13 @@ def _build_submission_snapshot(gate: StageGateInstance) -> dict:
             "tier": deliverable.tier,
             "current_revision_public_id": (
                 str(deliverable.current_revision.public_id)
-                if deliverable.current_revision_id
+                if deliverable.current_revision is not None
                 else None
             ),
         }
         deliverables.append(entry)
-        if deliverable.current_revision_id:
-            revision = deliverable.current_revision
+        revision = deliverable.current_revision
+        if revision is not None:
             material_refs.append(
                 {
                     "material_type": MaterialType.DELIVERABLE_REVISION,
@@ -209,7 +209,7 @@ def _build_submission_snapshot(gate: StageGateInstance) -> dict:
         "tasks": tasks,
         "deliverables": deliverables,
         "product_draft_public_id": (
-            str(project.product_draft.public_id) if project.product_draft_id else None
+            str(project.product_draft.public_id) if project.product_draft is not None else None
         ),
         "material_refs": material_refs,
     }

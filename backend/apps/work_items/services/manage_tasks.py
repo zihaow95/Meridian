@@ -268,8 +268,6 @@ def _creates_cycle(*, task: Task, predecessor: Task) -> bool:
             continue
         seen.add(current)
         stack.extend(
-            TaskDependency.objects.filter(predecessor_id=current).values_list(
-                "task_id", flat=True
-            )
+            TaskDependency.objects.filter(predecessor_id=current).values_list("task_id", flat=True)
         )
     return False

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import Any
 from uuid import UUID, uuid4
 
 from django.db import IntegrityError, transaction
@@ -16,6 +17,7 @@ from apps.authorization.services.subject import subject_for
 from apps.configuration.models import ConfigurationStatus, ConfigurationVersion
 from apps.configuration.services import CreateSnapshot
 from apps.identity.models.department import Department, DepartmentStatus
+from apps.identity.models.user import User
 from apps.platform.api.errors import PermissionDeniedError
 from apps.platform.application.command import CommandContext
 from apps.platform.outbox.services import OutboxMessage, register_outbox_event
@@ -29,20 +31,59 @@ from apps.projects.models import (
     MigrationBaselineStatus,
     MigrationDisposition,
     Project,
+    ProjectRole,
     ProjectStage,
     ProjectStageStatus,
     ProjectStatus,
     ProjectType,
     StageHandlingMode,
 )
+from apps.projects.services.appoint_member import AppointProjectMember
 from apps.projects.services.initialize_runtime import PROJECT_EXECUTION_TEMPLATE_CODE
+from apps.stage_gates.services.open_execution_gates import open_execution_gates_for_stages
 from apps.work_items.models import Task, TaskSourceType, TaskStatus
+from apps.work_items.services.materialize_template import (
+    materialize_template_deliverables,
+    materialize_template_tasks,
+)
 
 
 @dataclass(frozen=True)
 class ConfirmMigrationResult:
     baseline: MigrationBaseline
     project: Project | None
+
+
+def _filter_content_for_stages(content: dict[str, Any], stage_codes: set[str]) -> dict[str, Any]:
+    filtered = dict(content)
+    filtered["tasks"] = [
+        entry
+        for entry in (content.get("tasks") or [])
+        if str(entry.get("stage_code")) in stage_codes
+    ]
+    remaining_task_codes = {str(entry.get("task_code")) for entry in filtered["tasks"]}
+    filtered["tasks"] = [
+        {
+            **entry,
+            "depends_on": [
+                pred
+                for pred in (entry.get("depends_on") or [])
+                if str(pred) in remaining_task_codes
+            ],
+        }
+        for entry in filtered["tasks"]
+    ]
+    filtered["deliverables"] = [
+        entry
+        for entry in (content.get("deliverables") or [])
+        if str(entry.get("stage_code")) in stage_codes
+    ]
+    filtered["gates"] = [
+        entry
+        for entry in (content.get("gates") or [])
+        if str(entry.get("stage_code")) in stage_codes
+    ]
+    return filtered
 
 
 @dataclass
@@ -127,6 +168,7 @@ class ConfirmMigrationBaseline:
                         "baseline_public_id": str(baseline.public_id),
                         "disposition": baseline.disposition,
                         "project_public_id": str(project.public_id) if project else None,
+                        "history_files": list(baseline.history_files or []),
                     },
                 )
             )
@@ -148,7 +190,7 @@ class ConfirmMigrationBaseline:
         self,
         *,
         baseline: MigrationBaseline,
-        actor,
+        actor: User,
     ) -> Project:
         template = (
             ConfigurationVersion.objects.filter(
@@ -179,9 +221,9 @@ class ConfirmMigrationBaseline:
                 message=f"Unknown current stage: {baseline.current_stage_code}"
             )
         current_seq = int(by_code[baseline.current_stage_code]["sequence_no"])
-        remaining = [
-            entry for entry in stages_def if int(entry["sequence_no"]) >= current_seq
-        ]
+        remaining = [entry for entry in stages_def if int(entry["sequence_no"]) >= current_seq]
+        remaining_codes = {entry["code"] for entry in remaining}
+        filtered_content = _filter_content_for_stages(content, remaining_codes)
 
         project = Project.objects.create(
             organization=baseline.organization,
@@ -215,9 +257,7 @@ class ConfirmMigrationBaseline:
                 gate_code=str(gate.get("gate_code") or ""),
                 gate_type=str(gate.get("gate_type") or ""),
                 depends_on=[
-                    code
-                    for code in (entry.get("depends_on") or [])
-                    if code in {item["code"] for item in remaining}
+                    code for code in (entry.get("depends_on") or []) if code in remaining_codes
                 ],
                 actual_start_at=(
                     self.context.occurred_at
@@ -233,8 +273,6 @@ class ConfirmMigrationBaseline:
         project.current_stage = current
         project.save(update_fields=["current_stage", "updated_at"])
 
-        # Do not create stage gate instances for skipped historical stages.
-        # FIRST_LAUNCH gate for L2 is created only when that stage is reached / active later.
         department = Department.objects.filter(
             organization=baseline.organization,
             status=DepartmentStatus.ACTIVE,
@@ -249,47 +287,46 @@ class ConfirmMigrationBaseline:
             )
 
         for item in baseline.history_tasks:
-            Task.objects.create(
-                organization=baseline.organization,
-                project=project,
-                stage=current,
-                task_code=str(item.get("task_code") or f"HIST-{uuid4().hex[:8]}"),
-                name=str(item.get("name") or "Migrated history task"),
-                description=f"Migrated from stage {item.get('stage_code', '')}",
-                source_type=TaskSourceType.MIGRATED_HISTORY,
-                is_core=False,
-                responsible_department=department,
-                status=TaskStatus.COMPLETED,
-                version_no=1,
-            )
-
-        # Template tasks for remaining stages only (if any).
-        stages_by_code = {stage.stage_code: stage for stage in created_stages}
-        for entry in content.get("tasks") or []:
-            stage = stages_by_code.get(entry.get("stage_code"))
-            if stage is None:
-                continue
-            dept = Department.objects.filter(
-                organization=baseline.organization,
-                department_code=entry["responsible_department_code"],
-            ).first()
-            if dept is None:
-                dept = department
             try:
                 Task.objects.create(
                     organization=baseline.organization,
                     project=project,
-                    stage=stage,
-                    task_code=entry["task_code"],
-                    name=entry["name"],
-                    description=str(entry.get("description") or ""),
-                    source_type=TaskSourceType.TEMPLATE,
-                    is_core=bool(entry.get("is_core", True)),
-                    responsible_department=dept,
-                    status=TaskStatus.NOT_STARTED,
+                    stage=current,
+                    task_code=str(item.get("task_code") or f"HIST-{uuid4().hex[:8]}"),
+                    name=str(item.get("name") or "Migrated history task"),
+                    description=f"Migrated from stage {item.get('stage_code', '')}",
+                    source_type=TaskSourceType.MIGRATED_HISTORY,
+                    is_core=False,
+                    responsible_department=department,
+                    status=TaskStatus.COMPLETED,
                     version_no=1,
                 )
             except IntegrityError:
                 continue
+
+        stages_by_code = {stage.stage_code: stage for stage in created_stages}
+        materialize_template_tasks(
+            project=project,
+            stages_by_code=stages_by_code,
+            content=filtered_content,
+            default_department=department,
+        )
+        materialize_template_deliverables(
+            project=project,
+            stages_by_code=stages_by_code,
+            content=filtered_content,
+        )
+        open_execution_gates_for_stages(
+            project=project,
+            stages=created_stages,
+            content=filtered_content,
+        )
+
+        AppointProjectMember(
+            context=self.context,
+            project_public_id=project.public_id,
+            user_public_id=actor.public_id,
+            project_role=ProjectRole.LEADER,
+        ).execute()
 
         return project

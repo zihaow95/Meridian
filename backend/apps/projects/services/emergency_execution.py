@@ -16,6 +16,7 @@ from apps.authorization.policies.engine import authorize
 from apps.authorization.services.subject import subject_for
 from apps.platform.api.errors import PermissionDeniedError
 from apps.platform.application.command import CommandContext
+from apps.projects.errors import PlanChangeNotAllowed
 from apps.projects.models import EmergencyExecution, EmergencyExecutionStatus, Project
 
 
@@ -30,10 +31,14 @@ class CreateEmergencyExecution:
     def execute(self) -> EmergencyExecution:
         actor = self.context.actor
         with transaction.atomic():
-            project = Project.objects.filter(
-                public_id=self.project_public_id,
-                organization_id=actor.organization_id,
-            ).first()
+            project = (
+                Project.objects.select_for_update()
+                .filter(
+                    public_id=self.project_public_id,
+                    organization_id=actor.organization_id,
+                )
+                .first()
+            )
             if project is None:
                 raise PermissionDeniedError()
             decision = authorize(
@@ -74,6 +79,73 @@ class CreateEmergencyExecution:
                     after_summary={
                         "emergency_public_id": str(record.public_id),
                         "due_at": self.due_at.isoformat(),
+                    },
+                )
+            )
+            return record
+
+
+@dataclass
+class CompleteEmergencyExecution:
+    context: CommandContext
+    emergency_public_id: UUID
+    confirmation_summary: str
+
+    def execute(self) -> EmergencyExecution:
+        actor = self.context.actor
+        with transaction.atomic():
+            record = (
+                EmergencyExecution.objects.select_for_update()
+                .select_related("project")
+                .filter(
+                    public_id=self.emergency_public_id,
+                    organization_id=actor.organization_id,
+                )
+                .first()
+            )
+            if record is None:
+                raise PermissionDeniedError()
+            if record.status == EmergencyExecutionStatus.COMPLETED:
+                return record
+            if record.status not in (
+                EmergencyExecutionStatus.OPEN,
+                EmergencyExecutionStatus.OVERDUE,
+            ):
+                raise PlanChangeNotAllowed(
+                    message="Emergency execution cannot be completed in current status."
+                )
+
+            decision = authorize(
+                subject_for(actor),
+                action="emergency_execution.create",
+                resource=ResourceDescriptor(
+                    resource_type="project",
+                    public_id=record.project.public_id,
+                    organization_id=record.project.organization_id,
+                ),
+                context=AuthorizationContext.current(),
+            )
+            if not decision.allowed:
+                raise PermissionDeniedError()
+
+            roles = acting_roles_snapshot(actor)
+            record.status = EmergencyExecutionStatus.COMPLETED
+            record.completed_at = self.context.occurred_at
+            record.save(update_fields=["status", "completed_at", "updated_at"])
+            append_event(
+                AuditRecord(
+                    actor=actor,
+                    action_code="emergency_execution.create",
+                    resource_type="project",
+                    resource_public_id=record.project.public_id,
+                    result=AuditResult.SUCCESS,
+                    trace_id=self.context.trace_id,
+                    occurred_at=self.context.occurred_at,
+                    acting_roles_snapshot=roles,
+                    after_summary={
+                        "emergency_public_id": str(record.public_id),
+                        "status": record.status,
+                        "confirmation_summary": self.confirmation_summary,
                     },
                 )
             )

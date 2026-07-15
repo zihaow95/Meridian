@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from uuid import uuid4
-
 import pytest
 from django.utils import timezone
 
@@ -29,13 +27,16 @@ from apps.work_items.services.manage_tasks import (
 
 @pytest.fixture
 def rd_department(organization: Organization) -> Department:
-    return Department.objects.create(
+    department, _ = Department.objects.get_or_create(
         organization=organization,
         department_code="RD",
-        name="R&D",
-        status=DepartmentStatus.ACTIVE,
-        valid_from=timezone.now(),
+        defaults={
+            "name": "R&D",
+            "status": DepartmentStatus.ACTIVE,
+            "valid_from": timezone.now(),
+        },
     )
+    return department
 
 
 @pytest.fixture

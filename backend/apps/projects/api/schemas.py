@@ -46,10 +46,82 @@ PROJECT_DETAIL_RESPONSE = inline_serializer(
     },
 )
 
-ITEMS_RESPONSE = inline_serializer(
-    name="WorkbenchItemsResponse",
-    fields={"items": serializers.ListField()},
+STAGE_ITEM = inline_serializer(
+    name="WorkbenchStageItem",
+    fields={
+        "public_id": serializers.UUIDField(),
+        "stage_code": serializers.CharField(),
+        "name": serializers.CharField(),
+        "sequence_no": serializers.IntegerField(),
+        "status": serializers.CharField(),
+        "gate_code": serializers.CharField(allow_null=True, required=False),
+        "gate_type": serializers.CharField(allow_null=True, required=False),
+        "handling_mode": serializers.CharField(allow_null=True, required=False),
+        "planned_end_at": serializers.CharField(allow_null=True, required=False),
+        "stage_gate_public_id": serializers.UUIDField(allow_null=True, required=False),
+    },
 )
+
+TASK_ITEM = inline_serializer(
+    name="WorkbenchTaskItem",
+    fields={
+        "public_id": serializers.UUIDField(),
+        "task_code": serializers.CharField(),
+        "name": serializers.CharField(),
+        "stage_code": serializers.CharField(),
+        "status": serializers.CharField(),
+        "is_core": serializers.BooleanField(),
+        "version_no": serializers.IntegerField(),
+        "responsible_user_public_id": serializers.UUIDField(allow_null=True),
+        "responsible_department_public_id": serializers.UUIDField(),
+    },
+)
+
+DELIVERABLE_ITEM = inline_serializer(
+    name="WorkbenchDeliverableItem",
+    fields={
+        "public_id": serializers.UUIDField(),
+        "deliverable_code": serializers.CharField(),
+        "name": serializers.CharField(),
+        "stage_code": serializers.CharField(),
+        "tier": serializers.CharField(),
+        "status": serializers.CharField(),
+        "current_revision_public_id": serializers.UUIDField(allow_null=True),
+    },
+)
+
+STAGES_RESPONSE = inline_serializer(
+    name="WorkbenchStagesResponse",
+    fields={
+        "items": serializers.ListField(child=STAGE_ITEM),
+        "page": serializers.IntegerField(required=False),
+        "page_size": serializers.IntegerField(required=False),
+        "count": serializers.IntegerField(required=False),
+    },
+)
+
+TASKS_RESPONSE = inline_serializer(
+    name="WorkbenchTasksResponse",
+    fields={
+        "items": serializers.ListField(child=TASK_ITEM),
+        "page": serializers.IntegerField(required=False),
+        "page_size": serializers.IntegerField(required=False),
+        "count": serializers.IntegerField(required=False),
+    },
+)
+
+DELIVERABLES_RESPONSE = inline_serializer(
+    name="WorkbenchDeliverablesResponse",
+    fields={
+        "items": serializers.ListField(child=DELIVERABLE_ITEM),
+        "page": serializers.IntegerField(required=False),
+        "page_size": serializers.IntegerField(required=False),
+        "count": serializers.IntegerField(required=False),
+    },
+)
+
+# Backward-compatible alias used by older views still referencing ITEMS_RESPONSE.
+ITEMS_RESPONSE = STAGES_RESPONSE
 
 IDEMPOTENT_RESULT_REQUEST = inline_serializer(
     name="IdempotentResultRequest",
@@ -60,6 +132,7 @@ IDEMPOTENT_RESULT_REQUEST = inline_serializer(
         "exception_rationale": serializers.CharField(required=False),
         "management_conclusion": serializers.CharField(required=False),
         "final_decision": serializers.CharField(required=False),
+        "management_conclusion_by_public_id": serializers.UUIDField(required=False),
     },
 )
 

@@ -136,6 +136,15 @@ class StageGateFirstLaunchDecisionView(APIView):
             raise ValidationFailedError(
                 message="management_conclusion, final_decision, and idempotency_key are required."
             )
+        management_conclusion_by_public_id: UUID | None = None
+        mgmt_raw = request.data.get("management_conclusion_by_public_id")
+        if mgmt_raw not in (None, ""):
+            try:
+                management_conclusion_by_public_id = UUID(str(mgmt_raw))
+            except ValueError as exc:
+                raise ValidationFailedError(
+                    message="management_conclusion_by_public_id must be a UUID."
+                ) from exc
         result = RecordFirstLaunchDecision(
             context=CommandContext.for_actor(user),
             stage_gate_public_id=public_id,
@@ -143,6 +152,7 @@ class StageGateFirstLaunchDecisionView(APIView):
             final_decision=final_decision,
             decision_summary=str(request.data.get("decision_summary") or ""),
             idempotency_key=idempotency_key,
+            management_conclusion_by_public_id=management_conclusion_by_public_id,
         ).execute()
         return Response(
             {

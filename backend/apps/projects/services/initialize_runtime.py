@@ -5,11 +5,18 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
+from django.utils import timezone
+
 from apps.audit.models import AuditResult
 from apps.audit.services.append_event import AuditRecord, append_event
 from apps.audit.services.snapshots import acting_roles_snapshot
-from apps.configuration.models import ConfigurationSnapshot, ConfigurationStatus, ConfigurationVersion
+from apps.configuration.models import (
+    ConfigurationSnapshot,
+    ConfigurationStatus,
+    ConfigurationVersion,
+)
 from apps.configuration.services import CreateSnapshot
+from apps.identity.models.department import Department, DepartmentStatus
 from apps.platform.application.command import CommandContext
 from apps.platform.outbox.services import OutboxMessage, register_outbox_event
 from apps.projects.errors import ProjectTemplateInvalid, ProjectTemplateNotPublished
@@ -21,16 +28,23 @@ from apps.projects.models import (
     ProjectTemplateSnapshot,
     StageHandlingMode,
 )
+from apps.stage_gates.models import StageGateInstance
+from apps.stage_gates.services.open_execution_gates import open_execution_gates_for_stages
+from apps.work_items.services.materialize_template import (
+    materialize_template_deliverables,
+    materialize_template_tasks,
+)
 
 PROJECT_EXECUTION_TEMPLATE_CODE = "PROJECT_EXECUTION_TEMPLATE"
 REQUIRED_STAGE_CODES = ("D1", "D2", "D3", "D4", "D5", "L1", "L2", "L3")
+TEMPLATE_DEPARTMENT_CODES = ("PRODUCT", "RD", "OPS")
 
 
 @dataclass(frozen=True)
 class ProjectRuntimeResult:
     snapshot: ConfigurationSnapshot
     stages: list[ProjectStage]
-    gates: list[ProjectStage]
+    gates: list[StageGateInstance]
 
 
 @dataclass
@@ -63,8 +77,23 @@ class InitializeProjectRuntime:
         )
 
         stages = self._expand_stages(snapshot.content_copy)
-        self._expand_tasks(snapshot.content_copy, stages)
-        gates = [stage for stage in stages if stage.gate_code]
+        stages_by_code = {stage.stage_code: stage for stage in stages}
+        ensure_template_departments(self.project.organization_id)
+        materialize_template_tasks(
+            project=self.project,
+            stages_by_code=stages_by_code,
+            content=snapshot.content_copy,
+        )
+        materialize_template_deliverables(
+            project=self.project,
+            stages_by_code=stages_by_code,
+            content=snapshot.content_copy,
+        )
+        gates = open_execution_gates_for_stages(
+            project=self.project,
+            stages=stages,
+            content=snapshot.content_copy,
+        )
         d1 = next(stage for stage in stages if stage.stage_code == "D1")
         d1.status = ProjectStageStatus.ACTIVE
         d1.actual_start_at = self.context.occurred_at
@@ -98,6 +127,7 @@ class InitializeProjectRuntime:
                     "template_version_id": str(version.public_id),
                     "snapshot_id": str(snapshot.public_id),
                     "stage_count": len(stages),
+                    "gate_count": len(gates),
                 },
             )
         )
@@ -122,10 +152,14 @@ class InitializeProjectRuntime:
         stages = list(ProjectStage.objects.filter(project=self.project).order_by("sequence_no"))
         if not stages:
             return None
+        gates = list(StageGateInstance.objects.filter(project=self.project).order_by("stage_code"))
+        snapshot = self.project.template_snapshot
+        if snapshot is None:
+            return None
         return ProjectRuntimeResult(
-            snapshot=self.project.template_snapshot,
+            snapshot=snapshot,
             stages=stages,
-            gates=[stage for stage in stages if stage.gate_code],
+            gates=gates,
         )
 
     def _resolve_published_version(self) -> ConfigurationVersion:
@@ -169,65 +203,19 @@ class InitializeProjectRuntime:
             created.append(stage)
         return created
 
-    def _expand_tasks(self, content: dict[str, Any], stages: list[ProjectStage]) -> None:
-        from apps.identity.models.department import Department
-        from apps.work_items.models import (
-            Task,
-            TaskDependency,
-            TaskDependencyType,
-            TaskSourceType,
-            TaskStatus,
+
+def ensure_template_departments(organization_id: int) -> None:
+    now = timezone.now()
+    for code in TEMPLATE_DEPARTMENT_CODES:
+        Department.objects.get_or_create(
+            organization_id=organization_id,
+            department_code=code,
+            defaults={
+                "name": f"{code} Department",
+                "status": DepartmentStatus.ACTIVE,
+                "valid_from": now,
+            },
         )
-
-        stages_by_code = {stage.stage_code: stage for stage in stages}
-        created: dict[str, Task] = {}
-        for entry in content.get("tasks") or []:
-            stage = stages_by_code.get(entry["stage_code"])
-            if stage is None:
-                raise ProjectTemplateInvalid(
-                    message=f"Task references unknown stage: {entry.get('stage_code')}"
-                )
-            department = Department.objects.filter(
-                organization=self.project.organization,
-                department_code=entry["responsible_department_code"],
-            ).first()
-            if department is None:
-                raise ProjectTemplateInvalid(
-                    message=(
-                        "Missing department for task template: "
-                        f"{entry['responsible_department_code']}"
-                    )
-                )
-            task = Task.objects.create(
-                organization=self.project.organization,
-                project=self.project,
-                stage=stage,
-                task_code=entry["task_code"],
-                name=entry["name"],
-                description=str(entry.get("description") or ""),
-                source_type=TaskSourceType.TEMPLATE,
-                is_core=bool(entry.get("is_core", True)),
-                responsible_department=department,
-                status=TaskStatus.NOT_STARTED,
-                version_no=1,
-            )
-            created[task.task_code] = task
-
-        for entry in content.get("tasks") or []:
-            task = created[entry["task_code"]]
-            for pred_code in entry.get("depends_on") or []:
-                predecessor = created.get(pred_code)
-                if predecessor is None:
-                    raise ProjectTemplateInvalid(
-                        message=f"Unknown task dependency: {pred_code}"
-                    )
-                TaskDependency.objects.create(
-                    organization=self.project.organization,
-                    task=task,
-                    predecessor=predecessor,
-                    dependency_type=entry.get("dependency_type")
-                    or TaskDependencyType.HARD,
-                )
 
 
 def validate_project_template_content(content: dict[str, Any]) -> None:
@@ -251,3 +239,10 @@ def validate_project_template_content(content: dict[str, Any]) -> None:
     gate = (l2 or {}).get("gate") or {}
     if gate.get("gate_code") != "FIRST_LAUNCH":
         raise ProjectTemplateInvalid(message="L2 must use FIRST_LAUNCH major gate.")
+
+    tasks = content.get("tasks") or []
+    if not isinstance(tasks, list) or not tasks:
+        raise ProjectTemplateInvalid(message="Template must include at least one task.")
+    deliverables = content.get("deliverables") or []
+    if not isinstance(deliverables, list) or not deliverables:
+        raise ProjectTemplateInvalid(message="Template must include at least one deliverable.")

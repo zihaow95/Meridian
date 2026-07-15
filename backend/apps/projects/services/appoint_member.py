@@ -32,10 +32,14 @@ class AppointProjectMember:
         if self.project_role not in ProjectRole.values:
             raise PermissionDeniedError()
         with transaction.atomic():
-            project = Project.objects.select_for_update().filter(
-                public_id=self.project_public_id,
-                organization_id=actor.organization_id,
-            ).first()
+            project = (
+                Project.objects.select_for_update()
+                .filter(
+                    public_id=self.project_public_id,
+                    organization_id=actor.organization_id,
+                )
+                .first()
+            )
             if project is None:
                 raise PermissionDeniedError()
             decision = authorize(
@@ -76,9 +80,7 @@ class AppointProjectMember:
                 project=project,
                 user=member_user,
                 project_role=self.project_role,
-                active_role_key=active_member_key(
-                    project.id, member_user.id, self.project_role
-                ),
+                active_role_key=active_member_key(project.id, member_user.id, self.project_role),
                 active_from=self.context.occurred_at,
                 appointed_by=actor,
             )

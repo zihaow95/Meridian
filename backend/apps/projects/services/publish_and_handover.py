@@ -22,7 +22,7 @@ from apps.products.errors import ProductPublicationFailed
 from apps.products.models import ChangeSetType, ProductVersion
 from apps.products.services.publish_change_set import PublishProductChangeSet
 from apps.projects.models import Project, ProjectStageStatus, ProjectStatus
-from apps.stage_gates.models import GateResult, MajorGateDecision
+from apps.stage_gates.models import GateDecision, GateResult, MajorGateDecision
 
 
 @dataclass(frozen=True)
@@ -64,25 +64,47 @@ class PublishAndHandover:
                 )
                 .first()
             )
+            normal_decision: GateDecision | None = None
             if decision is None:
-                raise PermissionDeniedError()
-            if decision.final_decision not in {
+                normal_decision = (
+                    GateDecision.objects.select_related("stage_gate")
+                    .filter(
+                        public_id=self.decision_public_id,
+                        organization_id=actor.organization_id,
+                        stage_gate__project_id=project.id,
+                    )
+                    .first()
+                )
+                if normal_decision is None:
+                    raise PermissionDeniedError()
+                approving_result = normal_decision.result
+            else:
+                approving_result = decision.final_decision
+            if approving_result not in {
                 GateResult.APPROVED,
                 GateResult.APPROVED_WITH_EXCEPTION,
             }:
                 raise ValidationFailedError(
-                    details={"reason": "Decision is not an approving first-launch result."}
+                    details={"reason": "Decision is not an approving gate result."}
                 )
+
+            if decision is not None:
+                decision_public_id = decision.public_id
+            else:
+                assert normal_decision is not None
+                decision_public_id = normal_decision.public_id
 
             draft = project.product_draft
             if draft is None:
                 raise ValidationFailedError(details={"reason": "Product draft is missing."})
 
-            expected_key = f"{decision.public_id}:{draft.public_id}"
+            expected_key = f"{decision_public_id}:{draft.public_id}"
             if self.idempotency_key != expected_key:
                 raise ValidationFailedError(
                     details={
-                        "reason": "Idempotency key must be decision_public_id:change_set_public_id.",
+                        "reason": (
+                            "Idempotency key must be decision_public_id:change_set_public_id."
+                        ),
                         "expected": expected_key,
                     }
                 )
@@ -91,7 +113,7 @@ class PublishAndHandover:
             if project.status == ProjectStatus.OPERATING and existing_version is not None:
                 scope = MonitoringScope.objects.filter(
                     project=project,
-                    source_decision_public_id=decision.public_id,
+                    source_decision_public_id=decision_public_id,
                 ).first()
                 return HandoverResult(
                     project=project,
@@ -128,7 +150,7 @@ class PublishAndHandover:
                         project=project,
                         product_version=publication.product_version,
                         owner=project.leader,
-                        source_decision_public_id=decision.public_id,
+                        source_decision_public_id=decision_public_id,
                         effective_at=self.context.occurred_at,
                     ).execute()
                     project.status = ProjectStatus.OPERATING
@@ -145,7 +167,7 @@ class PublishAndHandover:
                             occurred_at=self.context.occurred_at,
                             acting_roles_snapshot=acting_roles_snapshot(actor),
                             after_summary={
-                                "decision_public_id": str(decision.public_id),
+                                "decision_public_id": str(decision_public_id),
                                 "product_version_public_id": str(
                                     publication.product_version.public_id
                                 ),
@@ -160,7 +182,7 @@ class PublishAndHandover:
                             aggregate_id=project.public_id,
                             payload={
                                 "project_public_id": str(project.public_id),
-                                "decision_public_id": str(decision.public_id),
+                                "decision_public_id": str(decision_public_id),
                                 "product_version_public_id": str(
                                     publication.product_version.public_id
                                 ),

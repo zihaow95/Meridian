@@ -16,10 +16,12 @@ from apps.identity.models.user import User
 from apps.platform.api.errors import ResourceNotFoundError, ValidationFailedError
 from apps.platform.application.command import CommandContext
 from apps.projects.api.schemas import (
-    ITEMS_RESPONSE,
+    DELIVERABLES_RESPONSE,
     PROJECT_DETAIL_RESPONSE,
     PROJECT_LIST_RESPONSE,
     PUBLIC_ID_STATUS,
+    STAGES_RESPONSE,
+    TASKS_RESPONSE,
 )
 from apps.projects.queries.workbench import (
     get_project_for_user,
@@ -30,12 +32,25 @@ from apps.projects.queries.workbench import (
     serialize_workbench_project,
 )
 from apps.projects.services.appoint_member import AppointProjectMember
-from apps.projects.services.emergency_execution import CreateEmergencyExecution
+from apps.projects.services.emergency_execution import (
+    CompleteEmergencyExecution,
+    CreateEmergencyExecution,
+)
 from apps.projects.services.exceptions import (
     ConfirmExecutionException,
     RequestStageHandlingMode,
 )
 from apps.projects.services.plan_changes import ApplyPlanChange, ConfirmPlanChange
+from apps.work_items.services.materialize_template import CreateCustomDeliverable, CreateCustomTask
+
+
+def _page_params(request: Request) -> tuple[int, int]:
+    try:
+        page = int(request.query_params.get("page") or 1)
+        page_size = int(request.query_params.get("page_size") or 20)
+    except ValueError as exc:
+        raise ValidationFailedError(message="Invalid page or page_size.") from exc
+    return page, page_size
 
 
 class ProjectListView(APIView):
@@ -79,13 +94,21 @@ class ProjectWorkbenchDetailView(APIView):
 class ProjectStagesView(APIView):
     permission_classes = [IsAuthenticated]
 
-    @extend_schema(operation_id="projects_stages_list", responses={200: ITEMS_RESPONSE})
+    @extend_schema(operation_id="projects_stages_list", responses={200: STAGES_RESPONSE})
     def get(self, request: Request, public_id: UUID) -> Response:
         user = cast(User, request.user)
-        items = list_project_stages(user, public_id)
-        if items is None:
+        page, page_size = _page_params(request)
+        result = list_project_stages(user, public_id, page=page, page_size=page_size)
+        if result is None:
             raise ResourceNotFoundError()
-        return Response({"items": items})
+        return Response(
+            {
+                "items": result.items,
+                "page": result.page,
+                "page_size": result.page_size,
+                "count": result.count,
+            }
+        )
 
 
 class ProjectMembersView(APIView):
@@ -115,25 +138,98 @@ class ProjectMembersView(APIView):
 class ProjectTasksCollectionView(APIView):
     permission_classes = [IsAuthenticated]
 
-    @extend_schema(operation_id="projects_tasks_list", responses={200: ITEMS_RESPONSE})
+    @extend_schema(operation_id="projects_tasks_list", responses={200: TASKS_RESPONSE})
     def get(self, request: Request, public_id: UUID) -> Response:
         user = cast(User, request.user)
-        items = list_project_tasks(user, public_id)
-        if items is None:
+        page, page_size = _page_params(request)
+        result = list_project_tasks(user, public_id, page=page, page_size=page_size)
+        if result is None:
             raise ResourceNotFoundError()
-        return Response({"items": items})
+        return Response(
+            {
+                "items": result.items,
+                "page": result.page,
+                "page_size": result.page_size,
+                "count": result.count,
+            }
+        )
+
+    @extend_schema(operation_id="projects_tasks_create", responses={201: PUBLIC_ID_STATUS})
+    def post(self, request: Request, public_id: UUID) -> Response:
+        user = cast(User, request.user)
+        stage_public_id = request.data.get("stage_public_id")
+        task_code = str(request.data.get("task_code") or "").strip()
+        name = str(request.data.get("name") or "").strip()
+        dept = request.data.get("responsible_department_public_id")
+        if not stage_public_id or not task_code or not name or not dept:
+            raise ValidationFailedError(
+                message=(
+                    "stage_public_id, task_code, name, and "
+                    "responsible_department_public_id are required."
+                )
+            )
+        task = CreateCustomTask(
+            context=CommandContext.for_actor(user),
+            project_public_id=public_id,
+            stage_public_id=UUID(str(stage_public_id)),
+            task_code=task_code,
+            name=name,
+            responsible_department_public_id=UUID(str(dept)),
+            is_core=bool(request.data.get("is_core", False)),
+            description=str(request.data.get("description") or ""),
+        ).execute()
+        return Response(
+            {
+                "public_id": str(task.public_id),
+                "status": task.status,
+                "version_no": task.version_no,
+            },
+            status=201,
+        )
 
 
 class ProjectDeliverablesCollectionView(APIView):
     permission_classes = [IsAuthenticated]
 
-    @extend_schema(operation_id="projects_deliverables_list", responses={200: ITEMS_RESPONSE})
+    @extend_schema(
+        operation_id="projects_deliverables_list", responses={200: DELIVERABLES_RESPONSE}
+    )
     def get(self, request: Request, public_id: UUID) -> Response:
         user = cast(User, request.user)
-        items = list_project_deliverables(user, public_id)
-        if items is None:
+        page, page_size = _page_params(request)
+        result = list_project_deliverables(user, public_id, page=page, page_size=page_size)
+        if result is None:
             raise ResourceNotFoundError()
-        return Response({"items": items})
+        return Response(
+            {
+                "items": result.items,
+                "page": result.page,
+                "page_size": result.page_size,
+                "count": result.count,
+            }
+        )
+
+    @extend_schema(operation_id="projects_deliverables_create", responses={201: PUBLIC_ID_STATUS})
+    def post(self, request: Request, public_id: UUID) -> Response:
+        user = cast(User, request.user)
+        stage_public_id = request.data.get("stage_public_id")
+        deliverable_code = str(request.data.get("deliverable_code") or "").strip()
+        name = str(request.data.get("name") or "").strip()
+        if not stage_public_id or not deliverable_code or not name:
+            raise ValidationFailedError(
+                message="stage_public_id, deliverable_code, and name are required."
+            )
+        item = CreateCustomDeliverable(
+            context=CommandContext.for_actor(user),
+            project_public_id=public_id,
+            stage_public_id=UUID(str(stage_public_id)),
+            deliverable_code=deliverable_code,
+            name=name,
+            requires_professional_confirmation=bool(
+                request.data.get("requires_professional_confirmation", True)
+            ),
+        ).execute()
+        return Response({"public_id": str(item.public_id), "status": item.status}, status=201)
 
 
 class ProjectPlanChangesView(APIView):
@@ -248,3 +344,20 @@ class ProjectEmergencyExecutionsView(APIView):
             },
             status=201,
         )
+
+
+class EmergencyExecutionCompleteView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    @extend_schema(
+        operation_id="emergency_executions_complete",
+        responses={200: PUBLIC_ID_STATUS},
+    )
+    def post(self, request: Request, public_id: UUID) -> Response:
+        user = cast(User, request.user)
+        item = CompleteEmergencyExecution(
+            context=CommandContext.for_actor(user),
+            emergency_public_id=public_id,
+            confirmation_summary=str(request.data.get("confirmation_summary") or ""),
+        ).execute()
+        return Response({"public_id": str(item.public_id), "status": item.status})

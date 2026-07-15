@@ -24,8 +24,6 @@ from apps.platform.application.command import CommandContext
 from apps.stage_gates.models import StageGateInstance
 from apps.stage_gates.services.create_review_cycle import CreateProposalReviewCycle
 
-pytest_plugins = ["tests.projects.conftest"]
-
 
 @pytest.fixture
 def phase2_rule_config(organization: Organization, active_user: User) -> ConfigurationVersion:

@@ -2,4 +2,4 @@
 
 from __future__ import annotations
 
-pytest_plugins = ["tests.projects.conftest"]
+# Project fixtures are registered from root tests/conftest.py (pytest_plugins).

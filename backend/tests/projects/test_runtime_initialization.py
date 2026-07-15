@@ -15,10 +15,10 @@ from apps.configuration.models import (
 from apps.identity.models.organization import Organization
 from apps.identity.models.user import User
 from apps.platform.application.command import CommandContext
+from apps.projects.errors import ProjectTemplateNotPublished
 from apps.projects.models import Project, ProjectStage, ProjectStatus
 from apps.projects.services.create_project_from_candidate import ApproveAndCreateProject
 from apps.projects.services.initialize_runtime import InitializeProjectRuntime
-
 
 REQUIRED_STAGE_CODES = ("D1", "D2", "D3", "D4", "D5", "L1", "L2", "L3")
 
@@ -134,7 +134,7 @@ def test_partial_runtime_failure_rolls_back_project_and_stages(
         created_by=active_user,
     )
 
-    with pytest.raises(Exception):
+    with pytest.raises(ProjectTemplateNotPublished):
         ApproveAndCreateProject(
             context=CommandContext.for_actor(boss),
             candidate_public_id=approved_candidate.public_id,

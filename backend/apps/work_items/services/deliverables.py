@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import Protocol
 from uuid import UUID
 
 from django.db import transaction
@@ -31,7 +32,12 @@ from apps.work_items.models import (
 )
 
 
-def _authorize(*, actor: User, action: str, resource_type: str, resource) -> None:
+class _AuthResource(Protocol):
+    public_id: UUID
+    organization_id: int
+
+
+def _authorize(*, actor: User, action: str, resource_type: str, resource: _AuthResource) -> None:
     decision = authorize(
         subject_for(actor),
         action=action,

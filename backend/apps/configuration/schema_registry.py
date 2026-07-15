@@ -76,7 +76,9 @@ def validate_content(definition_code: str, content: dict[str, Any]) -> list[str]
     if schema is None:
         return [f"No schema registered for definition code: {definition_code}"]
     validator = Draft202012Validator(schema)
-    errors = [error.message for error in sorted(validator.iter_errors(content), key=lambda e: e.path)]
+    errors = [
+        error.message for error in sorted(validator.iter_errors(content), key=lambda e: e.path)
+    ]
     if definition_code == PROJECT_EXECUTION_TEMPLATE_CODE:
         errors.extend(_validate_project_template_rules(content))
     return errors

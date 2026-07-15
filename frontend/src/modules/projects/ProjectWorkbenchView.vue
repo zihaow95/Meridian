@@ -96,10 +96,17 @@ onMounted(async () => {
     <el-tabs v-else v-model="activeTab" class="workbench__tabs">
       <el-tab-pane label="概览" name="overview">
         <dl v-if="detail" class="workbench__overview">
-          <div><dt>类型</dt><dd>{{ detail.project_type }}</dd></div>
-          <div><dt>组长</dt><dd>{{ detail.leader_public_id }}</dd></div>
+          <div>
+            <dt>类型</dt>
+            <dd>{{ detail.project_type }}</dd>
+          </div>
+          <div>
+            <dt>组长</dt>
+            <dd>{{ detail.leader_public_id }}</dd>
+          </div>
           <div v-if="detail.product_draft_public_id">
-            <dt>产品草稿</dt><dd>{{ detail.product_draft_public_id }}</dd>
+            <dt>产品草稿</dt>
+            <dd>{{ detail.product_draft_public_id }}</dd>
           </div>
         </dl>
       </el-tab-pane>

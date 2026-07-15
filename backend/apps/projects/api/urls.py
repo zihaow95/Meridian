@@ -9,6 +9,7 @@ from apps.projects.api.migrations import (
     ProjectMigrationBatchCreateView,
 )
 from apps.projects.api.workbench import (
+    EmergencyExecutionCompleteView,
     ExecutionExceptionConfirmView,
     PlanChangeConfirmView,
     ProjectDeliverablesCollectionView,
@@ -73,6 +74,11 @@ urlpatterns = [
         "plan-changes/<uuid:public_id>/confirm",
         PlanChangeConfirmView.as_view(),
         name="plan-changes-confirm",
+    ),
+    path(
+        "emergency-executions/<uuid:public_id>/complete",
+        EmergencyExecutionCompleteView.as_view(),
+        name="emergency-executions-complete",
     ),
     path(
         "project-migration-batches",

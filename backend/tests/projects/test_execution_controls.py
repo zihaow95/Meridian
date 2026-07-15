@@ -17,7 +17,6 @@ from apps.projects.models import (
     EmergencyExecutionStatus,
     ExecutionException,
     ExecutionExceptionStatus,
-    PlanChange,
     PlanChangeStatus,
     PlanChangeType,
     Project,
@@ -53,7 +52,9 @@ def product_director_user(
 
 
 @pytest.mark.django_db
-def test_reuse_requires_director_confirmation(project: Project, product_director_user: User) -> None:
+def test_reuse_requires_director_confirmation(
+    project: Project, product_director_user: User
+) -> None:
     stage = project.stages.get(stage_code="D2")
     pending = RequestStageHandlingMode(
         context=CommandContext.for_actor(project.leader),
@@ -88,7 +89,9 @@ def test_not_applicable_cannot_be_requested(project: Project) -> None:
 
 
 @pytest.mark.django_db
-def test_handling_mode_change_preserves_exception_history(project: Project, product_director_user: User) -> None:
+def test_handling_mode_change_preserves_exception_history(
+    project: Project, product_director_user: User
+) -> None:
     stage = project.stages.get(stage_code="D2")
     first = RequestStageHandlingMode(
         context=CommandContext.for_actor(project.leader),
@@ -111,7 +114,12 @@ def test_handling_mode_change_preserves_exception_history(project: Project, prod
         exception_public_id=second.public_id,
     ).execute()
     assert ExecutionException.objects.filter(stage=stage).count() == 2
-    assert ExecutionException.objects.filter(stage=stage, status=ExecutionExceptionStatus.CONFIRMED).count() == 2
+    assert (
+        ExecutionException.objects.filter(
+            stage=stage, status=ExecutionExceptionStatus.CONFIRMED
+        ).count()
+        == 2
+    )
 
 
 @pytest.mark.django_db

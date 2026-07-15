@@ -20,8 +20,7 @@ from apps.documents.models import (
 )
 from apps.identity.models.department import Department, DepartmentStatus
 from apps.identity.models.organization import Organization
-from apps.identity.models.user import User, UserStatus
-from apps.platform.api.errors import PermissionDeniedError
+from apps.identity.models.user import User
 from apps.platform.application.command import CommandContext
 from apps.projects.models import Project
 from apps.stage_gates.models import (
@@ -53,22 +52,46 @@ def department(organization: Organization) -> Department:
     )
 
 
+def _complete_stage_work_items(project: Project, stage_code: str = "D1") -> None:
+    stage = project.stages.get(stage_code=stage_code)
+    Task.objects.filter(project=project, stage=stage).update(status=TaskStatus.COMPLETED)
+    Deliverable.objects.filter(project=project, stage=stage).update(
+        status=DeliverableStatus.EXEMPTED,
+        exemption_reason="fixture ready",
+        requires_professional_confirmation=False,
+    )
+
+
+def _d1_execution_gate(project: Project) -> StageGateInstance:
+    stage = project.stages.get(stage_code="D1")
+    gate = StageGateInstance.objects.filter(
+        project=project,
+        stage_code="D1_GATE",
+        cycle_number=1,
+    ).first()
+    if gate is None:
+        return StageGateInstance.objects.create(
+            organization=project.organization,
+            subject_type=SubjectType.PROJECT,
+            subject_public_id=project.public_id,
+            stage_code="D1_GATE",
+            cycle_number=1,
+            status=GateStatus.READY,
+            gate_type="NORMAL",
+            project=project,
+            project_stage=stage,
+            primary_material_type="PROJECT_STAGE",
+            primary_material_public_id=stage.public_id,
+        )
+    gate.status = GateStatus.READY
+    gate.project_stage = stage
+    gate.save(update_fields=["status", "project_stage", "updated_at"])
+    return gate
+
+
 @pytest.fixture
 def execution_gate(project: Project) -> StageGateInstance:
-    stage = project.stages.get(stage_code="D1")
-    return StageGateInstance.objects.create(
-        organization=project.organization,
-        subject_type=SubjectType.PROJECT,
-        subject_public_id=project.public_id,
-        stage_code="D1",
-        cycle_number=1,
-        status=GateStatus.READY,
-        gate_type="NORMAL",
-        project=project,
-        project_stage=stage,
-        primary_material_type="PROJECT_STAGE",
-        primary_material_public_id=stage.public_id,
-    )
+    return _d1_execution_gate(project)
 
 
 @pytest.fixture
@@ -108,6 +131,7 @@ def test_submit_locks_snapshot_and_new_revision_does_not_pollute(
     department: Department,
     active_user: User,
 ) -> None:
+    _complete_stage_work_items(project)
     Task.objects.create(
         organization=project.organization,
         project=project,
@@ -186,6 +210,7 @@ def test_needs_info_creates_next_submission(
 ) -> None:
     from apps.stage_gates.services.record_normal_decision import RecordNormalGateDecision
 
+    _complete_stage_work_items(project)
     Task.objects.create(
         organization=project.organization,
         project=project,

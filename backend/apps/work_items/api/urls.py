@@ -9,10 +9,15 @@ from apps.work_items.api.deliverables import (
     DeliverableRevisionsView,
     ProfessionalConfirmationDecideView,
 )
-from apps.work_items.api.tasks import TaskAssignView, TaskUpdateView
+from apps.work_items.api.tasks import TaskAssignView, TaskTransitionView, TaskUpdateView
 
 urlpatterns = [
     path("tasks/<uuid:public_id>", TaskUpdateView.as_view(), name="tasks-update"),
+    path(
+        "tasks/<uuid:public_id>/transition",
+        TaskTransitionView.as_view(),
+        name="tasks-transition",
+    ),
     path("tasks/<uuid:public_id>/assign", TaskAssignView.as_view(), name="tasks-assign"),
     path(
         "deliverables/<uuid:public_id>/revisions",

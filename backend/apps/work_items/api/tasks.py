@@ -29,10 +29,29 @@ TASK_RESPONSE = inline_serializer(
 
 
 class TaskUpdateView(APIView):
+    """Deprecated status mutation alias — prefer POST .../transition."""
+
     permission_classes = [IsAuthenticated]
 
-    @extend_schema(operation_id="tasks_partial_update", responses={200: TASK_RESPONSE})
+    @extend_schema(operation_id="tasks_partial_update", responses={405: None})
     def patch(self, request: Request, public_id: UUID) -> Response:
+        del request, public_id
+        return Response(
+            {
+                "code": "METHOD_NOT_ALLOWED",
+                "message": "Use POST /api/v1/tasks/{id}/transition to change task status.",
+                "details": {},
+                "trace_id": "",
+            },
+            status=405,
+        )
+
+
+class TaskTransitionView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    @extend_schema(operation_id="tasks_transition", responses={200: TASK_RESPONSE})
+    def post(self, request: Request, public_id: UUID) -> Response:
         user = cast(User, request.user)
         target_status = request.data.get("status")
         version_no = request.data.get("version_no")
@@ -73,7 +92,9 @@ class TaskAssignView(APIView):
             {
                 "public_id": str(task.public_id),
                 "responsible_user_public_id": (
-                    str(task.responsible_user.public_id) if task.responsible_user_id else None
+                    str(task.responsible_user.public_id)
+                    if task.responsible_user is not None
+                    else None
                 ),
                 "version_no": task.version_no,
             }

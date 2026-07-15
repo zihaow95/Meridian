@@ -5,6 +5,7 @@ from __future__ import annotations
 pytest_plugins = [
     "tests.opportunities.conftest",
     "tests.products.conftest",
+    "tests.projects.conftest",
 ]
 
 import shutil

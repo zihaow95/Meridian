@@ -71,6 +71,8 @@ _PHASE4_ACTIONS: tuple[tuple[str, str, str], ...] = (
     ("emergency_execution.create", "project", "PRODUCT_DIRECTOR"),
     ("plan_change.apply_minor", "project", "PRODUCT_DIRECTOR"),
     ("plan_change.confirm_important", "project", "PRODUCT_DIRECTOR"),
+    ("task.create", "project", "PRODUCT_DIRECTOR"),
+    ("deliverable.create", "project", "PRODUCT_DIRECTOR"),
 )
 
 
@@ -309,22 +311,16 @@ class Command(BaseCommand):
         )
 
     def _publish_project_template(self, organization: Organization, actor: User) -> None:
-        stages = [
-            {"code": "D1", "name": "项目启动与产品定义", "sequence_no": 1, "depends_on": []},
-            {"code": "D2", "name": "配方打样与体验验证", "sequence_no": 2, "depends_on": ["D1"]},
-            {"code": "D3", "name": "工艺放大与质量验证", "sequence_no": 3, "depends_on": ["D2"]},
-            {"code": "D4", "name": "工程化与试销准备", "sequence_no": 4, "depends_on": ["D3"]},
-            {"code": "D5", "name": "上市验证/试销", "sequence_no": 5, "depends_on": ["D4"]},
-            {"code": "L1", "name": "正式上市方案", "sequence_no": 6, "depends_on": ["D5"]},
-            {
-                "code": "L2",
-                "name": "首次上市阶段门",
-                "sequence_no": 7,
-                "depends_on": ["L1"],
-                "gate": {"gate_code": "FIRST_LAUNCH", "gate_type": "MAJOR"},
-            },
-            {"code": "L3", "name": "发布与运营交接", "sequence_no": 8, "depends_on": ["L2"]},
-        ]
+        import json
+        from pathlib import Path
+
+        seed_path = (
+            Path(__file__).resolve().parents[3]
+            / "configuration"
+            / "defaults"
+            / "project_template_v1.json"
+        )
+        content = json.loads(seed_path.read_text(encoding="utf-8"))
         definition, _ = ConfigurationDefinition.objects.get_or_create(
             organization=organization,
             definition_code="PROJECT_EXECUTION_TEMPLATE",
@@ -336,16 +332,7 @@ class Command(BaseCommand):
             version_number=1,
             defaults={
                 "status": ConfigurationStatus.PUBLISHED,
-                "content_json": {
-                    "template_code": "NEW_PRODUCT_DEFAULT_V1",
-                    "project_type": "NEW_PRODUCT",
-                    "stages": stages,
-                    "tasks": [],
-                    "deliverables": [],
-                    "gates": [
-                        {"stage_code": "L2", "gate_code": "FIRST_LAUNCH", "gate_type": "MAJOR"},
-                    ],
-                },
+                "content_json": content,
                 "content_digest": "digest-e2e-project-template-v1",
                 "created_by": actor,
                 "published_by": actor,
@@ -389,13 +376,7 @@ class Command(BaseCommand):
         )
         from apps.projects.models import Project, ProjectStatus, ProjectType
         from apps.projects.services.initialize_runtime import InitializeProjectRuntime
-        from apps.stage_gates.models import (
-            GateStatus,
-            GateType,
-            MaterialType,
-            StageGateInstance,
-            SubjectType,
-        )
+        from apps.stage_gates.models import GateStatus, StageGateInstance
 
         project = Project.objects.filter(organization=organization, business_no=business_no).first()
         if project is not None and project.status in {
@@ -496,9 +477,7 @@ class Command(BaseCommand):
                 }
             draft.status = ChangeSetStatus.APPROVED
             draft.approved_by = leader
-            draft.save(
-                update_fields=["change_scope", "status", "approved_by", "updated_at"]
-            )
+            draft.save(update_fields=["change_scope", "status", "approved_by", "updated_at"])
             if project.template_snapshot_id is None:
                 InitializeProjectRuntime(
                     context=CommandContext.for_actor(leader),
@@ -506,77 +485,22 @@ class Command(BaseCommand):
                 ).execute()
                 project.refresh_from_db()
 
+        # Runtime init already expands tasks/deliverables/gates from the published template.
+        # Only advance FIRST_LAUNCH to SUBMITTED for launch/repair decision fixture paths.
+
         stage = project.stages.get(stage_code="L2")
-        gate, _ = StageGateInstance.objects.get_or_create(
-            organization=organization,
-            subject_type=SubjectType.PROJECT,
-            subject_public_id=project.public_id,
-            stage_code="FIRST_LAUNCH",
-            cycle_number=1,
-            defaults={
-                "status": GateStatus.SUBMITTED,
-                "gate_type": GateType.MAJOR,
-                "project": project,
-                "project_stage": stage,
-                "primary_material_type": MaterialType.PROJECT_STAGE,
-                "primary_material_public_id": stage.public_id,
-            },
+        gate = (
+            StageGateInstance.objects.filter(
+                project=project,
+                stage_code="FIRST_LAUNCH",
+                cycle_number=1,
+            )
+            .select_related("project_stage")
+            .first()
         )
-        if gate.status != GateStatus.SUBMITTED and gate.status != GateStatus.DECIDED:
+        if gate is None:
+            raise RuntimeError("FIRST_LAUNCH gate missing after InitializeProjectRuntime")
+        if gate.status not in {GateStatus.DECIDED, GateStatus.APPROVED}:
             gate.status = GateStatus.SUBMITTED
-            gate.project = project
             gate.project_stage = stage
-            gate.save(update_fields=["status", "project", "project_stage", "updated_at"])
-
-        d1 = project.stages.get(stage_code="D1")
-        StageGateInstance.objects.get_or_create(
-            organization=organization,
-            subject_type=SubjectType.PROJECT,
-            subject_public_id=project.public_id,
-            stage_code="D1",
-            cycle_number=1,
-            defaults={
-                "status": GateStatus.READY,
-                "gate_type": GateType.NORMAL,
-                "project": project,
-                "project_stage": d1,
-                "primary_material_type": MaterialType.PROJECT_STAGE,
-                "primary_material_public_id": d1.public_id,
-            },
-        )
-        if business_no == E2E_LAUNCH_BUSINESS_NO:
-            self._ensure_incomplete_core_task(organization, project, d1, leader)
-
-    def _ensure_incomplete_core_task(
-        self,
-        organization: Organization,
-        project: object,
-        stage: object,
-        leader: User,
-    ) -> None:
-        from apps.identity.models.department import Department, DepartmentStatus
-        from apps.work_items.models import Task, TaskSourceType, TaskStatus
-
-        department, _ = Department.objects.get_or_create(
-            organization=organization,
-            department_code="E2E-DEPT",
-            defaults={
-                "name": "E2E Department",
-                "status": DepartmentStatus.ACTIVE,
-                "valid_from": timezone.now(),
-            },
-        )
-        Task.objects.get_or_create(
-            organization=organization,
-            project=project,
-            task_code="D1-E2E-CORE",
-            defaults={
-                "stage": stage,
-                "name": "E2E incomplete core task",
-                "status": TaskStatus.NOT_STARTED,
-                "is_core": True,
-                "version_no": 1,
-                "responsible_department": department,
-                "source_type": TaskSourceType.TEMPLATE,
-            },
-        )
+            gate.save(update_fields=["status", "project_stage", "updated_at"])

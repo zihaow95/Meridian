@@ -42,16 +42,22 @@ def test_overdue_scan_creates_todo_without_changing_task_status(project: Project
     scan_execution_overdue(now=timezone.now())
     task.refresh_from_db()
     assert task.status == TaskStatus.IN_PROGRESS
-    assert Todo.objects.filter(
-        source_id=task.public_id,
-        todo_type="task.overdue",
-        status="OPEN",
-    ).count() == 1
+    assert (
+        Todo.objects.filter(
+            source_id=task.public_id,
+            todo_type="task.overdue",
+            status="OPEN",
+        ).count()
+        == 1
+    )
     assert OutboxEvent.objects.filter(event_type="task.overdue").count() >= 1
 
     scan_execution_overdue(now=timezone.now())
-    assert Todo.objects.filter(
-        source_id=task.public_id,
-        todo_type="task.overdue",
-        status="OPEN",
-    ).count() == 1
+    assert (
+        Todo.objects.filter(
+            source_id=task.public_id,
+            todo_type="task.overdue",
+            status="OPEN",
+        ).count()
+        == 1
+    )

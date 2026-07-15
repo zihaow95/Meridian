@@ -13,6 +13,7 @@ from apps.audit.services.snapshots import acting_roles_snapshot
 from apps.authorization.context import AuthorizationContext, ResourceDescriptor
 from apps.authorization.policies.engine import authorize
 from apps.authorization.services.subject import subject_for
+from apps.identity.models.user import User
 from apps.platform.api.errors import PermissionDeniedError
 from apps.platform.application.command import CommandContext
 from apps.platform.outbox.services import OutboxMessage, register_outbox_event
@@ -32,10 +33,9 @@ from apps.stage_gates.models import (
     StageGateInstance,
 )
 
-
 _APPROVING = frozenset({GateResult.APPROVED, GateResult.APPROVED_WITH_EXCEPTION})
 
-_GATE_STATUS_BY_RESULT = {
+_GATE_STATUS_BY_RESULT: dict[str, str] = {
     GateResult.APPROVED: GateStatus.DECIDED,
     GateResult.APPROVED_WITH_EXCEPTION: GateStatus.DECIDED,
     GateResult.NEEDS_INFO: GateStatus.NEEDS_INFO,
@@ -59,6 +59,7 @@ class RecordFirstLaunchDecision:
     final_decision: str
     decision_summary: str
     idempotency_key: str
+    management_conclusion_by_public_id: UUID | None = None
 
     def execute(self) -> FirstLaunchDecisionResult:
         actor = self.context.actor
@@ -83,55 +84,37 @@ class RecordFirstLaunchDecision:
             if gate is None:
                 raise PermissionDeniedError()
 
+            management_conclusion_by = self._authorize_and_resolve_management_actor(actor, gate)
+
             existing = MajorGateDecision.objects.filter(
                 idempotency_key=self.idempotency_key,
                 stage_gate=gate,
             ).first()
             if existing is not None:
+                if existing.organization_id != gate.organization_id:
+                    raise PermissionDeniedError()
                 return FirstLaunchDecisionResult(decision=existing)
 
             if MajorGateDecision.objects.filter(stage_gate=gate).exists():
                 raise MajorGateAlreadyDecided()
 
-            if (
-                gate.stage_code != "FIRST_LAUNCH"
-                and not (
-                    gate.project_stage_id is not None
-                    and gate.project_stage.gate_code == "FIRST_LAUNCH"
-                )
+            project_stage = gate.project_stage
+            if gate.stage_code != "FIRST_LAUNCH" and not (
+                project_stage is not None and project_stage.gate_code == "FIRST_LAUNCH"
             ):
                 raise GateDecisionNotAllowed(message="Gate is not a FIRST_LAUNCH decision point.")
             if gate.gate_type != GateType.MAJOR:
                 raise GateDecisionNotAllowed(message="FIRST_LAUNCH requires a major gate.")
-
-            for action in (
-                "first_launch.management_conclusion.record",
-                "first_launch.final_decision.record",
-            ):
-                decision = authorize(
-                    subject_for(actor),
-                    action=action,
-                    resource=ResourceDescriptor(
-                        resource_type="stage_gate",
-                        public_id=gate.public_id,
-                        organization_id=gate.organization_id,
-                    ),
-                    context=AuthorizationContext.current(),
-                )
-                if not decision.allowed:
-                    raise PermissionDeniedError()
 
             try:
                 record = MajorGateDecision.objects.create(
                     organization=gate.organization,
                     stage_gate=gate,
                     management_conclusion=self.management_conclusion,
-                    management_conclusion_by=actor,
+                    management_conclusion_by=management_conclusion_by,
                     final_decision=self.final_decision,
                     final_decision_by=actor,
-                    has_conclusion_difference=(
-                        self.management_conclusion != self.final_decision
-                    ),
+                    has_conclusion_difference=(self.management_conclusion != self.final_decision),
                     decision_summary=self.decision_summary,
                     idempotency_key=self.idempotency_key,
                     decided_at=self.context.occurred_at,
@@ -199,14 +182,64 @@ class RecordFirstLaunchDecision:
             if self.final_decision not in _APPROVING or project is None:
                 return FirstLaunchDecisionResult(decision=record)
 
+            draft = project.product_draft
+            if draft is None:
+                raise GateDecisionNotAllowed(message="Product draft is missing for handover.")
+
             handover = PublishAndHandover(
                 context=self.context,
                 project_public_id=project.public_id,
                 decision_public_id=record.public_id,
-                idempotency_key=f"{record.public_id}:{project.product_draft.public_id}",
+                idempotency_key=f"{record.public_id}:{draft.public_id}",
             ).execute()
             return FirstLaunchDecisionResult(
                 decision=record,
                 handover=handover,
                 handover_error=handover.error_code,
             )
+
+    def _authorize_and_resolve_management_actor(self, actor: User, gate: StageGateInstance) -> User:
+        resource = ResourceDescriptor(
+            resource_type="stage_gate",
+            public_id=gate.public_id,
+            organization_id=gate.organization_id,
+        )
+        context = AuthorizationContext.current()
+        if self.management_conclusion_by_public_id is not None:
+            management_user = User.objects.filter(
+                public_id=self.management_conclusion_by_public_id,
+                organization_id=gate.organization_id,
+            ).first()
+            if management_user is None:
+                raise PermissionDeniedError()
+            management_auth = authorize(
+                subject_for(management_user),
+                action="first_launch.management_conclusion.record",
+                resource=resource,
+                context=context,
+            )
+            if not management_auth.allowed:
+                raise PermissionDeniedError()
+            final_auth = authorize(
+                subject_for(actor),
+                action="first_launch.final_decision.record",
+                resource=resource,
+                context=context,
+            )
+            if not final_auth.allowed:
+                raise PermissionDeniedError()
+            return management_user
+
+        for action in (
+            "first_launch.management_conclusion.record",
+            "first_launch.final_decision.record",
+        ):
+            decision = authorize(
+                subject_for(actor),
+                action=action,
+                resource=resource,
+                context=context,
+            )
+            if not decision.allowed:
+                raise PermissionDeniedError()
+        return actor
