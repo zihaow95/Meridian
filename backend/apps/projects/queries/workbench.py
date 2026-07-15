@@ -117,9 +117,15 @@ def serialize_workbench_project(project: Project) -> dict[str, Any]:
 
 
 def list_project_stages(user: User, project_public_id: UUID) -> list[dict[str, Any]] | None:
+    from apps.stage_gates.models import StageGateInstance
+
     project = get_project_for_user(user, project_public_id)
     if project is None:
         return None
+    gates_by_stage = {
+        gate.project_stage_id: gate
+        for gate in StageGateInstance.objects.filter(project=project, project_stage_id__isnull=False)
+    }
     return [
         {
             "public_id": str(stage.public_id),
@@ -131,6 +137,9 @@ def list_project_stages(user: User, project_public_id: UUID) -> list[dict[str, A
             "gate_type": stage.gate_type,
             "handling_mode": stage.handling_mode,
             "planned_end_at": stage.planned_end_at.isoformat() if stage.planned_end_at else None,
+            "stage_gate_public_id": (
+                str(gates_by_stage[stage.id].public_id) if stage.id in gates_by_stage else None
+            ),
         }
         for stage in ProjectStage.objects.filter(project=project).order_by("sequence_no")
     ]

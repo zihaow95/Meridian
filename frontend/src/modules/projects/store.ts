@@ -22,6 +22,7 @@ export type WorkbenchStageItem = {
   gate_type: string | null
   handling_mode: string | null
   planned_end_at: string | null
+  stage_gate_public_id?: string | null
 }
 
 export type WorkbenchTaskItem = {

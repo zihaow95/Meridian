@@ -28,7 +28,10 @@ from apps.opportunities.services.configuration import OPPORTUNITY_RULE_DEFINITIO
 
 E2E_LOGIN_KEY = "e2e-active-user"
 E2E_APPROVER_LOGIN_KEY = "e2e-approver-user"
+E2E_LIMITED_LOGIN_KEY = "e2e-limited-user"
 E2E_ORG_NAME = "E2E Organization"
+E2E_LAUNCH_BUSINESS_NO = "E2E-LAUNCH"
+E2E_REPAIR_BUSINESS_NO = "E2E-REPAIR"
 
 _PHASE2_ACTIONS: tuple[tuple[str, str, str], ...] = (
     ("opportunity.create", "opportunity", "PROPOSER"),
@@ -61,6 +64,15 @@ _PHASE3_ACTIONS: tuple[tuple[str, str, str], ...] = (
     ("external_binding.manage", "product", "PRODUCT_DIRECTOR"),
 )
 
+_PHASE4_ACTIONS: tuple[tuple[str, str, str], ...] = (
+    ("project_migration.confirm", "project", "PRODUCT_DIRECTOR"),
+    ("first_launch.management_conclusion.record", "stage_gate", "BOSS"),
+    ("first_launch.final_decision.record", "stage_gate", "BOSS"),
+    ("emergency_execution.create", "project", "PRODUCT_DIRECTOR"),
+    ("plan_change.apply_minor", "project", "PRODUCT_DIRECTOR"),
+    ("plan_change.confirm_important", "project", "PRODUCT_DIRECTOR"),
+)
+
 
 class Command(BaseCommand):
     help = "Create or refresh the deterministic E2E active user, permissions, and sample todo."
@@ -89,9 +101,14 @@ class Command(BaseCommand):
             self._grant_action(user, action_code, resource_type, role_code=role_code)
         for action_code, resource_type, role_code in _PHASE3_ACTIONS:
             self._grant_action(user, action_code, resource_type, role_code=role_code)
+        for action_code, resource_type, role_code in _PHASE4_ACTIONS:
+            self._grant_action(user, action_code, resource_type, role_code=role_code)
         self._publish_opportunity_rules(organization, user)
         self._publish_product_schema(organization)
+        self._publish_project_template(organization, user)
         self._ensure_approver(organization)
+        self._ensure_limited_user(organization)
+        self._ensure_phase4_projects(organization, user)
 
         source_id = uuid4()
         Todo.objects.update_or_create(
@@ -113,6 +130,27 @@ class Command(BaseCommand):
         self.stdout.write(
             self.style.SUCCESS(f"E2E approver ready: login_key={E2E_APPROVER_LOGIN_KEY}")
         )
+        self.stdout.write(
+            self.style.SUCCESS(f"E2E limited ready: login_key={E2E_LIMITED_LOGIN_KEY}")
+        )
+
+    def _ensure_limited_user(self, organization: Organization) -> None:
+        limited, created = User.objects.get_or_create(
+            login_key=E2E_LIMITED_LOGIN_KEY,
+            defaults={
+                "organization": organization,
+                "display_name": "E2E Limited User",
+                "status": UserStatus.ACTIVE,
+                "activated_at": timezone.now(),
+            },
+        )
+        if not created:
+            limited.organization = organization
+            limited.display_name = "E2E Limited User"
+            limited.status = UserStatus.ACTIVE
+            limited.activated_at = timezone.now()
+            limited.save(update_fields=["organization", "display_name", "status", "activated_at"])
+        self._grant_action(limited, "notification.todo.read", "notification.todo")
 
     def _ensure_approver(self, organization: Organization) -> None:
         approver, created = User.objects.get_or_create(
@@ -267,5 +305,278 @@ class Command(BaseCommand):
                 "field_type": AttributeFieldType.TEXT,
                 "sensitivity_level": "SENSITIVE_CONTROLLED",
                 "display_order": 2,
+            },
+        )
+
+    def _publish_project_template(self, organization: Organization, actor: User) -> None:
+        stages = [
+            {"code": "D1", "name": "项目启动与产品定义", "sequence_no": 1, "depends_on": []},
+            {"code": "D2", "name": "配方打样与体验验证", "sequence_no": 2, "depends_on": ["D1"]},
+            {"code": "D3", "name": "工艺放大与质量验证", "sequence_no": 3, "depends_on": ["D2"]},
+            {"code": "D4", "name": "工程化与试销准备", "sequence_no": 4, "depends_on": ["D3"]},
+            {"code": "D5", "name": "上市验证/试销", "sequence_no": 5, "depends_on": ["D4"]},
+            {"code": "L1", "name": "正式上市方案", "sequence_no": 6, "depends_on": ["D5"]},
+            {
+                "code": "L2",
+                "name": "首次上市阶段门",
+                "sequence_no": 7,
+                "depends_on": ["L1"],
+                "gate": {"gate_code": "FIRST_LAUNCH", "gate_type": "MAJOR"},
+            },
+            {"code": "L3", "name": "发布与运营交接", "sequence_no": 8, "depends_on": ["L2"]},
+        ]
+        definition, _ = ConfigurationDefinition.objects.get_or_create(
+            organization=organization,
+            definition_code="PROJECT_EXECUTION_TEMPLATE",
+            defaults={"name": "Project execution template"},
+        )
+        ConfigurationVersion.objects.update_or_create(
+            organization=organization,
+            definition=definition,
+            version_number=1,
+            defaults={
+                "status": ConfigurationStatus.PUBLISHED,
+                "content_json": {
+                    "template_code": "NEW_PRODUCT_DEFAULT_V1",
+                    "project_type": "NEW_PRODUCT",
+                    "stages": stages,
+                    "tasks": [],
+                    "deliverables": [],
+                    "gates": [
+                        {"stage_code": "L2", "gate_code": "FIRST_LAUNCH", "gate_type": "MAJOR"},
+                    ],
+                },
+                "content_digest": "digest-e2e-project-template-v1",
+                "created_by": actor,
+                "published_by": actor,
+                "published_at": timezone.now(),
+            },
+        )
+
+    def _ensure_phase4_projects(self, organization: Organization, leader: User) -> None:
+        self._ensure_launch_project(
+            organization,
+            leader,
+            business_no=E2E_LAUNCH_BUSINESS_NO,
+            name="E2E Launch Ready",
+            publishable=True,
+        )
+        self._ensure_launch_project(
+            organization,
+            leader,
+            business_no=E2E_REPAIR_BUSINESS_NO,
+            name="E2E Repair Pending",
+            publishable=False,
+        )
+
+    def _ensure_launch_project(
+        self,
+        organization: Organization,
+        leader: User,
+        *,
+        business_no: str,
+        name: str,
+        publishable: bool,
+    ) -> None:
+        from apps.platform.application.command import CommandContext
+        from apps.products.models import (
+            ChangeSetStatus,
+            ChangeSetType,
+            ProductAsset,
+            ProductChangeSet,
+            ProductLifecycleStatus,
+            ProductSourceType,
+        )
+        from apps.projects.models import Project, ProjectStatus, ProjectType
+        from apps.projects.services.initialize_runtime import InitializeProjectRuntime
+        from apps.stage_gates.models import (
+            GateStatus,
+            GateType,
+            MaterialType,
+            StageGateInstance,
+            SubjectType,
+        )
+
+        project = Project.objects.filter(organization=organization, business_no=business_no).first()
+        if project is not None and project.status in {
+            ProjectStatus.OPERATING,
+            ProjectStatus.PUBLISH_PENDING_REPAIR,
+        }:
+            return
+
+        if project is None:
+            product = ProductAsset.objects.create(
+                organization=organization,
+                business_no=f"{business_no}-PRD",
+                name=name,
+                brand_code="BRAND-A",
+                category_code="YOGURT",
+                source_type=ProductSourceType.NEW_PROJECT,
+                lifecycle_status=ProductLifecycleStatus.DEVELOPING,
+                product_owner=leader,
+            )
+            change_scope = (
+                {
+                    "effective_from": timezone.now().isoformat(),
+                    "skus": [
+                        {
+                            "sku_code": f"SKU-{business_no}",
+                            "name": "Launch cup",
+                            "barcode": f"69{abs(hash(business_no)) % 10_000_000_000:010d}",
+                            "specification": "120g",
+                        }
+                    ],
+                    "channels": [
+                        {
+                            "sku_code": f"SKU-{business_no}",
+                            "channel_code": "TMALL",
+                            "channel_status": "ON_SALE",
+                        }
+                    ],
+                }
+                if publishable
+                else {"effective_from": timezone.now().isoformat(), "skus": [], "channels": []}
+            )
+            draft = ProductChangeSet.objects.create(
+                organization=organization,
+                change_type=ChangeSetType.NEW_PRODUCT,
+                status=ChangeSetStatus.APPROVED,
+                product=product,
+                target_product_asset=product,
+                title=f"{name} draft",
+                change_scope=change_scope,
+                approved_by=leader,
+                created_by=leader,
+            )
+            project = Project.objects.create(
+                organization=organization,
+                business_no=business_no,
+                name=name,
+                project_type=ProjectType.NEW_PRODUCT,
+                status=ProjectStatus.INITIALIZING,
+                leader=leader,
+                product_asset=product,
+                product_draft=draft,
+                idempotency_key=f"e2e-seed-{business_no}",
+            )
+            product.source_project = project
+            product.save(update_fields=["source_project", "updated_at"])
+            InitializeProjectRuntime(
+                context=CommandContext.for_actor(leader),
+                project=project,
+            ).execute()
+            project.refresh_from_db()
+        else:
+            draft = project.product_draft
+            assert draft is not None
+            if publishable:
+                draft.change_scope = {
+                    "effective_from": timezone.now().isoformat(),
+                    "skus": [
+                        {
+                            "sku_code": f"SKU-{business_no}",
+                            "name": "Launch cup",
+                            "barcode": f"69{abs(hash(business_no)) % 10_000_000_000:010d}",
+                            "specification": "120g",
+                        }
+                    ],
+                    "channels": [
+                        {
+                            "sku_code": f"SKU-{business_no}",
+                            "channel_code": "TMALL",
+                            "channel_status": "ON_SALE",
+                        }
+                    ],
+                }
+            else:
+                draft.change_scope = {
+                    "effective_from": timezone.now().isoformat(),
+                    "skus": [],
+                    "channels": [],
+                }
+            draft.status = ChangeSetStatus.APPROVED
+            draft.approved_by = leader
+            draft.save(
+                update_fields=["change_scope", "status", "approved_by", "updated_at"]
+            )
+            if project.template_snapshot_id is None:
+                InitializeProjectRuntime(
+                    context=CommandContext.for_actor(leader),
+                    project=project,
+                ).execute()
+                project.refresh_from_db()
+
+        stage = project.stages.get(stage_code="L2")
+        gate, _ = StageGateInstance.objects.get_or_create(
+            organization=organization,
+            subject_type=SubjectType.PROJECT,
+            subject_public_id=project.public_id,
+            stage_code="FIRST_LAUNCH",
+            cycle_number=1,
+            defaults={
+                "status": GateStatus.SUBMITTED,
+                "gate_type": GateType.MAJOR,
+                "project": project,
+                "project_stage": stage,
+                "primary_material_type": MaterialType.PROJECT_STAGE,
+                "primary_material_public_id": stage.public_id,
+            },
+        )
+        if gate.status != GateStatus.SUBMITTED and gate.status != GateStatus.DECIDED:
+            gate.status = GateStatus.SUBMITTED
+            gate.project = project
+            gate.project_stage = stage
+            gate.save(update_fields=["status", "project", "project_stage", "updated_at"])
+
+        d1 = project.stages.get(stage_code="D1")
+        StageGateInstance.objects.get_or_create(
+            organization=organization,
+            subject_type=SubjectType.PROJECT,
+            subject_public_id=project.public_id,
+            stage_code="D1",
+            cycle_number=1,
+            defaults={
+                "status": GateStatus.READY,
+                "gate_type": GateType.NORMAL,
+                "project": project,
+                "project_stage": d1,
+                "primary_material_type": MaterialType.PROJECT_STAGE,
+                "primary_material_public_id": d1.public_id,
+            },
+        )
+        if business_no == E2E_LAUNCH_BUSINESS_NO:
+            self._ensure_incomplete_core_task(organization, project, d1, leader)
+
+    def _ensure_incomplete_core_task(
+        self,
+        organization: Organization,
+        project: object,
+        stage: object,
+        leader: User,
+    ) -> None:
+        from apps.identity.models.department import Department, DepartmentStatus
+        from apps.work_items.models import Task, TaskSourceType, TaskStatus
+
+        department, _ = Department.objects.get_or_create(
+            organization=organization,
+            department_code="E2E-DEPT",
+            defaults={
+                "name": "E2E Department",
+                "status": DepartmentStatus.ACTIVE,
+                "valid_from": timezone.now(),
+            },
+        )
+        Task.objects.get_or_create(
+            organization=organization,
+            project=project,
+            task_code="D1-E2E-CORE",
+            defaults={
+                "stage": stage,
+                "name": "E2E incomplete core task",
+                "status": TaskStatus.NOT_STARTED,
+                "is_core": True,
+                "version_no": 1,
+                "responsible_department": department,
+                "source_type": TaskSourceType.TEMPLATE,
             },
         )

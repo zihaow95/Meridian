@@ -23,7 +23,9 @@ const actorPublicId = computed(() => auth.me?.public_id ?? '')
 const currentStage = computed(() =>
   projects.stages.find((stage) => stage.stage_code === detail.value?.current_stage_code),
 )
-const stageGatePublicId = computed(() => currentStage.value?.public_id ?? '')
+const stageGatePublicId = computed(
+  () => currentStage.value?.stage_gate_public_id ?? currentStage.value?.public_id ?? '',
+)
 
 async function load(): Promise<void> {
   errorText.value = ''

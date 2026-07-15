@@ -18,7 +18,8 @@ D:\Projects\Meridian
 - **阶段0工程基础与阶段1平台内核已完成**（Django 5.2 + Vue 3 正式工程，MySQL 测试门禁与 Playwright E2E 已通过 remediation 验收）；
 - **阶段2（提案→立案→立项）已完成**（两个重大阶段门、原子项目/产品草稿创建、前端最小闭环与 E2E 验收已通过本地门禁）；
 - **阶段3（产品档案与存量迁移）已完成**（见 [`phase-3-checkpoint.md`](docs/implementation/phase-3-checkpoint.md)；全量门禁 `All quality gates passed.`，pytest 199、产品迁移 E2E 9）；
-- **阶段4（开发到首次上市）尚未开始**；任务级实施计划已就绪：[`2026-07-14-phase-4-development-first-launch.md`](docs/superpowers/plans/2026-07-14-phase-4-development-first-launch.md)（覆盖 EXE-001—014，目标为 D1—L3 执行、`FIRST_LAUNCH`、产品发布与最小运营交接）。
+- **阶段4（开发到首次上市）已完成实现与退出证据**（见 [`phase-4-checkpoint.md`](docs/implementation/phase-4-checkpoint.md)；EXE-001—014、工作台 Vitest 16、Playwright development-first-launch 6；全量 `scripts\check.cmd` / `verify-trd.ps1` 以验收复跑为准）；
+- **阶段5（运营与退市）尚未开始**。
 
 ## 文档入口
 
