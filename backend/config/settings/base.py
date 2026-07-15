@@ -50,6 +50,7 @@ INSTALLED_APPS = [
     "apps.projects",
     "apps.products",
     "apps.work_items",
+    "apps.operations",
 ]
 
 AUTH_USER_MODEL = "identity.User"
