@@ -24,6 +24,7 @@ from apps.platform.outbox.services import OutboxMessage, register_outbox_event
 from apps.projects.errors import (
     MigrationBaselineAlreadyConfirmed,
     MigrationImportFailed,
+    ProjectTemplateInvalid,
     ProjectTemplateNotPublished,
 )
 from apps.projects.models import (
@@ -39,9 +40,19 @@ from apps.projects.models import (
     StageHandlingMode,
 )
 from apps.projects.services.appoint_member import AppointProjectMember
-from apps.projects.services.initialize_runtime import PROJECT_EXECUTION_TEMPLATE_CODE
+from apps.projects.services.initialize_runtime import (
+    PROJECT_EXECUTION_TEMPLATE_CODE,
+    require_template_departments,
+)
 from apps.stage_gates.services.open_execution_gates import open_execution_gates_for_stages
-from apps.work_items.models import Task, TaskSourceType, TaskStatus
+from apps.work_items.models import (
+    Deliverable,
+    DeliverableStatus,
+    DeliverableTier,
+    Task,
+    TaskSourceType,
+    TaskStatus,
+)
 from apps.work_items.services.materialize_template import (
     materialize_template_deliverables,
     materialize_template_tasks,
@@ -52,6 +63,49 @@ from apps.work_items.services.materialize_template import (
 class ConfirmMigrationResult:
     baseline: MigrationBaseline
     project: Project | None
+
+
+def _resolve_migration_leader(*, baseline: MigrationBaseline, actor: User) -> User:
+    plan = baseline.plan_summary or {}
+    leader_pid = plan.get("leader_public_id")
+    if leader_pid:
+        matched = User.objects.filter(
+            public_id=leader_pid,
+            organization_id=baseline.organization_id,
+        ).first()
+        if matched is not None:
+            return matched
+    if baseline.leader_display_name:
+        matched = User.objects.filter(
+            organization_id=baseline.organization_id,
+            display_name=baseline.leader_display_name,
+        ).first()
+        if matched is not None:
+            return matched
+    return actor
+
+
+def _materialize_history_file(
+    *,
+    project: Project,
+    stage: ProjectStage,
+    item: dict[str, Any],
+    actor: User,
+) -> Deliverable:
+    del actor
+    filename = str(item.get("filename") or "migrated-file")
+    code = f"MIG-FILE-{uuid4().hex[:10]}"
+    return Deliverable.objects.create(
+        organization=project.organization,
+        project=project,
+        stage=stage,
+        deliverable_code=code,
+        name=filename,
+        tier=DeliverableTier.PROJECT_CUSTOM,
+        status=DeliverableStatus.CONTROLLED,
+        requires_professional_confirmation=False,
+        exemption_reason=str(item.get("source_note") or "Migrated history file"),
+    )
 
 
 def _filter_content_for_stages(content: dict[str, Any], stage_codes: set[str]) -> dict[str, Any]:
@@ -108,16 +162,6 @@ class ConfirmMigrationBaseline:
             if baseline is None:
                 raise PermissionDeniedError()
 
-            existing = MigrationBaseline.objects.filter(
-                confirm_idempotency_key=self.idempotency_key
-            ).first()
-            if existing is not None:
-                project = Project.objects.filter(migration_baseline=existing).first()
-                return ConfirmMigrationResult(baseline=existing, project=project)
-
-            if baseline.status == MigrationBaselineStatus.CONFIRMED:
-                raise MigrationBaselineAlreadyConfirmed()
-
             decision = authorize(
                 subject_for(actor),
                 action="project_migration.confirm",
@@ -130,6 +174,17 @@ class ConfirmMigrationBaseline:
             )
             if not decision.allowed:
                 raise PermissionDeniedError()
+
+            existing = MigrationBaseline.objects.filter(
+                organization_id=actor.organization_id,
+                confirm_idempotency_key=self.idempotency_key,
+            ).first()
+            if existing is not None:
+                project = Project.objects.filter(migration_baseline=existing).first()
+                return ConfirmMigrationResult(baseline=existing, project=project)
+
+            if baseline.status == MigrationBaselineStatus.CONFIRMED:
+                raise MigrationBaselineAlreadyConfirmed()
 
             if self.disposition not in MigrationDisposition.values:
                 raise MigrationImportFailed(message=f"Invalid disposition: {self.disposition}")
@@ -271,20 +326,33 @@ class ConfirmMigrationBaseline:
             stage for stage in created_stages if stage.stage_code == baseline.current_stage_code
         )
         project.current_stage = current
-        project.save(update_fields=["current_stage", "updated_at"])
+        planned_end = (baseline.plan_summary or {}).get("planned_end_at")
+        if planned_end:
+            from django.utils.dateparse import parse_datetime
+
+            parsed = parse_datetime(str(planned_end))
+            if parsed is not None:
+                current.planned_end_at = parsed
+                current.save(update_fields=["planned_end_at", "updated_at"])
+                project.planned_end_at = parsed
+        project.save(update_fields=["current_stage", "planned_end_at", "updated_at"])
+
+        try:
+            require_template_departments(baseline.organization_id)
+        except ProjectTemplateInvalid as exc:
+            raise MigrationImportFailed(message=str(exc)) from exc
 
         department = Department.objects.filter(
             organization=baseline.organization,
+            department_code="PRODUCT",
             status=DepartmentStatus.ACTIVE,
         ).first()
         if department is None:
-            department = Department.objects.create(
-                organization=baseline.organization,
-                department_code="MIG",
-                name="Migration Dept",
-                status=DepartmentStatus.ACTIVE,
-                valid_from=self.context.occurred_at,
-            )
+            raise MigrationImportFailed(message="PRODUCT department is required for migration.")
+
+        leader = _resolve_migration_leader(baseline=baseline, actor=actor)
+        project.leader = leader
+        project.save(update_fields=["leader", "updated_at"])
 
         for item in baseline.history_tasks:
             try:
@@ -301,8 +369,18 @@ class ConfirmMigrationBaseline:
                     status=TaskStatus.COMPLETED,
                     version_no=1,
                 )
-            except IntegrityError:
-                continue
+            except IntegrityError as exc:
+                raise MigrationImportFailed(
+                    message=f"Failed to materialize history task: {item.get('task_code')}"
+                ) from exc
+
+        for item in baseline.history_files or []:
+            _materialize_history_file(
+                project=project,
+                stage=current,
+                item=item if isinstance(item, dict) else {"filename": str(item)},
+                actor=actor,
+            )
 
         stages_by_code = {stage.stage_code: stage for stage in created_stages}
         materialize_template_tasks(
@@ -320,13 +398,30 @@ class ConfirmMigrationBaseline:
             project=project,
             stages=created_stages,
             content=filtered_content,
+            ready_stage_codes={baseline.current_stage_code},
         )
 
         AppointProjectMember(
             context=self.context,
             project_public_id=project.public_id,
-            user_public_id=actor.public_id,
+            user_public_id=leader.public_id,
             project_role=ProjectRole.LEADER,
         ).execute()
+
+        for member in (baseline.plan_summary or {}).get("members") or []:
+            member_id = member.get("user_public_id") if isinstance(member, dict) else None
+            role = (
+                str(member.get("project_role") or ProjectRole.MEMBER)
+                if isinstance(member, dict)
+                else ProjectRole.MEMBER
+            )
+            if not member_id:
+                continue
+            AppointProjectMember(
+                context=self.context,
+                project_public_id=project.public_id,
+                user_public_id=UUID(str(member_id)),
+                project_role=role if role in ProjectRole.values else ProjectRole.MEMBER,
+            ).execute()
 
         return project

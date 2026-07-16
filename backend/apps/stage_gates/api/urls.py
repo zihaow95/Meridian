@@ -10,6 +10,8 @@ from apps.stage_gates.api.decisions import (
 )
 from apps.stage_gates.api.execution import (
     StageGateFirstLaunchDecisionView,
+    StageGateFirstLaunchFinalDecisionView,
+    StageGateFirstLaunchManagementConclusionView,
     StageGateNormalDecisionView,
     StageGateSubmissionsView,
     StageGateValidateView,
@@ -40,6 +42,16 @@ urlpatterns = [
         "stage-gates/<uuid:public_id>/decision",
         StageGateNormalDecisionView.as_view(),
         name="stage-gate-decision",
+    ),
+    path(
+        "stage-gates/<uuid:public_id>/first-launch-management-conclusion",
+        StageGateFirstLaunchManagementConclusionView.as_view(),
+        name="stage-gate-first-launch-management-conclusion",
+    ),
+    path(
+        "stage-gates/<uuid:public_id>/first-launch-final-decision",
+        StageGateFirstLaunchFinalDecisionView.as_view(),
+        name="stage-gate-first-launch-final-decision",
     ),
     path(
         "stage-gates/<uuid:public_id>/first-launch-decision",

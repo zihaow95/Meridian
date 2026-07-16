@@ -40,6 +40,26 @@ _OVERDUE_GATE_STATUSES = [
 ]
 
 
+def _product_director_user_ids(organization_id: int) -> list[int]:
+    from django.db.models import Q
+    from django.utils import timezone as dj_tz
+
+    from apps.authorization.models.assignment import AssignmentStatus, RoleAssignment
+
+    now = dj_tz.now()
+    return list(
+        RoleAssignment.objects.filter(
+            user__organization_id=organization_id,
+            status=AssignmentStatus.ACTIVE,
+            role__role_code="PRODUCT_DIRECTOR",
+            effective_from__lte=now,
+        )
+        .filter(Q(effective_to__isnull=True) | Q(effective_to__gt=now))
+        .values_list("user_id", flat=True)
+        .distinct()
+    )
+
+
 def _emit_overdue_notification(
     *,
     assignee_id: int,
@@ -182,22 +202,29 @@ def scan_execution_overdue(*, now: datetime | None = None) -> int:
         if not is_overdue:
             continue
         project = deliverable.project
-        dedup_key = f"professional_confirmation.overdue:{confirmation.public_id}"
-        if _emit_overdue_notification(
-            assignee_id=confirmation.confirmer_id,
-            organization_id=confirmation.organization_id,
-            todo_type="professional_confirmation.overdue",
-            source_type="professional_confirmation",
-            source_id=confirmation.public_id,
-            action_code="deliverable.confirm",
-            dedup_key=dedup_key,
-            deep_link=(f"/projects/{project.public_id}/deliverables/{deliverable.public_id}"),
-            title=f"Pending confirmation: {deliverable.name}",
-            due_at=stage.planned_end_at,
-            as_of=as_of,
-            outbox_event_type="professional_confirmation.overdue",
-        ):
-            created += 1
+        confirmation_recipients: list[tuple[int, str]] = [
+            (confirmation.confirmer_id, "professional_confirmation.overdue"),
+        ]
+        leader = project.leader
+        if leader is not None and leader.id != confirmation.confirmer_id:
+            confirmation_recipients.append((leader.id, "professional_confirmation.overdue.leader"))
+        for assignee_id, todo_type in confirmation_recipients:
+            dedup_key = f"{todo_type}:{confirmation.public_id}"
+            if _emit_overdue_notification(
+                assignee_id=assignee_id,
+                organization_id=confirmation.organization_id,
+                todo_type=todo_type,
+                source_type="professional_confirmation",
+                source_id=confirmation.public_id,
+                action_code="deliverable.confirm",
+                dedup_key=dedup_key,
+                deep_link=(f"/projects/{project.public_id}/deliverables/{deliverable.public_id}"),
+                title=f"Pending confirmation: {deliverable.name}",
+                due_at=stage.planned_end_at,
+                as_of=as_of,
+                outbox_event_type="professional_confirmation.overdue",
+            ):
+                created += 1
 
     overdue_gates = StageGateInstance.objects.filter(
         status__in=_OVERDUE_GATE_STATUSES,
@@ -209,25 +236,29 @@ def scan_execution_overdue(*, now: datetime | None = None) -> int:
         gate_stage = gate.project_stage
         if gate_project is None or gate_stage is None:
             continue
+        gate_recipients: list[tuple[int, str]] = []
         leader = gate_project.leader
-        if leader is None:
-            continue
-        dedup_key = f"stage_gate.overdue:{gate.public_id}"
-        if _emit_overdue_notification(
-            assignee_id=leader.id,
-            organization_id=gate.organization_id,
-            todo_type="stage_gate.overdue",
-            source_type="stage_gate",
-            source_id=gate.public_id,
-            action_code="gate.submit",
-            dedup_key=dedup_key,
-            deep_link=f"/projects/{gate_project.public_id}/gates/{gate.public_id}",
-            title=f"Overdue stage gate: {gate.stage_code}",
-            due_at=gate_stage.planned_end_at,
-            as_of=as_of,
-            outbox_event_type="stage_gate.overdue",
-        ):
-            created += 1
+        if leader is not None:
+            gate_recipients.append((leader.id, "stage_gate.overdue"))
+        for director_id in _product_director_user_ids(gate.organization_id):
+            gate_recipients.append((director_id, "stage_gate.overdue.director"))
+        for assignee_id, todo_type in gate_recipients:
+            dedup_key = f"{todo_type}:{gate.public_id}"
+            if _emit_overdue_notification(
+                assignee_id=assignee_id,
+                organization_id=gate.organization_id,
+                todo_type=todo_type,
+                source_type="stage_gate",
+                source_id=gate.public_id,
+                action_code="gate.submit",
+                dedup_key=dedup_key,
+                deep_link=f"/projects/{gate_project.public_id}/gates/{gate.public_id}",
+                title=f"Overdue stage gate: {gate.stage_code}",
+                due_at=gate_stage.planned_end_at,
+                as_of=as_of,
+                outbox_event_type="stage_gate.overdue",
+            ):
+                created += 1
 
     overdue_emergencies = EmergencyExecution.objects.filter(
         status=EmergencyExecutionStatus.OPEN,

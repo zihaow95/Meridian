@@ -143,5 +143,126 @@ PUBLIC_ID_STATUS = inline_serializer(
         "status": serializers.CharField(required=False),
         "result": serializers.CharField(required=False),
         "version_no": serializers.IntegerField(required=False),
+        "handover_error": serializers.CharField(required=False, allow_null=True),
+    },
+)
+
+EMPTY_BODY_REQUEST = inline_serializer(
+    name="EmptyBodyRequest",
+    fields={},
+)
+
+IDEMPOTENCY_KEY_REQUEST = inline_serializer(
+    name="IdempotencyKeyRequest",
+    fields={"idempotency_key": serializers.CharField()},
+)
+
+MEMBER_APPOINT_REQUEST = inline_serializer(
+    name="MemberAppointRequest",
+    fields={
+        "user_public_id": serializers.UUIDField(),
+        "project_role": serializers.CharField(required=False),
+    },
+)
+
+CUSTOM_TASK_CREATE_REQUEST = inline_serializer(
+    name="CustomTaskCreateRequest",
+    fields={
+        "stage_public_id": serializers.UUIDField(),
+        "task_code": serializers.CharField(),
+        "name": serializers.CharField(),
+        "responsible_department_public_id": serializers.UUIDField(),
+        "is_core": serializers.BooleanField(required=False),
+        "description": serializers.CharField(required=False),
+    },
+)
+
+CUSTOM_DELIVERABLE_CREATE_REQUEST = inline_serializer(
+    name="CustomDeliverableCreateRequest",
+    fields={
+        "stage_public_id": serializers.UUIDField(),
+        "deliverable_code": serializers.CharField(),
+        "name": serializers.CharField(),
+        "requires_professional_confirmation": serializers.BooleanField(required=False),
+    },
+)
+
+PLAN_CHANGE_REQUEST = inline_serializer(
+    name="PlanChangeRequest",
+    fields={
+        "change_type": serializers.CharField(),
+        "target_type": serializers.CharField(),
+        "target_public_id": serializers.UUIDField(),
+        "field_name": serializers.CharField(),
+        "before_value": serializers.CharField(required=False),
+        "after_value": serializers.CharField(),
+        "impact_summary": serializers.CharField(required=False),
+    },
+)
+
+STAGE_HANDLING_REQUEST = inline_serializer(
+    name="StageHandlingRequest",
+    fields={
+        "requested_mode": serializers.CharField(),
+        "rationale": serializers.CharField(required=False),
+        "evidence_summary": serializers.CharField(required=False),
+    },
+)
+
+EMERGENCY_CREATE_REQUEST = inline_serializer(
+    name="EmergencyCreateRequest",
+    fields={
+        "subject_summary": serializers.CharField(),
+        "pending_confirmation": serializers.CharField(),
+        "due_at": serializers.DateTimeField(),
+    },
+)
+
+EMERGENCY_COMPLETE_REQUEST = inline_serializer(
+    name="EmergencyCompleteRequest",
+    fields={"confirmation_summary": serializers.CharField()},
+)
+
+TASK_TRANSITION_REQUEST = inline_serializer(
+    name="TaskTransitionRequest",
+    fields={
+        "status": serializers.CharField(),
+        "version_no": serializers.IntegerField(),
+    },
+)
+
+TASK_ASSIGN_REQUEST = inline_serializer(
+    name="TaskAssignRequest",
+    fields={
+        "user_public_id": serializers.UUIDField(),
+        "version_no": serializers.IntegerField(),
+    },
+)
+
+FIRST_LAUNCH_MANAGEMENT_REQUEST = inline_serializer(
+    name="FirstLaunchManagementRequest",
+    fields={
+        "management_conclusion": serializers.CharField(),
+        "decision_summary": serializers.CharField(required=False),
+        "idempotency_key": serializers.CharField(),
+    },
+)
+
+FIRST_LAUNCH_FINAL_REQUEST = inline_serializer(
+    name="FirstLaunchFinalRequest",
+    fields={
+        "final_decision": serializers.CharField(),
+        "decision_summary": serializers.CharField(required=False),
+        "idempotency_key": serializers.CharField(),
+    },
+)
+
+FIRST_LAUNCH_COMBINED_REQUEST = inline_serializer(
+    name="FirstLaunchCombinedRequest",
+    fields={
+        "management_conclusion": serializers.CharField(),
+        "final_decision": serializers.CharField(),
+        "decision_summary": serializers.CharField(required=False),
+        "idempotency_key": serializers.CharField(),
     },
 )

@@ -6,7 +6,9 @@ import type { components } from '@/api/generated/schema'
 export type ProjectListItem = components['schemas']['ProjectListItem']
 export type ProjectListResponse = components['schemas']['ProjectListResponse']
 export type ProjectWorkbenchDetail = components['schemas']['ProjectWorkbenchDetail']
-export type WorkbenchItemsResponse = components['schemas']['WorkbenchItemsResponse']
+export type WorkbenchStagesResponse = components['schemas']['WorkbenchStagesResponse']
+export type WorkbenchTasksResponse = components['schemas']['WorkbenchTasksResponse']
+export type WorkbenchDeliverablesResponse = components['schemas']['WorkbenchDeliverablesResponse']
 export type TaskCommandResponse = components['schemas']['TaskCommandResponse']
 export type StageGateValidateResponse = components['schemas']['StageGateValidateResponse']
 export type StageGateSubmissionResponse = components['schemas']['StageGateSubmissionResponse']
@@ -47,15 +49,17 @@ export type WorkbenchDeliverableItem = {
   current_revision_public_id: string | null
 }
 
-function asStageItems(items: WorkbenchItemsResponse['items']): WorkbenchStageItem[] {
+function asStageItems(items: WorkbenchStagesResponse['items']): WorkbenchStageItem[] {
   return items as WorkbenchStageItem[]
 }
 
-function asTaskItems(items: WorkbenchItemsResponse['items']): WorkbenchTaskItem[] {
+function asTaskItems(items: WorkbenchTasksResponse['items']): WorkbenchTaskItem[] {
   return items as WorkbenchTaskItem[]
 }
 
-function asDeliverableItems(items: WorkbenchItemsResponse['items']): WorkbenchDeliverableItem[] {
+function asDeliverableItems(
+  items: WorkbenchDeliverablesResponse['items'],
+): WorkbenchDeliverableItem[] {
   return items as WorkbenchDeliverableItem[]
 }
 
@@ -107,15 +111,15 @@ export const useProjectStore = defineStore('projects', {
       }
     },
     async fetchStages(publicId: string): Promise<void> {
-      const result = await apiFetch<WorkbenchItemsResponse>(`/api/v1/projects/${publicId}/stages`)
+      const result = await apiFetch<WorkbenchStagesResponse>(`/api/v1/projects/${publicId}/stages`)
       this.stages = asStageItems(result.items)
     },
     async fetchTasks(publicId: string): Promise<void> {
-      const result = await apiFetch<WorkbenchItemsResponse>(`/api/v1/projects/${publicId}/tasks`)
+      const result = await apiFetch<WorkbenchTasksResponse>(`/api/v1/projects/${publicId}/tasks`)
       this.tasks = asTaskItems(result.items)
     },
     async fetchDeliverables(publicId: string): Promise<void> {
-      const result = await apiFetch<WorkbenchItemsResponse>(
+      const result = await apiFetch<WorkbenchDeliverablesResponse>(
         `/api/v1/projects/${publicId}/deliverables`,
       )
       this.deliverables = asDeliverableItems(result.items)

@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
-from django.utils import timezone
+from django.db import transaction
 
 from apps.audit.models import AuditResult
 from apps.audit.services.append_event import AuditRecord, append_event
@@ -30,6 +30,7 @@ from apps.projects.models import (
 )
 from apps.stage_gates.models import StageGateInstance
 from apps.stage_gates.services.open_execution_gates import open_execution_gates_for_stages
+from apps.work_items.models import Deliverable, Task
 from apps.work_items.services.materialize_template import (
     materialize_template_deliverables,
     materialize_template_tasks,
@@ -54,97 +55,111 @@ class InitializeProjectRuntime:
     template_version: ConfigurationVersion | None = None
 
     def execute(self) -> ProjectRuntimeResult:
-        existing = self._existing_runtime()
-        if existing is not None:
-            return existing
+        with transaction.atomic():
+            project = (
+                Project.objects.select_for_update()
+                .select_related("template_snapshot")
+                .filter(pk=self.project.pk)
+                .first()
+            )
+            if project is None:
+                raise ProjectTemplateInvalid(message="Project disappeared during initialize.")
+            self.project = project
 
-        version = self._resolve_published_version()
-        validate_project_template_content(version.content_json)
+            existing = self._existing_runtime()
+            if existing is not None:
+                return existing
 
-        snapshot = CreateSnapshot(
-            version=version,
-            reference_type="project",
-            reference_id=self.project.public_id,
-            actor=self.context.actor,
-            context=self.context,
-        ).execute()
+            version = self._resolve_published_version()
+            validate_project_template_content(version.content_json)
+            require_template_departments(self.project.organization_id)
 
-        ProjectTemplateSnapshot.objects.create(
-            organization=self.project.organization,
-            project=self.project,
-            configuration_snapshot=snapshot,
-            source_version=version,
-        )
-
-        stages = self._expand_stages(snapshot.content_copy)
-        stages_by_code = {stage.stage_code: stage for stage in stages}
-        ensure_template_departments(self.project.organization_id)
-        materialize_template_tasks(
-            project=self.project,
-            stages_by_code=stages_by_code,
-            content=snapshot.content_copy,
-        )
-        materialize_template_deliverables(
-            project=self.project,
-            stages_by_code=stages_by_code,
-            content=snapshot.content_copy,
-        )
-        gates = open_execution_gates_for_stages(
-            project=self.project,
-            stages=stages,
-            content=snapshot.content_copy,
-        )
-        d1 = next(stage for stage in stages if stage.stage_code == "D1")
-        d1.status = ProjectStageStatus.ACTIVE
-        d1.actual_start_at = self.context.occurred_at
-        d1.save(update_fields=["status", "actual_start_at", "updated_at"])
-
-        self.project.template_snapshot = snapshot
-        self.project.current_stage = d1
-        self.project.status = ProjectStatus.ACTIVE
-        self.project.actual_start_at = self.context.occurred_at
-        self.project.save(
-            update_fields=[
-                "template_snapshot",
-                "current_stage",
-                "status",
-                "actual_start_at",
-                "updated_at",
-            ]
-        )
-
-        append_event(
-            AuditRecord(
+            snapshot = CreateSnapshot(
+                version=version,
+                reference_type="project",
+                reference_id=self.project.public_id,
                 actor=self.context.actor,
-                action_code="project.initialized",
-                resource_type="project",
-                resource_public_id=self.project.public_id,
-                result=AuditResult.SUCCESS,
-                trace_id=self.context.trace_id,
-                occurred_at=self.context.occurred_at,
-                acting_roles_snapshot=acting_roles_snapshot(self.context.actor),
-                after_summary={
-                    "template_version_id": str(version.public_id),
-                    "snapshot_id": str(snapshot.public_id),
-                    "stage_count": len(stages),
-                    "gate_count": len(gates),
-                },
-            )
-        )
-        register_outbox_event(
-            OutboxMessage(
-                event_type="project.initialized",
-                aggregate_type="project",
-                aggregate_id=self.project.public_id,
-                payload={
-                    "project_public_id": str(self.project.public_id),
-                    "snapshot_public_id": str(snapshot.public_id),
-                },
-                occurred_at=self.context.occurred_at,
-            )
-        )
+                context=self.context,
+            ).execute()
 
-        return ProjectRuntimeResult(snapshot=snapshot, stages=stages, gates=gates)
+            ProjectTemplateSnapshot.objects.create(
+                organization=self.project.organization,
+                project=self.project,
+                configuration_snapshot=snapshot,
+                source_version=version,
+            )
+
+            stages = self._expand_stages(snapshot.content_copy)
+            stages_by_code = {stage.stage_code: stage for stage in stages}
+            materialize_template_tasks(
+                project=self.project,
+                stages_by_code=stages_by_code,
+                content=snapshot.content_copy,
+            )
+            materialize_template_deliverables(
+                project=self.project,
+                stages_by_code=stages_by_code,
+                content=snapshot.content_copy,
+            )
+
+            d1 = next(stage for stage in stages if stage.stage_code == "D1")
+            d1.status = ProjectStageStatus.ACTIVE
+            d1.actual_start_at = self.context.occurred_at
+            d1.save(update_fields=["status", "actual_start_at", "updated_at"])
+
+            gates = open_execution_gates_for_stages(
+                project=self.project,
+                stages=stages,
+                content=snapshot.content_copy,
+                ready_stage_codes={"D1"},
+            )
+
+            self.project.template_snapshot = snapshot
+            self.project.current_stage = d1
+            self.project.status = ProjectStatus.ACTIVE
+            self.project.actual_start_at = self.context.occurred_at
+            self.project.save(
+                update_fields=[
+                    "template_snapshot",
+                    "current_stage",
+                    "status",
+                    "actual_start_at",
+                    "updated_at",
+                ]
+            )
+
+            append_event(
+                AuditRecord(
+                    actor=self.context.actor,
+                    action_code="project.initialized",
+                    resource_type="project",
+                    resource_public_id=self.project.public_id,
+                    result=AuditResult.SUCCESS,
+                    trace_id=self.context.trace_id,
+                    occurred_at=self.context.occurred_at,
+                    acting_roles_snapshot=acting_roles_snapshot(self.context.actor),
+                    after_summary={
+                        "template_version_id": str(version.public_id),
+                        "snapshot_id": str(snapshot.public_id),
+                        "stage_count": len(stages),
+                        "gate_count": len(gates),
+                    },
+                )
+            )
+            register_outbox_event(
+                OutboxMessage(
+                    event_type="project.initialized",
+                    aggregate_type="project",
+                    aggregate_id=self.project.public_id,
+                    payload={
+                        "project_public_id": str(self.project.public_id),
+                        "snapshot_public_id": str(snapshot.public_id),
+                    },
+                    occurred_at=self.context.occurred_at,
+                )
+            )
+
+            return ProjectRuntimeResult(snapshot=snapshot, stages=stages, gates=gates)
 
     def _existing_runtime(self) -> ProjectRuntimeResult | None:
         if self.project.template_snapshot_id is None:
@@ -153,6 +168,12 @@ class InitializeProjectRuntime:
         if not stages:
             return None
         gates = list(StageGateInstance.objects.filter(project=self.project).order_by("stage_code"))
+        if not gates:
+            return None
+        if not Task.objects.filter(project=self.project).exists():
+            return None
+        if not Deliverable.objects.filter(project=self.project).exists():
+            return None
         snapshot = self.project.template_snapshot
         if snapshot is None:
             return None
@@ -204,18 +225,27 @@ class InitializeProjectRuntime:
         return created
 
 
-def ensure_template_departments(organization_id: int) -> None:
-    now = timezone.now()
-    for code in TEMPLATE_DEPARTMENT_CODES:
-        Department.objects.get_or_create(
+def require_template_departments(organization_id: int) -> None:
+    """Fail closed when template department master data is missing."""
+
+    existing = set(
+        Department.objects.filter(
             organization_id=organization_id,
-            department_code=code,
-            defaults={
-                "name": f"{code} Department",
-                "status": DepartmentStatus.ACTIVE,
-                "valid_from": now,
-            },
+            department_code__in=TEMPLATE_DEPARTMENT_CODES,
+            status=DepartmentStatus.ACTIVE,
+        ).values_list("department_code", flat=True)
+    )
+    missing = [code for code in TEMPLATE_DEPARTMENT_CODES if code not in existing]
+    if missing:
+        raise ProjectTemplateInvalid(
+            message=f"Missing required departments for template: {', '.join(missing)}"
         )
+
+
+def ensure_template_departments(organization_id: int) -> None:
+    """Deprecated alias kept for callers that intentionally seed test data."""
+
+    require_template_departments(organization_id)
 
 
 def validate_project_template_content(content: dict[str, Any]) -> None:

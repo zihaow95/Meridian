@@ -5,7 +5,8 @@ from __future__ import annotations
 from typing import cast
 from uuid import UUID
 
-from drf_spectacular.utils import extend_schema
+from drf_spectacular.utils import extend_schema, inline_serializer
+from rest_framework import serializers
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.request import Request
 from rest_framework.response import Response
@@ -18,11 +19,53 @@ from apps.projects.models import MigrationDisposition
 from apps.projects.services.confirm_migration_baseline import ConfirmMigrationBaseline
 from apps.projects.services.import_migration_baseline import ImportProjectMigrationBatch
 
+MIGRATION_BATCH_REQUEST = inline_serializer(
+    name="MigrationBatchCreateRequest",
+    fields={
+        "batch_key": serializers.CharField(),
+        "rows": serializers.ListField(child=serializers.DictField()),
+    },
+)
+
+MIGRATION_BATCH_RESPONSE = inline_serializer(
+    name="MigrationBatchCreateResponse",
+    fields={
+        "public_id": serializers.UUIDField(),
+        "batch_key": serializers.CharField(),
+        "accepted_count": serializers.IntegerField(),
+        "error_count": serializers.IntegerField(),
+        "row_errors": serializers.ListField(),
+        "baselines": serializers.ListField(),
+    },
+)
+
+MIGRATION_CONFIRM_REQUEST = inline_serializer(
+    name="MigrationBaselineConfirmRequest",
+    fields={
+        "disposition": serializers.CharField(),
+        "idempotency_key": serializers.CharField(),
+    },
+)
+
+MIGRATION_CONFIRM_RESPONSE = inline_serializer(
+    name="MigrationBaselineConfirmResponse",
+    fields={
+        "baseline_public_id": serializers.UUIDField(),
+        "disposition": serializers.CharField(),
+        "status": serializers.CharField(),
+        "project_public_id": serializers.UUIDField(allow_null=True),
+    },
+)
+
 
 class ProjectMigrationBatchCreateView(APIView):
     permission_classes = [IsAuthenticated]
 
-    @extend_schema(operation_id="project_migration_batches_create")
+    @extend_schema(
+        operation_id="project_migration_batches_create",
+        request=MIGRATION_BATCH_REQUEST,
+        responses={201: MIGRATION_BATCH_RESPONSE},
+    )
     def post(self, request: Request) -> Response:
         user = cast(User, request.user)
         batch_key = str(request.data.get("batch_key") or "").strip()
@@ -60,7 +103,11 @@ class ProjectMigrationBatchCreateView(APIView):
 class ProjectMigrationBaselineConfirmView(APIView):
     permission_classes = [IsAuthenticated]
 
-    @extend_schema(operation_id="project_migration_baselines_confirm")
+    @extend_schema(
+        operation_id="project_migration_baselines_confirm",
+        request=MIGRATION_CONFIRM_REQUEST,
+        responses={200: MIGRATION_CONFIRM_RESPONSE},
+    )
     def post(self, request: Request, public_id: UUID) -> Response:
         user = cast(User, request.user)
         disposition = str(request.data.get("disposition") or "").strip()

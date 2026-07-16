@@ -16,10 +16,18 @@ from apps.identity.models.user import User
 from apps.platform.api.errors import ResourceNotFoundError, ValidationFailedError
 from apps.platform.application.command import CommandContext
 from apps.projects.api.schemas import (
+    CUSTOM_DELIVERABLE_CREATE_REQUEST,
+    CUSTOM_TASK_CREATE_REQUEST,
     DELIVERABLES_RESPONSE,
+    EMERGENCY_COMPLETE_REQUEST,
+    EMERGENCY_CREATE_REQUEST,
+    EMPTY_BODY_REQUEST,
+    MEMBER_APPOINT_REQUEST,
+    PLAN_CHANGE_REQUEST,
     PROJECT_DETAIL_RESPONSE,
     PROJECT_LIST_RESPONSE,
     PUBLIC_ID_STATUS,
+    STAGE_HANDLING_REQUEST,
     STAGES_RESPONSE,
     TASKS_RESPONSE,
 )
@@ -114,7 +122,11 @@ class ProjectStagesView(APIView):
 class ProjectMembersView(APIView):
     permission_classes = [IsAuthenticated]
 
-    @extend_schema(operation_id="projects_members_create", responses={201: PUBLIC_ID_STATUS})
+    @extend_schema(
+        operation_id="projects_members_create",
+        request=MEMBER_APPOINT_REQUEST,
+        responses={201: PUBLIC_ID_STATUS},
+    )
     def post(self, request: Request, public_id: UUID) -> Response:
         user = cast(User, request.user)
         user_public_id = request.data.get("user_public_id")
@@ -154,7 +166,11 @@ class ProjectTasksCollectionView(APIView):
             }
         )
 
-    @extend_schema(operation_id="projects_tasks_create", responses={201: PUBLIC_ID_STATUS})
+    @extend_schema(
+        operation_id="projects_tasks_create",
+        request=CUSTOM_TASK_CREATE_REQUEST,
+        responses={201: PUBLIC_ID_STATUS},
+    )
     def post(self, request: Request, public_id: UUID) -> Response:
         user = cast(User, request.user)
         stage_public_id = request.data.get("stage_public_id")
@@ -209,7 +225,11 @@ class ProjectDeliverablesCollectionView(APIView):
             }
         )
 
-    @extend_schema(operation_id="projects_deliverables_create", responses={201: PUBLIC_ID_STATUS})
+    @extend_schema(
+        operation_id="projects_deliverables_create",
+        request=CUSTOM_DELIVERABLE_CREATE_REQUEST,
+        responses={201: PUBLIC_ID_STATUS},
+    )
     def post(self, request: Request, public_id: UUID) -> Response:
         user = cast(User, request.user)
         stage_public_id = request.data.get("stage_public_id")
@@ -235,7 +255,11 @@ class ProjectDeliverablesCollectionView(APIView):
 class ProjectPlanChangesView(APIView):
     permission_classes = [IsAuthenticated]
 
-    @extend_schema(operation_id="projects_plan_changes_create", responses={201: PUBLIC_ID_STATUS})
+    @extend_schema(
+        operation_id="projects_plan_changes_create",
+        request=PLAN_CHANGE_REQUEST,
+        responses={201: PUBLIC_ID_STATUS},
+    )
     def post(self, request: Request, public_id: UUID) -> Response:
         user = cast(User, request.user)
         target_public_id = request.data.get("target_public_id")
@@ -270,7 +294,11 @@ class ProjectPlanChangesView(APIView):
 class PlanChangeConfirmView(APIView):
     permission_classes = [IsAuthenticated]
 
-    @extend_schema(operation_id="plan_changes_confirm", responses={200: PUBLIC_ID_STATUS})
+    @extend_schema(
+        operation_id="plan_changes_confirm",
+        request=EMPTY_BODY_REQUEST,
+        responses={200: PUBLIC_ID_STATUS},
+    )
     def post(self, request: Request, public_id: UUID) -> Response:
         user = cast(User, request.user)
         change = ConfirmPlanChange(
@@ -285,6 +313,7 @@ class ProjectStageHandlingRequestView(APIView):
 
     @extend_schema(
         operation_id="project_stages_handling_request",
+        request=STAGE_HANDLING_REQUEST,
         responses={201: PUBLIC_ID_STATUS},
     )
     def post(self, request: Request, public_id: UUID) -> Response:
@@ -306,6 +335,7 @@ class ExecutionExceptionConfirmView(APIView):
 
     @extend_schema(
         operation_id="execution_exceptions_confirm",
+        request=EMPTY_BODY_REQUEST,
         responses={200: PUBLIC_ID_STATUS},
     )
     def post(self, request: Request, public_id: UUID) -> Response:
@@ -322,6 +352,7 @@ class ProjectEmergencyExecutionsView(APIView):
 
     @extend_schema(
         operation_id="projects_emergency_executions_create",
+        request=EMERGENCY_CREATE_REQUEST,
         responses={201: PUBLIC_ID_STATUS},
     )
     def post(self, request: Request, public_id: UUID) -> Response:
@@ -351,6 +382,7 @@ class EmergencyExecutionCompleteView(APIView):
 
     @extend_schema(
         operation_id="emergency_executions_complete",
+        request=EMERGENCY_COMPLETE_REQUEST,
         responses={200: PUBLIC_ID_STATUS},
     )
     def post(self, request: Request, public_id: UUID) -> Response:

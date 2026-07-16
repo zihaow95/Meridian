@@ -15,6 +15,11 @@ from rest_framework.views import APIView
 from apps.identity.models.user import User
 from apps.platform.api.errors import ValidationFailedError
 from apps.platform.application.command import CommandContext
+from apps.projects.api.schemas import (
+    EMPTY_BODY_REQUEST,
+    TASK_ASSIGN_REQUEST,
+    TASK_TRANSITION_REQUEST,
+)
 from apps.work_items.services.manage_tasks import AssignTaskResponsible, TransitionTask
 
 TASK_RESPONSE = inline_serializer(
@@ -33,7 +38,11 @@ class TaskUpdateView(APIView):
 
     permission_classes = [IsAuthenticated]
 
-    @extend_schema(operation_id="tasks_partial_update", responses={405: None})
+    @extend_schema(
+        operation_id="tasks_partial_update",
+        request=EMPTY_BODY_REQUEST,
+        responses={405: None},
+    )
     def patch(self, request: Request, public_id: UUID) -> Response:
         del request, public_id
         return Response(
@@ -50,7 +59,11 @@ class TaskUpdateView(APIView):
 class TaskTransitionView(APIView):
     permission_classes = [IsAuthenticated]
 
-    @extend_schema(operation_id="tasks_transition", responses={200: TASK_RESPONSE})
+    @extend_schema(
+        operation_id="tasks_transition",
+        request=TASK_TRANSITION_REQUEST,
+        responses={200: TASK_RESPONSE},
+    )
     def post(self, request: Request, public_id: UUID) -> Response:
         user = cast(User, request.user)
         target_status = request.data.get("status")
@@ -75,7 +88,11 @@ class TaskTransitionView(APIView):
 class TaskAssignView(APIView):
     permission_classes = [IsAuthenticated]
 
-    @extend_schema(operation_id="tasks_assign", responses={200: TASK_RESPONSE})
+    @extend_schema(
+        operation_id="tasks_assign",
+        request=TASK_ASSIGN_REQUEST,
+        responses={200: TASK_RESPONSE},
+    )
     def post(self, request: Request, public_id: UUID) -> Response:
         user = cast(User, request.user)
         user_public_id = request.data.get("user_public_id")

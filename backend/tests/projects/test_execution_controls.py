@@ -123,7 +123,7 @@ def test_handling_mode_change_preserves_exception_history(
 
 
 @pytest.mark.django_db
-def test_minor_plan_change_applies_for_leader(project: Project) -> None:
+def test_schedule_plan_change_requires_confirmation(project: Project) -> None:
     stage = project.stages.get(stage_code="D1")
     before = stage.planned_end_at
     change = ApplyPlanChange(
@@ -137,10 +137,10 @@ def test_minor_plan_change_applies_for_leader(project: Project) -> None:
         after_value="2026-08-01T00:00:00+00:00",
         impact_summary="Slip one week",
     ).execute()
-    assert change.status == PlanChangeStatus.APPLIED
+    assert change.change_type == PlanChangeType.IMPORTANT
+    assert change.status == PlanChangeStatus.PENDING_CONFIRMATION
     stage.refresh_from_db()
-    assert stage.planned_end_at is not None
-    assert stage.planned_end_at.isoformat().startswith("2026-08-01")
+    assert stage.planned_end_at == before
 
 
 @pytest.mark.django_db

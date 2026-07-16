@@ -142,7 +142,7 @@ def test_director_approved_with_exception_completes_stage(
         idempotency_key="exc-decide-2",
         exception_rationale="Ship with known gap",
     ).execute()
-    assert decision.result == GateResult.APPROVED_WITH_EXCEPTION
+    assert decision.decision.result == GateResult.APPROVED_WITH_EXCEPTION
     stage = project.stages.get(stage_code="D1")
     stage.refresh_from_db()
     assert stage.status == ProjectStageStatus.COMPLETED

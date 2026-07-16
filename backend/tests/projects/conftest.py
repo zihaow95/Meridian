@@ -12,6 +12,7 @@ from apps.configuration.models import (
     ConfigurationStatus,
     ConfigurationVersion,
 )
+from apps.identity.models.department import Department, DepartmentStatus
 from apps.identity.models.organization import Organization
 from apps.identity.models.user import User, UserStatus
 from apps.opportunities.models import ProjectCandidate
@@ -71,6 +72,17 @@ def project_template_version(
     active_user: User,
     default_project_template_content: dict,
 ) -> ConfigurationVersion:
+    now = timezone.now()
+    for code in ("PRODUCT", "RD", "OPS"):
+        Department.objects.get_or_create(
+            organization=organization,
+            department_code=code,
+            defaults={
+                "name": f"{code} Department",
+                "status": DepartmentStatus.ACTIVE,
+                "valid_from": now,
+            },
+        )
     definition = ConfigurationDefinition.objects.create(
         organization=organization,
         definition_code="PROJECT_EXECUTION_TEMPLATE",

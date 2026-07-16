@@ -23,6 +23,7 @@ from apps.projects.models import (
     ProjectStageStatus,
     StageHandlingMode,
 )
+from apps.projects.services.advance_stage import activate_next_stage_after_completion
 from apps.projects.services.publish_and_handover import PublishAndHandover
 from apps.stage_gates.errors import GateAlreadyDecided, GateDecisionNotAllowed
 from apps.stage_gates.models import (
@@ -31,6 +32,12 @@ from apps.stage_gates.models import (
     GateStatus,
     StageGateInstance,
 )
+
+
+@dataclass(frozen=True)
+class NormalGateDecisionResult:
+    decision: GateDecision
+    handover_error: str | None = None
 
 
 @dataclass
@@ -42,7 +49,7 @@ class RecordNormalGateDecision:
     idempotency_key: str
     exception_rationale: str = ""
 
-    def execute(self) -> GateDecision:
+    def execute(self) -> NormalGateDecisionResult:
         actor = self.context.actor
         with transaction.atomic():
             gate = (
@@ -81,7 +88,7 @@ class RecordNormalGateDecision:
                 idempotency_key=self.idempotency_key,
             ).first()
             if existing is not None:
-                return existing
+                return NormalGateDecisionResult(decision=existing)
             if gate.status in {
                 GateStatus.APPROVED,
                 GateStatus.DEFERRED,
@@ -217,34 +224,24 @@ class RecordNormalGateDecision:
             )
             gate_code = stage.gate_code if stage is not None else ""
             draft = gate.project.product_draft if gate.project is not None else None
+            handover_error: str | None = None
             if (
                 self.result in {GateResult.APPROVED, GateResult.APPROVED_WITH_EXCEPTION}
                 and gate_code == "CHANGE_EFFECTIVE"
                 and gate.project is not None
                 and draft is not None
             ):
-                PublishAndHandover(
+                handover = PublishAndHandover(
                     context=self.context,
                     project_public_id=gate.project.public_id,
                     decision_public_id=record.public_id,
                     idempotency_key=f"{record.public_id}:{draft.public_id}",
                 ).execute()
-            return record
+                handover_error = handover.error_code
+            return NormalGateDecisionResult(decision=record, handover_error=handover_error)
 
     def _activate_next_stage(self, stage: ProjectStage) -> None:
-        nxt = (
-            ProjectStage.objects.filter(
-                project_id=stage.project_id,
-                sequence_no__gt=stage.sequence_no,
-            )
-            .order_by("sequence_no")
-            .first()
+        activate_next_stage_after_completion(
+            completed_stage=stage,
+            occurred_at=self.context.occurred_at,
         )
-        if nxt is None:
-            return
-        nxt.status = ProjectStageStatus.ACTIVE
-        nxt.actual_start_at = self.context.occurred_at
-        nxt.save(update_fields=["status", "actual_start_at", "updated_at"])
-        project = stage.project
-        project.current_stage = nxt
-        project.save(update_fields=["current_stage", "updated_at"])

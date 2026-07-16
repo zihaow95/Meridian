@@ -41,11 +41,31 @@ CONFIRMATION_RESPONSE = inline_serializer(
 )
 
 
+REVISION_CREATE_REQUEST = inline_serializer(
+    name="DeliverableRevisionCreateRequest",
+    fields={"document_version_public_id": serializers.UUIDField()},
+)
+
+REVISION_SUBMIT_REQUEST = inline_serializer(
+    name="DeliverableRevisionSubmitRequest",
+    fields={"confirmer_public_id": serializers.UUIDField()},
+)
+
+CONFIRMATION_DECIDE_REQUEST = inline_serializer(
+    name="ProfessionalConfirmationDecideRequest",
+    fields={
+        "decision": serializers.CharField(),
+        "comment": serializers.CharField(required=False),
+    },
+)
+
+
 class DeliverableRevisionsView(APIView):
     permission_classes = [IsAuthenticated]
 
     @extend_schema(
         operation_id="deliverables_revisions_create",
+        request=REVISION_CREATE_REQUEST,
         responses={201: REVISION_RESPONSE},
     )
     def post(self, request: Request, public_id: UUID) -> Response:
@@ -74,6 +94,7 @@ class DeliverableRevisionSubmitView(APIView):
 
     @extend_schema(
         operation_id="deliverable_revisions_submit",
+        request=REVISION_SUBMIT_REQUEST,
         responses={200: REVISION_RESPONSE},
     )
     def post(self, request: Request, public_id: UUID) -> Response:
@@ -100,6 +121,7 @@ class ProfessionalConfirmationDecideView(APIView):
 
     @extend_schema(
         operation_id="professional_confirmations_decide",
+        request=CONFIRMATION_DECIDE_REQUEST,
         responses={200: CONFIRMATION_RESPONSE},
     )
     def post(self, request: Request, public_id: UUID) -> Response:

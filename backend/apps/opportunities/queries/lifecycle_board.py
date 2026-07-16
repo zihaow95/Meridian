@@ -122,7 +122,9 @@ def _serialize_project_item(project: Project) -> dict[str, Any]:
         "status": project.status,
         "owner_public_id": str(leader.public_id),
         "owner_display_name": leader.display_name,
-        "candidate_public_id": (str(project.candidate.public_id) if project.candidate_id else None),
+        "candidate_public_id": (
+            str(project.candidate.public_id) if project.candidate is not None else None
+        ),
         "updated_at": project.updated_at.isoformat(),
     }
 

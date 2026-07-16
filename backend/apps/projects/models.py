@@ -336,6 +336,7 @@ class EmergencyExecution(OrganizationOwnedModel):
     )
     subject_summary = models.CharField(max_length=255)
     pending_confirmation = models.TextField()
+    confirmation_evidence = models.TextField(blank=True, default="")
     started_at = models.DateTimeField()
     due_at = models.DateTimeField()
     initiated_by = models.ForeignKey(

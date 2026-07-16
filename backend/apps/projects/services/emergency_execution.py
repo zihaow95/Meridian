@@ -93,6 +93,11 @@ class CompleteEmergencyExecution:
 
     def execute(self) -> EmergencyExecution:
         actor = self.context.actor
+        evidence = (self.confirmation_summary or "").strip()
+        if not evidence:
+            raise PlanChangeNotAllowed(
+                message="confirmation_summary with supplemental evidence is required."
+            )
         with transaction.atomic():
             record = (
                 EmergencyExecution.objects.select_for_update()
@@ -131,7 +136,15 @@ class CompleteEmergencyExecution:
             roles = acting_roles_snapshot(actor)
             record.status = EmergencyExecutionStatus.COMPLETED
             record.completed_at = self.context.occurred_at
-            record.save(update_fields=["status", "completed_at", "updated_at"])
+            record.confirmation_evidence = evidence
+            record.save(
+                update_fields=[
+                    "status",
+                    "completed_at",
+                    "confirmation_evidence",
+                    "updated_at",
+                ]
+            )
             append_event(
                 AuditRecord(
                     actor=actor,
@@ -145,7 +158,7 @@ class CompleteEmergencyExecution:
                     after_summary={
                         "emergency_public_id": str(record.public_id),
                         "status": record.status,
-                        "confirmation_summary": self.confirmation_summary,
+                        "confirmation_evidence": evidence,
                     },
                 )
             )

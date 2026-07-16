@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from uuid import uuid4
 
-from django.core.management.base import BaseCommand
+from django.core.management.base import BaseCommand, CommandError
 from django.utils import timezone
 
 from apps.authorization.models.assignment import RoleAssignment, ScopeType
@@ -314,6 +314,20 @@ class Command(BaseCommand):
         import json
         from pathlib import Path
 
+        from apps.identity.models.department import Department, DepartmentStatus
+
+        now = timezone.now()
+        for code in ("PRODUCT", "RD", "OPS"):
+            Department.objects.get_or_create(
+                organization=organization,
+                department_code=code,
+                defaults={
+                    "name": f"{code} Department",
+                    "status": DepartmentStatus.ACTIVE,
+                    "valid_from": now,
+                },
+            )
+
         seed_path = (
             Path(__file__).resolve().parents[3]
             / "configuration"
@@ -448,8 +462,10 @@ class Command(BaseCommand):
             ).execute()
             project.refresh_from_db()
         else:
-            draft = project.product_draft
-            assert draft is not None
+            existing_draft = project.product_draft
+            if existing_draft is None:
+                raise CommandError(f"Seed project {business_no} is missing product_draft.")
+            draft = existing_draft
             if publishable:
                 draft.change_scope = {
                     "effective_from": timezone.now().isoformat(),

@@ -19,6 +19,7 @@ from apps.authorization.services.subject import subject_for
 from apps.platform.api.errors import PermissionDeniedError
 from apps.platform.application.command import CommandContext
 from apps.platform.outbox.services import OutboxMessage, register_outbox_event
+from apps.projects.models import ProjectStageStatus
 from apps.stage_gates.errors import GateSubmissionBlocked
 from apps.stage_gates.models import (
     GateStatus,
@@ -29,6 +30,13 @@ from apps.stage_gates.models import (
 )
 from apps.stage_gates.services.validate_execution_gate import collect_execution_gate_validation
 from apps.work_items.models import Deliverable, Task
+
+_SUBMITTABLE_STAGE_STATUSES = frozenset(
+    {
+        ProjectStageStatus.ACTIVE,
+        ProjectStageStatus.READY_FOR_GATE,
+    }
+)
 
 
 @dataclass
@@ -52,13 +60,6 @@ class SubmitExecutionGate:
             if gate is None or gate.project_id is None:
                 raise PermissionDeniedError()
 
-            existing = GateSubmission.objects.filter(
-                stage_gate=gate,
-                idempotency_key=self.idempotency_key,
-            ).first()
-            if existing is not None:
-                return existing
-
             decision = authorize(
                 subject_for(actor),
                 action="stage_gate.submit",
@@ -72,10 +73,23 @@ class SubmitExecutionGate:
             if not decision.allowed:
                 raise PermissionDeniedError()
 
+            existing = GateSubmission.objects.filter(
+                stage_gate=gate,
+                idempotency_key=self.idempotency_key,
+                organization_id=gate.organization_id,
+            ).first()
+            if existing is not None:
+                return existing
+
+            stage = gate.project_stage
+            if stage is None or stage.status not in _SUBMITTABLE_STAGE_STATUSES:
+                raise GateSubmissionBlocked(
+                    message="Gate may only be submitted for the active project stage."
+                )
+
             if gate.status not in {
                 GateStatus.READY,
                 GateStatus.NEEDS_INFO,
-                GateStatus.OPEN,
             }:
                 raise GateSubmissionBlocked(message="Gate is not open for submission.")
 
