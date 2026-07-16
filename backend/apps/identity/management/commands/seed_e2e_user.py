@@ -347,32 +347,57 @@ class Command(BaseCommand):
             / "project_template_v1.json"
         )
         content = json.loads(seed_path.read_text(encoding="utf-8"))
+        # Bump digest when seed template gains tasks/deliverables so re-seed
+        # publishes a new immutable version instead of keeping a stale PUBLISHED row.
+        desired_digest = "digest-e2e-project-template-v1-work-items"
         definition, _ = ConfigurationDefinition.objects.get_or_create(
             organization=organization,
             definition_code="PROJECT_EXECUTION_TEMPLATE",
             defaults={"name": "Project execution template"},
         )
-        existing = ConfigurationVersion.objects.filter(
-            organization=organization,
-            definition=definition,
-            version_number=1,
-        ).first()
-        if existing is not None:
-            if existing.status == ConfigurationStatus.PUBLISHED:
+        latest = (
+            ConfigurationVersion.objects.filter(
+                organization=organization,
+                definition=definition,
+            )
+            .order_by("-version_number")
+            .first()
+        )
+        if latest is not None and latest.status == ConfigurationStatus.PUBLISHED:
+            tasks = (latest.content_json or {}).get("tasks") or []
+            deliverables = (latest.content_json or {}).get("deliverables") or []
+            if latest.content_digest == desired_digest and tasks and deliverables:
                 return
-            # Unpublished draft from a prior failed seed — replace content then leave
-            # as draft for an explicit publish path; do not mutate published rows.
-            existing.content_json = content
-            existing.content_digest = "digest-e2e-project-template-v1"
-            existing.save(update_fields=["content_json", "content_digest", "updated_at"])
+            # Published rows are immutable — mint the next version.
+            next_number = latest.version_number + 1
+        elif latest is not None and latest.status != ConfigurationStatus.PUBLISHED:
+            # Safe to refresh an unpublished draft in place, then publish it.
+            latest.content_json = content
+            latest.content_digest = desired_digest
+            latest.status = ConfigurationStatus.PUBLISHED
+            latest.published_by = actor
+            latest.published_at = timezone.now()
+            latest.save(
+                update_fields=[
+                    "content_json",
+                    "content_digest",
+                    "status",
+                    "published_by",
+                    "published_at",
+                    "updated_at",
+                ]
+            )
             return
+        else:
+            next_number = 1
+
         ConfigurationVersion.objects.create(
             organization=organization,
             definition=definition,
-            version_number=1,
+            version_number=next_number,
             status=ConfigurationStatus.PUBLISHED,
             content_json=content,
-            content_digest="digest-e2e-project-template-v1",
+            content_digest=desired_digest,
             created_by=actor,
             published_by=actor,
             published_at=timezone.now(),
