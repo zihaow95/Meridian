@@ -8,7 +8,7 @@
 
 对应测试矩阵：`docs/implementation/phase-4-test-matrix.md`
 
-基准：`4cc99dc` → 首次修复 `8ad9cc2`/`30be1bb` → 本轮二次修复见 git HEAD
+基准：`4cc99dc` → 首次修复 `8ad9cc2`/`30be1bb` → 二次修复 `02c0792`
 
 ## 二次复审修复摘要（相对 `30be1bb`）
 
