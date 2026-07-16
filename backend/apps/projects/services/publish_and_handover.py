@@ -230,3 +230,72 @@ class PublishAndHandover:
             l3.save(update_fields=["status", "actual_start_at", "updated_at"])
             project.current_stage = l3
             project.save(update_fields=["current_stage", "updated_at"])
+
+
+@dataclass
+class RetryPublishAndHandover:
+    """Re-run PublishAndHandover for PUBLISH_PENDING_REPAIR using the original decision."""
+
+    context: CommandContext
+    project_public_id: UUID
+
+    def execute(self) -> HandoverResult:
+        actor = self.context.actor
+        with transaction.atomic():
+            project = (
+                Project.objects.select_for_update()
+                .select_related("product_draft")
+                .filter(
+                    public_id=self.project_public_id,
+                    organization_id=actor.organization_id,
+                )
+                .first()
+            )
+            if project is None:
+                raise PermissionDeniedError()
+
+            auth = authorize(
+                subject_for(actor),
+                action="project.publish_repair",
+                resource=ResourceDescriptor(
+                    resource_type="project",
+                    public_id=project.public_id,
+                    organization_id=project.organization_id,
+                ),
+                context=AuthorizationContext.current(),
+            )
+            if not auth.allowed:
+                raise PermissionDeniedError()
+
+            if project.status not in {
+                ProjectStatus.PUBLISH_PENDING_REPAIR,
+                ProjectStatus.OPERATING,
+            }:
+                raise ValidationFailedError(
+                    details={"reason": "Project is not awaiting publish repair."}
+                )
+
+            decision = (
+                MajorGateDecision.objects.filter(
+                    organization_id=project.organization_id,
+                    stage_gate__project_id=project.id,
+                    stage_gate__stage_code="FIRST_LAUNCH",
+                )
+                .exclude(final_decision="")
+                .order_by("-decided_at")
+                .first()
+            )
+            if decision is None:
+                raise ValidationFailedError(
+                    details={"reason": "No FIRST_LAUNCH final decision found for repair."}
+                )
+            draft = project.product_draft
+            if draft is None:
+                raise ValidationFailedError(details={"reason": "Product draft is missing."})
+
+        return PublishAndHandover(
+            context=self.context,
+            project_public_id=project.public_id,
+            decision_public_id=decision.public_id,
+            idempotency_key=f"{decision.public_id}:{draft.public_id}",
+        ).execute()

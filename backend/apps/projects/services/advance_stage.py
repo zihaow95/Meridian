@@ -1,11 +1,15 @@
-"""Advance project stage after an approving execution-gate decision."""
+"""Advance project stage after an approving execution-gate decision.
+
+Uses stage_gates models only (no stage_gates service import) to avoid a
+projects ↔ stage_gates application-service cycle.
+"""
 
 from __future__ import annotations
 
 from datetime import datetime
 
 from apps.projects.models import Project, ProjectStage, ProjectStageStatus
-from apps.stage_gates.services.open_execution_gates import mark_gate_ready_for_stage
+from apps.stage_gates.models import GateStatus, StageGateInstance
 
 
 def activate_next_stage_after_completion(
@@ -34,5 +38,15 @@ def activate_next_stage_after_completion(
     project = Project.objects.select_for_update().get(pk=completed_stage.project_id)
     project.current_stage = nxt
     project.save(update_fields=["current_stage", "updated_at"])
-    mark_gate_ready_for_stage(project=project, stage=nxt)
+
+    if nxt.gate_code:
+        gate = StageGateInstance.objects.filter(
+            project=project,
+            stage_code=nxt.gate_code,
+            cycle_number=1,
+        ).first()
+        if gate is not None and gate.status == GateStatus.OPEN:
+            gate.status = GateStatus.READY
+            gate.project_stage = nxt
+            gate.save(update_fields=["status", "project_stage", "updated_at"])
     return nxt

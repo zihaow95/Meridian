@@ -100,5 +100,7 @@ EXECUTION_ACTIONS: tuple[tuple[str, str, str], ...] = (
     ("plan_change.apply_minor", "project", ActionCategory.WRITE),
     ("plan_change.confirm_important", "project", ActionCategory.DECIDE),
     ("emergency_execution.create", "project", ActionCategory.WRITE),
+    ("emergency_execution.complete", "project", ActionCategory.WRITE),
     ("project_migration.confirm", "project", ActionCategory.ADMIN),
+    ("project.publish_repair", "project", ActionCategory.WRITE),
 )

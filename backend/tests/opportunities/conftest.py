@@ -218,6 +218,20 @@ def project_template_version(
     import json
     from pathlib import Path
 
+    from apps.identity.models.department import Department, DepartmentStatus
+
+    now = timezone.now()
+    for code in ("PRODUCT", "RD", "OPS"):
+        Department.objects.get_or_create(
+            organization=organization,
+            department_code=code,
+            defaults={
+                "name": f"{code} Department",
+                "status": DepartmentStatus.ACTIVE,
+                "valid_from": now,
+            },
+        )
+
     content = json.loads(
         (
             Path(__file__).resolve().parents[2]

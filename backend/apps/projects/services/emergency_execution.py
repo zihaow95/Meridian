@@ -110,19 +110,10 @@ class CompleteEmergencyExecution:
             )
             if record is None:
                 raise PermissionDeniedError()
-            if record.status == EmergencyExecutionStatus.COMPLETED:
-                return record
-            if record.status not in (
-                EmergencyExecutionStatus.OPEN,
-                EmergencyExecutionStatus.OVERDUE,
-            ):
-                raise PlanChangeNotAllowed(
-                    message="Emergency execution cannot be completed in current status."
-                )
 
             decision = authorize(
                 subject_for(actor),
-                action="emergency_execution.create",
+                action="emergency_execution.complete",
                 resource=ResourceDescriptor(
                     resource_type="project",
                     public_id=record.project.public_id,
@@ -132,6 +123,16 @@ class CompleteEmergencyExecution:
             )
             if not decision.allowed:
                 raise PermissionDeniedError()
+
+            if record.status == EmergencyExecutionStatus.COMPLETED:
+                return record
+            if record.status not in (
+                EmergencyExecutionStatus.OPEN,
+                EmergencyExecutionStatus.OVERDUE,
+            ):
+                raise PlanChangeNotAllowed(
+                    message="Emergency execution cannot be completed in current status."
+                )
 
             roles = acting_roles_snapshot(actor)
             record.status = EmergencyExecutionStatus.COMPLETED
@@ -148,7 +149,7 @@ class CompleteEmergencyExecution:
             append_event(
                 AuditRecord(
                     actor=actor,
-                    action_code="emergency_execution.create",
+                    action_code="emergency_execution.complete",
                     resource_type="project",
                     resource_public_id=record.project.public_id,
                     result=AuditResult.SUCCESS,

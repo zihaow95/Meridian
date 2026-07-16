@@ -29,12 +29,14 @@ from apps.stage_gates.material_keys import close_gate_material_lock
 from apps.stage_gates.models import (
     GateResult,
     GateStatus,
+    GateSubmission,
     GateType,
     MajorGateDecision,
     StageGateInstance,
 )
 
 _APPROVING = frozenset({GateResult.APPROVED, GateResult.APPROVED_WITH_EXCEPTION})
+_ACTIVE_L2 = frozenset({ProjectStageStatus.ACTIVE, ProjectStageStatus.READY_FOR_GATE})
 
 _GATE_STATUS_BY_RESULT: dict[str, str] = {
     GateResult.APPROVED: GateStatus.DECIDED,
@@ -55,7 +57,13 @@ class FirstLaunchDecisionResult:
 def _load_first_launch_gate(*, actor: User, stage_gate_public_id: UUID) -> StageGateInstance:
     gate = (
         StageGateInstance.objects.select_for_update()
-        .select_related("project", "project_stage", "project__product_draft")
+        .select_related(
+            "project",
+            "project_stage",
+            "project__product_draft",
+            "project__current_stage",
+            "current_submission",
+        )
         .filter(
             public_id=stage_gate_public_id,
             organization_id=actor.organization_id,
@@ -72,6 +80,30 @@ def _load_first_launch_gate(*, actor: User, stage_gate_public_id: UUID) -> Stage
     if gate.gate_type != GateType.MAJOR:
         raise GateDecisionNotAllowed(message="FIRST_LAUNCH requires a major gate.")
     return gate
+
+
+def _require_submitted_active_l2(gate: StageGateInstance) -> GateSubmission:
+    """FIRST_LAUNCH may only decide against a locked, submitted L2 package."""
+
+    if gate.status != GateStatus.SUBMITTED:
+        raise GateDecisionNotAllowed(
+            message="FIRST_LAUNCH requires a SUBMITTED gate with locked materials."
+        )
+    submission = gate.current_submission
+    if submission is None:
+        raise GateDecisionNotAllowed(message="FIRST_LAUNCH requires a current submission snapshot.")
+
+    project = gate.project
+    stage = gate.project_stage
+    if project is None or stage is None:
+        raise GateDecisionNotAllowed(message="FIRST_LAUNCH gate must be bound to an L2 stage.")
+    if stage.stage_code != "L2":
+        raise GateDecisionNotAllowed(message="FIRST_LAUNCH must be decided on active L2.")
+    if project.current_stage_id != stage.id:
+        raise GateDecisionNotAllowed(message="L2 must be the project's current stage.")
+    if stage.status not in _ACTIVE_L2:
+        raise GateDecisionNotAllowed(message="L2 must be ACTIVE before FIRST_LAUNCH decision.")
+    return submission
 
 
 def _authorize(*, actor: User, gate: StageGateInstance, action: str) -> None:
@@ -126,10 +158,13 @@ class RecordFirstLaunchManagementConclusion:
             if MajorGateDecision.objects.filter(stage_gate=gate).exists():
                 raise MajorGateAlreadyDecided()
 
+            submission = _require_submitted_active_l2(gate)
+
             try:
                 record = MajorGateDecision.objects.create(
                     organization=gate.organization,
                     stage_gate=gate,
+                    submission=submission,
                     management_conclusion=self.management_conclusion,
                     management_conclusion_by=actor,
                     final_decision="",
@@ -157,6 +192,7 @@ class RecordFirstLaunchManagementConclusion:
                     after_summary={
                         "management_conclusion": record.management_conclusion,
                         "decision_public_id": str(record.public_id),
+                        "submission_public_id": str(submission.public_id),
                     },
                 )
             )
@@ -205,6 +241,14 @@ class RecordFirstLaunchFinalDecision:
             if record.final_decision:
                 return FirstLaunchDecisionResult(decision=record)
 
+            submission = _require_submitted_active_l2(gate)
+            if record.submission_id is not None and record.submission_id != submission.id:
+                raise GateDecisionNotAllowed(
+                    message="FIRST_LAUNCH decision must bind the locked submission snapshot."
+                )
+            if record.submission_id is None:
+                record.submission = submission
+
             record.final_decision = self.final_decision
             record.final_decision_by = actor
             record.has_conclusion_difference = record.management_conclusion != self.final_decision
@@ -213,6 +257,7 @@ class RecordFirstLaunchFinalDecision:
             record.decided_at = self.context.occurred_at
             record.save(
                 update_fields=[
+                    "submission",
                     "final_decision",
                     "final_decision_by",
                     "has_conclusion_difference",
@@ -262,6 +307,7 @@ class RecordFirstLaunchFinalDecision:
                         "management_conclusion": record.management_conclusion,
                         "final_decision": record.final_decision,
                         "decision_public_id": str(record.public_id),
+                        "submission_public_id": str(submission.public_id),
                     },
                 )
             )
@@ -297,54 +343,3 @@ class RecordFirstLaunchFinalDecision:
                 handover=handover,
                 handover_error=handover.error_code,
             )
-
-
-@dataclass
-class RecordFirstLaunchDecision:
-    """Backward-compatible facade requiring BOTH actors when used as a single call.
-
-    Prefer ``RecordFirstLaunchManagementConclusion`` then
-    ``RecordFirstLaunchFinalDecision`` for true dual-actor flows.
-    """
-
-    context: CommandContext
-    stage_gate_public_id: UUID
-    management_conclusion: str
-    final_decision: str
-    decision_summary: str
-    idempotency_key: str
-
-    def execute(self) -> FirstLaunchDecisionResult:
-        actor = self.context.actor
-        # Single-call path only when the same authenticated actor holds both
-        # permissions — no cross-user impersonation is allowed.
-        with transaction.atomic():
-            gate = _load_first_launch_gate(
-                actor=actor,
-                stage_gate_public_id=self.stage_gate_public_id,
-            )
-            _authorize(
-                actor=actor,
-                gate=gate,
-                action="first_launch.management_conclusion.record",
-            )
-            _authorize(
-                actor=actor,
-                gate=gate,
-                action="first_launch.final_decision.record",
-            )
-
-        RecordFirstLaunchManagementConclusion(
-            context=self.context,
-            stage_gate_public_id=self.stage_gate_public_id,
-            management_conclusion=self.management_conclusion,
-            decision_summary=self.decision_summary,
-            idempotency_key=f"{self.idempotency_key}:mgmt",
-        ).execute()
-        return RecordFirstLaunchFinalDecision(
-            context=self.context,
-            stage_gate_public_id=self.stage_gate_public_id,
-            final_decision=self.final_decision,
-            decision_summary=self.decision_summary,
-            idempotency_key=self.idempotency_key,
-        ).execute()

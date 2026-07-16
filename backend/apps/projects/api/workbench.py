@@ -49,6 +49,7 @@ from apps.projects.services.exceptions import (
     RequestStageHandlingMode,
 )
 from apps.projects.services.plan_changes import ApplyPlanChange, ConfirmPlanChange
+from apps.projects.services.publish_and_handover import RetryPublishAndHandover
 from apps.work_items.services.materialize_template import CreateCustomDeliverable, CreateCustomTask
 
 
@@ -393,3 +394,26 @@ class EmergencyExecutionCompleteView(APIView):
             confirmation_summary=str(request.data.get("confirmation_summary") or ""),
         ).execute()
         return Response({"public_id": str(item.public_id), "status": item.status})
+
+
+class ProjectPublishRepairView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    @extend_schema(
+        operation_id="projects_publish_repair_create",
+        request=EMPTY_BODY_REQUEST,
+        responses={200: PUBLIC_ID_STATUS},
+    )
+    def post(self, request: Request, public_id: UUID) -> Response:
+        user = cast(User, request.user)
+        result = RetryPublishAndHandover(
+            context=CommandContext.for_actor(user),
+            project_public_id=public_id,
+        ).execute()
+        return Response(
+            {
+                "public_id": str(result.project.public_id),
+                "status": result.project.status,
+                "handover_error": result.error_code,
+            }
+        )

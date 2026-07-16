@@ -489,6 +489,7 @@ class MigrationBaseline(OrganizationOwnedModel):
     plan_summary = models.JSONField(default=dict)
     history_tasks = models.JSONField(default=list)
     history_files = models.JSONField(default=list)
+    history_deliverables = models.JSONField(default=list)
     status = models.CharField(
         max_length=16,
         choices=MigrationBaselineStatus.choices,

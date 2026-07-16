@@ -15,12 +15,28 @@ from rest_framework.views import APIView
 from apps.identity.models.user import User
 from apps.platform.api.errors import ValidationFailedError
 from apps.platform.application.command import CommandContext
-from apps.projects.api.schemas import (
-    EMPTY_BODY_REQUEST,
-    TASK_ASSIGN_REQUEST,
-    TASK_TRANSITION_REQUEST,
-)
 from apps.work_items.services.manage_tasks import AssignTaskResponsible, TransitionTask
+
+EMPTY_BODY_REQUEST = inline_serializer(
+    name="TaskEmptyBodyRequest",
+    fields={},
+)
+
+TASK_ASSIGN_REQUEST = inline_serializer(
+    name="TaskAssignRequest",
+    fields={
+        "user_public_id": serializers.UUIDField(),
+        "version_no": serializers.IntegerField(),
+    },
+)
+
+TASK_TRANSITION_REQUEST = inline_serializer(
+    name="TaskTransitionRequest",
+    fields={
+        "status": serializers.CharField(),
+        "version_no": serializers.IntegerField(),
+    },
+)
 
 TASK_RESPONSE = inline_serializer(
     name="TaskCommandResponse",

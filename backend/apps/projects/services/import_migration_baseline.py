@@ -166,5 +166,6 @@ class ImportProjectMigrationBatch:
             plan_summary=dict(row.get("plan_summary") or {}),
             history_tasks=list(row.get("history_tasks") or []),
             history_files=list(row.get("history_files") or []),
+            history_deliverables=list(row.get("history_deliverables") or []),
             status=MigrationBaselineStatus.IMPORTED,
         )

@@ -17,6 +17,7 @@ from apps.projects.api.workbench import (
     ProjectListView,
     ProjectMembersView,
     ProjectPlanChangesView,
+    ProjectPublishRepairView,
     ProjectStageHandlingRequestView,
     ProjectStagesView,
     ProjectTasksCollectionView,
@@ -79,6 +80,11 @@ urlpatterns = [
         "emergency-executions/<uuid:public_id>/complete",
         EmergencyExecutionCompleteView.as_view(),
         name="emergency-executions-complete",
+    ),
+    path(
+        "projects/<uuid:public_id>/publish-repair",
+        ProjectPublishRepairView.as_view(),
+        name="project-publish-repair",
     ),
     path(
         "project-migration-batches",

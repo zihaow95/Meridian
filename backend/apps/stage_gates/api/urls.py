@@ -9,7 +9,6 @@ from apps.stage_gates.api.decisions import (
     ProposalReviewCycleView,
 )
 from apps.stage_gates.api.execution import (
-    StageGateFirstLaunchDecisionView,
     StageGateFirstLaunchFinalDecisionView,
     StageGateFirstLaunchManagementConclusionView,
     StageGateNormalDecisionView,
@@ -52,10 +51,5 @@ urlpatterns = [
         "stage-gates/<uuid:public_id>/first-launch-final-decision",
         StageGateFirstLaunchFinalDecisionView.as_view(),
         name="stage-gate-first-launch-final-decision",
-    ),
-    path(
-        "stage-gates/<uuid:public_id>/first-launch-decision",
-        StageGateFirstLaunchDecisionView.as_view(),
-        name="stage-gate-first-launch-decision",
     ),
 ]

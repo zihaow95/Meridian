@@ -14,7 +14,8 @@ from apps.projects.models import Project
 
 
 @pytest.fixture
-def phase2_configuration(opportunity_rules):  # noqa: ANN001
+def phase2_configuration(opportunity_rules, project_template_version):  # noqa: ANN001
+    del project_template_version
     return opportunity_rules
 
 

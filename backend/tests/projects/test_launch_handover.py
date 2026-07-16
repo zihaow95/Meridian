@@ -20,17 +20,14 @@ from apps.products.models import (
     ProductVersion,
 )
 from apps.projects.models import Project, ProjectStatus
-from apps.projects.services.publish_and_handover import PublishAndHandover
-from apps.stage_gates.models import (
-    GateResult,
-    GateStatus,
-    GateType,
-    MaterialType,
-    StageGateInstance,
-    SubjectType,
+from apps.projects.services.publish_and_handover import RetryPublishAndHandover
+from apps.stage_gates.models import GateResult, StageGateInstance
+from apps.stage_gates.services.record_first_launch_decision import (
+    RecordFirstLaunchFinalDecision,
+    RecordFirstLaunchManagementConclusion,
 )
-from apps.stage_gates.services.record_first_launch_decision import RecordFirstLaunchDecision
 from tests.products.schema_factories import build_published_product_schema
+from tests.stage_gates.first_launch_fixtures import prepare_submitted_first_launch_gate
 
 
 @pytest.fixture
@@ -75,32 +72,24 @@ def _prepare_publishable_draft(project: Project, actor: User) -> ProductChangeSe
 
 @pytest.fixture
 def first_launch_gate(project: Project) -> StageGateInstance:
-    stage = project.stages.get(stage_code="L2")
-    gate = StageGateInstance.objects.filter(
-        project=project,
-        stage_code="FIRST_LAUNCH",
-        cycle_number=1,
-    ).first()
-    if gate is None:
-        gate = StageGateInstance.objects.create(
-            organization=project.organization,
-            subject_type=SubjectType.PROJECT,
-            subject_public_id=project.public_id,
-            stage_code="FIRST_LAUNCH",
-            cycle_number=1,
-            status=GateStatus.SUBMITTED,
-            gate_type=GateType.MAJOR,
-            project=project,
-            project_stage=stage,
-            primary_material_type=MaterialType.PROJECT_STAGE,
-            primary_material_public_id=stage.public_id,
-        )
-    else:
-        gate.status = GateStatus.SUBMITTED
-        gate.gate_type = GateType.MAJOR
-        gate.project_stage = stage
-        gate.save(update_fields=["status", "gate_type", "project_stage", "updated_at"])
-    return gate
+    return prepare_submitted_first_launch_gate(project)
+
+
+@pytest.fixture
+def management_actor(organization, grant_action: Callable[..., None]) -> User:
+    user = User.objects.create_user(
+        organization=organization,
+        display_name="Handover Management",
+        status=UserStatus.ACTIVE,
+        activated_at=timezone.now(),
+    )
+    grant_action(
+        user,
+        "first_launch.management_conclusion.record",
+        "stage_gate",
+        role_code="MANAGEMENT_COMMITTEE",
+    )
+    return user
 
 
 @pytest.fixture
@@ -112,13 +101,40 @@ def launch_final_actor(organization, grant_action: Callable[..., None]) -> User:
         activated_at=timezone.now(),
     )
     for action in (
-        "first_launch.management_conclusion.record",
         "first_launch.final_decision.record",
         "product.publish_new",
+        "project.publish_repair",
     ):
-        resource = "product" if action.startswith("product.") else "stage_gate"
+        resource = (
+            "product"
+            if action.startswith("product.")
+            else ("project" if action.startswith("project.") else "stage_gate")
+        )
         grant_action(user, action, resource, role_code="BOSS")
     return user
+
+
+def _decide_first_launch(
+    *,
+    management_actor: User,
+    final_actor: User,
+    gate,
+    idempotency_key: str,
+):
+    RecordFirstLaunchManagementConclusion(
+        context=CommandContext.for_actor(management_actor),
+        stage_gate_public_id=gate.public_id,
+        management_conclusion=GateResult.APPROVED,
+        decision_summary="Launch approved",
+        idempotency_key=f"{idempotency_key}:mgmt",
+    ).execute()
+    return RecordFirstLaunchFinalDecision(
+        context=CommandContext.for_actor(final_actor),
+        stage_gate_public_id=gate.public_id,
+        final_decision=GateResult.APPROVED,
+        decision_summary="Launch approved",
+        idempotency_key=idempotency_key,
+    ).execute()
 
 
 @pytest.fixture
@@ -130,6 +146,7 @@ def repair_director(organization, grant_action: Callable[..., None]) -> User:
         activated_at=timezone.now(),
     )
     grant_action(user, "product.publish_new", "product", role_code="PRODUCT_DIRECTOR")
+    grant_action(user, "project.publish_repair", "project", role_code="PRODUCT_DIRECTOR")
     return user
 
 
@@ -137,19 +154,18 @@ def repair_director(organization, grant_action: Callable[..., None]) -> User:
 def test_approved_first_launch_publishes_and_hands_over(
     project: Project,
     first_launch_gate: StageGateInstance,
+    management_actor: User,
     launch_final_actor: User,
     published_product_schema,
 ) -> None:
     del published_product_schema
     _prepare_publishable_draft(project, launch_final_actor)
-    result = RecordFirstLaunchDecision(
-        context=CommandContext.for_actor(launch_final_actor),
-        stage_gate_public_id=first_launch_gate.public_id,
-        management_conclusion=GateResult.APPROVED,
-        final_decision=GateResult.APPROVED,
-        decision_summary="Launch approved",
+    result = _decide_first_launch(
+        management_actor=management_actor,
+        final_actor=launch_final_actor,
+        gate=first_launch_gate,
         idempotency_key="fl-approve",
-    ).execute()
+    )
     project.refresh_from_db()
     draft = project.product_draft
     assert draft is not None
@@ -166,6 +182,7 @@ def test_approved_first_launch_publishes_and_hands_over(
 def test_publish_failure_keeps_decision_and_enters_repair(
     project: Project,
     first_launch_gate: StageGateInstance,
+    management_actor: User,
     launch_final_actor: User,
     published_product_schema,
     monkeypatch,
@@ -181,14 +198,12 @@ def test_publish_failure_keeps_decision_and_enters_repair(
         "apps.products.services.publish_change_set.create_channel_configurations",
         _boom,
     )
-    result = RecordFirstLaunchDecision(
-        context=CommandContext.for_actor(launch_final_actor),
-        stage_gate_public_id=first_launch_gate.public_id,
-        management_conclusion=GateResult.APPROVED,
-        final_decision=GateResult.APPROVED,
-        decision_summary="Launch approved",
+    result = _decide_first_launch(
+        management_actor=management_actor,
+        final_actor=launch_final_actor,
+        gate=first_launch_gate,
         idempotency_key="fl-fail",
-    ).execute()
+    )
     project.refresh_from_db()
     draft.refresh_from_db()
     draft.product.refresh_from_db()
@@ -204,6 +219,7 @@ def test_publish_failure_keeps_decision_and_enters_repair(
 def test_repair_retry_publishes_idempotently(
     project: Project,
     first_launch_gate: StageGateInstance,
+    management_actor: User,
     launch_final_actor: User,
     repair_director: User,
     published_product_schema,
@@ -222,28 +238,22 @@ def test_repair_retry_publishes_idempotently(
         return real_create(*args, **kwargs)
 
     monkeypatch.setattr(publish_mod, "create_channel_configurations", _maybe_boom)
-    decision_result = RecordFirstLaunchDecision(
-        context=CommandContext.for_actor(launch_final_actor),
-        stage_gate_public_id=first_launch_gate.public_id,
-        management_conclusion=GateResult.APPROVED,
-        final_decision=GateResult.APPROVED,
-        decision_summary="Launch approved",
+    decision_result = _decide_first_launch(
+        management_actor=management_actor,
+        final_actor=launch_final_actor,
+        gate=first_launch_gate,
         idempotency_key="fl-retry-base",
-    ).execute()
+    )
     assert decision_result.handover_error == "PRODUCT_PUBLICATION_FAILED"
     calls["fail"] = False
 
-    first = PublishAndHandover(
+    first = RetryPublishAndHandover(
         context=CommandContext.for_actor(repair_director),
         project_public_id=project.public_id,
-        decision_public_id=decision_result.decision.public_id,
-        idempotency_key=f"{decision_result.decision.public_id}:{draft.public_id}",
     ).execute()
-    second = PublishAndHandover(
+    second = RetryPublishAndHandover(
         context=CommandContext.for_actor(repair_director),
         project_public_id=project.public_id,
-        decision_public_id=decision_result.decision.public_id,
-        idempotency_key=f"{decision_result.decision.public_id}:{draft.public_id}",
     ).execute()
     project.refresh_from_db()
     assert first.product_version is not None

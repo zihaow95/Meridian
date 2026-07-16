@@ -13,55 +13,9 @@ export type TaskCommandResponse = components['schemas']['TaskCommandResponse']
 export type StageGateValidateResponse = components['schemas']['StageGateValidateResponse']
 export type StageGateSubmissionResponse = components['schemas']['StageGateSubmissionResponse']
 export type StageGateDecisionResponse = components['schemas']['StageGateDecisionResponse']
-
-export type WorkbenchStageItem = {
-  public_id: string
-  stage_code: string
-  name: string
-  sequence_no: number
-  status: string
-  gate_code: string | null
-  gate_type: string | null
-  handling_mode: string | null
-  planned_end_at: string | null
-  stage_gate_public_id?: string | null
-}
-
-export type WorkbenchTaskItem = {
-  public_id: string
-  task_code: string
-  name: string
-  stage_code: string
-  status: string
-  is_core: boolean
-  version_no: number
-  responsible_user_public_id: string | null
-  responsible_department_public_id: string
-}
-
-export type WorkbenchDeliverableItem = {
-  public_id: string
-  deliverable_code: string
-  name: string
-  stage_code: string
-  tier: string
-  status: string
-  current_revision_public_id: string | null
-}
-
-function asStageItems(items: WorkbenchStagesResponse['items']): WorkbenchStageItem[] {
-  return items as WorkbenchStageItem[]
-}
-
-function asTaskItems(items: WorkbenchTasksResponse['items']): WorkbenchTaskItem[] {
-  return items as WorkbenchTaskItem[]
-}
-
-function asDeliverableItems(
-  items: WorkbenchDeliverablesResponse['items'],
-): WorkbenchDeliverableItem[] {
-  return items as WorkbenchDeliverableItem[]
-}
+export type WorkbenchStageItem = components['schemas']['WorkbenchStageItem']
+export type WorkbenchTaskItem = components['schemas']['WorkbenchTaskItem']
+export type WorkbenchDeliverableItem = components['schemas']['WorkbenchDeliverableItem']
 
 export const useProjectStore = defineStore('projects', {
   state: () => ({
@@ -112,17 +66,17 @@ export const useProjectStore = defineStore('projects', {
     },
     async fetchStages(publicId: string): Promise<void> {
       const result = await apiFetch<WorkbenchStagesResponse>(`/api/v1/projects/${publicId}/stages`)
-      this.stages = asStageItems(result.items)
+      this.stages = result.items
     },
     async fetchTasks(publicId: string): Promise<void> {
       const result = await apiFetch<WorkbenchTasksResponse>(`/api/v1/projects/${publicId}/tasks`)
-      this.tasks = asTaskItems(result.items)
+      this.tasks = result.items
     },
     async fetchDeliverables(publicId: string): Promise<void> {
       const result = await apiFetch<WorkbenchDeliverablesResponse>(
         `/api/v1/projects/${publicId}/deliverables`,
       )
-      this.deliverables = asDeliverableItems(result.items)
+      this.deliverables = result.items
     },
     async refreshWorkbench(publicId: string): Promise<void> {
       await Promise.all([
@@ -207,21 +161,39 @@ export const useProjectStore = defineStore('projects', {
       this.lastGateDecision = result
       return result
     },
-    async recordFirstLaunchDecision(
+    async recordFirstLaunchManagementConclusion(
       stageGatePublicId: string,
       payload: {
         management_conclusion: string
+        idempotency_key: string
+        decision_summary?: string
+      },
+    ): Promise<StageGateDecisionResponse> {
+      return apiFetch<StageGateDecisionResponse>(
+        `/api/v1/stage-gates/${stageGatePublicId}/first-launch-management-conclusion`,
+        { method: 'POST', json: payload },
+      )
+    },
+    async recordFirstLaunchFinalDecision(
+      stageGatePublicId: string,
+      payload: {
         final_decision: string
         idempotency_key: string
         decision_summary?: string
       },
     ): Promise<StageGateDecisionResponse> {
       const result = await apiFetch<StageGateDecisionResponse>(
-        `/api/v1/stage-gates/${stageGatePublicId}/first-launch-decision`,
+        `/api/v1/stage-gates/${stageGatePublicId}/first-launch-final-decision`,
         { method: 'POST', json: payload },
       )
       this.lastGateDecision = result
       return result
+    },
+    async retryPublishRepair(projectPublicId: string): Promise<{ status: string }> {
+      return apiFetch<{ status: string }>(`/api/v1/projects/${projectPublicId}/publish-repair`, {
+        method: 'POST',
+        json: {},
+      })
     },
   },
 })

@@ -45,10 +45,19 @@ def product_director_user(
         ("stage_handling.confirm", "project_stage"),
         ("plan_change.confirm_important", "project"),
         ("emergency_execution.create", "project"),
+        ("emergency_execution.complete", "project"),
         ("project_exception.confirm", "project"),
     ):
         grant_action(user, action, resource, role_code="PRODUCT_DIRECTOR")
     return user
+
+
+@pytest.fixture(autouse=True)
+def grant_leader_plan_actions(project: Project, grant_action) -> None:
+    leader = project.leader
+    grant_action(leader, "plan_change.apply_minor", "project", role_code="PROJECT_LEADER")
+    grant_action(leader, "plan.edit", "project", role_code="PROJECT_LEADER")
+    grant_action(leader, "stage_handling.request", "project_stage", role_code="PROJECT_LEADER")
 
 
 @pytest.mark.django_db
@@ -123,7 +132,7 @@ def test_handling_mode_change_preserves_exception_history(
 
 
 @pytest.mark.django_db
-def test_schedule_plan_change_requires_confirmation(project: Project) -> None:
+def test_schedule_plan_change_applies_as_minor(project: Project) -> None:
     stage = project.stages.get(stage_code="D1")
     before = stage.planned_end_at
     change = ApplyPlanChange(
@@ -137,10 +146,10 @@ def test_schedule_plan_change_requires_confirmation(project: Project) -> None:
         after_value="2026-08-01T00:00:00+00:00",
         impact_summary="Slip one week",
     ).execute()
-    assert change.change_type == PlanChangeType.IMPORTANT
-    assert change.status == PlanChangeStatus.PENDING_CONFIRMATION
+    assert change.change_type == PlanChangeType.MINOR
+    assert change.status == PlanChangeStatus.APPLIED
     stage.refresh_from_db()
-    assert stage.planned_end_at == before
+    assert stage.planned_end_at is not None
 
 
 @pytest.mark.django_db
@@ -155,22 +164,19 @@ def test_important_plan_change_needs_director(
         change_type=PlanChangeType.IMPORTANT,
         target_type="project_stage",
         target_public_id=stage.public_id,
-        field_name="planned_end_at",
+        field_name="headcount",
         before_value="",
-        after_value="2026-09-01T00:00:00+00:00",
-        impact_summary="Major slip",
+        after_value="5",
+        impact_summary="Add cross-department headcount",
     ).execute()
     assert pending.status == PlanChangeStatus.PENDING_CONFIRMATION
-    stage.refresh_from_db()
-    assert stage.planned_end_at is None
+    assert pending.change_type == PlanChangeType.IMPORTANT
 
     confirmed = ConfirmPlanChange(
         context=CommandContext.for_actor(product_director_user),
         change_public_id=pending.public_id,
     ).execute()
     assert confirmed.status == PlanChangeStatus.CONFIRMED
-    stage.refresh_from_db()
-    assert stage.planned_end_at is not None
 
 
 @pytest.mark.django_db

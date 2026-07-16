@@ -127,12 +127,17 @@ describe('StageGatePanel', () => {
   })
 
   it('shows publish pending repair state after first launch handover error', async () => {
-    vi.mocked(apiFetch).mockResolvedValueOnce({
-      decision_public_id: 'dec-1',
-      final_decision: 'APPROVED',
-      handover_error: 'PRODUCT_PUBLICATION_FAILED',
-      project_status: 'PUBLISH_PENDING_REPAIR',
-    })
+    vi.mocked(apiFetch)
+      .mockResolvedValueOnce({
+        decision_public_id: 'dec-1',
+        management_conclusion: 'APPROVED',
+      })
+      .mockResolvedValueOnce({
+        decision_public_id: 'dec-1',
+        final_decision: 'APPROVED',
+        handover_error: 'PRODUCT_PUBLICATION_FAILED',
+        project_status: 'PUBLISH_PENDING_REPAIR',
+      })
 
     const wrapper = mount(StageGatePanel, {
       props: { stageGatePublicId: 'gate-l2', launchMode: true },
@@ -140,7 +145,9 @@ describe('StageGatePanel', () => {
     })
     await flush()
 
-    await wrapper.get('[data-test="record-first-launch"]').trigger('click')
+    await wrapper.get('[data-test="record-management-conclusion"]').trigger('click')
+    await flush()
+    await wrapper.get('[data-test="record-final-decision"]').trigger('click')
     await flush()
 
     expect(wrapper.text()).toContain('PUBLISH_PENDING_REPAIR')

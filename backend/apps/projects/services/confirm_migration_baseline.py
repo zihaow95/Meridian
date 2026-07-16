@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from typing import Any
-from uuid import UUID, uuid4
+from uuid import UUID
 
 from django.db import IntegrityError, transaction
 
@@ -45,17 +45,13 @@ from apps.projects.services.initialize_runtime import (
     require_template_departments,
 )
 from apps.stage_gates.services.open_execution_gates import open_execution_gates_for_stages
-from apps.work_items.models import (
-    Deliverable,
-    DeliverableStatus,
-    DeliverableTier,
-    Task,
-    TaskSourceType,
-    TaskStatus,
-)
 from apps.work_items.services.materialize_template import (
     materialize_template_deliverables,
     materialize_template_tasks,
+)
+from apps.work_items.services.migrated_history import (
+    create_migrated_history_deliverable,
+    create_migrated_history_task,
 )
 
 
@@ -91,20 +87,12 @@ def _materialize_history_file(
     stage: ProjectStage,
     item: dict[str, Any],
     actor: User,
-) -> Deliverable:
-    del actor
-    filename = str(item.get("filename") or "migrated-file")
-    code = f"MIG-FILE-{uuid4().hex[:10]}"
-    return Deliverable.objects.create(
-        organization=project.organization,
+) -> object:
+    return create_migrated_history_deliverable(
         project=project,
         stage=stage,
-        deliverable_code=code,
-        name=filename,
-        tier=DeliverableTier.PROJECT_CUSTOM,
-        status=DeliverableStatus.CONTROLLED,
-        requires_professional_confirmation=False,
-        exemption_reason=str(item.get("source_note") or "Migrated history file"),
+        item=item,
+        actor=actor,
     )
 
 
@@ -175,16 +163,24 @@ class ConfirmMigrationBaseline:
             if not decision.allowed:
                 raise PermissionDeniedError()
 
-            existing = MigrationBaseline.objects.filter(
-                organization_id=actor.organization_id,
-                confirm_idempotency_key=self.idempotency_key,
-            ).first()
-            if existing is not None:
-                project = Project.objects.filter(migration_baseline=existing).first()
-                return ConfirmMigrationResult(baseline=existing, project=project)
-
             if baseline.status == MigrationBaselineStatus.CONFIRMED:
+                if baseline.confirm_idempotency_key == self.idempotency_key:
+                    project = Project.objects.filter(migration_baseline=baseline).first()
+                    return ConfirmMigrationResult(baseline=baseline, project=project)
                 raise MigrationBaselineAlreadyConfirmed()
+
+            conflicting = (
+                MigrationBaseline.objects.filter(
+                    organization_id=actor.organization_id,
+                    confirm_idempotency_key=self.idempotency_key,
+                )
+                .exclude(pk=baseline.pk)
+                .first()
+            )
+            if conflicting is not None:
+                raise MigrationImportFailed(
+                    message="Idempotency key is already bound to another migration baseline."
+                )
 
             if self.disposition not in MigrationDisposition.values:
                 raise MigrationImportFailed(message=f"Invalid disposition: {self.disposition}")
@@ -356,25 +352,18 @@ class ConfirmMigrationBaseline:
 
         for item in baseline.history_tasks:
             try:
-                Task.objects.create(
-                    organization=baseline.organization,
+                create_migrated_history_task(
                     project=project,
                     stage=current,
-                    task_code=str(item.get("task_code") or f"HIST-{uuid4().hex[:8]}"),
-                    name=str(item.get("name") or "Migrated history task"),
-                    description=f"Migrated from stage {item.get('stage_code', '')}",
-                    source_type=TaskSourceType.MIGRATED_HISTORY,
-                    is_core=False,
-                    responsible_department=department,
-                    status=TaskStatus.COMPLETED,
-                    version_no=1,
+                    item=item if isinstance(item, dict) else {"name": str(item)},
+                    department=department,
                 )
             except IntegrityError as exc:
                 raise MigrationImportFailed(
                     message=f"Failed to materialize history task: {item.get('task_code')}"
                 ) from exc
 
-        for item in baseline.history_files or []:
+        for item in list(baseline.history_deliverables or []) + list(baseline.history_files or []):
             _materialize_history_file(
                 project=project,
                 stage=current,

@@ -243,6 +243,13 @@ class MajorGateDecision(OrganizationOwnedModel):
         on_delete=models.PROTECT,
         related_name="decision",
     )
+    submission = models.ForeignKey(
+        GateSubmission,
+        null=True,
+        blank=True,
+        on_delete=models.PROTECT,
+        related_name="major_decisions",
+    )
     management_conclusion = models.CharField(max_length=32, choices=GateResult.choices)
     management_conclusion_by = models.ForeignKey(
         "identity.User",

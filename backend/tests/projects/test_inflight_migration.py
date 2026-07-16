@@ -125,6 +125,15 @@ def test_continue_from_d3_skips_prior_gates_and_confirmations(
         == 0
     )
     assert Task.objects.filter(project=project, source_type="MIGRATED_HISTORY").count() == 2
+    from apps.documents.models import DocumentVersion
+    from apps.work_items.models import Deliverable
+
+    history_deliverable = Deliverable.objects.filter(project=project, name="d2-report.pdf").first()
+    assert history_deliverable is not None
+    assert history_deliverable.current_revision_id is not None
+    assert DocumentVersion.objects.filter(
+        pk=history_deliverable.current_revision.document_version_id
+    ).exists()
     assert project.current_stage.stage_code == "D3"
     assert project.current_stage.status == ProjectStageStatus.ACTIVE
 

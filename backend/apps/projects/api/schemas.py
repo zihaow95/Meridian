@@ -120,9 +120,6 @@ DELIVERABLES_RESPONSE = inline_serializer(
     },
 )
 
-# Backward-compatible alias used by older views still referencing ITEMS_RESPONSE.
-ITEMS_RESPONSE = STAGES_RESPONSE
-
 IDEMPOTENT_RESULT_REQUEST = inline_serializer(
     name="IdempotentResultRequest",
     fields={
@@ -251,16 +248,6 @@ FIRST_LAUNCH_MANAGEMENT_REQUEST = inline_serializer(
 FIRST_LAUNCH_FINAL_REQUEST = inline_serializer(
     name="FirstLaunchFinalRequest",
     fields={
-        "final_decision": serializers.CharField(),
-        "decision_summary": serializers.CharField(required=False),
-        "idempotency_key": serializers.CharField(),
-    },
-)
-
-FIRST_LAUNCH_COMBINED_REQUEST = inline_serializer(
-    name="FirstLaunchCombinedRequest",
-    fields={
-        "management_conclusion": serializers.CharField(),
         "final_decision": serializers.CharField(),
         "decision_summary": serializers.CharField(required=False),
         "idempotency_key": serializers.CharField(),

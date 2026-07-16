@@ -1224,6 +1224,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/projects/{public_id}/publish-repair": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["projects_publish_repair_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/projects/{public_id}/stages": {
         parameters: {
             query?: never;
@@ -1298,23 +1314,6 @@ export interface paths {
         get?: never;
         put?: never;
         post: operations["stage_gates_decision_create"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/stage-gates/{public_id}/first-launch-decision": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** @description Same-actor dual-permission convenience endpoint (no impersonation). */
-        post: operations["stage_gates_first_launch_decision_create"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1681,12 +1680,6 @@ export interface components {
             external_id: string;
             binding_status: string;
         };
-        FirstLaunchCombinedRequest: {
-            management_conclusion: string;
-            final_decision: string;
-            decision_summary?: string;
-            idempotency_key: string;
-        };
         FirstLaunchFinalRequest: {
             final_decision: string;
             decision_summary?: string;
@@ -1700,19 +1693,6 @@ export interface components {
         HealthResponse: {
             status: string;
             service: string;
-        };
-        IdempotencyKeyRequest: {
-            idempotency_key: string;
-        };
-        IdempotentResultRequest: {
-            result?: string;
-            idempotency_key: string;
-            decision_summary?: string;
-            exception_rationale?: string;
-            management_conclusion?: string;
-            final_decision?: string;
-            /** Format: uuid */
-            management_conclusion_by_public_id?: string;
         };
         ImportBatchDetail: {
             /** Format: uuid */
@@ -2120,6 +2100,15 @@ export interface components {
             final_decision?: string;
             handover_error?: string | null;
             project_status?: string | null;
+        };
+        StageGateIdempotencyKeyRequest: {
+            idempotency_key: string;
+        };
+        StageGateIdempotentResultRequest: {
+            result?: string;
+            idempotency_key: string;
+            decision_summary?: string;
+            exception_rationale?: string;
         };
         StageGateSubmissionResponse: {
             /** Format: uuid */
@@ -4181,6 +4170,27 @@ export interface operations {
             };
         };
     };
+    projects_publish_repair_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                public_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PublicIdStatusResponse"];
+                };
+            };
+        };
+    };
     projects_stages_list: {
         parameters: {
             query?: never;
@@ -4305,36 +4315,9 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["IdempotentResultRequest"];
-                "application/x-www-form-urlencoded": components["schemas"]["IdempotentResultRequest"];
-                "multipart/form-data": components["schemas"]["IdempotentResultRequest"];
-            };
-        };
-        responses: {
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["StageGateDecisionResponse"];
-                };
-            };
-        };
-    };
-    stage_gates_first_launch_decision_create: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                public_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["FirstLaunchCombinedRequest"];
-                "application/x-www-form-urlencoded": components["schemas"]["FirstLaunchCombinedRequest"];
-                "multipart/form-data": components["schemas"]["FirstLaunchCombinedRequest"];
+                "application/json": components["schemas"]["StageGateIdempotentResultRequest"];
+                "application/x-www-form-urlencoded": components["schemas"]["StageGateIdempotentResultRequest"];
+                "multipart/form-data": components["schemas"]["StageGateIdempotentResultRequest"];
             };
         };
         responses: {
@@ -4440,9 +4423,9 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["IdempotencyKeyRequest"];
-                "application/x-www-form-urlencoded": components["schemas"]["IdempotencyKeyRequest"];
-                "multipart/form-data": components["schemas"]["IdempotencyKeyRequest"];
+                "application/json": components["schemas"]["StageGateIdempotencyKeyRequest"];
+                "application/x-www-form-urlencoded": components["schemas"]["StageGateIdempotencyKeyRequest"];
+                "multipart/form-data": components["schemas"]["StageGateIdempotencyKeyRequest"];
             };
         };
         responses: {

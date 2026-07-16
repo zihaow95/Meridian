@@ -59,28 +59,50 @@ async function submitGate(): Promise<void> {
   }
 }
 
-async function recordFirstLaunch(): Promise<void> {
+async function recordManagementConclusion(): Promise<void> {
   if (deciding.value) return
   deciding.value = true
   actionMessage.value = ''
   try {
-    const result = await projects.recordFirstLaunchDecision(props.stageGatePublicId, {
+    await projects.recordFirstLaunchManagementConclusion(props.stageGatePublicId, {
       management_conclusion: managementConclusion.value,
+      idempotency_key: `first-launch-mgmt-${props.stageGatePublicId}`,
+      decision_summary: '',
+    })
+    actionMessage.value = '管理会结论已记录，等待终审。'
+    emit('completed')
+  } catch (err: unknown) {
+    if (err instanceof ApiError) {
+      actionMessage.value = `${err.code}: ${err.message} (trace ${err.traceId})`
+    } else {
+      actionMessage.value = '管理会结论失败'
+    }
+  } finally {
+    deciding.value = false
+  }
+}
+
+async function recordFinalDecision(): Promise<void> {
+  if (deciding.value) return
+  deciding.value = true
+  actionMessage.value = ''
+  try {
+    const result = await projects.recordFirstLaunchFinalDecision(props.stageGatePublicId, {
       final_decision: finalDecision.value,
-      idempotency_key: `first-launch-${props.stageGatePublicId}`,
+      idempotency_key: `first-launch-final-${props.stageGatePublicId}`,
       decision_summary: '',
     })
     if (result.project_status === 'PUBLISH_PENDING_REPAIR' || result.handover_error) {
       actionMessage.value = `PUBLISH_PENDING_REPAIR: ${result.handover_error ?? '产品发布待修复'}`
     } else {
-      actionMessage.value = '首次上市决策已记录。'
+      actionMessage.value = '首次上市终审已记录。'
     }
     emit('completed')
   } catch (err: unknown) {
     if (err instanceof ApiError) {
       actionMessage.value = `${err.code}: ${err.message} (trace ${err.traceId})`
     } else {
-      actionMessage.value = '首次上市决策失败'
+      actionMessage.value = '首次上市终审失败'
     }
   } finally {
     deciding.value = false
@@ -136,22 +158,30 @@ async function recordNormalDecision(): Promise<void> {
     </ul>
 
     <div v-if="launchMode" class="stage-gate-panel__launch">
-      <el-select v-model="managementConclusion">
+      <el-select v-model="managementConclusion" data-test="management-conclusion">
         <el-option label="经管会通过" value="APPROVED" />
         <el-option label="待补充" value="NEEDS_INFO" />
       </el-select>
-      <el-select v-model="finalDecision">
+      <el-button
+        data-test="record-management-conclusion"
+        :loading="deciding"
+        :disabled="deciding"
+        @click="recordManagementConclusion"
+      >
+        记录管理会结论
+      </el-button>
+      <el-select v-model="finalDecision" data-test="final-decision">
         <el-option label="最终批准" value="APPROVED" />
         <el-option label="暂缓" value="DEFERRED" />
       </el-select>
       <el-button
-        data-test="record-first-launch"
+        data-test="record-final-decision"
         type="primary"
         :loading="deciding"
         :disabled="deciding"
-        @click="recordFirstLaunch"
+        @click="recordFinalDecision"
       >
-        记录首次上市决策
+        记录终审决策
       </el-button>
     </div>
 

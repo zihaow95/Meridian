@@ -282,15 +282,31 @@ test("first launch publishes product and hands over monitoring", async ({
   }
 
   const gateId = await stageGateIdFor(page, project.public_id, "L2");
+  const submit = await authedJson(page, "POST", `/api/v1/stage-gates/${gateId}/submissions`, {
+    idempotency_key: `e2e-submit-launch-${project.public_id}`,
+  });
+  expect([201, 409]).toContain(submit.status());
+
+  const management = await authedJson(
+    page,
+    "POST",
+    `/api/v1/stage-gates/${gateId}/first-launch-management-conclusion`,
+    {
+      management_conclusion: "APPROVED",
+      decision_summary: "E2E first launch",
+      idempotency_key: `e2e-first-launch-mgmt-${project.public_id}`,
+    },
+  );
+  expect(management.status()).toBe(201);
+
   const decision = await authedJson(
     page,
     "POST",
-    `/api/v1/stage-gates/${gateId}/first-launch-decision`,
+    `/api/v1/stage-gates/${gateId}/first-launch-final-decision`,
     {
-      management_conclusion: "APPROVED",
       final_decision: "APPROVED",
       decision_summary: "E2E first launch",
-      idempotency_key: `e2e-first-launch-${project.public_id}`,
+      idempotency_key: `e2e-first-launch-final-${project.public_id}`,
     },
   );
   expect(decision.status()).toBe(201);
@@ -322,15 +338,31 @@ test("publish pending repair is recorded when launch publish fails", async ({
   }
 
   const gateId = await stageGateIdFor(page, project.public_id, "L2");
+  const submit = await authedJson(page, "POST", `/api/v1/stage-gates/${gateId}/submissions`, {
+    idempotency_key: `e2e-submit-repair-${project.public_id}`,
+  });
+  expect([201, 409]).toContain(submit.status());
+
+  const management = await authedJson(
+    page,
+    "POST",
+    `/api/v1/stage-gates/${gateId}/first-launch-management-conclusion`,
+    {
+      management_conclusion: "APPROVED",
+      decision_summary: "E2E repair path",
+      idempotency_key: `e2e-repair-mgmt-${project.public_id}`,
+    },
+  );
+  expect(management.status()).toBe(201);
+
   const decision = await authedJson(
     page,
     "POST",
-    `/api/v1/stage-gates/${gateId}/first-launch-decision`,
+    `/api/v1/stage-gates/${gateId}/first-launch-final-decision`,
     {
-      management_conclusion: "APPROVED",
       final_decision: "APPROVED",
       decision_summary: "E2E repair path",
-      idempotency_key: `e2e-repair-${project.public_id}`,
+      idempotency_key: `e2e-repair-final-${project.public_id}`,
     },
   );
   expect(decision.status()).toBe(201);

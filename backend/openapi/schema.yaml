@@ -2054,6 +2054,27 @@ paths:
               schema:
                 $ref: '#/components/schemas/PublicIdStatusResponse'
           description: ''
+  /api/v1/projects/{public_id}/publish-repair:
+    post:
+      operationId: projects_publish_repair_create
+      parameters:
+      - in: path
+        name: public_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - projects
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PublicIdStatusResponse'
+          description: ''
   /api/v1/projects/{public_id}/stages:
     get:
       operationId: projects_stages_list
@@ -2184,47 +2205,13 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/IdempotentResultRequest'
+              $ref: '#/components/schemas/StageGateIdempotentResultRequest'
           application/x-www-form-urlencoded:
             schema:
-              $ref: '#/components/schemas/IdempotentResultRequest'
+              $ref: '#/components/schemas/StageGateIdempotentResultRequest'
           multipart/form-data:
             schema:
-              $ref: '#/components/schemas/IdempotentResultRequest'
-        required: true
-      security:
-      - cookieAuth: []
-      responses:
-        '201':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/StageGateDecisionResponse'
-          description: ''
-  /api/v1/stage-gates/{public_id}/first-launch-decision:
-    post:
-      operationId: stage_gates_first_launch_decision_create
-      description: Same-actor dual-permission convenience endpoint (no impersonation).
-      parameters:
-      - in: path
-        name: public_id
-        schema:
-          type: string
-          format: uuid
-        required: true
-      tags:
-      - stage-gates
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/FirstLaunchCombinedRequest'
-          application/x-www-form-urlencoded:
-            schema:
-              $ref: '#/components/schemas/FirstLaunchCombinedRequest'
-          multipart/form-data:
-            schema:
-              $ref: '#/components/schemas/FirstLaunchCombinedRequest'
+              $ref: '#/components/schemas/StageGateIdempotentResultRequest'
         required: true
       security:
       - cookieAuth: []
@@ -2350,13 +2337,13 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/IdempotencyKeyRequest'
+              $ref: '#/components/schemas/StageGateIdempotencyKeyRequest'
           application/x-www-form-urlencoded:
             schema:
-              $ref: '#/components/schemas/IdempotencyKeyRequest'
+              $ref: '#/components/schemas/StageGateIdempotencyKeyRequest'
           multipart/form-data:
             schema:
-              $ref: '#/components/schemas/IdempotencyKeyRequest'
+              $ref: '#/components/schemas/StageGateIdempotencyKeyRequest'
         required: true
       security:
       - cookieAuth: []
@@ -3003,21 +2990,6 @@ components:
       - object_type
       - public_id
       - source_system
-    FirstLaunchCombinedRequest:
-      type: object
-      properties:
-        management_conclusion:
-          type: string
-        final_decision:
-          type: string
-        decision_summary:
-          type: string
-        idempotency_key:
-          type: string
-      required:
-      - final_decision
-      - idempotency_key
-      - management_conclusion
     FirstLaunchFinalRequest:
       type: object
       properties:
@@ -3052,33 +3024,6 @@ components:
       required:
       - service
       - status
-    IdempotencyKeyRequest:
-      type: object
-      properties:
-        idempotency_key:
-          type: string
-      required:
-      - idempotency_key
-    IdempotentResultRequest:
-      type: object
-      properties:
-        result:
-          type: string
-        idempotency_key:
-          type: string
-        decision_summary:
-          type: string
-        exception_rationale:
-          type: string
-        management_conclusion:
-          type: string
-        final_decision:
-          type: string
-        management_conclusion_by_public_id:
-          type: string
-          format: uuid
-      required:
-      - idempotency_key
     ImportBatchDetail:
       type: object
       properties:
@@ -4126,6 +4071,26 @@ components:
         project_status:
           type: string
           nullable: true
+    StageGateIdempotencyKeyRequest:
+      type: object
+      properties:
+        idempotency_key:
+          type: string
+      required:
+      - idempotency_key
+    StageGateIdempotentResultRequest:
+      type: object
+      properties:
+        result:
+          type: string
+        idempotency_key:
+          type: string
+        decision_summary:
+          type: string
+        exception_rationale:
+          type: string
+      required:
+      - idempotency_key
     StageGateSubmissionResponse:
       type: object
       properties:

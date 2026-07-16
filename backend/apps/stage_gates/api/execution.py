@@ -15,21 +15,46 @@ from rest_framework.views import APIView
 from apps.identity.models.user import User
 from apps.platform.api.errors import ValidationFailedError
 from apps.platform.application.command import CommandContext
-from apps.projects.api.schemas import (
-    FIRST_LAUNCH_COMBINED_REQUEST,
-    FIRST_LAUNCH_FINAL_REQUEST,
-    FIRST_LAUNCH_MANAGEMENT_REQUEST,
-    IDEMPOTENCY_KEY_REQUEST,
-    IDEMPOTENT_RESULT_REQUEST,
-)
 from apps.stage_gates.services.record_first_launch_decision import (
-    RecordFirstLaunchDecision,
     RecordFirstLaunchFinalDecision,
     RecordFirstLaunchManagementConclusion,
 )
 from apps.stage_gates.services.record_normal_decision import RecordNormalGateDecision
 from apps.stage_gates.services.submit_execution_gate import SubmitExecutionGate
 from apps.stage_gates.services.validate_execution_gate import ValidateExecutionGate
+
+IDEMPOTENCY_KEY_REQUEST = inline_serializer(
+    name="StageGateIdempotencyKeyRequest",
+    fields={"idempotency_key": serializers.CharField()},
+)
+
+IDEMPOTENT_RESULT_REQUEST = inline_serializer(
+    name="StageGateIdempotentResultRequest",
+    fields={
+        "result": serializers.CharField(required=False),
+        "idempotency_key": serializers.CharField(),
+        "decision_summary": serializers.CharField(required=False),
+        "exception_rationale": serializers.CharField(required=False),
+    },
+)
+
+FIRST_LAUNCH_MANAGEMENT_REQUEST = inline_serializer(
+    name="FirstLaunchManagementRequest",
+    fields={
+        "management_conclusion": serializers.CharField(),
+        "decision_summary": serializers.CharField(required=False),
+        "idempotency_key": serializers.CharField(),
+    },
+)
+
+FIRST_LAUNCH_FINAL_REQUEST = inline_serializer(
+    name="FirstLaunchFinalRequest",
+    fields={
+        "final_decision": serializers.CharField(),
+        "decision_summary": serializers.CharField(required=False),
+        "idempotency_key": serializers.CharField(),
+    },
+)
 
 GATE_VALIDATE_RESPONSE = inline_serializer(
     name="StageGateValidateResponse",
@@ -187,53 +212,6 @@ class StageGateFirstLaunchFinalDecisionView(APIView):
         result = RecordFirstLaunchFinalDecision(
             context=CommandContext.for_actor(user),
             stage_gate_public_id=public_id,
-            final_decision=final_decision,
-            decision_summary=str(request.data.get("decision_summary") or ""),
-            idempotency_key=idempotency_key,
-        ).execute()
-        return Response(
-            {
-                "decision_public_id": str(result.decision.public_id),
-                "final_decision": result.decision.final_decision,
-                "handover_error": result.handover_error,
-                "project_status": (
-                    result.handover.project.status if result.handover is not None else None
-                ),
-            },
-            status=201,
-        )
-
-
-class StageGateFirstLaunchDecisionView(APIView):
-    """Same-actor dual-permission convenience endpoint (no impersonation)."""
-
-    permission_classes = [IsAuthenticated]
-
-    @extend_schema(
-        operation_id="stage_gates_first_launch_decision_create",
-        request=FIRST_LAUNCH_COMBINED_REQUEST,
-        responses={201: GATE_DECISION_RESPONSE},
-    )
-    def post(self, request: Request, public_id: UUID) -> Response:
-        user = cast(User, request.user)
-        management_conclusion = str(request.data.get("management_conclusion") or "")
-        final_decision = str(request.data.get("final_decision") or "")
-        idempotency_key = str(request.data.get("idempotency_key") or "").strip()
-        if not management_conclusion or not final_decision or not idempotency_key:
-            raise ValidationFailedError(
-                message="management_conclusion, final_decision, and idempotency_key are required."
-            )
-        if request.data.get("management_conclusion_by_public_id") not in (None, ""):
-            raise ValidationFailedError(
-                message=(
-                    "Impersonation is not allowed; use management-conclusion then "
-                    "final-decision endpoints with distinct authenticated actors."
-                )
-            )
-        result = RecordFirstLaunchDecision(
-            context=CommandContext.for_actor(user),
-            stage_gate_public_id=public_id,
-            management_conclusion=management_conclusion,
             final_decision=final_decision,
             decision_summary=str(request.data.get("decision_summary") or ""),
             idempotency_key=idempotency_key,

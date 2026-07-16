@@ -44,6 +44,9 @@ def _authorize_project(*, actor: User, project: Project, action: str) -> None:
 
 
 def _apply_stage_field(stage: ProjectStage, field_name: str, after_value: str) -> None:
+    if _is_resource_field(field_name):
+        # Resource adjustments are recorded for confirmation; stage columns are unchanged.
+        return
     if field_name != "planned_end_at":
         raise PlanChangeNotAllowed(message=f"Unsupported field: {field_name}")
     parsed = parse_datetime(after_value)
@@ -71,20 +74,21 @@ def _infer_change_type(
     before_value: str,
     after_value: str,
 ) -> str:
-    """Classify severity from real field change; never trust client type for MINOR."""
+    """Classify severity from impact; schedule-only slips stay MINOR (EXE-011)."""
 
+    if before_value == after_value:
+        raise PlanChangeNotAllowed(message="Plan change after_value must differ from before_value.")
     if _is_resource_field(field_name):
         return PlanChangeType.IMPORTANT
     if field_name == "planned_end_at":
-        if before_value != after_value:
-            return PlanChangeType.IMPORTANT
+        # Schedule-only adjustment does not touch deliverables, gates, or confirmers.
         return PlanChangeType.MINOR
-    if before_value != after_value:
-        return PlanChangeType.IMPORTANT
-    return PlanChangeType.MINOR
+    return PlanChangeType.IMPORTANT
 
 
 def _current_stage_field_value(stage: ProjectStage, field_name: str) -> str:
+    if _is_resource_field(field_name):
+        return ""
     if field_name != "planned_end_at":
         raise PlanChangeNotAllowed(message=f"Unsupported field: {field_name}")
     if stage.planned_end_at is None:

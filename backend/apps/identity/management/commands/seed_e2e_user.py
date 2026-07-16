@@ -69,6 +69,8 @@ _PHASE4_ACTIONS: tuple[tuple[str, str, str], ...] = (
     ("first_launch.management_conclusion.record", "stage_gate", "BOSS"),
     ("first_launch.final_decision.record", "stage_gate", "BOSS"),
     ("emergency_execution.create", "project", "PRODUCT_DIRECTOR"),
+    ("emergency_execution.complete", "project", "PRODUCT_DIRECTOR"),
+    ("project.publish_repair", "project", "PRODUCT_DIRECTOR"),
     ("plan_change.apply_minor", "project", "PRODUCT_DIRECTOR"),
     ("plan_change.confirm_important", "project", "PRODUCT_DIRECTOR"),
     ("task.create", "project", "PRODUCT_DIRECTOR"),
@@ -227,26 +229,36 @@ class Command(BaseCommand):
             definition_code=OPPORTUNITY_RULE_DEFINITION_CODE,
             defaults={"name": "Proposal rules"},
         )
-        ConfigurationVersion.objects.update_or_create(
+        content = {
+            "member_limit": 8,
+            "eligible_proposer_roles": ["PROPOSER"],
+            "management_conclusion_roles": ["MANAGEMENT_COMMITTEE", "BOSS"],
+            "final_decision_roles": ["BOSS"],
+            "product_manager_roles": ["PRODUCT_MANAGER"],
+            "case_leadership_roles": ["PRODUCT_DIRECTOR"],
+            "quota_enforcement_mode": "WARN",
+            "quota_minimums": {"USER": 3, "DEPARTMENT": 3},
+        }
+        existing = ConfigurationVersion.objects.filter(
             organization=organization,
             definition=definition,
             version_number=1,
-            defaults={
-                "status": ConfigurationStatus.PUBLISHED,
-                "content_json": {
-                    "member_limit": 8,
-                    "eligible_proposer_roles": ["PROPOSER"],
-                    "management_conclusion_roles": ["MANAGEMENT_COMMITTEE", "BOSS"],
-                    "final_decision_roles": ["BOSS"],
-                    "product_manager_roles": ["PRODUCT_MANAGER"],
-                    "case_leadership_roles": ["PRODUCT_DIRECTOR"],
-                    "quota_enforcement_mode": "WARN",
-                    "quota_minimums": {"USER": 3, "DEPARTMENT": 3},
-                },
-                "created_by": actor,
-                "published_by": actor,
-                "published_at": timezone.now(),
-            },
+        ).first()
+        if existing is not None:
+            if existing.status == ConfigurationStatus.PUBLISHED:
+                return
+            existing.content_json = content
+            existing.save(update_fields=["content_json", "updated_at"])
+            return
+        ConfigurationVersion.objects.create(
+            organization=organization,
+            definition=definition,
+            version_number=1,
+            status=ConfigurationStatus.PUBLISHED,
+            content_json=content,
+            created_by=actor,
+            published_by=actor,
+            published_at=timezone.now(),
         )
 
     def _publish_product_schema(self, organization: Organization) -> None:
@@ -340,18 +352,30 @@ class Command(BaseCommand):
             definition_code="PROJECT_EXECUTION_TEMPLATE",
             defaults={"name": "Project execution template"},
         )
-        ConfigurationVersion.objects.update_or_create(
+        existing = ConfigurationVersion.objects.filter(
             organization=organization,
             definition=definition,
             version_number=1,
-            defaults={
-                "status": ConfigurationStatus.PUBLISHED,
-                "content_json": content,
-                "content_digest": "digest-e2e-project-template-v1",
-                "created_by": actor,
-                "published_by": actor,
-                "published_at": timezone.now(),
-            },
+        ).first()
+        if existing is not None:
+            if existing.status == ConfigurationStatus.PUBLISHED:
+                return
+            # Unpublished draft from a prior failed seed — replace content then leave
+            # as draft for an explicit publish path; do not mutate published rows.
+            existing.content_json = content
+            existing.content_digest = "digest-e2e-project-template-v1"
+            existing.save(update_fields=["content_json", "content_digest", "updated_at"])
+            return
+        ConfigurationVersion.objects.create(
+            organization=organization,
+            definition=definition,
+            version_number=1,
+            status=ConfigurationStatus.PUBLISHED,
+            content_json=content,
+            content_digest="digest-e2e-project-template-v1",
+            created_by=actor,
+            published_by=actor,
+            published_at=timezone.now(),
         )
 
     def _ensure_phase4_projects(self, organization: Organization, leader: User) -> None:

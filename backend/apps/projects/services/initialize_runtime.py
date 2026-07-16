@@ -70,6 +70,9 @@ class InitializeProjectRuntime:
             if existing is not None:
                 return existing
 
+            if self.project.template_snapshot_id is not None:
+                return self._complete_partial_runtime()
+
             version = self._resolve_published_version()
             validate_project_template_content(version.content_json)
             require_template_departments(self.project.organization_id)
@@ -164,24 +167,104 @@ class InitializeProjectRuntime:
     def _existing_runtime(self) -> ProjectRuntimeResult | None:
         if self.project.template_snapshot_id is None:
             return None
-        stages = list(ProjectStage.objects.filter(project=self.project).order_by("sequence_no"))
-        if not stages:
-            return None
-        gates = list(StageGateInstance.objects.filter(project=self.project).order_by("stage_code"))
-        if not gates:
-            return None
-        if not Task.objects.filter(project=self.project).exists():
-            return None
-        if not Deliverable.objects.filter(project=self.project).exists():
-            return None
         snapshot = self.project.template_snapshot
         if snapshot is None:
+            return None
+        content = snapshot.content_copy or {}
+        expected_stage_codes = {
+            str(entry.get("code")) for entry in (content.get("stages") or []) if entry.get("code")
+        }
+        stages = list(ProjectStage.objects.filter(project=self.project).order_by("sequence_no"))
+        if not stages or {stage.stage_code for stage in stages} != expected_stage_codes:
+            return None
+        expected_task_codes = {
+            str(entry.get("task_code"))
+            for entry in (content.get("tasks") or [])
+            if entry.get("task_code")
+        }
+        expected_deliverable_codes = {
+            str(entry.get("deliverable_code"))
+            for entry in (content.get("deliverables") or [])
+            if entry.get("deliverable_code")
+        }
+        actual_task_codes = set(
+            Task.objects.filter(project=self.project).values_list("task_code", flat=True)
+        )
+        actual_deliverable_codes = set(
+            Deliverable.objects.filter(project=self.project).values_list(
+                "deliverable_code", flat=True
+            )
+        )
+        if not expected_task_codes.issubset(actual_task_codes):
+            return None
+        if not expected_deliverable_codes.issubset(actual_deliverable_codes):
+            return None
+        expected_gate_codes = {
+            str(entry.get("gate_code") or ((entry.get("gate") or {}).get("gate_code")))
+            for entry in (content.get("stages") or [])
+            if (entry.get("gate_code") or (entry.get("gate") or {}).get("gate_code"))
+        }
+        for entry in content.get("gates") or []:
+            code = entry.get("gate_code")
+            if code:
+                expected_gate_codes.add(str(code))
+        gates = list(StageGateInstance.objects.filter(project=self.project).order_by("stage_code"))
+        actual_gate_codes = {gate.stage_code for gate in gates}
+        if not expected_gate_codes.issubset(actual_gate_codes):
             return None
         return ProjectRuntimeResult(
             snapshot=snapshot,
             stages=stages,
             gates=gates,
         )
+
+    def _complete_partial_runtime(self) -> ProjectRuntimeResult:
+        """Finish materialization when a snapshot exists but rows are incomplete."""
+
+        snapshot = self.project.template_snapshot
+        if snapshot is None:
+            raise ProjectTemplateInvalid(message="Partial runtime is missing snapshot.")
+        content = snapshot.content_copy or {}
+        validate_project_template_content(content)
+        require_template_departments(self.project.organization_id)
+
+        stages = list(ProjectStage.objects.filter(project=self.project).order_by("sequence_no"))
+        if not stages:
+            stages = self._expand_stages(content)
+        stages_by_code = {stage.stage_code: stage for stage in stages}
+        materialize_template_tasks(
+            project=self.project,
+            stages_by_code=stages_by_code,
+            content=content,
+        )
+        materialize_template_deliverables(
+            project=self.project,
+            stages_by_code=stages_by_code,
+            content=content,
+        )
+        ready_codes = {
+            stage.stage_code
+            for stage in stages
+            if stage.status in {ProjectStageStatus.ACTIVE, ProjectStageStatus.READY_FOR_GATE}
+        }
+        if not ready_codes and stages:
+            ready_codes = {stages[0].stage_code}
+        gates = open_execution_gates_for_stages(
+            project=self.project,
+            stages=stages,
+            content=content,
+            ready_stage_codes=ready_codes,
+        )
+        if self.project.current_stage_id is None and stages:
+            d1 = next((stage for stage in stages if stage.stage_code == "D1"), stages[0])
+            if d1.status == ProjectStageStatus.NOT_STARTED:
+                d1.status = ProjectStageStatus.ACTIVE
+                d1.actual_start_at = self.context.occurred_at
+                d1.save(update_fields=["status", "actual_start_at", "updated_at"])
+            self.project.current_stage = d1
+            self.project.status = ProjectStatus.ACTIVE
+            self.project.save(update_fields=["current_stage", "status", "updated_at"])
+        return ProjectRuntimeResult(snapshot=snapshot, stages=stages, gates=gates)
 
     def _resolve_published_version(self) -> ConfigurationVersion:
         if self.template_version is not None:
@@ -240,12 +323,6 @@ def require_template_departments(organization_id: int) -> None:
         raise ProjectTemplateInvalid(
             message=f"Missing required departments for template: {', '.join(missing)}"
         )
-
-
-def ensure_template_departments(organization_id: int) -> None:
-    """Deprecated alias kept for callers that intentionally seed test data."""
-
-    require_template_departments(organization_id)
 
 
 def validate_project_template_content(content: dict[str, Any]) -> None:
