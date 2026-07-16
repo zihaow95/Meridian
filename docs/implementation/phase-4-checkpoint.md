@@ -1,42 +1,42 @@
 # 阶段4 开发到首次上市 —— 完成检查点
 
-日期：2026-07-15
+日期：2026-07-16
 
-状态：第二次 NO-GO 复审项已本地修复；待再审。完整 `scripts\check.cmd` 未在本轮全绿声明
+状态：第三次 NO-GO 复审项已本地修复；`scripts\check.ps1` 本轮从头到尾全绿。待再审。
 
 对应计划：`docs/superpowers/plans/2026-07-14-phase-4-development-first-launch.md`
 
 对应测试矩阵：`docs/implementation/phase-4-test-matrix.md`
 
-基准：`4cc99dc` → 首次修复 `8ad9cc2`/`30be1bb` → 二次修复 `02c0792`
+基准：`4cc99dc` → 首次 `8ad9cc2`/`30be1bb` → 二次 `02c0792`/`de137ed` → 三次修复 `36c271b` + E2E 种子 `9bae8ff`
 
-## 二次复审修复摘要（相对 `30be1bb`）
+## 三次复审修复摘要（相对 `de137ed`）
 
 ### Spec
-- **P0**：初始化仅将当前阶段门设为 READY，未来阶段保持 OPEN；提交要求所属阶段 ACTIVE/READY_FOR_GATE；批准后 `advance_stage` 激活下一阶段并 `mark_gate_ready`。
-- **P1**：FIRST_LAUNCH 拆成管理会结论与老板终审两个认证动作端点，禁止代填 UUID；计划级别读库真值推断，`planned_end_at` 变更为 IMPORTANT；逾期通知补组长/产品总监；迁移失败可见、尝试恢复负责人/成员/计划/历史文件；紧急完成必须写证据；CHANGE_EFFECTIVE 交接错误回传 API；部门缺失 fail-closed。
+- **P0**：FIRST_LAUNCH 必须门状态 SUBMITTED、存在 `current_submission`、L2 为当前活动阶段，决策绑定锁定提交；禁止 OPEN 门越级决策。
+- **P1**：删除单人组合端点 `/first-launch-decision`；FE/E2E 走管理会结论 + 终审双端点；计划 `planned_end_at` 仅日程变化为 MINOR，资源字段为 IMPORTANT；迁移历史文件经 work_items 创建真实 FileObject/DocumentVersion/DeliverableRevision；新增 `POST /projects/{id}/publish-repair`。
 
 ### Standards
-- **P1**：迁移/提交授权先于幂等返回且组织作用域；初始化事务+锁，半初始化不视为完成；历史任务 IntegrityError 失败可见；阶段推进走 projects 公开服务。
+- **P1**：确认幂等键绑定当前基线；迁移任务/交付物走 work_items 公开服务；紧急完成授权先于 COMPLETED 返回，审计码 `emergency_execution.complete`；初始化按模板期望集合判断完整性并可补齐半初始化；`advance_stage` 仅依赖 stage_gates 模型，API schema 拆到各域；双认证服务有允许/拒绝/审计/幂等/并发测试。
+- **P2**：store 使用 OpenAPI 生成工作台类型；移除无调用方别名。
 
-### 契约
-- OpenAPI 增补 request/response serializers；新增 transition / custom POST / emergency complete / dual FIRST_LAUNCH 路径；契约测试校验 path+method；已重新生成 `openapi/schema.yaml` 与前端 `schema.d.ts`。
+### 门禁修复
+- 阶段二/产品/验收夹具补齐已发布模板与 PRODUCT/RD/OPS。
+- E2E 种子对已发布配置不再 `update_or_create`；内容升级时发布下一不可变版本。
+- Prettier / OpenAPI / 契约类型漂移已对齐。
 
 ## 本轮实测证据
 
 ```text
-ruff check (phase-4 apps): passed
-mypy apps/projects|work_items|stage_gates|operations + lifecycle_board + seed_e2e: passed
-pytest projects/stage_gates/work_items/phase4_openapi: run in this turn
-spectacular --validate: exit 0
-frontend api:generate + typecheck: run in this turn
+scripts\check.ps1: All quality gates passed.
+Backend pytest (MySQL): 287 passed
+Frontend vitest: 17 files / 41 tests
+Playwright (kernel + phase2 + phase3 + phase4): 15 passed
+OpenAPI drift / contract type drift: clean
+Docker backend + frontend image builds: passed
+Legacy reference scan: passed
 ```
-
-## 尚未声明全绿
-
-- 完整 `scripts\check.cmd` / `check.ps1`
-- Playwright 阶段四与全量 E2E、Docker 构建、旧依赖扫描
 
 ## 显式不在阶段4范围
 
-阶段5 经营事实/指标/信号；通用 BPM；钉钉内状态迁移；seed_e2e 大场景拆分（P2 judgment，未阻塞核心合规）。
+- 运营监控深化、退市主链、外部系统真实联调
