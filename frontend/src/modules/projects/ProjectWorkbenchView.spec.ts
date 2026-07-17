@@ -114,6 +114,9 @@ function mockWorkbenchApis(status = 'EXECUTING'): void {
     }
     if (url === '/api/v1/projects/proj-1/tasks') return { items: [] }
     if (url === '/api/v1/projects/proj-1/deliverables') return { items: [] }
+    if (url === '/api/v1/projects/proj-1/publish-repair') {
+      return { public_id: 'proj-1', status: 'OPERATING', handover_error: null }
+    }
     throw new Error(`Unexpected url ${url}`)
   })
 }
@@ -143,6 +146,23 @@ describe('ProjectWorkbenchView', () => {
 
     expect(wrapper.text()).toContain('PUBLISH_PENDING_REPAIR')
     expect(wrapper.find('.alert[data-type="warning"]').exists()).toBe(true)
+  })
+
+  it('retries publish repair with the original decision from the repair button', async () => {
+    mockWorkbenchApis('PUBLISH_PENDING_REPAIR')
+    const wrapper = mount(ProjectWorkbenchView, { global: { stubs } })
+    await flush()
+
+    const button = wrapper.find('[data-test="retry-publish-repair"]')
+    expect(button.exists()).toBe(true)
+    await button.trigger('click')
+    await flush()
+
+    expect(apiFetch).toHaveBeenCalledWith(
+      '/api/v1/projects/proj-1/publish-repair',
+      expect.objectContaining({ method: 'POST' }),
+    )
+    expect(wrapper.find('[data-test="repair-message"]').exists()).toBe(true)
   })
 
   it('shows launch gate panel on launch-gate route', async () => {

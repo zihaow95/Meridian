@@ -228,9 +228,18 @@ class InitializeProjectRuntime:
         validate_project_template_content(content)
         require_template_departments(self.project.organization_id)
 
+        existing_stages = list(
+            ProjectStage.objects.filter(project=self.project).order_by("sequence_no")
+        )
+        existing_codes = {stage.stage_code for stage in existing_stages}
+        missing_entries = [
+            entry
+            for entry in (content.get("stages") or [])
+            if str(entry.get("code")) not in existing_codes
+        ]
+        for entry in missing_entries:
+            self._create_stage_from_entry(entry)
         stages = list(ProjectStage.objects.filter(project=self.project).order_by("sequence_no"))
-        if not stages:
-            stages = self._expand_stages(content)
         stages_by_code = {stage.stage_code: stage for stage in stages}
         materialize_template_tasks(
             project=self.project,
@@ -291,21 +300,23 @@ class InitializeProjectRuntime:
     def _expand_stages(self, content: dict[str, Any]) -> list[ProjectStage]:
         created: list[ProjectStage] = []
         for entry in content.get("stages", []):
-            gate = entry.get("gate") or {}
-            stage = ProjectStage.objects.create(
-                organization=self.project.organization,
-                project=self.project,
-                stage_code=entry["code"],
-                name=entry["name"],
-                sequence_no=int(entry["sequence_no"]),
-                status=ProjectStageStatus.NOT_STARTED,
-                handling_mode=StageHandlingMode.EXECUTE,
-                gate_code=str(gate.get("gate_code") or ""),
-                gate_type=str(gate.get("gate_type") or ""),
-                depends_on=list(entry.get("depends_on") or []),
-            )
-            created.append(stage)
+            created.append(self._create_stage_from_entry(entry))
         return created
+
+    def _create_stage_from_entry(self, entry: dict[str, Any]) -> ProjectStage:
+        gate = entry.get("gate") or {}
+        return ProjectStage.objects.create(
+            organization=self.project.organization,
+            project=self.project,
+            stage_code=entry["code"],
+            name=entry["name"],
+            sequence_no=int(entry["sequence_no"]),
+            status=ProjectStageStatus.NOT_STARTED,
+            handling_mode=StageHandlingMode.EXECUTE,
+            gate_code=str(gate.get("gate_code") or ""),
+            gate_type=str(gate.get("gate_type") or ""),
+            depends_on=list(entry.get("depends_on") or []),
+        )
 
 
 def require_template_departments(organization_id: int) -> None:

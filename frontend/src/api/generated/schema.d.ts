@@ -1957,6 +1957,10 @@ export interface components {
             active_stage_gate_public_id: string | null;
             assessments: components["schemas"]["CaseAssessment"][];
         };
+        ProjectLaunchCapabilities: {
+            can_record_management_conclusion: boolean;
+            can_record_final_decision: boolean;
+        };
         ProjectListItem: {
             /** Format: uuid */
             public_id: string;
@@ -1975,6 +1979,7 @@ export interface components {
             count: number;
         };
         ProjectWorkbenchDetail: {
+            launch_capabilities: components["schemas"]["ProjectLaunchCapabilities"];
             /** Format: uuid */
             public_id: string;
             business_no: string;
@@ -2097,6 +2102,7 @@ export interface components {
             /** Format: uuid */
             decision_public_id?: string;
             result?: string;
+            management_conclusion?: string;
             final_decision?: string;
             handover_error?: string | null;
             project_status?: string | null;

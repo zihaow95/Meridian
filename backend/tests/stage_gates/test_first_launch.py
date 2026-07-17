@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import threading
+
 import pytest
-from django.db import IntegrityError, connection, transaction
+from django.db import IntegrityError, connection
 from django.utils import timezone
 
 from apps.audit.models import AuditEvent
@@ -12,6 +14,7 @@ from apps.platform.api.errors import PermissionDeniedError
 from apps.platform.application.command import CommandContext
 from apps.projects.models import Project, ProjectStatus
 from apps.stage_gates.errors import (
+    DualControlSeparationRequired,
     GateDecisionNotAllowed,
     MajorGateAlreadyDecided,
     MajorGateConclusionRequired,
@@ -292,6 +295,73 @@ def test_first_launch_decision_is_idempotent(
     assert MajorGateDecision.objects.filter(stage_gate=first_launch_gate).count() == 1
 
 
+@pytest.fixture
+def dual_role_actor(organization, grant_action) -> User:
+    """A single actor holding BOTH conclusion permissions (to prove separation)."""
+
+    user = User.objects.create_user(
+        organization=organization,
+        display_name="Launch Dual Role",
+        status=UserStatus.ACTIVE,
+        activated_at=timezone.now(),
+    )
+    grant_action(
+        user,
+        "first_launch.management_conclusion.record",
+        "stage_gate",
+        role_code="MANAGEMENT_COMMITTEE",
+    )
+    grant_action(
+        user,
+        "first_launch.final_decision.record",
+        "stage_gate",
+        role_code="BOSS",
+    )
+    grant_action(user, "product.publish_new", "product", role_code="BOSS")
+    return user
+
+
+@pytest.mark.django_db
+def test_final_decision_rejects_same_actor_as_management_conclusion(
+    first_launch_gate: StageGateInstance,
+    dual_role_actor: User,
+    launch_final_actor: User,
+) -> None:
+    """Separation of duties: the conclusion author cannot self-approve the final."""
+
+    RecordFirstLaunchManagementConclusion(
+        context=CommandContext.for_actor(dual_role_actor),
+        stage_gate_public_id=first_launch_gate.public_id,
+        management_conclusion=GateResult.APPROVED,
+        decision_summary="mgmt by dual actor",
+        idempotency_key="fl-sep-mgmt",
+    ).execute()
+
+    with pytest.raises(DualControlSeparationRequired):
+        RecordFirstLaunchFinalDecision(
+            context=CommandContext.for_actor(dual_role_actor),
+            stage_gate_public_id=first_launch_gate.public_id,
+            final_decision=GateResult.APPROVED,
+            decision_summary="self approval attempt",
+            idempotency_key="fl-sep-final",
+        ).execute()
+
+    decision = MajorGateDecision.objects.get(stage_gate=first_launch_gate)
+    assert decision.final_decision == ""
+    assert decision.final_decision_by_id is None
+
+    # A distinct authorized actor can still complete the final decision.
+    result = RecordFirstLaunchFinalDecision(
+        context=CommandContext.for_actor(launch_final_actor),
+        stage_gate_public_id=first_launch_gate.public_id,
+        final_decision=GateResult.APPROVED,
+        decision_summary="final by boss",
+        idempotency_key="fl-sep-final-2",
+    ).execute()
+    assert result.decision.final_decision == GateResult.APPROVED
+    assert result.decision.final_decision_by_id == launch_final_actor.id
+
+
 @pytest.mark.django_db(transaction=True)
 def test_first_launch_management_concurrent_create_is_unique(
     first_launch_gate: StageGateInstance,
@@ -300,17 +370,97 @@ def test_first_launch_management_concurrent_create_is_unique(
     if connection.vendor == "sqlite":
         pytest.skip("MySQL uniqueness under concurrency is the gate under test.")
 
-    def _create(key: str) -> None:
-        RecordFirstLaunchManagementConclusion(
-            context=CommandContext.for_actor(management_actor),
-            stage_gate_public_id=first_launch_gate.public_id,
-            management_conclusion=GateResult.APPROVED,
-            decision_summary="",
-            idempotency_key=key,
-        ).execute()
+    barrier = threading.Barrier(2)
+    outcomes: list[tuple[str, str]] = []
+    lock = threading.Lock()
 
-    _create("fl-concurrent-a")
-    with pytest.raises((MajorGateAlreadyDecided, IntegrityError)):
-        with transaction.atomic():
-            _create("fl-concurrent-b")
+    def _worker(key: str) -> None:
+        barrier.wait()
+        try:
+            RecordFirstLaunchManagementConclusion(
+                context=CommandContext.for_actor(management_actor),
+                stage_gate_public_id=first_launch_gate.public_id,
+                management_conclusion=GateResult.APPROVED,
+                decision_summary="",
+                idempotency_key=key,
+            ).execute()
+            with lock:
+                outcomes.append(("ok", key))
+        except (MajorGateAlreadyDecided, IntegrityError) as exc:
+            with lock:
+                outcomes.append(("err", type(exc).__name__))
+        finally:
+            connection.close()
+
+    threads = [
+        threading.Thread(target=_worker, args=("fl-race-a",)),
+        threading.Thread(target=_worker, args=("fl-race-b",)),
+    ]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join()
+
+    successes = [item for item in outcomes if item[0] == "ok"]
+    failures = [item for item in outcomes if item[0] == "err"]
+    assert len(successes) == 1, outcomes
+    assert len(failures) == 1, outcomes
     assert MajorGateDecision.objects.filter(stage_gate=first_launch_gate).count() == 1
+
+
+@pytest.mark.django_db(transaction=True)
+def test_first_launch_final_concurrent_decision_is_single(
+    first_launch_gate: StageGateInstance,
+    management_actor: User,
+    launch_final_actor: User,
+) -> None:
+    """Two concurrent final decisions settle to one committed MySQL fact."""
+
+    if connection.vendor == "sqlite":
+        pytest.skip("MySQL row locking under concurrency is the gate under test.")
+
+    RecordFirstLaunchManagementConclusion(
+        context=CommandContext.for_actor(management_actor),
+        stage_gate_public_id=first_launch_gate.public_id,
+        management_conclusion=GateResult.PASSED,
+        decision_summary="",
+        idempotency_key="fl-final-race-mgmt",
+    ).execute()
+
+    barrier = threading.Barrier(2)
+    outcomes: list[str] = []
+    lock = threading.Lock()
+
+    def _worker(key: str) -> None:
+        barrier.wait()
+        try:
+            RecordFirstLaunchFinalDecision(
+                context=CommandContext.for_actor(launch_final_actor),
+                stage_gate_public_id=first_launch_gate.public_id,
+                final_decision=GateResult.PASSED,
+                decision_summary="",
+                idempotency_key=key,
+            ).execute()
+            with lock:
+                outcomes.append("ok")
+        except (MajorGateAlreadyDecided, IntegrityError):
+            with lock:
+                outcomes.append("err")
+        finally:
+            connection.close()
+
+    threads = [
+        threading.Thread(target=_worker, args=("fl-final-race-a",)),
+        threading.Thread(target=_worker, args=("fl-final-race-b",)),
+    ]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join()
+
+    first_launch_gate.refresh_from_db()
+    decision = MajorGateDecision.objects.get(stage_gate=first_launch_gate)
+    assert decision.final_decision == GateResult.PASSED
+    assert decision.final_decision_by_id == launch_final_actor.id
+    assert MajorGateDecision.objects.filter(stage_gate=first_launch_gate).count() == 1
+    assert outcomes.count("ok") >= 1

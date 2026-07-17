@@ -8,6 +8,9 @@ from uuid import UUID
 
 from django.db.models import Q, QuerySet
 
+from apps.authorization.context import AuthorizationContext, ResourceDescriptor
+from apps.authorization.policies.engine import authorize
+from apps.authorization.services.subject import subject_for
 from apps.identity.models.user import User
 from apps.projects.models import Project, ProjectMember, ProjectStage
 from apps.projects.queries.projects import serialize_project_detail
@@ -104,11 +107,56 @@ def get_project_for_user(user: User, public_id: UUID) -> Project | None:
     return project
 
 
-def serialize_workbench_project(project: Project) -> dict[str, Any]:
+def _launch_capabilities(user: User, project: Project) -> dict[str, bool]:
+    """Resolve which FIRST_LAUNCH decision actions the actor may perform.
+
+    The panel hides actions the actor cannot take; the backend still enforces
+    them, so a hidden action that is somehow invoked returns 403.
+    """
+
+    from apps.stage_gates.models import GateType, StageGateInstance
+
+    gate = (
+        StageGateInstance.objects.select_related("project_stage")
+        .filter(project=project, gate_type=GateType.MAJOR)
+        .filter(Q(stage_code="FIRST_LAUNCH") | Q(project_stage__gate_code="FIRST_LAUNCH"))
+        .order_by("-created_at")
+        .first()
+    )
+    can_management = False
+    can_final = False
+    if gate is not None:
+        subject = subject_for(user)
+        resource = ResourceDescriptor(
+            resource_type="stage_gate",
+            public_id=gate.public_id,
+            organization_id=gate.organization_id,
+        )
+        auth_context = AuthorizationContext.current()
+        can_management = authorize(
+            subject,
+            action="first_launch.management_conclusion.record",
+            resource=resource,
+            context=auth_context,
+        ).allowed
+        can_final = authorize(
+            subject,
+            action="first_launch.final_decision.record",
+            resource=resource,
+            context=auth_context,
+        ).allowed
+    return {
+        "can_record_management_conclusion": can_management,
+        "can_record_final_decision": can_final,
+    }
+
+
+def serialize_workbench_project(project: Project, *, user: User) -> dict[str, Any]:
     payload = serialize_project_detail(project)
     payload["current_stage_code"] = (
         project.current_stage.stage_code if project.current_stage is not None else None
     )
+    payload["launch_capabilities"] = _launch_capabilities(user, project)
     return payload
 
 

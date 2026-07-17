@@ -3708,6 +3708,16 @@ components:
       - resource_risk_summary
       - status
       - version_no
+    ProjectLaunchCapabilities:
+      type: object
+      properties:
+        can_record_management_conclusion:
+          type: boolean
+        can_record_final_decision:
+          type: boolean
+      required:
+      - can_record_final_decision
+      - can_record_management_conclusion
     ProjectListItem:
       type: object
       properties:
@@ -3757,6 +3767,8 @@ components:
     ProjectWorkbenchDetail:
       type: object
       properties:
+        launch_capabilities:
+          $ref: '#/components/schemas/ProjectLaunchCapabilities'
         public_id:
           type: string
           format: uuid
@@ -3798,6 +3810,7 @@ components:
       - candidate_public_id
       - current_stage_code
       - deputy_leader_public_id
+      - launch_capabilities
       - leader_public_id
       - name
       - opportunity_sources
@@ -4062,6 +4075,8 @@ components:
           type: string
           format: uuid
         result:
+          type: string
+        management_conclusion:
           type: string
         final_decision:
           type: string

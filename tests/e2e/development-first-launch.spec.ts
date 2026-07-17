@@ -1,9 +1,11 @@
 import { expect, test } from "@playwright/test";
 
 const E2E_LOGIN_KEY = "e2e-active-user";
+const E2E_APPROVER_LOGIN_KEY = "e2e-approver-user";
 const E2E_LIMITED_LOGIN_KEY = "e2e-limited-user";
 const E2E_LAUNCH_BUSINESS_NO = "E2E-LAUNCH";
 const E2E_REPAIR_BUSINESS_NO = "E2E-REPAIR";
+const E2E_REPAIR_RETRY_BUSINESS_NO = "E2E-REPAIR-RETRY";
 
 const ASSESSMENT_CATEGORIES = [
   "PRODUCTION_PARTY",
@@ -25,6 +27,15 @@ async function devLogin(
   await page.getByPlaceholder("login_key").fill(loginKey);
   await page.getByRole("button", { name: "开发登录" }).click();
   await page.waitForURL((url) => !url.pathname.startsWith("/login"));
+}
+
+async function reloginAs(
+  page: import("@playwright/test").Page,
+  loginKey: string,
+  next = "/projects",
+): Promise<void> {
+  await page.context().clearCookies();
+  await devLogin(page, next, loginKey);
 }
 
 async function csrfHeaders(
@@ -287,6 +298,7 @@ test("first launch publishes product and hands over monitoring", async ({
   });
   expect([201, 409]).toContain(submit.status());
 
+  // Step 1: management-committee conclusion is recorded by the active user.
   const management = await authedJson(
     page,
     "POST",
@@ -299,6 +311,21 @@ test("first launch publishes product and hands over monitoring", async ({
   );
   expect(management.status()).toBe(201);
 
+  // Separation of duties: the same actor cannot also record the final decision.
+  const selfFinal = await authedJson(
+    page,
+    "POST",
+    `/api/v1/stage-gates/${gateId}/first-launch-final-decision`,
+    {
+      final_decision: "APPROVED",
+      decision_summary: "self approval attempt",
+      idempotency_key: `e2e-first-launch-self-${project.public_id}`,
+    },
+  );
+  expect(selfFinal.status()).toBe(409);
+
+  // Step 2: a distinct approver (boss) records the final decision.
+  await reloginAs(page, E2E_APPROVER_LOGIN_KEY);
   const decision = await authedJson(
     page,
     "POST",
@@ -355,6 +382,7 @@ test("publish pending repair is recorded when launch publish fails", async ({
   );
   expect(management.status()).toBe(201);
 
+  await reloginAs(page, E2E_APPROVER_LOGIN_KEY);
   const decision = await authedJson(
     page,
     "POST",
@@ -370,10 +398,51 @@ test("publish pending repair is recorded when launch publish fails", async ({
   expect(payload.project_status).toBe("PUBLISH_PENDING_REPAIR");
   expect(payload.handover_error).toBeTruthy();
 
+  await reloginAs(page, E2E_LOGIN_KEY);
   await page.goto(`/projects/${project.public_id}`);
   await expect(page.locator(".el-alert__title")).toContainText(
     "PUBLISH_PENDING_REPAIR",
   );
+});
+
+test("publish pending repair retries with original decision to reach OPERATING", async ({
+  page,
+}) => {
+  test.setTimeout(120_000);
+  await devLogin(page, "/projects");
+  const project = await findProjectByBusinessNo(
+    page,
+    E2E_REPAIR_RETRY_BUSINESS_NO,
+  );
+
+  await page.goto(`/projects/${project.public_id}`);
+  await expect(page.locator('[data-test="project-workbench"]')).toBeVisible();
+
+  if (project.status !== "OPERATING") {
+    await expect(
+      page.locator('[data-test="retry-publish-repair"]'),
+    ).toBeVisible();
+    await page.locator('[data-test="retry-publish-repair"]').click();
+    await expect(page.locator('[data-test="repair-message"]')).toContainText(
+      "OPERATING",
+    );
+  }
+
+  const after = await page.request.get(`/api/v1/projects/${project.public_id}`);
+  expect(after.ok()).toBeTruthy();
+  expect((await after.json()).status).toBe("OPERATING");
+
+  // Retrying with the original decision is idempotent: it stays OPERATING and
+  // does not re-enter repair (single product version is proven in unit tests).
+  const retryAgain = await authedJson(
+    page,
+    "POST",
+    `/api/v1/projects/${project.public_id}/publish-repair`,
+  );
+  expect(retryAgain.ok()).toBeTruthy();
+  const retryPayload = await retryAgain.json();
+  expect(retryPayload.status).toBe("OPERATING");
+  expect(retryPayload.handover_error).toBeFalsy();
 });
 
 test("migration continue from D3 skips prior stages; archive creates no project", async ({

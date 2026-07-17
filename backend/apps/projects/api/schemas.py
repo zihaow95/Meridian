@@ -28,6 +28,14 @@ PROJECT_LIST_RESPONSE = inline_serializer(
     },
 )
 
+LAUNCH_CAPABILITIES = inline_serializer(
+    name="ProjectLaunchCapabilities",
+    fields={
+        "can_record_management_conclusion": serializers.BooleanField(),
+        "can_record_final_decision": serializers.BooleanField(),
+    },
+)
+
 PROJECT_DETAIL_RESPONSE = inline_serializer(
     name="ProjectWorkbenchDetail",
     fields={
@@ -43,6 +51,7 @@ PROJECT_DETAIL_RESPONSE = inline_serializer(
         "product_draft_public_id": serializers.UUIDField(allow_null=True),
         "current_stage_code": serializers.CharField(allow_null=True),
         "opportunity_sources": serializers.ListField(),
+        "launch_capabilities": LAUNCH_CAPABILITIES,
     },
 )
 

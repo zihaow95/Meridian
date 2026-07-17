@@ -112,6 +112,53 @@ def test_initialize_runtime_is_idempotent(
 
 
 @pytest.mark.django_db
+def test_partial_runtime_recovers_missing_middle_stage(
+    approved_candidate,
+    boss: User,
+    project_template_version: ConfigurationVersion,
+) -> None:
+    """Re-init backfills a partially materialized runtime missing a middle stage."""
+
+    from apps.stage_gates.models import StageGateInstance
+    from apps.work_items.models import Deliverable, Task, TaskDependency
+
+    project = (
+        ApproveAndCreateProject(
+            context=CommandContext.for_actor(boss),
+            candidate_public_id=approved_candidate.public_id,
+            idempotency_key="runtime-partial-recover",
+        )
+        .execute()
+        .project
+    )
+
+    d3 = ProjectStage.objects.get(project=project, stage_code="D3")
+    d3_tasks = list(Task.objects.filter(project=project, stage=d3).values_list("pk", flat=True))
+    TaskDependency.objects.filter(task_id__in=d3_tasks).delete()
+    TaskDependency.objects.filter(predecessor_id__in=d3_tasks).delete()
+    Deliverable.objects.filter(project=project, stage=d3).delete()
+    Task.objects.filter(project=project, stage=d3).delete()
+    StageGateInstance.objects.filter(project=project, project_stage=d3).delete()
+    d3.delete()
+    assert not ProjectStage.objects.filter(project=project, stage_code="D3").exists()
+
+    InitializeProjectRuntime(
+        context=CommandContext.for_actor(boss),
+        project=project,
+        template_version=project_template_version,
+    ).execute()
+
+    codes = list(
+        ProjectStage.objects.filter(project=project)
+        .order_by("sequence_no")
+        .values_list("stage_code", flat=True)
+    )
+    assert codes == list(REQUIRED_STAGE_CODES)
+    assert Task.objects.filter(project=project, stage__stage_code="D3").exists()
+    assert Deliverable.objects.filter(project=project, stage__stage_code="D3").exists()
+
+
+@pytest.mark.django_db
 def test_partial_runtime_failure_rolls_back_project_and_stages(
     approved_candidate,
     boss: User,

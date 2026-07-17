@@ -503,7 +503,11 @@ class MigrationBaseline(OrganizationOwnedModel):
         related_name="confirmed_migration_baselines",
     )
     confirmed_at = models.DateTimeField(null=True, blank=True)
-    confirm_idempotency_key = models.CharField(max_length=128, null=True, blank=True, unique=True)
+    # NULL allows baselines without a confirm key; org-scoped uniqueness is
+    # enforced by the UniqueConstraint below rather than a global unique=True.
+    confirm_idempotency_key = models.CharField(  # noqa: DJ001
+        max_length=128, null=True, blank=True
+    )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -517,5 +521,9 @@ class MigrationBaseline(OrganizationOwnedModel):
             models.UniqueConstraint(
                 fields=["organization", "external_project_id"],
                 name="projects_migration_baseline_org_external_uniq",
+            ),
+            models.UniqueConstraint(
+                fields=["organization", "confirm_idempotency_key"],
+                name="projects_migration_baseline_org_confirm_key_uniq",
             ),
         ]

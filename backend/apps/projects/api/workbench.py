@@ -97,7 +97,7 @@ class ProjectWorkbenchDetailView(APIView):
         project = get_project_for_user(user, public_id)
         if project is None:
             raise ResourceNotFoundError()
-        return Response(serialize_workbench_project(project))
+        return Response(serialize_workbench_project(project, user=user))
 
 
 class ProjectStagesView(APIView):

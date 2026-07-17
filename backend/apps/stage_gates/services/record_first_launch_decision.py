@@ -21,6 +21,7 @@ from apps.projects.models import ProjectStageStatus, ProjectStatus
 from apps.projects.services.advance_stage import activate_next_stage_after_completion
 from apps.projects.services.publish_and_handover import HandoverResult, PublishAndHandover
 from apps.stage_gates.errors import (
+    DualControlSeparationRequired,
     GateDecisionNotAllowed,
     MajorGateAlreadyDecided,
     MajorGateConclusionRequired,
@@ -34,6 +35,7 @@ from apps.stage_gates.models import (
     MajorGateDecision,
     StageGateInstance,
 )
+from apps.stage_gates.services.open_execution_gates import mark_gate_ready_for_stage
 
 _APPROVING = frozenset({GateResult.APPROVED, GateResult.APPROVED_WITH_EXCEPTION})
 _ACTIVE_L2 = frozenset({ProjectStageStatus.ACTIVE, ProjectStageStatus.READY_FOR_GATE})
@@ -241,6 +243,9 @@ class RecordFirstLaunchFinalDecision:
             if record.final_decision:
                 return FirstLaunchDecisionResult(decision=record)
 
+            if record.management_conclusion_by_id == actor.id:
+                raise DualControlSeparationRequired()
+
             submission = _require_submitted_active_l2(gate)
             if record.submission_id is not None and record.submission_id != submission.id:
                 raise GateDecisionNotAllowed(
@@ -287,10 +292,12 @@ class RecordFirstLaunchFinalDecision:
                         project.save(update_fields=["status", "updated_at"])
                 elif self.final_decision in _APPROVING:
                     stage.status = ProjectStageStatus.COMPLETED
-                    activate_next_stage_after_completion(
+                    next_stage = activate_next_stage_after_completion(
                         completed_stage=stage,
                         occurred_at=self.context.occurred_at,
                     )
+                    if next_stage is not None and project is not None:
+                        mark_gate_ready_for_stage(project=project, stage=next_stage)
                 stage.save(update_fields=["status", "updated_at"])
 
             append_event(

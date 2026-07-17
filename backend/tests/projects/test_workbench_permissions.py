@@ -2,12 +2,15 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
+
 import pytest
 from django.utils import timezone
 from rest_framework.test import APIClient
 
 from apps.identity.models.user import User, UserStatus
 from apps.projects.models import Project
+from tests.stage_gates.first_launch_fixtures import prepare_submitted_first_launch_gate
 
 
 @pytest.fixture
@@ -78,3 +81,55 @@ def test_task_list_requires_project_visibility(
     api_client.force_authenticate(user=outsider)
     response = api_client.get(f"/api/v1/projects/{project.public_id}/tasks")
     assert response.status_code == 404
+
+
+@pytest.mark.django_db
+def test_workbench_detail_launch_capabilities_reflect_management_only_actor(
+    api_client: APIClient,
+    project: Project,
+    grant_action: Callable[..., None],
+) -> None:
+    """A conclusion-only actor sees only the management action as available."""
+
+    prepare_submitted_first_launch_gate(project)
+    leader = project.leader
+    grant_action(
+        leader,
+        "first_launch.management_conclusion.record",
+        "stage_gate",
+        role_code="MANAGEMENT_COMMITTEE",
+    )
+    api_client.force_authenticate(user=leader)
+
+    response = api_client.get(f"/api/v1/projects/{project.public_id}")
+
+    assert response.status_code == 200
+    capabilities = response.json()["launch_capabilities"]
+    assert capabilities["can_record_management_conclusion"] is True
+    assert capabilities["can_record_final_decision"] is False
+
+
+@pytest.mark.django_db
+def test_workbench_detail_launch_capabilities_reflect_final_only_actor(
+    api_client: APIClient,
+    project: Project,
+    grant_action: Callable[..., None],
+) -> None:
+    """A final-only actor sees only the final decision action as available."""
+
+    prepare_submitted_first_launch_gate(project)
+    leader = project.leader
+    grant_action(
+        leader,
+        "first_launch.final_decision.record",
+        "stage_gate",
+        role_code="BOSS_FINAL",
+    )
+    api_client.force_authenticate(user=leader)
+
+    response = api_client.get(f"/api/v1/projects/{project.public_id}")
+
+    assert response.status_code == 200
+    capabilities = response.json()["launch_capabilities"]
+    assert capabilities["can_record_management_conclusion"] is False
+    assert capabilities["can_record_final_decision"] is True

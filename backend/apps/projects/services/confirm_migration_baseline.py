@@ -16,6 +16,8 @@ from apps.authorization.policies.engine import authorize
 from apps.authorization.services.subject import subject_for
 from apps.configuration.models import ConfigurationStatus, ConfigurationVersion
 from apps.configuration.services import CreateSnapshot
+from apps.documents.storage.base import FileStorage
+from apps.documents.storage.factory import get_file_storage
 from apps.identity.models.department import Department, DepartmentStatus
 from apps.identity.models.user import User
 from apps.platform.api.errors import PermissionDeniedError
@@ -87,12 +89,14 @@ def _materialize_history_file(
     stage: ProjectStage,
     item: dict[str, Any],
     actor: User,
+    storage: FileStorage,
 ) -> object:
     return create_migrated_history_deliverable(
         project=project,
         stage=stage,
         item=item,
         actor=actor,
+        storage=storage,
     )
 
 
@@ -363,12 +367,14 @@ class ConfirmMigrationBaseline:
                     message=f"Failed to materialize history task: {item.get('task_code')}"
                 ) from exc
 
+        storage = get_file_storage()
         for item in list(baseline.history_deliverables or []) + list(baseline.history_files or []):
             _materialize_history_file(
                 project=project,
                 stage=current,
                 item=item if isinstance(item, dict) else {"filename": str(item)},
                 actor=actor,
+                storage=storage,
             )
 
         stages_by_code = {stage.stage_code: stage for stage in created_stages}

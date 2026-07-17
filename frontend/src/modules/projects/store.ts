@@ -16,6 +16,11 @@ export type StageGateDecisionResponse = components['schemas']['StageGateDecision
 export type WorkbenchStageItem = components['schemas']['WorkbenchStageItem']
 export type WorkbenchTaskItem = components['schemas']['WorkbenchTaskItem']
 export type WorkbenchDeliverableItem = components['schemas']['WorkbenchDeliverableItem']
+export type StageGateIdempotentResultRequest =
+  components['schemas']['StageGateIdempotentResultRequest']
+export type FirstLaunchManagementRequest = components['schemas']['FirstLaunchManagementRequest']
+export type FirstLaunchFinalRequest = components['schemas']['FirstLaunchFinalRequest']
+export type PublicIdStatusResponse = components['schemas']['PublicIdStatusResponse']
 
 export const useProjectStore = defineStore('projects', {
   state: () => ({
@@ -147,12 +152,7 @@ export const useProjectStore = defineStore('projects', {
     },
     async recordNormalGateDecision(
       stageGatePublicId: string,
-      payload: {
-        result: string
-        idempotency_key: string
-        decision_summary?: string
-        exception_rationale?: string
-      },
+      payload: StageGateIdempotentResultRequest,
     ): Promise<StageGateDecisionResponse> {
       const result = await apiFetch<StageGateDecisionResponse>(
         `/api/v1/stage-gates/${stageGatePublicId}/decision`,
@@ -163,11 +163,7 @@ export const useProjectStore = defineStore('projects', {
     },
     async recordFirstLaunchManagementConclusion(
       stageGatePublicId: string,
-      payload: {
-        management_conclusion: string
-        idempotency_key: string
-        decision_summary?: string
-      },
+      payload: FirstLaunchManagementRequest,
     ): Promise<StageGateDecisionResponse> {
       return apiFetch<StageGateDecisionResponse>(
         `/api/v1/stage-gates/${stageGatePublicId}/first-launch-management-conclusion`,
@@ -176,11 +172,7 @@ export const useProjectStore = defineStore('projects', {
     },
     async recordFirstLaunchFinalDecision(
       stageGatePublicId: string,
-      payload: {
-        final_decision: string
-        idempotency_key: string
-        decision_summary?: string
-      },
+      payload: FirstLaunchFinalRequest,
     ): Promise<StageGateDecisionResponse> {
       const result = await apiFetch<StageGateDecisionResponse>(
         `/api/v1/stage-gates/${stageGatePublicId}/first-launch-final-decision`,
@@ -189,11 +181,14 @@ export const useProjectStore = defineStore('projects', {
       this.lastGateDecision = result
       return result
     },
-    async retryPublishRepair(projectPublicId: string): Promise<{ status: string }> {
-      return apiFetch<{ status: string }>(`/api/v1/projects/${projectPublicId}/publish-repair`, {
-        method: 'POST',
-        json: {},
-      })
+    async retryPublishRepair(projectPublicId: string): Promise<PublicIdStatusResponse> {
+      return apiFetch<PublicIdStatusResponse>(
+        `/api/v1/projects/${projectPublicId}/publish-repair`,
+        {
+          method: 'POST',
+          json: {},
+        },
+      )
     },
   },
 })

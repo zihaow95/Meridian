@@ -51,3 +51,9 @@ class GateDecisionNotAllowed(ApiError):
     code = "GATE_DECISION_NOT_ALLOWED"
     message = "The requested gate decision is not allowed for this actor."
     status_code = 409
+
+
+class DualControlSeparationRequired(ApiError):
+    code = "DUAL_CONTROL_SEPARATION_REQUIRED"
+    message = "The final decision must be recorded by a different actor than the conclusion author."
+    status_code = 409

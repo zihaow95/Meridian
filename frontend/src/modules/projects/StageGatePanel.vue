@@ -4,10 +4,15 @@ import { computed, ref } from 'vue'
 import { ApiError } from '@/api/client'
 import { useProjectStore } from '@/modules/projects/store'
 
-const props = defineProps<{
-  stageGatePublicId: string
-  launchMode?: boolean
-}>()
+const props = withDefaults(
+  defineProps<{
+    stageGatePublicId: string
+    launchMode?: boolean
+    canManagement?: boolean
+    canFinal?: boolean
+  }>(),
+  { launchMode: false, canManagement: true, canFinal: true },
+)
 
 const emit = defineEmits<{ completed: [] }>()
 
@@ -158,31 +163,38 @@ async function recordNormalDecision(): Promise<void> {
     </ul>
 
     <div v-if="launchMode" class="stage-gate-panel__launch">
-      <el-select v-model="managementConclusion" data-test="management-conclusion">
-        <el-option label="经管会通过" value="APPROVED" />
-        <el-option label="待补充" value="NEEDS_INFO" />
-      </el-select>
-      <el-button
-        data-test="record-management-conclusion"
-        :loading="deciding"
-        :disabled="deciding"
-        @click="recordManagementConclusion"
-      >
-        记录管理会结论
-      </el-button>
-      <el-select v-model="finalDecision" data-test="final-decision">
-        <el-option label="最终批准" value="APPROVED" />
-        <el-option label="暂缓" value="DEFERRED" />
-      </el-select>
-      <el-button
-        data-test="record-final-decision"
-        type="primary"
-        :loading="deciding"
-        :disabled="deciding"
-        @click="recordFinalDecision"
-      >
-        记录终审决策
-      </el-button>
+      <template v-if="canManagement">
+        <el-select v-model="managementConclusion" data-test="management-conclusion">
+          <el-option label="经管会通过" value="APPROVED" />
+          <el-option label="待补充" value="NEEDS_INFO" />
+        </el-select>
+        <el-button
+          data-test="record-management-conclusion"
+          :loading="deciding"
+          :disabled="deciding"
+          @click="recordManagementConclusion"
+        >
+          记录管理会结论
+        </el-button>
+      </template>
+      <template v-if="canFinal">
+        <el-select v-model="finalDecision" data-test="final-decision">
+          <el-option label="最终批准" value="APPROVED" />
+          <el-option label="暂缓" value="DEFERRED" />
+        </el-select>
+        <el-button
+          data-test="record-final-decision"
+          type="primary"
+          :loading="deciding"
+          :disabled="deciding"
+          @click="recordFinalDecision"
+        >
+          记录终审决策
+        </el-button>
+      </template>
+      <p v-if="!canManagement && !canFinal" data-test="launch-no-permission">
+        当前账户无首次上市决策权限。
+      </p>
     </div>
 
     <el-button

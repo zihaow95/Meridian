@@ -153,4 +153,53 @@ describe('StageGatePanel', () => {
     expect(wrapper.text()).toContain('PUBLISH_PENDING_REPAIR')
     expect(wrapper.text()).toContain('PRODUCT_PUBLICATION_FAILED')
   })
+
+  it('hides the final decision action when the actor may only record the conclusion', async () => {
+    const wrapper = mount(StageGatePanel, {
+      props: {
+        stageGatePublicId: 'gate-l2',
+        launchMode: true,
+        canManagement: true,
+        canFinal: false,
+      },
+      global: { stubs },
+    })
+    await flush()
+
+    expect(wrapper.find('[data-test="record-management-conclusion"]').exists()).toBe(true)
+    expect(wrapper.find('[data-test="record-final-decision"]').exists()).toBe(false)
+  })
+
+  it('hides the conclusion action when the actor may only record the final decision', async () => {
+    const wrapper = mount(StageGatePanel, {
+      props: {
+        stageGatePublicId: 'gate-l2',
+        launchMode: true,
+        canManagement: false,
+        canFinal: true,
+      },
+      global: { stubs },
+    })
+    await flush()
+
+    expect(wrapper.find('[data-test="record-management-conclusion"]').exists()).toBe(false)
+    expect(wrapper.find('[data-test="record-final-decision"]').exists()).toBe(true)
+  })
+
+  it('shows a no-permission notice when the actor holds neither launch decision right', async () => {
+    const wrapper = mount(StageGatePanel, {
+      props: {
+        stageGatePublicId: 'gate-l2',
+        launchMode: true,
+        canManagement: false,
+        canFinal: false,
+      },
+      global: { stubs },
+    })
+    await flush()
+
+    expect(wrapper.find('[data-test="launch-no-permission"]').exists()).toBe(true)
+    expect(wrapper.find('[data-test="record-management-conclusion"]').exists()).toBe(false)
+    expect(wrapper.find('[data-test="record-final-decision"]').exists()).toBe(false)
+  })
 })

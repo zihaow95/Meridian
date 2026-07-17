@@ -61,6 +61,9 @@ screenshots/
 # Local Docker state
 .docker/
 
+# Backend runtime filesystem storage (real file objects written at runtime)
+backend/var/
+
 # Legacy prototype and smoke artifacts must not enter Meridian
 npd-lcm-mvp/
 plm-dms-smoke*/

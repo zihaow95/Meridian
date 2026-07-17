@@ -79,6 +79,7 @@ GATE_DECISION_RESPONSE = inline_serializer(
         "public_id": serializers.UUIDField(required=False),
         "decision_public_id": serializers.UUIDField(required=False),
         "result": serializers.CharField(required=False),
+        "management_conclusion": serializers.CharField(required=False),
         "final_decision": serializers.CharField(required=False),
         "handover_error": serializers.CharField(required=False, allow_null=True),
         "project_status": serializers.CharField(required=False, allow_null=True),

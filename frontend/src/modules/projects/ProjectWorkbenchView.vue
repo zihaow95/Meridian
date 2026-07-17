@@ -14,6 +14,8 @@ const auth = useAuthStore()
 const projects = useProjectStore()
 
 const errorText = ref('')
+const repairMessage = ref('')
+const repairing = ref(false)
 const activeTab = ref('overview')
 
 const publicId = computed(() => String(route.params.publicId))
@@ -25,6 +27,12 @@ const currentStage = computed(() =>
 )
 const stageGatePublicId = computed(
   () => currentStage.value?.stage_gate_public_id ?? currentStage.value?.public_id ?? '',
+)
+const canRecordManagementConclusion = computed(
+  () => detail.value?.launch_capabilities?.can_record_management_conclusion ?? false,
+)
+const canRecordFinalDecision = computed(
+  () => detail.value?.launch_capabilities?.can_record_final_decision ?? false,
 )
 
 async function load(): Promise<void> {
@@ -40,6 +48,29 @@ async function load(): Promise<void> {
     } else {
       errorText.value = '加载项目工作台失败'
     }
+  }
+}
+
+async function retryPublishRepair(): Promise<void> {
+  if (repairing.value) return
+  repairing.value = true
+  repairMessage.value = ''
+  try {
+    const result = await projects.retryPublishRepair(publicId.value)
+    if (result.handover_error) {
+      repairMessage.value = `发布仍未完成：${result.handover_error}`
+    } else {
+      repairMessage.value = `发布修复成功：${result.status ?? 'OPERATING'}`
+    }
+    await load()
+  } catch (err: unknown) {
+    if (err instanceof ApiError) {
+      repairMessage.value = `${err.code}: ${err.message} (trace ${err.traceId})`
+    } else {
+      repairMessage.value = '发布修复失败'
+    }
+  } finally {
+    repairing.value = false
   }
 }
 
@@ -68,14 +99,33 @@ onMounted(async () => {
       <el-button :loading="projects.loading" @click="load">刷新</el-button>
     </div>
 
-    <el-alert
-      v-if="detail?.status === 'PUBLISH_PENDING_REPAIR'"
-      type="warning"
-      :closable="false"
-      title="项目处于 PUBLISH_PENDING_REPAIR：首次上市产品发布未完成，请修复后重试。"
-      show-icon
-      class="workbench__banner"
-    />
+    <div v-if="detail?.status === 'PUBLISH_PENDING_REPAIR'" class="workbench__repair">
+      <el-alert
+        type="warning"
+        :closable="false"
+        title="项目处于 PUBLISH_PENDING_REPAIR：首次上市产品发布未完成，请修复后重试。"
+        show-icon
+        class="workbench__banner"
+      />
+      <el-button
+        data-test="retry-publish-repair"
+        type="primary"
+        :loading="repairing"
+        :disabled="repairing"
+        @click="retryPublishRepair"
+      >
+        按原决定重试发布
+      </el-button>
+      <el-alert
+        v-if="repairMessage"
+        data-test="repair-message"
+        type="info"
+        :closable="false"
+        :title="repairMessage"
+        show-icon
+        class="workbench__banner"
+      />
+    </div>
 
     <el-alert
       v-if="errorText"
@@ -90,6 +140,8 @@ onMounted(async () => {
       v-if="launchMode && stageGatePublicId"
       :stage-gate-public-id="stageGatePublicId"
       launch-mode
+      :can-management="canRecordManagementConclusion"
+      :can-final="canRecordFinalDecision"
       @completed="load"
     />
 
@@ -138,6 +190,8 @@ onMounted(async () => {
           v-if="stageGatePublicId"
           :stage-gate-public-id="stageGatePublicId"
           :launch-mode="detail?.current_stage_code === 'L2'"
+          :can-management="canRecordManagementConclusion"
+          :can-final="canRecordFinalDecision"
           @completed="load"
         />
         <p v-else>当前阶段暂无阶段门。</p>

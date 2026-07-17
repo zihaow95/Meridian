@@ -32,6 +32,7 @@ from apps.stage_gates.models import (
     GateStatus,
     StageGateInstance,
 )
+from apps.stage_gates.services.open_execution_gates import mark_gate_ready_for_stage
 
 
 @dataclass(frozen=True)
@@ -241,7 +242,9 @@ class RecordNormalGateDecision:
             return NormalGateDecisionResult(decision=record, handover_error=handover_error)
 
     def _activate_next_stage(self, stage: ProjectStage) -> None:
-        activate_next_stage_after_completion(
+        next_stage = activate_next_stage_after_completion(
             completed_stage=stage,
             occurred_at=self.context.occurred_at,
         )
+        if next_stage is not None and next_stage.project_id is not None:
+            mark_gate_ready_for_stage(project=next_stage.project, stage=next_stage)
