@@ -109,6 +109,11 @@ if getattr(settings, "ENABLE_PROJECTS_API", False):
         path("api/v1/", include("apps.projects.api.urls")),
     ]
 
+if getattr(settings, "ENABLE_WORK_ITEMS_API", False):
+    urlpatterns += [
+        path("api/v1/", include("apps.work_items.api.urls")),
+    ]
+
 if getattr(settings, "ENABLE_PRODUCTS_API", False):
     urlpatterns += [
         path("api/v1/", include("apps.products.api.urls")),

@@ -12,6 +12,7 @@ from apps.configuration.models import (
     ConfigurationStatus,
     ConfigurationVersion,
 )
+from apps.identity.models.department import Department, DepartmentStatus
 from apps.identity.models.organization import Organization
 from apps.identity.models.user import User, UserStatus
 from apps.opportunities.models import ProjectCandidate
@@ -44,6 +45,56 @@ def opportunity_rules(organization: Organization, active_user: User) -> Configur
             "quota_enforcement_mode": "WARN",
             "quota_minimums": {"USER": 3, "DEPARTMENT": 3},
         },
+        created_by=active_user,
+        published_by=active_user,
+        published_at=timezone.now(),
+    )
+
+
+@pytest.fixture
+def default_project_template_content() -> dict:
+    import json
+    from pathlib import Path
+
+    path = (
+        Path(__file__).resolve().parents[2]
+        / "apps"
+        / "configuration"
+        / "defaults"
+        / "project_template_v1.json"
+    )
+    return json.loads(path.read_text(encoding="utf-8"))
+
+
+@pytest.fixture
+def project_template_version(
+    organization: Organization,
+    active_user: User,
+    default_project_template_content: dict,
+) -> ConfigurationVersion:
+    now = timezone.now()
+    for code in ("PRODUCT", "RD", "OPS"):
+        Department.objects.get_or_create(
+            organization=organization,
+            department_code=code,
+            defaults={
+                "name": f"{code} Department",
+                "status": DepartmentStatus.ACTIVE,
+                "valid_from": now,
+            },
+        )
+    definition = ConfigurationDefinition.objects.create(
+        organization=organization,
+        definition_code="PROJECT_EXECUTION_TEMPLATE",
+        name="Project execution template",
+    )
+    return ConfigurationVersion.objects.create(
+        organization=organization,
+        definition=definition,
+        version_number=1,
+        status=ConfigurationStatus.PUBLISHED,
+        content_json=default_project_template_content,
+        content_digest="digest-project-template-v1",
         created_by=active_user,
         published_by=active_user,
         published_at=timezone.now(),
@@ -106,7 +157,11 @@ def approved_candidate(
 
 
 @pytest.fixture
-def project(approved_candidate: ProjectCandidate, boss: User) -> Project:
+def project(
+    approved_candidate: ProjectCandidate,
+    boss: User,
+    project_template_version: ConfigurationVersion,
+) -> Project:
     return (
         ApproveAndCreateProject(
             context=CommandContext.for_actor(boss),

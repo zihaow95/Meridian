@@ -47,8 +47,10 @@ INSTALLED_APPS = [
     "apps.notifications",
     "apps.opportunities",
     "apps.stage_gates",
-    "apps.projects",
+    "apps.projects.apps.ProjectsConfig",
     "apps.products",
+    "apps.work_items",
+    "apps.operations",
 ]
 
 AUTH_USER_MODEL = "identity.User"

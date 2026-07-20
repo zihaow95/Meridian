@@ -159,6 +159,15 @@ class UploadSession(PublicIdModel):
     sha256 = models.CharField(max_length=64, blank=True)
     expires_at = models.DateTimeField()
     completed_at = models.DateTimeField(null=True, blank=True)
+    # Bound under select_for_update before activation so concurrent completes
+    # reuse one PENDING version instead of creating a second.
+    document_version = models.ForeignKey(
+        "documents.DocumentVersion",
+        null=True,
+        blank=True,
+        on_delete=models.PROTECT,
+        related_name="+",
+    )
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:

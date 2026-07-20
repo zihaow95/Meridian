@@ -230,6 +230,38 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/deliverable-revisions/{public_id}/submit": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["deliverable_revisions_submit"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/deliverables/{public_id}/revisions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["deliverables_revisions_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/documents/{document_public_id}/versions": {
         parameters: {
             query?: never;
@@ -304,6 +336,38 @@ export interface paths {
         get?: never;
         put?: never;
         post: operations["document_version_download_ticket_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/emergency-executions/{public_id}/complete": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["emergency_executions_complete"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/execution-exceptions/{public_id}/confirm": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["execution_exceptions_confirm"];
         delete?: never;
         options?: never;
         head?: never;
@@ -530,6 +594,22 @@ export interface paths {
         get: operations["opportunity_pool_list"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/plan-changes/{public_id}/confirm": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["plan_changes_confirm"];
         delete?: never;
         options?: never;
         head?: never;
@@ -888,6 +968,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/professional-confirmations/{public_id}/decide": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["professional_confirmations_decide"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/project-candidates/{public_id}": {
         parameters: {
             query?: never;
@@ -984,6 +1080,87 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/project-migration-baselines/{public_id}/confirm": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["project_migration_baselines_confirm"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/project-migration-batches": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["project_migration_batches_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/project-migration-files/stage": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description Stream a migration history file into tmp/migration before batch import. */
+        post: operations["project_migration_files_stage"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/project-stages/{public_id}/handling-requests": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["project_stages_handling_request"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["projects_list"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/projects/{public_id}": {
         parameters: {
             query?: never;
@@ -994,6 +1171,118 @@ export interface paths {
         get: operations["projects_retrieve"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{public_id}/deliverables": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["projects_deliverables_list"];
+        put?: never;
+        post: operations["projects_deliverables_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{public_id}/emergency-executions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["projects_emergency_executions_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{public_id}/members": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["projects_members_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{public_id}/plan-changes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["projects_plan_changes_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{public_id}/publish-repair": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["projects_publish_repair_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{public_id}/stages": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["projects_stages_list"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{public_id}/tasks": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["projects_tasks_list"];
+        put?: never;
+        post: operations["projects_tasks_create"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1032,6 +1321,54 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/stage-gates/{public_id}/decision": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["stage_gates_decision_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/stage-gates/{public_id}/first-launch-final-decision": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["stage_gates_first_launch_final_decision_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/stage-gates/{public_id}/first-launch-management-conclusion": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["stage_gates_first_launch_management_conclusion_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/stage-gates/{public_id}/major-decision": {
         parameters: {
             query?: never;
@@ -1042,6 +1379,87 @@ export interface paths {
         get?: never;
         put?: never;
         post: operations["stage_gate_major_decision_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/stage-gates/{public_id}/submissions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["stage_gates_submissions_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/stage-gates/{public_id}/validate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["stage_gates_validate"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tasks/{public_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** @description Deprecated status mutation alias — prefer POST .../transition. */
+        patch: operations["tasks_partial_update"];
+        trace?: never;
+    };
+    "/api/v1/tasks/{public_id}/assign": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["tasks_assign"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tasks/{public_id}/transition": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["tasks_transition"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1185,6 +1603,23 @@ export interface components {
             is_below_minimum: boolean;
             deficit: number;
         };
+        CustomDeliverableCreateRequest: {
+            /** Format: uuid */
+            stage_public_id: string;
+            deliverable_code: string;
+            name: string;
+            requires_professional_confirmation?: boolean;
+        };
+        CustomTaskCreateRequest: {
+            /** Format: uuid */
+            stage_public_id: string;
+            task_code: string;
+            name: string;
+            /** Format: uuid */
+            responsible_department_public_id: string;
+            is_core?: boolean;
+            description?: string;
+        };
         DecideImportItemRequest: {
             row_number: number;
             decision: string;
@@ -1206,6 +1641,21 @@ export interface components {
             restart_trigger: string;
             next_review_quarter: string;
             status: string;
+        };
+        DeliverableRevisionCreateRequest: {
+            /** Format: uuid */
+            document_version_public_id: string;
+        };
+        DeliverableRevisionResponse: {
+            /** Format: uuid */
+            public_id: string;
+            revision_number?: number;
+            status: string;
+            content_hash?: string;
+        };
+        DeliverableRevisionSubmitRequest: {
+            /** Format: uuid */
+            confirmer_public_id: string;
         };
         DevLoginRequest: {
             login_key: string;
@@ -1230,6 +1680,15 @@ export interface components {
                 [key: string]: unknown;
             };
         };
+        EmergencyCompleteRequest: {
+            confirmation_summary: string;
+        };
+        EmergencyCreateRequest: {
+            subject_summary: string;
+            pending_confirmation: string;
+            /** Format: date-time */
+            due_at: string;
+        };
         ExternalBinding: {
             /** Format: uuid */
             public_id: string;
@@ -1237,6 +1696,16 @@ export interface components {
             object_type: string;
             external_id: string;
             binding_status: string;
+        };
+        FirstLaunchFinalRequest: {
+            final_decision: string;
+            decision_summary?: string;
+            idempotency_key: string;
+        };
+        FirstLaunchManagementRequest: {
+            management_conclusion: string;
+            decision_summary?: string;
+            idempotency_key: string;
         };
         HealthResponse: {
             status: string;
@@ -1294,6 +1763,11 @@ export interface components {
             display_name: string;
             status: string;
         };
+        MemberAppointRequest: {
+            /** Format: uuid */
+            user_public_id: string;
+            project_role?: string;
+        };
         MemberInvitationRequest: {
             invitee_public_id: string;
             contribution_note?: string;
@@ -1301,6 +1775,57 @@ export interface components {
         MemberInvitationResponse: {
             public_id: string;
             invitation_status: string;
+        };
+        MigrationBaselineConfirmHistoryFile: {
+            filename: string;
+            /** Format: uuid */
+            document_version_public_id?: string | null;
+            sha256?: string;
+            size_bytes?: number;
+        };
+        MigrationBaselineConfirmRequest: {
+            disposition: string;
+            idempotency_key: string;
+        };
+        MigrationBaselineConfirmResponse: {
+            /** Format: uuid */
+            baseline_public_id: string;
+            disposition: string;
+            status: string;
+            /** Format: uuid */
+            project_public_id: string | null;
+            history_files?: components["schemas"]["MigrationBaselineConfirmHistoryFile"][];
+        };
+        MigrationBatchCreateRequest: {
+            batch_key: string;
+            rows: {
+                [key: string]: unknown;
+            }[];
+        };
+        MigrationBatchCreateResponse: {
+            /** Format: uuid */
+            public_id: string;
+            batch_key: string;
+            accepted_count: number;
+            error_count: number;
+            row_errors: unknown[];
+            baselines: unknown[];
+        };
+        MigrationFileStageRequest: {
+            /** Format: uri */
+            file: string;
+            filename?: string;
+            mime_type?: string;
+        };
+        MigrationFileStageResponse: {
+            /** Format: uuid */
+            public_id: string;
+            filename: string;
+            mime_type: string;
+            sha256: string;
+            size_bytes: number;
+            staging_relpath: string;
+            expires_at: string;
         };
         MyTodoListItem: {
             public_id: string;
@@ -1364,6 +1889,16 @@ export interface components {
             core_selling_points?: string;
             target_users_needs?: string;
             suggested_retail_price?: string | null;
+        };
+        PlanChangeRequest: {
+            change_type: string;
+            target_type: string;
+            /** Format: uuid */
+            target_public_id: string;
+            field_name: string;
+            before_value?: string;
+            after_value: string;
+            impact_summary?: string;
         };
         ProductChangeSetDetail: {
             /** Format: uuid */
@@ -1439,6 +1974,16 @@ export interface components {
             status: string;
             skus: components["schemas"]["ProductSkuSummary"][];
         };
+        ProfessionalConfirmationDecideRequest: {
+            decision: string;
+            comment?: string;
+        };
+        ProfessionalConfirmationResponse: {
+            /** Format: uuid */
+            public_id: string;
+            status: string;
+            comment?: string;
+        };
         ProjectCandidateDetail: {
             public_id: string;
             business_no: string;
@@ -1453,17 +1998,60 @@ export interface components {
             active_stage_gate_public_id: string | null;
             assessments: components["schemas"]["CaseAssessment"][];
         };
-        ProjectDetail: {
+        ProjectLaunchCapabilities: {
+            can_record_management_conclusion: boolean;
+            can_record_final_decision: boolean;
+        };
+        ProjectListItem: {
+            /** Format: uuid */
             public_id: string;
             business_no: string;
             name: string;
             project_type: string;
             status: string;
-            candidate_public_id: string;
+            /** Format: uuid */
             leader_public_id: string;
+            current_stage_code: string | null;
+        };
+        ProjectListResponse: {
+            items: components["schemas"]["ProjectListItem"][];
+            page: number;
+            page_size: number;
+            count: number;
+        };
+        ProjectPublishRepairResponse: {
+            /** Format: uuid */
+            public_id: string;
+            status: string;
+            handover_error?: string | null;
+            /** Format: uuid */
+            product_version_public_id: string | null;
+            /** Format: uuid */
+            monitoring_scope_public_id: string | null;
+            product_version_count: number;
+            monitoring_scope_count: number;
+        };
+        ProjectWorkbenchDetail: {
+            launch_capabilities: components["schemas"]["ProjectLaunchCapabilities"];
+            /** Format: uuid */
+            public_id: string;
+            business_no: string;
+            name: string;
+            project_type: string;
+            status: string;
+            /** Format: uuid */
+            candidate_public_id: string | null;
+            /** Format: uuid */
+            leader_public_id: string;
+            /** Format: uuid */
             deputy_leader_public_id: string | null;
+            /** Format: uuid */
             product_asset_public_id: string | null;
+            /** Format: uuid */
             product_draft_public_id: string | null;
+            current_stage_code: string | null;
+            opportunity_sources: unknown[];
+            can_publish_repair: boolean;
         };
         ProposalVersion: {
             public_id: string;
@@ -1486,6 +2074,14 @@ export interface components {
             suggested_retail_price: string | null;
             submitted_at: string | null;
             locked_at: string | null;
+        };
+        PublicIdStatusResponse: {
+            /** Format: uuid */
+            public_id: string;
+            status?: string;
+            result?: string;
+            version_no?: number;
+            handover_error?: string | null;
         };
         PublicationBlock: {
             code: string;
@@ -1554,6 +2150,32 @@ export interface components {
         SplitCandidateRequest: {
             candidate_names: string[];
         };
+        StageGateDecisionResponse: {
+            /** Format: uuid */
+            public_id?: string;
+            /** Format: uuid */
+            decision_public_id?: string;
+            result?: string;
+            management_conclusion?: string;
+            final_decision?: string;
+            handover_error?: string | null;
+            project_status?: string | null;
+        };
+        StageGateIdempotencyKeyRequest: {
+            idempotency_key: string;
+        };
+        StageGateIdempotentResultRequest: {
+            result?: string;
+            idempotency_key: string;
+            decision_summary?: string;
+            exception_rationale?: string;
+        };
+        StageGateSubmissionResponse: {
+            /** Format: uuid */
+            public_id: string;
+            submission_number: number;
+            content_hash: string;
+        };
         StageGateSummary: {
             public_id: string;
             stage_code: string;
@@ -1561,6 +2183,15 @@ export interface components {
             status: string;
             subject_type: string;
             subject_public_id: string;
+        };
+        StageGateValidateResponse: {
+            blocks: unknown[];
+            warnings: unknown[];
+        };
+        StageHandlingRequest: {
+            requested_mode: string;
+            rationale?: string;
+            evidence_summary?: string;
         };
         SubmitCandidateReviewRequest: {
             version_no?: number;
@@ -1571,6 +2202,23 @@ export interface components {
         SubmitProposalRequest: {
             version_no?: number;
             idempotency_key: string;
+        };
+        TaskAssignRequest: {
+            /** Format: uuid */
+            user_public_id: string;
+            version_no: number;
+        };
+        TaskCommandResponse: {
+            /** Format: uuid */
+            public_id: string;
+            status?: string;
+            version_no?: number;
+            /** Format: uuid */
+            responsible_user_public_id?: string | null;
+        };
+        TaskTransitionRequest: {
+            status: string;
+            version_no: number;
         };
         UpdateChangeSetScopeRequest: {
             version_no: number;
@@ -1623,6 +2271,66 @@ export interface components {
         };
         WithdrawProposalRequest: {
             version_no?: number;
+        };
+        WorkbenchDeliverableItem: {
+            /** Format: uuid */
+            public_id: string;
+            deliverable_code: string;
+            name: string;
+            stage_code: string;
+            tier: string;
+            status: string;
+            /** Format: uuid */
+            current_revision_public_id: string | null;
+            /** Format: uuid */
+            document_version_public_id: string | null;
+            can_download: boolean;
+        };
+        WorkbenchDeliverablesResponse: {
+            items: components["schemas"]["WorkbenchDeliverableItem"][];
+            page?: number;
+            page_size?: number;
+            count?: number;
+        };
+        WorkbenchStageItem: {
+            /** Format: uuid */
+            public_id: string;
+            stage_code: string;
+            name: string;
+            sequence_no: number;
+            status: string;
+            gate_code?: string | null;
+            gate_type?: string | null;
+            handling_mode?: string | null;
+            planned_end_at?: string | null;
+            /** Format: uuid */
+            stage_gate_public_id?: string | null;
+        };
+        WorkbenchStagesResponse: {
+            items: components["schemas"]["WorkbenchStageItem"][];
+            page?: number;
+            page_size?: number;
+            count?: number;
+        };
+        WorkbenchTaskItem: {
+            /** Format: uuid */
+            public_id: string;
+            task_code: string;
+            name: string;
+            stage_code: string;
+            status: string;
+            is_core: boolean;
+            version_no: number;
+            /** Format: uuid */
+            responsible_user_public_id: string | null;
+            /** Format: uuid */
+            responsible_department_public_id: string;
+        };
+        WorkbenchTasksResponse: {
+            items: components["schemas"]["WorkbenchTaskItem"][];
+            page?: number;
+            page_size?: number;
+            count?: number;
         };
     };
     responses: never;
@@ -1951,6 +2659,60 @@ export interface operations {
             };
         };
     };
+    deliverable_revisions_submit: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                public_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DeliverableRevisionSubmitRequest"];
+                "application/x-www-form-urlencoded": components["schemas"]["DeliverableRevisionSubmitRequest"];
+                "multipart/form-data": components["schemas"]["DeliverableRevisionSubmitRequest"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DeliverableRevisionResponse"];
+                };
+            };
+        };
+    };
+    deliverables_revisions_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                public_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DeliverableRevisionCreateRequest"];
+                "application/x-www-form-urlencoded": components["schemas"]["DeliverableRevisionCreateRequest"];
+                "multipart/form-data": components["schemas"]["DeliverableRevisionCreateRequest"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DeliverableRevisionResponse"];
+                };
+            };
+        };
+    };
     document_versions_list: {
         parameters: {
             query?: never;
@@ -2062,6 +2824,54 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["DocumentVersionDownloadTicketResponse"];
+                };
+            };
+        };
+    };
+    emergency_executions_complete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                public_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["EmergencyCompleteRequest"];
+                "application/x-www-form-urlencoded": components["schemas"]["EmergencyCompleteRequest"];
+                "multipart/form-data": components["schemas"]["EmergencyCompleteRequest"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PublicIdStatusResponse"];
+                };
+            };
+        };
+    };
+    execution_exceptions_confirm: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                public_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PublicIdStatusResponse"];
                 };
             };
         };
@@ -2422,6 +3232,27 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["OpportunitySummaryList"][];
+                };
+            };
+        };
+    };
+    plan_changes_confirm: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                public_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PublicIdStatusResponse"];
                 };
             };
         };
@@ -2963,6 +3794,33 @@ export interface operations {
             };
         };
     };
+    professional_confirmations_decide: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                public_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ProfessionalConfirmationDecideRequest"];
+                "application/x-www-form-urlencoded": components["schemas"]["ProfessionalConfirmationDecideRequest"];
+                "multipart/form-data": components["schemas"]["ProfessionalConfirmationDecideRequest"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProfessionalConfirmationResponse"];
+                };
+            };
+        };
+    };
     project_candidates_retrieve: {
         parameters: {
             query?: never;
@@ -3120,6 +3978,128 @@ export interface operations {
             };
         };
     };
+    project_migration_baselines_confirm: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                public_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MigrationBaselineConfirmRequest"];
+                "application/x-www-form-urlencoded": components["schemas"]["MigrationBaselineConfirmRequest"];
+                "multipart/form-data": components["schemas"]["MigrationBaselineConfirmRequest"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MigrationBaselineConfirmResponse"];
+                };
+            };
+        };
+    };
+    project_migration_batches_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MigrationBatchCreateRequest"];
+                "application/x-www-form-urlencoded": components["schemas"]["MigrationBatchCreateRequest"];
+                "multipart/form-data": components["schemas"]["MigrationBatchCreateRequest"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MigrationBatchCreateResponse"];
+                };
+            };
+        };
+    };
+    project_migration_files_stage: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": components["schemas"]["MigrationFileStageRequest"];
+                "application/x-www-form-urlencoded": components["schemas"]["MigrationFileStageRequest"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MigrationFileStageResponse"];
+                };
+            };
+        };
+    };
+    project_stages_handling_request: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                public_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["StageHandlingRequest"];
+                "application/x-www-form-urlencoded": components["schemas"]["StageHandlingRequest"];
+                "multipart/form-data": components["schemas"]["StageHandlingRequest"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PublicIdStatusResponse"];
+                };
+            };
+        };
+    };
+    projects_list: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProjectListResponse"];
+                };
+            };
+        };
+    };
     projects_retrieve: {
         parameters: {
             query?: never;
@@ -3136,7 +4116,233 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["ProjectDetail"];
+                    "application/json": components["schemas"]["ProjectWorkbenchDetail"];
+                };
+            };
+            /** @description No response body */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    projects_deliverables_list: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                public_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WorkbenchDeliverablesResponse"];
+                };
+            };
+        };
+    };
+    projects_deliverables_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                public_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CustomDeliverableCreateRequest"];
+                "application/x-www-form-urlencoded": components["schemas"]["CustomDeliverableCreateRequest"];
+                "multipart/form-data": components["schemas"]["CustomDeliverableCreateRequest"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PublicIdStatusResponse"];
+                };
+            };
+        };
+    };
+    projects_emergency_executions_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                public_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["EmergencyCreateRequest"];
+                "application/x-www-form-urlencoded": components["schemas"]["EmergencyCreateRequest"];
+                "multipart/form-data": components["schemas"]["EmergencyCreateRequest"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PublicIdStatusResponse"];
+                };
+            };
+        };
+    };
+    projects_members_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                public_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MemberAppointRequest"];
+                "application/x-www-form-urlencoded": components["schemas"]["MemberAppointRequest"];
+                "multipart/form-data": components["schemas"]["MemberAppointRequest"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PublicIdStatusResponse"];
+                };
+            };
+        };
+    };
+    projects_plan_changes_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                public_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PlanChangeRequest"];
+                "application/x-www-form-urlencoded": components["schemas"]["PlanChangeRequest"];
+                "multipart/form-data": components["schemas"]["PlanChangeRequest"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PublicIdStatusResponse"];
+                };
+            };
+        };
+    };
+    projects_publish_repair_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                public_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProjectPublishRepairResponse"];
+                };
+            };
+        };
+    };
+    projects_stages_list: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                public_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WorkbenchStagesResponse"];
+                };
+            };
+        };
+    };
+    projects_tasks_list: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                public_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WorkbenchTasksResponse"];
+                };
+            };
+        };
+    };
+    projects_tasks_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                public_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CustomTaskCreateRequest"];
+                "application/x-www-form-urlencoded": components["schemas"]["CustomTaskCreateRequest"];
+                "multipart/form-data": components["schemas"]["CustomTaskCreateRequest"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PublicIdStatusResponse"];
                 };
             };
         };
@@ -3185,6 +4391,87 @@ export interface operations {
             };
         };
     };
+    stage_gates_decision_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                public_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["StageGateIdempotentResultRequest"];
+                "application/x-www-form-urlencoded": components["schemas"]["StageGateIdempotentResultRequest"];
+                "multipart/form-data": components["schemas"]["StageGateIdempotentResultRequest"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StageGateDecisionResponse"];
+                };
+            };
+        };
+    };
+    stage_gates_first_launch_final_decision_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                public_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["FirstLaunchFinalRequest"];
+                "application/x-www-form-urlencoded": components["schemas"]["FirstLaunchFinalRequest"];
+                "multipart/form-data": components["schemas"]["FirstLaunchFinalRequest"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StageGateDecisionResponse"];
+                };
+            };
+        };
+    };
+    stage_gates_first_launch_management_conclusion_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                public_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["FirstLaunchManagementRequest"];
+                "application/x-www-form-urlencoded": components["schemas"]["FirstLaunchManagementRequest"];
+                "multipart/form-data": components["schemas"]["FirstLaunchManagementRequest"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StageGateDecisionResponse"];
+                };
+            };
+        };
+    };
     stage_gate_major_decision_create: {
         parameters: {
             query?: never;
@@ -3208,6 +4495,128 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["MajorGateDecisionResponse"];
+                };
+            };
+        };
+    };
+    stage_gates_submissions_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                public_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["StageGateIdempotencyKeyRequest"];
+                "application/x-www-form-urlencoded": components["schemas"]["StageGateIdempotencyKeyRequest"];
+                "multipart/form-data": components["schemas"]["StageGateIdempotencyKeyRequest"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StageGateSubmissionResponse"];
+                };
+            };
+        };
+    };
+    stage_gates_validate: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                public_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StageGateValidateResponse"];
+                };
+            };
+        };
+    };
+    tasks_partial_update: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                public_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No response body */
+            405: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    tasks_assign: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                public_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TaskAssignRequest"];
+                "application/x-www-form-urlencoded": components["schemas"]["TaskAssignRequest"];
+                "multipart/form-data": components["schemas"]["TaskAssignRequest"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TaskCommandResponse"];
+                };
+            };
+        };
+    };
+    tasks_transition: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                public_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TaskTransitionRequest"];
+                "application/x-www-form-urlencoded": components["schemas"]["TaskTransitionRequest"];
+                "multipart/form-data": components["schemas"]["TaskTransitionRequest"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TaskCommandResponse"];
                 };
             };
         };

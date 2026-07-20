@@ -1,0 +1,166 @@
+{
+  "template_code": "NEW_PRODUCT_DEFAULT_V1",
+  "project_type": "NEW_PRODUCT",
+  "stages": [
+    {
+      "code": "D1",
+      "name": "项目启动与产品定义",
+      "sequence_no": 1,
+      "depends_on": [],
+      "gate": {"gate_code": "D1_GATE", "gate_type": "NORMAL"}
+    },
+    {
+      "code": "D2",
+      "name": "配方打样与体验验证",
+      "sequence_no": 2,
+      "depends_on": ["D1"],
+      "gate": {"gate_code": "D2_GATE", "gate_type": "NORMAL"}
+    },
+    {
+      "code": "D3",
+      "name": "工艺放大与质量验证",
+      "sequence_no": 3,
+      "depends_on": ["D2"],
+      "gate": {"gate_code": "D3_GATE", "gate_type": "NORMAL"}
+    },
+    {
+      "code": "D4",
+      "name": "工程化与试销准备",
+      "sequence_no": 4,
+      "depends_on": ["D3"],
+      "gate": {"gate_code": "D4_GATE", "gate_type": "NORMAL"}
+    },
+    {
+      "code": "D5",
+      "name": "上市验证/试销",
+      "sequence_no": 5,
+      "depends_on": ["D4"],
+      "gate": {"gate_code": "D5_GATE", "gate_type": "NORMAL"}
+    },
+    {
+      "code": "L1",
+      "name": "正式上市方案",
+      "sequence_no": 6,
+      "depends_on": ["D5"],
+      "gate": {"gate_code": "L1_GATE", "gate_type": "NORMAL"}
+    },
+    {
+      "code": "L2",
+      "name": "首次上市阶段门",
+      "sequence_no": 7,
+      "depends_on": ["L1"],
+      "gate": {"gate_code": "FIRST_LAUNCH", "gate_type": "MAJOR"}
+    },
+    {
+      "code": "L3",
+      "name": "发布与运营交接",
+      "sequence_no": 8,
+      "depends_on": ["L2"]
+    }
+  ],
+  "tasks": [
+    {
+      "task_code": "D1-CORE-BRIEF",
+      "stage_code": "D1",
+      "name": "产品定义与立项简报",
+      "responsible_department_code": "PRODUCT",
+      "is_core": true,
+      "depends_on": []
+    },
+    {
+      "task_code": "D2-CORE-FORMULA",
+      "stage_code": "D2",
+      "name": "配方打样",
+      "responsible_department_code": "RD",
+      "is_core": true,
+      "depends_on": ["D1-CORE-BRIEF"]
+    },
+    {
+      "task_code": "D3-CORE-PROCESS",
+      "stage_code": "D3",
+      "name": "工艺放大验证",
+      "responsible_department_code": "RD",
+      "is_core": true,
+      "depends_on": ["D2-CORE-FORMULA"]
+    },
+    {
+      "task_code": "D4-CORE-ENGINEERING",
+      "stage_code": "D4",
+      "name": "工程化与试销准备",
+      "responsible_department_code": "OPS",
+      "is_core": true,
+      "depends_on": ["D3-CORE-PROCESS"]
+    },
+    {
+      "task_code": "D5-CORE-PILOT",
+      "stage_code": "D5",
+      "name": "试销验证",
+      "responsible_department_code": "OPS",
+      "is_core": true,
+      "depends_on": ["D4-CORE-ENGINEERING"]
+    },
+    {
+      "task_code": "L1-CORE-PLAN",
+      "stage_code": "L1",
+      "name": "正式上市方案编制",
+      "responsible_department_code": "PRODUCT",
+      "is_core": true,
+      "depends_on": ["D5-CORE-PILOT"]
+    },
+    {
+      "task_code": "L2-CORE-LAUNCH-PACK",
+      "stage_code": "L2",
+      "name": "首次上市材料包",
+      "responsible_department_code": "PRODUCT",
+      "is_core": true,
+      "depends_on": ["L1-CORE-PLAN"]
+    },
+    {
+      "task_code": "L3-CORE-HANDOVER",
+      "stage_code": "L3",
+      "name": "运营交接清单",
+      "responsible_department_code": "OPS",
+      "is_core": true,
+      "depends_on": ["L2-CORE-LAUNCH-PACK"]
+    }
+  ],
+  "deliverables": [
+    {
+      "deliverable_code": "D1-DOC-BRIEF",
+      "stage_code": "D1",
+      "name": "产品定义简报",
+      "tier": "CORE_REQUIRED",
+      "requires_professional_confirmation": true
+    },
+    {
+      "deliverable_code": "D2-DOC-FORMULA",
+      "stage_code": "D2",
+      "name": "配方报告",
+      "tier": "CORE_REQUIRED",
+      "requires_professional_confirmation": true
+    },
+    {
+      "deliverable_code": "D3-DOC-PROCESS",
+      "stage_code": "D3",
+      "name": "工艺验证报告",
+      "tier": "CORE_REQUIRED",
+      "requires_professional_confirmation": true
+    },
+    {
+      "deliverable_code": "L2-DOC-LAUNCH",
+      "stage_code": "L2",
+      "name": "首次上市决议材料",
+      "tier": "CORE_REQUIRED",
+      "requires_professional_confirmation": true
+    }
+  ],
+  "gates": [
+    {"stage_code": "D1", "gate_code": "D1_GATE", "gate_type": "NORMAL"},
+    {"stage_code": "D2", "gate_code": "D2_GATE", "gate_type": "NORMAL"},
+    {"stage_code": "D3", "gate_code": "D3_GATE", "gate_type": "NORMAL"},
+    {"stage_code": "D4", "gate_code": "D4_GATE", "gate_type": "NORMAL"},
+    {"stage_code": "D5", "gate_code": "D5_GATE", "gate_type": "NORMAL"},
+    {"stage_code": "L1", "gate_code": "L1_GATE", "gate_type": "NORMAL"},
+    {"stage_code": "L2", "gate_code": "FIRST_LAUNCH", "gate_type": "MAJOR"}
+  ]
+}

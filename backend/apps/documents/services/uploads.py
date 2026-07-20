@@ -13,16 +13,16 @@ from django.db import transaction
 from django.utils import timezone
 
 from apps.documents.models import (
-    Document,
     DocumentSource,
     DocumentVersion,
-    FileObject,
-    StorageBackend,
-    StorageStatus,
     UploadSession,
-    VersionStatus,
 )
 from apps.documents.policy import resolve_upload_policy
+from apps.documents.services.ingest import (
+    StagedContent,
+    activate_staged_content,
+    stage_controlled_content,
+)
 from apps.documents.storage.base import FileStorage, StorageMoveFailed
 from apps.identity.models.user import User
 
@@ -65,6 +65,7 @@ class CompleteUpload:
     title: str | None = None
 
     def execute(self) -> DocumentVersion:
+        staged: StagedContent | None = None
         with transaction.atomic():
             session = UploadSession.objects.select_for_update().get(
                 public_id=self.session_public_id
@@ -84,53 +85,49 @@ class CompleteUpload:
             if session.size_bytes > policy.max_bytes:
                 raise UploadValidationFailed("Uploaded file exceeds size limit.")
 
-            object_key = f"{uuid.uuid4()}/{uuid.uuid4()}"
-            now = timezone.now()
-            document_code = self.document_code or f"DOC-{uuid.uuid4().hex[:12].upper()}"
-            title = self.title or session.original_filename
+            if session.document_version_id is not None:
+                version = DocumentVersion.objects.select_related("file_object").get(
+                    id=session.document_version_id
+                )
+                staged = StagedContent(
+                    version_id=version.id,
+                    file_object_id=version.file_object_id,
+                    temp_path=Path(session.temp_path),
+                    object_key=version.file_object.object_key,
+                )
+            else:
+                version, staged = stage_controlled_content(
+                    organization=session.organization,
+                    source_temp_path=Path(session.temp_path),
+                    sha256=session.sha256,
+                    size_bytes=session.size_bytes,
+                    original_filename=session.original_filename,
+                    mime_type=session.declared_mime_type,
+                    uploaded_by=session.uploaded_by,
+                    source=DocumentSource.PROJECT,
+                    document_code=self.document_code,
+                    title=self.title,
+                )
+                session.document_version = version
+                session.save(update_fields=["document_version"])
 
-            file_object = FileObject.objects.create(
-                organization=session.organization,
-                storage_backend=StorageBackend.NAS_NFS,
-                object_key=object_key,
-                size_bytes=session.size_bytes,
-                sha256=session.sha256,
-                detected_mime_type=session.declared_mime_type,
-                storage_status=StorageStatus.PENDING,
+        assert staged is not None
+        try:
+            activated = activate_staged_content(staged, self.storage)
+        except StorageMoveFailed:
+            # Leave the session incomplete with the same bound PENDING version;
+            # the temp file remains for a true retry.
+            raise
+        with transaction.atomic():
+            session = UploadSession.objects.select_for_update().get(
+                public_id=self.session_public_id
             )
-            document = Document.objects.create(
-                organization=session.organization,
-                document_code=document_code,
-                title=title,
-                source=DocumentSource.PROJECT,
-            )
-            version = DocumentVersion.objects.create(
-                organization=session.organization,
-                document=document,
-                version_number=1,
-                file_object=file_object,
-                original_filename=session.original_filename,
-                declared_mime_type=session.declared_mime_type,
-                detected_mime_type=session.declared_mime_type,
-                status=VersionStatus.DRAFT,
-                uploaded_by=session.uploaded_by,
-                uploaded_at=now,
-            )
-            try:
-                self.storage.atomic_move(Path(session.temp_path), object_key)
-            except StorageMoveFailed:
-                raise
-            file_object.storage_status = StorageStatus.ACTIVE
-            file_object.save(update_fields=["storage_status"])
-            version.status = VersionStatus.CONTROLLED
-            version.controlled_at = now
-            version.save(update_fields=["status", "controlled_at"])
-            document.current_version = version
-            document.save(update_fields=["current_version"])
-            session.completed_at = now
-            session.save(update_fields=["completed_at"])
-
-        return version
+            if session.completed_at is None:
+                session.completed_at = timezone.now()
+                session.save(update_fields=["completed_at"])
+            elif session.document_version_id != activated.id:
+                raise UploadValidationFailed("Upload session already completed.")
+        return activated
 
 
 def complete_upload(

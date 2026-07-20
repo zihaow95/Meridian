@@ -301,6 +301,12 @@ docker compose -f deploy/compose/compose.dev.yml config
 
 ## 7. 阶段4：开发到首次上市
 
+**状态：** 进行中 / 尚未完成（2026-07-14 建立执行基线；`scripts\check.cmd` 复验通过，EXE 实现与阶段退出尚未完成）
+
+**任务级计划：** [`docs/superpowers/plans/2026-07-14-phase-4-development-first-launch.md`](../superpowers/plans/2026-07-14-phase-4-development-first-launch.md)
+
+**测试矩阵：** [`docs/implementation/phase-4-test-matrix.md`](../implementation/phase-4-test-matrix.md)
+
 ### Task 4.1：项目模板、任务和交付物
 
 **Files:**

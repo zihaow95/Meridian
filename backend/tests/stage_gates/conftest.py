@@ -1,4 +1,4 @@
-"""Fixtures for major stage gate tests."""
+"""Fixtures for major and execution stage gate tests."""
 
 from __future__ import annotations
 

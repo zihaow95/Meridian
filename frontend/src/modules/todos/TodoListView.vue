@@ -1,9 +1,11 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
+import { useRouter } from 'vue-router'
 
 import { ApiError } from '@/api/client'
 import { useTodoStore } from '@/modules/todos/store'
 
+const router = useRouter()
 const todos = useTodoStore()
 const errorText = ref('')
 
@@ -23,6 +25,10 @@ async function load(): Promise<void> {
 onMounted(load)
 
 function openLink(link: string): void {
+  if (link.startsWith('/projects/')) {
+    router.push(link)
+    return
+  }
   window.location.assign(link)
 }
 </script>

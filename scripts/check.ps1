@@ -103,7 +103,7 @@ try {
     Invoke-Native 'E2E: Playwright browser' { npx playwright install chromium } $e2e
     Invoke-Native 'E2E: platform kernel, phase 2, and phase 3 product profile' {
         $env:CI = 'true'
-        npx playwright test platform-kernel.spec.ts opportunity-to-project.spec.ts product-profile-migration.spec.ts
+        npx playwright test platform-kernel.spec.ts opportunity-to-project.spec.ts product-profile-migration.spec.ts development-first-launch.spec.ts
     } $e2e
 
     # 6. Docker image builds.

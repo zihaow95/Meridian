@@ -211,12 +211,62 @@ def boss(another_active_user: User, grant_action: Callable[..., None]) -> User:
 
 
 @pytest.fixture
+def project_template_version(
+    organization: Organization,
+    active_user: User,
+) -> ConfigurationVersion:
+    import json
+    from pathlib import Path
+
+    from apps.identity.models.department import Department, DepartmentStatus
+
+    now = timezone.now()
+    for code in ("PRODUCT", "RD", "OPS"):
+        Department.objects.get_or_create(
+            organization=organization,
+            department_code=code,
+            defaults={
+                "name": f"{code} Department",
+                "status": DepartmentStatus.ACTIVE,
+                "valid_from": now,
+            },
+        )
+
+    content = json.loads(
+        (
+            Path(__file__).resolve().parents[2]
+            / "apps"
+            / "configuration"
+            / "defaults"
+            / "project_template_v1.json"
+        ).read_text(encoding="utf-8")
+    )
+    definition = ConfigurationDefinition.objects.create(
+        organization=organization,
+        definition_code="PROJECT_EXECUTION_TEMPLATE",
+        name="Project execution template",
+    )
+    return ConfigurationVersion.objects.create(
+        organization=organization,
+        definition=definition,
+        version_number=1,
+        status=ConfigurationStatus.PUBLISHED,
+        content_json=content,
+        content_digest="digest-project-template-v1",
+        created_by=active_user,
+        published_by=active_user,
+        published_at=timezone.now(),
+    )
+
+
+@pytest.fixture
 def approved_candidate(
     organization: Organization,
     product_manager: User,
     product_director: User,
     boss: User,
     opportunity_rules: ConfigurationVersion,
+    project_template_version: ConfigurationVersion,
 ) -> ProjectCandidate:
     from tests.opportunities.factories import build_approval_ready_candidate
 
@@ -235,6 +285,7 @@ def rollback_candidate(
     product_director: User,
     boss: User,
     opportunity_rules: ConfigurationVersion,
+    project_template_version: ConfigurationVersion,
 ) -> ProjectCandidate:
     from tests.opportunities.factories import build_approval_ready_candidate
 

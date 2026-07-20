@@ -12,6 +12,7 @@ from apps.configuration.models import (
     ConfigurationStatus,
     ConfigurationVersion,
 )
+from apps.identity.models.department import Department, DepartmentStatus
 from apps.identity.models.organization import Organization
 from apps.identity.models.user import User, UserStatus
 from apps.opportunities.models import ProjectCandidate
@@ -37,6 +38,52 @@ from apps.projects.models import Project
 from apps.projects.services.create_project_from_candidate import ApproveAndCreateProject
 from tests.opportunities.factories import build_approval_ready_candidate
 from tests.products.schema_factories import build_published_product_schema
+
+
+@pytest.fixture
+def project_template_version(
+    organization: Organization,
+    active_user: User,
+) -> ConfigurationVersion:
+    import json
+    from pathlib import Path
+
+    now = timezone.now()
+    for code in ("PRODUCT", "RD", "OPS"):
+        Department.objects.get_or_create(
+            organization=organization,
+            department_code=code,
+            defaults={
+                "name": f"{code} Department",
+                "status": DepartmentStatus.ACTIVE,
+                "valid_from": now,
+            },
+        )
+    content = json.loads(
+        (
+            Path(__file__).resolve().parents[2]
+            / "apps"
+            / "configuration"
+            / "defaults"
+            / "project_template_v1.json"
+        ).read_text(encoding="utf-8")
+    )
+    definition = ConfigurationDefinition.objects.create(
+        organization=organization,
+        definition_code="PROJECT_EXECUTION_TEMPLATE",
+        name="Project execution template",
+    )
+    return ConfigurationVersion.objects.create(
+        organization=organization,
+        definition=definition,
+        version_number=1,
+        status=ConfigurationStatus.PUBLISHED,
+        content_json=content,
+        content_digest="digest-project-template-v1",
+        created_by=active_user,
+        published_by=active_user,
+        published_at=timezone.now(),
+    )
 
 
 @pytest.fixture
@@ -128,7 +175,9 @@ def approved_candidate(
     product_manager: User,
     product_director: User,
     opportunity_rules: ConfigurationVersion,
+    project_template_version: ConfigurationVersion,
 ) -> ProjectCandidate:
+    del project_template_version
     return build_approval_ready_candidate(
         organization=organization,
         product_manager=product_manager,
@@ -138,7 +187,12 @@ def approved_candidate(
 
 
 @pytest.fixture
-def project(approved_candidate: ProjectCandidate, boss: User) -> Project:
+def project(
+    approved_candidate: ProjectCandidate,
+    boss: User,
+    project_template_version: ConfigurationVersion,
+) -> Project:
+    del project_template_version
     return (
         ApproveAndCreateProject(
             context=CommandContext.for_actor(boss),

@@ -18,7 +18,9 @@ def serialize_project_detail(project: Project) -> dict[str, Any]:
         "name": project.name,
         "project_type": project.project_type,
         "status": project.status,
-        "candidate_public_id": str(project.candidate.public_id),
+        "candidate_public_id": (
+            str(project.candidate.public_id) if project.candidate is not None else None
+        ),
         "leader_public_id": str(leader.public_id),
         "deputy_leader_public_id": (
             str(deputy_leader.public_id) if deputy_leader is not None else None

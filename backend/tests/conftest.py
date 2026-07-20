@@ -5,6 +5,7 @@ from __future__ import annotations
 pytest_plugins = [
     "tests.opportunities.conftest",
     "tests.products.conftest",
+    "tests.projects.conftest",
 ]
 
 import shutil
@@ -31,6 +32,20 @@ from apps.identity.models.organization import Organization
 from apps.identity.models.user import User, UserStatus
 
 _TEST_STORAGE_ROOT = Path(__file__).resolve().parent / "_storage"
+
+
+@pytest.fixture(autouse=True)
+def _isolated_file_storage_root(settings) -> None:
+    """Point runtime file storage at a per-test temp dir.
+
+    Prevents tests from writing real storage objects into the shared
+    ``backend/var/files`` tree and guarantees cleanup after each test.
+    """
+
+    root = _TEST_STORAGE_ROOT / "runtime" / uuid.uuid4().hex
+    settings.FILE_STORAGE_ROOT = root
+    yield
+    shutil.rmtree(root, ignore_errors=True)
 
 
 @pytest.fixture

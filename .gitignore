@@ -6,6 +6,10 @@ Thumbs.db
 *.swp
 *.tmp
 
+# Local git worktrees
+.worktrees/
+worktrees/
+
 # Python
 __pycache__/
 *.py[cod]
@@ -56,6 +60,9 @@ screenshots/
 
 # Local Docker state
 .docker/
+
+# Backend runtime filesystem storage (real file objects written at runtime)
+backend/var/
 
 # Legacy prototype and smoke artifacts must not enter Meridian
 npd-lcm-mvp/

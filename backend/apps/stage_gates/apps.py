@@ -9,3 +9,8 @@ class StageGatesConfig(AppConfig):
     default_auto_field = "django.db.models.BigAutoField"
     name = "apps.stage_gates"
     label = "stage_gates"
+
+    def ready(self) -> None:
+        from apps.stage_gates.policies import register_providers
+
+        register_providers()

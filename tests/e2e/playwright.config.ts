@@ -8,7 +8,9 @@ export default defineConfig({
   testDir: './',
   fullyParallel: false,
   forbidOnly: !!process.env.CI,
-  retries: process.env.CI ? 1 : 0,
+  // Retries are disabled so a first-run failure cannot be masked by a re-run
+  // that skips the core path (e.g. a project already advanced to OPERATING).
+  retries: 0,
   reporter: process.env.CI ? 'line' : 'list',
   use: {
     baseURL: BASE_URL,

@@ -28,7 +28,11 @@ from apps.platform.application.command import CommandContext
 from apps.platform.outbox.services import OutboxMessage, register_outbox_event
 from apps.products.models import ProductDraft
 from apps.products.services.create_draft_from_candidate import create_product_draft
-from apps.projects.errors import ProjectCandidateNotApprovable, ProjectCreationFailed
+from apps.projects.errors import (
+    ProjectCandidateNotApprovable,
+    ProjectCreationFailed,
+    ProjectTemplateNotPublished,
+)
 from apps.projects.member_keys import active_member_key
 from apps.projects.models import (
     Project,
@@ -38,6 +42,7 @@ from apps.projects.models import (
     ProjectStatus,
     ProjectType,
 )
+from apps.projects.services.initialize_runtime import InitializeProjectRuntime
 from apps.stage_gates.errors import (
     MajorGateAlreadyDecided,
     MajorGateMaterialChanged,
@@ -219,10 +224,24 @@ class ApproveAndCreateProject:
             self._create_members(candidate, project, actor, now, case_owner=case_owner)
             self._create_opportunity_sources(candidate, project, now)
 
+            try:
+                InitializeProjectRuntime(
+                    context=self.context,
+                    project=project,
+                ).execute()
+            except ProjectTemplateNotPublished:
+                raise
+            except Exception as exc:
+                raise ProjectCreationFailed(
+                    message="Project runtime initialization failed."
+                ) from exc
+
             candidate.status = CandidateStatus.PROJECT_CREATED
             candidate.project_id = project.id
             candidate.version_no += 1
             candidate.save(update_fields=["status", "project_id", "version_no", "updated_at"])
+
+            project.refresh_from_db()
 
             append_event(
                 AuditRecord(

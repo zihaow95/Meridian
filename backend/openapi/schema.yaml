@@ -290,6 +290,72 @@ paths:
               schema:
                 $ref: '#/components/schemas/QuarterlyReviewResponse'
           description: ''
+  /api/v1/deliverable-revisions/{public_id}/submit:
+    post:
+      operationId: deliverable_revisions_submit
+      parameters:
+      - in: path
+        name: public_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - deliverable-revisions
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DeliverableRevisionSubmitRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/DeliverableRevisionSubmitRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/DeliverableRevisionSubmitRequest'
+        required: true
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DeliverableRevisionResponse'
+          description: ''
+  /api/v1/deliverables/{public_id}/revisions:
+    post:
+      operationId: deliverables_revisions_create
+      parameters:
+      - in: path
+        name: public_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - deliverables
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DeliverableRevisionCreateRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/DeliverableRevisionCreateRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/DeliverableRevisionCreateRequest'
+        required: true
+      security:
+      - cookieAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DeliverableRevisionResponse'
+          description: ''
   /api/v1/documents/{document_public_id}/versions:
     get:
       operationId: document_versions_list
@@ -407,6 +473,60 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/DocumentVersionDownloadTicketResponse'
+          description: ''
+  /api/v1/emergency-executions/{public_id}/complete:
+    post:
+      operationId: emergency_executions_complete
+      parameters:
+      - in: path
+        name: public_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - emergency-executions
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EmergencyCompleteRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/EmergencyCompleteRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/EmergencyCompleteRequest'
+        required: true
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PublicIdStatusResponse'
+          description: ''
+  /api/v1/execution-exceptions/{public_id}/confirm:
+    post:
+      operationId: execution_exceptions_confirm
+      parameters:
+      - in: path
+        name: public_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - execution-exceptions
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PublicIdStatusResponse'
           description: ''
   /api/v1/health:
     get:
@@ -783,6 +903,27 @@ paths:
                 type: array
                 items:
                   $ref: '#/components/schemas/OpportunitySummaryList'
+          description: ''
+  /api/v1/plan-changes/{public_id}/confirm:
+    post:
+      operationId: plan_changes_confirm
+      parameters:
+      - in: path
+        name: public_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - plan-changes
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PublicIdStatusResponse'
           description: ''
   /api/v1/product-change-sets/{public_id}:
     get:
@@ -1407,6 +1548,39 @@ paths:
               schema:
                 $ref: '#/components/schemas/ExternalBinding'
           description: ''
+  /api/v1/professional-confirmations/{public_id}/decide:
+    post:
+      operationId: professional_confirmations_decide
+      parameters:
+      - in: path
+        name: public_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - professional-confirmations
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProfessionalConfirmationDecideRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/ProfessionalConfirmationDecideRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/ProfessionalConfirmationDecideRequest'
+        required: true
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProfessionalConfirmationResponse'
+          description: ''
   /api/v1/project-candidates/{public_id}:
     get:
       operationId: project_candidates_retrieve
@@ -1599,6 +1773,137 @@ paths:
               schema:
                 $ref: '#/components/schemas/ProjectCandidateDetail'
           description: ''
+  /api/v1/project-migration-baselines/{public_id}/confirm:
+    post:
+      operationId: project_migration_baselines_confirm
+      parameters:
+      - in: path
+        name: public_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - project-migration-baselines
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MigrationBaselineConfirmRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/MigrationBaselineConfirmRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/MigrationBaselineConfirmRequest'
+        required: true
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MigrationBaselineConfirmResponse'
+          description: ''
+  /api/v1/project-migration-batches:
+    post:
+      operationId: project_migration_batches_create
+      tags:
+      - project-migration-batches
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MigrationBatchCreateRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/MigrationBatchCreateRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/MigrationBatchCreateRequest'
+        required: true
+      security:
+      - cookieAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MigrationBatchCreateResponse'
+          description: ''
+  /api/v1/project-migration-files/stage:
+    post:
+      operationId: project_migration_files_stage
+      description: Stream a migration history file into tmp/migration before batch
+        import.
+      tags:
+      - project-migration-files
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/MigrationFileStageRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/MigrationFileStageRequest'
+        required: true
+      security:
+      - cookieAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MigrationFileStageResponse'
+          description: ''
+  /api/v1/project-stages/{public_id}/handling-requests:
+    post:
+      operationId: project_stages_handling_request
+      parameters:
+      - in: path
+        name: public_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - project-stages
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StageHandlingRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/StageHandlingRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/StageHandlingRequest'
+        required: true
+      security:
+      - cookieAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PublicIdStatusResponse'
+          description: ''
+  /api/v1/projects:
+    get:
+      operationId: projects_list
+      tags:
+      - projects
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProjectListResponse'
+          description: ''
   /api/v1/projects/{public_id}:
     get:
       operationId: projects_retrieve
@@ -1618,7 +1923,256 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ProjectDetail'
+                $ref: '#/components/schemas/ProjectWorkbenchDetail'
+          description: ''
+        '404':
+          description: No response body
+  /api/v1/projects/{public_id}/deliverables:
+    get:
+      operationId: projects_deliverables_list
+      parameters:
+      - in: path
+        name: public_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - projects
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkbenchDeliverablesResponse'
+          description: ''
+    post:
+      operationId: projects_deliverables_create
+      parameters:
+      - in: path
+        name: public_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - projects
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CustomDeliverableCreateRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/CustomDeliverableCreateRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/CustomDeliverableCreateRequest'
+        required: true
+      security:
+      - cookieAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PublicIdStatusResponse'
+          description: ''
+  /api/v1/projects/{public_id}/emergency-executions:
+    post:
+      operationId: projects_emergency_executions_create
+      parameters:
+      - in: path
+        name: public_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - projects
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EmergencyCreateRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/EmergencyCreateRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/EmergencyCreateRequest'
+        required: true
+      security:
+      - cookieAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PublicIdStatusResponse'
+          description: ''
+  /api/v1/projects/{public_id}/members:
+    post:
+      operationId: projects_members_create
+      parameters:
+      - in: path
+        name: public_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - projects
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MemberAppointRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/MemberAppointRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/MemberAppointRequest'
+        required: true
+      security:
+      - cookieAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PublicIdStatusResponse'
+          description: ''
+  /api/v1/projects/{public_id}/plan-changes:
+    post:
+      operationId: projects_plan_changes_create
+      parameters:
+      - in: path
+        name: public_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - projects
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PlanChangeRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PlanChangeRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PlanChangeRequest'
+        required: true
+      security:
+      - cookieAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PublicIdStatusResponse'
+          description: ''
+  /api/v1/projects/{public_id}/publish-repair:
+    post:
+      operationId: projects_publish_repair_create
+      parameters:
+      - in: path
+        name: public_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - projects
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProjectPublishRepairResponse'
+          description: ''
+  /api/v1/projects/{public_id}/stages:
+    get:
+      operationId: projects_stages_list
+      parameters:
+      - in: path
+        name: public_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - projects
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkbenchStagesResponse'
+          description: ''
+  /api/v1/projects/{public_id}/tasks:
+    get:
+      operationId: projects_tasks_list
+      parameters:
+      - in: path
+        name: public_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - projects
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkbenchTasksResponse'
+          description: ''
+    post:
+      operationId: projects_tasks_create
+      parameters:
+      - in: path
+        name: public_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - projects
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CustomTaskCreateRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/CustomTaskCreateRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/CustomTaskCreateRequest'
+        required: true
+      security:
+      - cookieAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PublicIdStatusResponse'
           description: ''
   /api/v1/proposal-quotas/current:
     get:
@@ -1660,6 +2214,105 @@ paths:
               schema:
                 $ref: '#/components/schemas/ReconsiderationResponse'
           description: ''
+  /api/v1/stage-gates/{public_id}/decision:
+    post:
+      operationId: stage_gates_decision_create
+      parameters:
+      - in: path
+        name: public_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - stage-gates
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StageGateIdempotentResultRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/StageGateIdempotentResultRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/StageGateIdempotentResultRequest'
+        required: true
+      security:
+      - cookieAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StageGateDecisionResponse'
+          description: ''
+  /api/v1/stage-gates/{public_id}/first-launch-final-decision:
+    post:
+      operationId: stage_gates_first_launch_final_decision_create
+      parameters:
+      - in: path
+        name: public_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - stage-gates
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FirstLaunchFinalRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/FirstLaunchFinalRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/FirstLaunchFinalRequest'
+        required: true
+      security:
+      - cookieAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StageGateDecisionResponse'
+          description: ''
+  /api/v1/stage-gates/{public_id}/first-launch-management-conclusion:
+    post:
+      operationId: stage_gates_first_launch_management_conclusion_create
+      parameters:
+      - in: path
+        name: public_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - stage-gates
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FirstLaunchManagementRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/FirstLaunchManagementRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/FirstLaunchManagementRequest'
+        required: true
+      security:
+      - cookieAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StageGateDecisionResponse'
+          description: ''
   /api/v1/stage-gates/{public_id}/major-decision:
     post:
       operationId: stage_gate_major_decision_create
@@ -1692,6 +2345,144 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/MajorGateDecisionResponse'
+          description: ''
+  /api/v1/stage-gates/{public_id}/submissions:
+    post:
+      operationId: stage_gates_submissions_create
+      parameters:
+      - in: path
+        name: public_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - stage-gates
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StageGateIdempotencyKeyRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/StageGateIdempotencyKeyRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/StageGateIdempotencyKeyRequest'
+        required: true
+      security:
+      - cookieAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StageGateSubmissionResponse'
+          description: ''
+  /api/v1/stage-gates/{public_id}/validate:
+    post:
+      operationId: stage_gates_validate
+      parameters:
+      - in: path
+        name: public_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - stage-gates
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StageGateValidateResponse'
+          description: ''
+  /api/v1/tasks/{public_id}:
+    patch:
+      operationId: tasks_partial_update
+      description: Deprecated status mutation alias — prefer POST .../transition.
+      parameters:
+      - in: path
+        name: public_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - tasks
+      security:
+      - cookieAuth: []
+      responses:
+        '405':
+          description: No response body
+  /api/v1/tasks/{public_id}/assign:
+    post:
+      operationId: tasks_assign
+      parameters:
+      - in: path
+        name: public_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - tasks
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TaskAssignRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/TaskAssignRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/TaskAssignRequest'
+        required: true
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TaskCommandResponse'
+          description: ''
+  /api/v1/tasks/{public_id}/transition:
+    post:
+      operationId: tasks_transition
+      parameters:
+      - in: path
+        name: public_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - tasks
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TaskTransitionRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/TaskTransitionRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/TaskTransitionRequest'
+        required: true
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TaskCommandResponse'
           description: ''
   /api/v1/todos/my:
     get:
@@ -2005,6 +2796,44 @@ components:
       - owner_public_id
       - owner_type
       - quarter
+    CustomDeliverableCreateRequest:
+      type: object
+      properties:
+        stage_public_id:
+          type: string
+          format: uuid
+        deliverable_code:
+          type: string
+        name:
+          type: string
+        requires_professional_confirmation:
+          type: boolean
+      required:
+      - deliverable_code
+      - name
+      - stage_public_id
+    CustomTaskCreateRequest:
+      type: object
+      properties:
+        stage_public_id:
+          type: string
+          format: uuid
+        task_code:
+          type: string
+        name:
+          type: string
+        responsible_department_public_id:
+          type: string
+          format: uuid
+        is_core:
+          type: boolean
+        description:
+          type: string
+      required:
+      - name
+      - responsible_department_public_id
+      - stage_public_id
+      - task_code
     DecideImportItemRequest:
       type: object
       properties:
@@ -2060,6 +2889,37 @@ components:
       - status
       - subject_public_id
       - subject_type
+    DeliverableRevisionCreateRequest:
+      type: object
+      properties:
+        document_version_public_id:
+          type: string
+          format: uuid
+      required:
+      - document_version_public_id
+    DeliverableRevisionResponse:
+      type: object
+      properties:
+        public_id:
+          type: string
+          format: uuid
+        revision_number:
+          type: integer
+        status:
+          type: string
+        content_hash:
+          type: string
+      required:
+      - public_id
+      - status
+    DeliverableRevisionSubmitRequest:
+      type: object
+      properties:
+        confirmer_public_id:
+          type: string
+          format: uuid
+      required:
+      - confirmer_public_id
     DevLoginRequest:
       type: object
       properties:
@@ -2114,6 +2974,27 @@ components:
       - group_code
       - values
       - version_no
+    EmergencyCompleteRequest:
+      type: object
+      properties:
+        confirmation_summary:
+          type: string
+      required:
+      - confirmation_summary
+    EmergencyCreateRequest:
+      type: object
+      properties:
+        subject_summary:
+          type: string
+        pending_confirmation:
+          type: string
+        due_at:
+          type: string
+          format: date-time
+      required:
+      - due_at
+      - pending_confirmation
+      - subject_summary
     ExternalBinding:
       type: object
       properties:
@@ -2134,6 +3015,30 @@ components:
       - object_type
       - public_id
       - source_system
+    FirstLaunchFinalRequest:
+      type: object
+      properties:
+        final_decision:
+          type: string
+        decision_summary:
+          type: string
+        idempotency_key:
+          type: string
+      required:
+      - final_decision
+      - idempotency_key
+    FirstLaunchManagementRequest:
+      type: object
+      properties:
+        management_conclusion:
+          type: string
+        decision_summary:
+          type: string
+        idempotency_key:
+          type: string
+      required:
+      - idempotency_key
+      - management_conclusion
     HealthResponse:
       type: object
       properties:
@@ -2284,6 +3189,16 @@ components:
       - display_name
       - public_id
       - status
+    MemberAppointRequest:
+      type: object
+      properties:
+        user_public_id:
+          type: string
+          format: uuid
+        project_role:
+          type: string
+      required:
+      - user_public_id
     MemberInvitationRequest:
       type: object
       properties:
@@ -2303,6 +3218,130 @@ components:
       required:
       - invitation_status
       - public_id
+    MigrationBaselineConfirmHistoryFile:
+      type: object
+      properties:
+        filename:
+          type: string
+        document_version_public_id:
+          type: string
+          format: uuid
+          nullable: true
+        sha256:
+          type: string
+        size_bytes:
+          type: integer
+      required:
+      - filename
+    MigrationBaselineConfirmRequest:
+      type: object
+      properties:
+        disposition:
+          type: string
+        idempotency_key:
+          type: string
+      required:
+      - disposition
+      - idempotency_key
+    MigrationBaselineConfirmResponse:
+      type: object
+      properties:
+        baseline_public_id:
+          type: string
+          format: uuid
+        disposition:
+          type: string
+        status:
+          type: string
+        project_public_id:
+          type: string
+          format: uuid
+          nullable: true
+        history_files:
+          type: array
+          items:
+            $ref: '#/components/schemas/MigrationBaselineConfirmHistoryFile'
+      required:
+      - baseline_public_id
+      - disposition
+      - project_public_id
+      - status
+    MigrationBatchCreateRequest:
+      type: object
+      properties:
+        batch_key:
+          type: string
+        rows:
+          type: array
+          items:
+            type: object
+            additionalProperties: {}
+      required:
+      - batch_key
+      - rows
+    MigrationBatchCreateResponse:
+      type: object
+      properties:
+        public_id:
+          type: string
+          format: uuid
+        batch_key:
+          type: string
+        accepted_count:
+          type: integer
+        error_count:
+          type: integer
+        row_errors:
+          type: array
+          items: {}
+        baselines:
+          type: array
+          items: {}
+      required:
+      - accepted_count
+      - baselines
+      - batch_key
+      - error_count
+      - public_id
+      - row_errors
+    MigrationFileStageRequest:
+      type: object
+      properties:
+        file:
+          type: string
+          format: uri
+        filename:
+          type: string
+        mime_type:
+          type: string
+      required:
+      - file
+    MigrationFileStageResponse:
+      type: object
+      properties:
+        public_id:
+          type: string
+          format: uuid
+        filename:
+          type: string
+        mime_type:
+          type: string
+        sha256:
+          type: string
+        size_bytes:
+          type: integer
+        staging_relpath:
+          type: string
+        expires_at:
+          type: string
+      required:
+      - expires_at
+      - filename
+      - mime_type
+      - public_id
+      - sha256
+      - size_bytes
+      - staging_relpath
     MyTodoListItem:
       type: object
       properties:
@@ -2464,6 +3503,30 @@ components:
         suggested_retail_price:
           type: string
           nullable: true
+    PlanChangeRequest:
+      type: object
+      properties:
+        change_type:
+          type: string
+        target_type:
+          type: string
+        target_public_id:
+          type: string
+          format: uuid
+        field_name:
+          type: string
+        before_value:
+          type: string
+        after_value:
+          type: string
+        impact_summary:
+          type: string
+      required:
+      - after_value
+      - change_type
+      - field_name
+      - target_public_id
+      - target_type
     ProductChangeSetDetail:
       type: object
       properties:
@@ -2659,6 +3722,28 @@ components:
       - status
       - version_code
       - version_name
+    ProfessionalConfirmationDecideRequest:
+      type: object
+      properties:
+        decision:
+          type: string
+        comment:
+          type: string
+      required:
+      - decision
+    ProfessionalConfirmationResponse:
+      type: object
+      properties:
+        public_id:
+          type: string
+          format: uuid
+        status:
+          type: string
+        comment:
+          type: string
+      required:
+      - public_id
+      - status
     ProjectCandidateDetail:
       type: object
       properties:
@@ -2705,11 +3790,100 @@ components:
       - resource_risk_summary
       - status
       - version_no
-    ProjectDetail:
+    ProjectLaunchCapabilities:
+      type: object
+      properties:
+        can_record_management_conclusion:
+          type: boolean
+        can_record_final_decision:
+          type: boolean
+      required:
+      - can_record_final_decision
+      - can_record_management_conclusion
+    ProjectListItem:
       type: object
       properties:
         public_id:
           type: string
+          format: uuid
+        business_no:
+          type: string
+        name:
+          type: string
+        project_type:
+          type: string
+        status:
+          type: string
+        leader_public_id:
+          type: string
+          format: uuid
+        current_stage_code:
+          type: string
+          nullable: true
+      required:
+      - business_no
+      - current_stage_code
+      - leader_public_id
+      - name
+      - project_type
+      - public_id
+      - status
+    ProjectListResponse:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/ProjectListItem'
+        page:
+          type: integer
+        page_size:
+          type: integer
+        count:
+          type: integer
+      required:
+      - count
+      - items
+      - page
+      - page_size
+    ProjectPublishRepairResponse:
+      type: object
+      properties:
+        public_id:
+          type: string
+          format: uuid
+        status:
+          type: string
+        handover_error:
+          type: string
+          nullable: true
+        product_version_public_id:
+          type: string
+          format: uuid
+          nullable: true
+        monitoring_scope_public_id:
+          type: string
+          format: uuid
+          nullable: true
+        product_version_count:
+          type: integer
+        monitoring_scope_count:
+          type: integer
+      required:
+      - monitoring_scope_count
+      - monitoring_scope_public_id
+      - product_version_count
+      - product_version_public_id
+      - public_id
+      - status
+    ProjectWorkbenchDetail:
+      type: object
+      properties:
+        launch_capabilities:
+          $ref: '#/components/schemas/ProjectLaunchCapabilities'
+        public_id:
+          type: string
+          format: uuid
         business_no:
           type: string
         name:
@@ -2720,23 +3894,41 @@ components:
           type: string
         candidate_public_id:
           type: string
+          format: uuid
+          nullable: true
         leader_public_id:
           type: string
+          format: uuid
         deputy_leader_public_id:
           type: string
+          format: uuid
           nullable: true
         product_asset_public_id:
           type: string
+          format: uuid
           nullable: true
         product_draft_public_id:
           type: string
+          format: uuid
           nullable: true
+        current_stage_code:
+          type: string
+          nullable: true
+        opportunity_sources:
+          type: array
+          items: {}
+        can_publish_repair:
+          type: boolean
       required:
       - business_no
+      - can_publish_repair
       - candidate_public_id
+      - current_stage_code
       - deputy_leader_public_id
+      - launch_capabilities
       - leader_public_id
       - name
+      - opportunity_sources
       - product_asset_public_id
       - product_draft_public_id
       - project_type
@@ -2810,6 +4002,23 @@ components:
       - target_users_needs
       - version_number
       - version_status
+    PublicIdStatusResponse:
+      type: object
+      properties:
+        public_id:
+          type: string
+          format: uuid
+        status:
+          type: string
+        result:
+          type: string
+        version_no:
+          type: integer
+        handover_error:
+          type: string
+          nullable: true
+      required:
+      - public_id
     PublicationBlock:
       type: object
       properties:
@@ -2971,6 +4180,61 @@ components:
             type: string
       required:
       - candidate_names
+    StageGateDecisionResponse:
+      type: object
+      properties:
+        public_id:
+          type: string
+          format: uuid
+        decision_public_id:
+          type: string
+          format: uuid
+        result:
+          type: string
+        management_conclusion:
+          type: string
+        final_decision:
+          type: string
+        handover_error:
+          type: string
+          nullable: true
+        project_status:
+          type: string
+          nullable: true
+    StageGateIdempotencyKeyRequest:
+      type: object
+      properties:
+        idempotency_key:
+          type: string
+      required:
+      - idempotency_key
+    StageGateIdempotentResultRequest:
+      type: object
+      properties:
+        result:
+          type: string
+        idempotency_key:
+          type: string
+        decision_summary:
+          type: string
+        exception_rationale:
+          type: string
+      required:
+      - idempotency_key
+    StageGateSubmissionResponse:
+      type: object
+      properties:
+        public_id:
+          type: string
+          format: uuid
+        submission_number:
+          type: integer
+        content_hash:
+          type: string
+      required:
+      - content_hash
+      - public_id
+      - submission_number
     StageGateSummary:
       type: object
       properties:
@@ -2993,6 +4257,29 @@ components:
       - status
       - subject_public_id
       - subject_type
+    StageGateValidateResponse:
+      type: object
+      properties:
+        blocks:
+          type: array
+          items: {}
+        warnings:
+          type: array
+          items: {}
+      required:
+      - blocks
+      - warnings
+    StageHandlingRequest:
+      type: object
+      properties:
+        requested_mode:
+          type: string
+        rationale:
+          type: string
+        evidence_summary:
+          type: string
+      required:
+      - requested_mode
     SubmitCandidateReviewRequest:
       type: object
       properties:
@@ -3014,6 +4301,43 @@ components:
           type: string
       required:
       - idempotency_key
+    TaskAssignRequest:
+      type: object
+      properties:
+        user_public_id:
+          type: string
+          format: uuid
+        version_no:
+          type: integer
+      required:
+      - user_public_id
+      - version_no
+    TaskCommandResponse:
+      type: object
+      properties:
+        public_id:
+          type: string
+          format: uuid
+        status:
+          type: string
+        version_no:
+          type: integer
+        responsible_user_public_id:
+          type: string
+          format: uuid
+          nullable: true
+      required:
+      - public_id
+    TaskTransitionRequest:
+      type: object
+      properties:
+        status:
+          type: string
+        version_no:
+          type: integer
+      required:
+      - status
+      - version_no
     UpdateChangeSetScopeRequest:
       type: object
       properties:
@@ -3137,6 +4461,158 @@ components:
       properties:
         version_no:
           type: integer
+    WorkbenchDeliverableItem:
+      type: object
+      properties:
+        public_id:
+          type: string
+          format: uuid
+        deliverable_code:
+          type: string
+        name:
+          type: string
+        stage_code:
+          type: string
+        tier:
+          type: string
+        status:
+          type: string
+        current_revision_public_id:
+          type: string
+          format: uuid
+          nullable: true
+        document_version_public_id:
+          type: string
+          format: uuid
+          nullable: true
+        can_download:
+          type: boolean
+      required:
+      - can_download
+      - current_revision_public_id
+      - deliverable_code
+      - document_version_public_id
+      - name
+      - public_id
+      - stage_code
+      - status
+      - tier
+    WorkbenchDeliverablesResponse:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/WorkbenchDeliverableItem'
+        page:
+          type: integer
+        page_size:
+          type: integer
+        count:
+          type: integer
+      required:
+      - items
+    WorkbenchStageItem:
+      type: object
+      properties:
+        public_id:
+          type: string
+          format: uuid
+        stage_code:
+          type: string
+        name:
+          type: string
+        sequence_no:
+          type: integer
+        status:
+          type: string
+        gate_code:
+          type: string
+          nullable: true
+        gate_type:
+          type: string
+          nullable: true
+        handling_mode:
+          type: string
+          nullable: true
+        planned_end_at:
+          type: string
+          nullable: true
+        stage_gate_public_id:
+          type: string
+          format: uuid
+          nullable: true
+      required:
+      - name
+      - public_id
+      - sequence_no
+      - stage_code
+      - status
+    WorkbenchStagesResponse:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/WorkbenchStageItem'
+        page:
+          type: integer
+        page_size:
+          type: integer
+        count:
+          type: integer
+      required:
+      - items
+    WorkbenchTaskItem:
+      type: object
+      properties:
+        public_id:
+          type: string
+          format: uuid
+        task_code:
+          type: string
+        name:
+          type: string
+        stage_code:
+          type: string
+        status:
+          type: string
+        is_core:
+          type: boolean
+        version_no:
+          type: integer
+        responsible_user_public_id:
+          type: string
+          format: uuid
+          nullable: true
+        responsible_department_public_id:
+          type: string
+          format: uuid
+      required:
+      - is_core
+      - name
+      - public_id
+      - responsible_department_public_id
+      - responsible_user_public_id
+      - stage_code
+      - status
+      - task_code
+      - version_no
+    WorkbenchTasksResponse:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/WorkbenchTaskItem'
+        page:
+          type: integer
+        page_size:
+          type: integer
+        count:
+          type: integer
+      required:
+      - items
   securitySchemes:
     cookieAuth:
       type: apiKey
