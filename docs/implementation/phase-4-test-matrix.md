@@ -1,6 +1,6 @@
 # 阶段4 开发到首次上市 —— 测试矩阵
 
-状态：**GO（已通过）** — 阶段四代码与业务验收通过；可推进阶段五。正式 `scripts\check.ps1` 唯一未闭项为 Docker Hub 网络阻断（合并/发布前补跑镜像）。审查范围收尾：`db361fc...9d6b4c0`。
+状态：**GO（已通过）** — 阶段四代码与业务验收通过；可推进阶段五。Docker 后端/前端镜像已补跑通过。审查范围收尾：`db361fc...9d6b4c0`（含后续 GO 收尾与 Docker 补证）。
 
 对应计划：`docs/superpowers/plans/2026-07-14-phase-4-development-first-launch.md`
 
@@ -59,4 +59,4 @@
 
 | 检查 | 结果 | 日期 |
 |---|---|---|
-| `scripts\check.ps1` 含 `development-first-launch.spec.ts` | GO 验收：除 Docker Hub 外全绿（pytest 319 / Playwright 16 / mypy 261）；Docker 镜像构建环境阻断，合并前补跑 | 2026-07-20 |
+| `scripts\check.ps1` 含 `development-first-launch.spec.ts` | GO 验收全绿（pytest 319 / Playwright 16 / mypy 261）；Docker 镜像构建已在 Hub 恢复后补跑通过 | 2026-07-20 |

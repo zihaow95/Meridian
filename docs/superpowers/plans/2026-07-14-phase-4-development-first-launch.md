@@ -8,7 +8,7 @@
 
 **Tech Stack:** Python 3.13、Django 5.2、DRF 3.16、MySQL 8.0、Redis、Celery 5.6、Vue 3、TypeScript、Pinia、Element Plus、Vitest、Playwright、OpenAPI 3、Docker Compose。
 
-**Status:** 已完成（GO，2026-07-20）；Docker 镜像构建待可访问 Docker Hub 时补跑
+**Status:** 已完成（GO，2026-07-20）；Docker 镜像构建已补跑通过
 
 **Date:** 2026-07-14
 

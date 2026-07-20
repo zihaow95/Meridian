@@ -2,7 +2,7 @@
 
 日期：2026-07-20
 
-状态：**GO（已通过）** — 代码与业务验收通过，可推进阶段五。正式 `scripts\check.ps1` 尚不能称为全绿：唯一未闭项为 Docker Hub 外部网络阻断（合并/发布前补跑镜像构建）。
+状态：**GO（已通过）** — 代码与业务验收通过，可推进阶段五。Docker 后端/前端镜像已在本机补跑通过（`meridian-backend:ci` / `meridian-frontend:ci`）。
 
 对应计划：`docs/superpowers/plans/2026-07-14-phase-4-development-first-launch.md`
 
@@ -27,7 +27,7 @@ Frontend lint / Prettier / typecheck / build: pass
 Vitest: 48 passed
 Playwright: 16 passed
 Legacy scan: pass (separate rerun)
-Docker backend/frontend images: BLOCKED (auth.docker.io network denial)
+Docker backend/frontend images: pass (local re-run after Hub became reachable)
 ```
 
-合并或发布前在可访问 Docker Hub 的环境补跑镜像构建。
+合并或发布前已在本机补跑镜像构建通过。
