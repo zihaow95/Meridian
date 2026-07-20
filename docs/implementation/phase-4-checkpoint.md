@@ -8,7 +8,7 @@
 
 对应测试矩阵：`docs/implementation/phase-4-test-matrix.md`
 
-基准：`902550f` → 十次 `d558308` / `9417a54` → 十一次（本检查点提交后回填哈希）
+基准：`902550f` → 十次 `d558308` / `9417a54` → 十一次 `1feed8b`（本检查点）
 
 ## 十一次复审修复摘要（相对 `9417a54`）
 
@@ -26,7 +26,7 @@
 
 ```text
 Base commits reviewed: d558308, 9417a54
-Remediation commit: <pending local commit>
+Remediation commit: 1feed8b
 Backend pytest tests/projects/test_inflight_migration.py + uploads + reconciliation: 31 passed
 Backend ruff check (touched files): pass
 OpenAPI spectacular + frontend api:generate: regenerated (typed MigrationBaselineConfirmHistoryFile)
