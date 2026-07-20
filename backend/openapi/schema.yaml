@@ -3300,6 +3300,9 @@ components:
     MigrationFileStageResponse:
       type: object
       properties:
+        public_id:
+          type: string
+          format: uuid
         filename:
           type: string
         mime_type:
@@ -3310,9 +3313,13 @@ components:
           type: integer
         staging_relpath:
           type: string
+        expires_at:
+          type: string
       required:
+      - expires_at
       - filename
       - mime_type
+      - public_id
       - sha256
       - size_bytes
       - staging_relpath

@@ -527,3 +527,36 @@ class MigrationBaseline(OrganizationOwnedModel):
                 name="projects_migration_baseline_org_confirm_key_uniq",
             ),
         ]
+
+
+class MigrationFileStage(OrganizationOwnedModel):
+    """Server-issued, single-claim handle for a streamed migration temp file."""
+
+    uploaded_by = models.ForeignKey(
+        "identity.User",
+        on_delete=models.PROTECT,
+        related_name="uploaded_migration_file_stages",
+    )
+    staging_relpath = models.CharField(max_length=512, unique=True)
+    original_filename = models.CharField(max_length=255)
+    declared_mime_type = models.CharField(max_length=128)
+    size_bytes = models.BigIntegerField(default=0)
+    sha256 = models.CharField(max_length=64)
+    expires_at = models.DateTimeField()
+    claimed_baseline = models.ForeignKey(
+        MigrationBaseline,
+        null=True,
+        blank=True,
+        on_delete=models.PROTECT,
+        related_name="claimed_file_stages",
+    )
+    claimed_at = models.DateTimeField(null=True, blank=True)
+    consumed_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = "projects_migration_file_stage"
+        indexes = [
+            models.Index(fields=["organization", "expires_at"]),
+            models.Index(fields=["claimed_baseline"]),
+        ]

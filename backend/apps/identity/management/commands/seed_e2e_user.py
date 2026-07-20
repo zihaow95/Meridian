@@ -76,6 +76,7 @@ _PHASE3_ACTIONS: tuple[tuple[str, str, str], ...] = (
 # is intentionally NOT granted here.
 _PHASE4_ACTIONS: tuple[tuple[str, str, str], ...] = (
     ("project_migration.confirm", "project", "PRODUCT_DIRECTOR"),
+    ("document.version.download", "document.version", "PRODUCT_DIRECTOR"),
     ("first_launch.management_conclusion.record", "stage_gate", "MANAGEMENT_COMMITTEE"),
     ("emergency_execution.create", "project", "PRODUCT_DIRECTOR"),
     ("emergency_execution.complete", "project", "PRODUCT_DIRECTOR"),

@@ -475,6 +475,22 @@ test("migration continue from D3 skips prior stages; archive creates no project"
   await devLogin(page, "/projects");
   const stamp = Date.now();
 
+  const staged = await page.request.post("/api/v1/project-migration-files/stage", {
+    headers: await csrfHeaders(page),
+    multipart: {
+      file: {
+        name: "d2-report.pdf",
+        mimeType: "application/pdf",
+        buffer: Buffer.from("%PDF-1.4 e2e migrated d2 report"),
+      },
+      filename: "d2-report.pdf",
+      mime_type: "application/pdf",
+    },
+  });
+  expect(staged.status()).toBe(201);
+  const stagedBody = await staged.json();
+  expect(stagedBody.staging_relpath).toMatch(/^migration\//);
+
   const continueBatch = await authedJson(
     page,
     "POST",
@@ -491,7 +507,17 @@ test("migration continue from D3 skips prior stages; archive creates no project"
           history_tasks: [
             { task_code: "D1-LEGACY", name: "Legacy D1", stage_code: "D1" },
           ],
-          history_files: [],
+          history_files: [
+            {
+              filename: stagedBody.filename,
+              mime_type: stagedBody.mime_type,
+              sha256: stagedBody.sha256,
+              size_bytes: stagedBody.size_bytes,
+              staging_relpath: stagedBody.staging_relpath,
+              source_note: "E2E NAS archive",
+              source_version: "1",
+            },
+          ],
         },
       ],
     },
@@ -520,6 +546,24 @@ test("migration continue from D3 skips prior stages; archive creates no project"
   expect(stageCodes[0]).toBe("D3");
   expect(stageCodes).not.toContain("D1");
   expect(stageCodes).not.toContain("D2");
+
+  const deliverables = await page.request.get(
+    `/api/v1/projects/${continueResult.project_public_id}/deliverables`,
+  );
+  expect(deliverables.ok()).toBeTruthy();
+  const migrated = (await deliverables.json()).items.find(
+    (item: { name: string }) => item.name === "d2-report.pdf",
+  );
+  expect(migrated?.document_version_public_id).toBeTruthy();
+  const ticket = await authedJson(
+    page,
+    "POST",
+    `/api/v1/documents/versions/${migrated.document_version_public_id}/download-ticket`,
+  );
+  expect(ticket.status()).toBe(200);
+  const token = (await ticket.json()).token as string;
+  const download = await page.request.get(`/api/v1/documents/download/${token}`);
+  expect(download.ok()).toBeTruthy();
 
   const archiveBatch = await authedJson(
     page,
@@ -562,6 +606,20 @@ test("limited user cannot confirm migration or create emergency execution", asyn
 }) => {
   test.setTimeout(120_000);
   await devLogin(page, "/todos", E2E_LIMITED_LOGIN_KEY);
+
+  const denyStage = await page.request.post("/api/v1/project-migration-files/stage", {
+    headers: await csrfHeaders(page),
+    multipart: {
+      file: {
+        name: "denied.pdf",
+        mimeType: "application/pdf",
+        buffer: Buffer.from("%PDF-1.4 denied"),
+      },
+      filename: "denied.pdf",
+      mime_type: "application/pdf",
+    },
+  });
+  expect([403, 404]).toContain(denyStage.status());
 
   const denyMigrate = await authedJson(
     page,

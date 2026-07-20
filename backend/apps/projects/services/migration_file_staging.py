@@ -4,14 +4,19 @@ from __future__ import annotations
 
 import hashlib
 from collections.abc import Iterator
+from datetime import timedelta
 from pathlib import Path
 from typing import Any
 from uuid import uuid4
 
+from django.utils import timezone
+
 from apps.documents.policy import UploadPolicy, resolve_upload_policy
 from apps.documents.storage.base import FileStorage
 from apps.identity.models.organization import Organization
+from apps.identity.models.user import User
 from apps.projects.errors import MigrationImportFailed
+from apps.projects.models import MigrationBaseline, MigrationFileStage
 
 _CLIENT_FORBIDDEN_KEYS = frozenset(
     {
@@ -74,8 +79,10 @@ def stream_stage_migration_file(
     mime_type: str,
     storage: FileStorage,
     organization: Organization,
+    uploaded_by: User,
+    ttl_minutes: int = 120,
 ) -> dict[str, Any]:
-    """Stream file bytes into ``tmp/migration/*.part`` (true streaming entry)."""
+    """Stream file bytes into ``tmp/migration/*.part`` and persist a claimable handle."""
 
     policy = resolve_upload_policy(organization)
     staging_name = f"migration/{uuid4().hex}.part"
@@ -93,12 +100,25 @@ def stream_stage_migration_file(
     if size_bytes <= 0:
         temp_path.unlink(missing_ok=True)
         raise MigrationImportFailed(message="Migrated history file content is empty.")
+
+    stage = MigrationFileStage.objects.create(
+        organization=organization,
+        uploaded_by=uploaded_by,
+        staging_relpath=staging_name,
+        original_filename=filename,
+        declared_mime_type=mime_type,
+        size_bytes=size_bytes,
+        sha256=sha256,
+        expires_at=timezone.now() + timedelta(minutes=ttl_minutes),
+    )
     return {
+        "public_id": str(stage.public_id),
         "filename": filename,
         "mime_type": mime_type,
         "sha256": sha256,
         "size_bytes": size_bytes,
         "staging_relpath": staging_name,
+        "expires_at": stage.expires_at.isoformat(),
     }
 
 
@@ -108,7 +128,7 @@ def _verify_existing_staging(
     storage: FileStorage,
     organization: Organization,
 ) -> dict[str, Any]:
-    """Accept only a server-issued staging path that still exists on disk."""
+    """Accept only a durable, unclaimed, non-expired server-issued staging handle."""
 
     for key in _CLIENT_FORBIDDEN_KEYS:
         if key in item:
@@ -123,12 +143,32 @@ def _verify_existing_staging(
                 "(staging_relpath); inline Base64/content is not accepted."
             )
         )
-    path = resolve_migration_staging_path(storage, str(staging_relpath))
+    rel = str(staging_relpath).replace("\\", "/")
+    path = resolve_migration_staging_path(storage, rel)
     if not path.is_file():
         raise MigrationImportFailed(message=f"Staged migration file missing: {staging_relpath}")
 
+    stage = (
+        MigrationFileStage.objects.filter(
+            organization=organization,
+            staging_relpath=rel,
+        )
+        .select_for_update()
+        .first()
+    )
+    if stage is None:
+        raise MigrationImportFailed(message="Unknown or foreign migration staging handle.")
+    if stage.consumed_at is not None:
+        raise MigrationImportFailed(message="Migration staging handle already consumed.")
+    if stage.claimed_at is not None:
+        raise MigrationImportFailed(
+            message="Migration staging handle already claimed by another baseline."
+        )
+    if stage.expires_at <= timezone.now():
+        raise MigrationImportFailed(message="Migration staging handle expired.")
+
     policy = resolve_upload_policy(organization)
-    mime = str(item.get("mime_type") or "application/octet-stream")
+    mime = str(item.get("mime_type") or stage.declared_mime_type or "application/octet-stream")
     if mime not in policy.allowed_mime_types:
         raise MigrationImportFailed(message="MIME type not allowed for migrated history file.")
 
@@ -144,6 +184,8 @@ def _verify_existing_staging(
                 raise MigrationImportFailed(message="Migrated history file exceeds size limit.")
             digest.update(chunk)
     sha256 = digest.hexdigest()
+    if sha256 != stage.sha256 or size != stage.size_bytes:
+        raise MigrationImportFailed(message="Staged migration file content does not match handle.")
     declared_sha = item.get("sha256")
     declared_size = item.get("size_bytes")
     if declared_sha and str(declared_sha) != sha256:
@@ -151,13 +193,14 @@ def _verify_existing_staging(
     if declared_size is not None and int(declared_size) != size:
         raise MigrationImportFailed(message="Staged migration file size_bytes mismatch.")
 
-    filename = str(item.get("filename") or item.get("name") or "migrated-file")
+    filename = str(item.get("filename") or item.get("name") or stage.original_filename)
     metadata: dict[str, Any] = {
         "filename": filename,
         "mime_type": mime,
         "sha256": sha256,
         "size_bytes": size,
-        "staging_relpath": str(staging_relpath).replace("\\", "/"),
+        "staging_relpath": rel,
+        "stage_public_id": str(stage.public_id),
     }
     for key in ("deliverable_code", "source_note", "source_version", "migration_source_version"):
         if item.get(key) is not None:
@@ -181,3 +224,59 @@ def stage_history_file_list(
             )
         staged.append(_verify_existing_staging(item, storage=storage, organization=organization))
     return staged
+
+
+def claim_staged_files_for_baseline(
+    *,
+    baseline: MigrationBaseline,
+    history_items: list[dict[str, Any]],
+) -> None:
+    """Bind each staging handle to exactly one baseline (single claim)."""
+
+    now = timezone.now()
+    for item in history_items:
+        rel = str(item.get("staging_relpath") or "")
+        if not rel:
+            continue
+        stage = (
+            MigrationFileStage.objects.select_for_update()
+            .filter(organization_id=baseline.organization_id, staging_relpath=rel)
+            .first()
+        )
+        if stage is None:
+            raise MigrationImportFailed(message=f"Unknown migration staging handle: {rel}")
+        if stage.consumed_at is not None:
+            raise MigrationImportFailed(message="Migration staging handle already consumed.")
+        if stage.claimed_at is not None and stage.claimed_baseline_id != baseline.id:
+            raise MigrationImportFailed(
+                message="Migration staging handle already claimed by another baseline."
+            )
+        if stage.expires_at <= now and stage.claimed_at is None:
+            raise MigrationImportFailed(message="Migration staging handle expired.")
+        if stage.claimed_at is None:
+            stage.claimed_baseline = baseline
+            stage.claimed_at = now
+            stage.save(update_fields=["claimed_baseline", "claimed_at"])
+
+
+def mark_staged_files_consumed(staging_relpaths: list[str]) -> None:
+    """Mark handles consumed after their bytes were activated into formal storage."""
+
+    now = timezone.now()
+    if not staging_relpaths:
+        return
+    MigrationFileStage.objects.filter(
+        staging_relpath__in=staging_relpaths,
+        consumed_at__isnull=True,
+    ).update(consumed_at=now)
+
+
+def active_migration_staging_relpaths() -> set[str]:
+    """Relpaths that reconcile must not delete (unconsumed durable handles)."""
+
+    now = timezone.now()
+    names: set[str] = set()
+    for stage in MigrationFileStage.objects.filter(consumed_at__isnull=True).iterator():
+        if stage.claimed_at is not None or stage.expires_at >= now:
+            names.add(stage.staging_relpath)
+    return names

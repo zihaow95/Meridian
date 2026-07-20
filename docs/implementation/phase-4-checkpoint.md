@@ -2,39 +2,39 @@
 
 日期：2026-07-20
 
-状态：第八轮 NO-GO（pending_version 注入、恢复窗口、CompleteUpload 并发/重试、流式入口、领域边界、DeliverablePanel 覆盖与资源级下载）已本地修复；待再次全量门禁验收。
+状态：第九轮 NO-GO（stage 授权/单次领取句柄、reconcile 生产保护、并发 CompleteUpload、E2E stage 主链、Prettier）已本地修复；待再次全量门禁验收。
 
 对应计划：`docs/superpowers/plans/2026-07-14-phase-4-development-first-launch.md`
 
 对应测试矩阵：`docs/implementation/phase-4-test-matrix.md`
 
-基准：`0a9cec4` → 七次 `a220f18` → 八次修复（本检查点）
+基准：`a220f18` → 八次 `d090f01` → 九次修复（本检查点）
 
-## 八次复审修复摘要（相对 `a220f18`）
+## 九次复审修复摘要（相对 `d090f01`）
 
 ### Standards
-- **P0**：导入拒绝客户端 `pending_version_public_id` 与内联 Base64；仅接受已流式写入的 `staging_relpath`。
-- **P0**：恢复走 projects 域 `activate_or_recover_history_file`；正式对象缺失时继续使用暂存文件；`pending_version` 按 `staging_relpath` 一一绑定。
-- **P1**：reconcile 通过调用方传入的 protected relpaths 保护任意仍引用 staging 的基线（含 CONFIRMED 窗口）；documents 不再依赖 projects 模型。
-- **P1**：CompleteUpload 在锁内绑定 `document_version`；移动失败保留暂存；真实重试不重建文件；并发完成共用同一 PENDING 版本。
-- **P1**：迁移文件入口改为 multipart 流式 `project-migration-files/stage`；导入 JSON 不再承载 Base64。
-- **P2**：删除 documents→projects 的 recovery 反向依赖。
+- **P1**：`project-migration-files/stage` 强制 `project_migration.confirm`；命令层授权 + 审计 + outbox。
+- **P1**：`MigrationFileStage` 持久化组织/上传者/过期/单次领取；导入 claim，确认后 consume；禁止跨基线复用同一 `staging_relpath`。
+- **P1**：projects `ready()` 注册 reconcile protected-relpath provider；默认巡检保护未消费暂存。
+- **P1**：CompleteUpload 并发屏障测试（独立连接 + Barrier）验证最终仅一条 CONTROLLED 版本。
+- **P2**：`activate_staged_content` 文档与“移动失败保留暂存”实现对齐。
 
 ### Spec
-- **P1**：恢复 DeliverablePanel 修订确认 / 409 冲突 Vitest，并保留资源级下载权限与 403 覆盖。
-- **P2**：交付物列表返回 per-version `can_download`（不再用组织级布尔统一显隐）。
-- **P2**：本检查点记录 `a220f18` 后继提交与精确验证数量；OpenAPI 含 `can_download` 与 stage 接口。
+- **P1**：stage API 允许/拒绝测试；E2E 覆盖 stage → batch → confirm → download；limited 用户拒绝 stage。
+- **P2**：交付物列表 `can_download` 授权前 false、授权后 true。
+- **P2**：检查点记录精确哈希 `d090f01` 及本轮后续提交；`DeliverablePanel.spec.ts` Prettier 已对齐。
 
 ## 本轮实测证据（域内）
 
 ```text
-Commit target: post-a220f18 eighth-pass remediation
-Backend pytest uploads + inflight_migration + reconciliation: 21 passed
+Base commit reviewed: d090f01
+Commit target: ninth-pass remediation after d090f01
+Backend pytest uploads + inflight_migration + reconciliation: 24 passed
 Backend ruff check (changed modules): pass
-OpenAPI spectacular + schema drift (can_download, project_migration_files_stage): regenerated
-Frontend npm run typecheck: pass
-Frontend npx vitest run src/modules/projects: 23 passed (5 files)
-scripts\check.ps1 full gate / Playwright: not run this slice (pending re-acceptance)
+OpenAPI spectacular: regenerated (MigrationFileStageResponse expires_at/public_id)
+Frontend prettier DeliverablePanel.spec.ts: written
+Frontend typecheck + vitest src/modules/projects: 23 passed
+scripts\check.ps1 full gate / Playwright: not run this slice (pending re-acceptance; E2E seed adds document.version.download)
 ```
 
-全量 `scripts\check.ps1` 与 Playwright 待批准后复跑。
+全量 `scripts\check.ps1` 与 Playwright 待批准后复跑（需刷新 E2E seed 以获得下载授权）。

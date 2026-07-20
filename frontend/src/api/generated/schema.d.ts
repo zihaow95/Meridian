@@ -1810,11 +1810,14 @@ export interface components {
             mime_type?: string;
         };
         MigrationFileStageResponse: {
+            /** Format: uuid */
+            public_id: string;
             filename: string;
             mime_type: string;
             sha256: string;
             size_bytes: number;
             staging_relpath: string;
+            expires_at: string;
         };
         MyTodoListItem: {
             public_id: string;

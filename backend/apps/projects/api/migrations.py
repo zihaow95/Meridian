@@ -16,12 +16,18 @@ from rest_framework.views import APIView
 from apps.documents.storage.factory import get_file_storage
 from apps.identity.models.user import User
 from apps.platform.api.errors import ValidationFailedError
+from apps.platform.api.permissions import requires_action
 from apps.platform.application.command import CommandContext
 from apps.projects.errors import MigrationImportFailed
 from apps.projects.models import MigrationDisposition
 from apps.projects.services.confirm_migration_baseline import ConfirmMigrationBaseline
 from apps.projects.services.import_migration_baseline import ImportProjectMigrationBatch
-from apps.projects.services.migration_file_staging import stream_stage_migration_file
+from apps.projects.services.stage_migration_file import StageMigrationFile
+
+MigrationStagePermission = requires_action(
+    action_code="project_migration.confirm",
+    resource_type="project",
+)
 
 MIGRATION_BATCH_REQUEST = inline_serializer(
     name="MigrationBatchCreateRequest",
@@ -65,7 +71,7 @@ MIGRATION_CONFIRM_RESPONSE = inline_serializer(
 class ProjectMigrationFileStageView(APIView):
     """Stream a migration history file into tmp/migration before batch import."""
 
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, MigrationStagePermission]
     parser_classes = [MultiPartParser, FormParser]
 
     @extend_schema(
@@ -82,11 +88,13 @@ class ProjectMigrationFileStageView(APIView):
             201: inline_serializer(
                 name="MigrationFileStageResponse",
                 fields={
+                    "public_id": serializers.UUIDField(),
                     "filename": serializers.CharField(),
                     "mime_type": serializers.CharField(),
                     "sha256": serializers.CharField(),
                     "size_bytes": serializers.IntegerField(),
                     "staging_relpath": serializers.CharField(),
+                    "expires_at": serializers.CharField(),
                 },
             ),
         },
@@ -101,13 +109,13 @@ class ProjectMigrationFileStageView(APIView):
             request.data.get("mime_type") or uploaded.content_type or "application/octet-stream"
         )
         try:
-            staged = stream_stage_migration_file(
+            staged = StageMigrationFile(
+                context=CommandContext.for_actor(user),
                 chunks=uploaded.chunks(),
                 filename=filename,
                 mime_type=mime_type,
                 storage=get_file_storage(),
-                organization=user.organization,
-            )
+            ).execute()
         except MigrationImportFailed as exc:
             raise ValidationFailedError(message=str(exc)) from exc
         return Response(staged, status=201)
@@ -182,8 +190,6 @@ class ProjectMigrationBaselineConfirmView(APIView):
                 "baseline_public_id": str(result.baseline.public_id),
                 "disposition": result.baseline.disposition,
                 "status": result.baseline.status,
-                "project_public_id": (
-                    str(result.project.public_id) if result.project is not None else None
-                ),
+                "project_public_id": str(result.project.public_id) if result.project else None,
             }
         )

@@ -24,7 +24,10 @@ from apps.projects.models import (
     MigrationBatchStatus,
     MigrationDisposition,
 )
-from apps.projects.services.migration_file_staging import stage_history_file_list
+from apps.projects.services.migration_file_staging import (
+    claim_staged_files_for_baseline,
+    stage_history_file_list,
+)
 
 
 @dataclass(frozen=True)
@@ -167,7 +170,7 @@ class ImportProjectMigrationBatch:
             storage=storage,
             organization=batch.organization,
         )
-        return MigrationBaseline.objects.create(
+        baseline = MigrationBaseline.objects.create(
             organization=batch.organization,
             batch=batch,
             external_project_id=external_id,
@@ -182,3 +185,8 @@ class ImportProjectMigrationBatch:
             history_deliverables=history_deliverables,
             status=MigrationBaselineStatus.IMPORTED,
         )
+        claim_staged_files_for_baseline(
+            baseline=baseline,
+            history_items=history_files + history_deliverables,
+        )
+        return baseline

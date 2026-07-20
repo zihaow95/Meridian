@@ -1,6 +1,6 @@
 # 阶段4 开发到首次上市 —— 测试矩阵
 
-状态：第八轮 NO-GO（相对 `a220f18`）已本地修复：流式迁移暂存、pending_version 注入关闭、恢复窗口、CompleteUpload 真实重试、资源级 `can_download`、DeliverablePanel 修订/冲突/下载 Vitest。全量 `scripts\check.ps1` 以再次验收复跑为准。
+状态：第九轮 NO-GO（相对 `d090f01`）已本地修复：stage 领域授权/单次领取句柄、reconcile provider、并发 CompleteUpload、E2E stage→confirm→download、`can_download` 列表断言、Prettier。全量 `scripts\check.ps1` 以再次验收复跑为准。
 
 对应计划：`docs/superpowers/plans/2026-07-14-phase-4-development-first-launch.md`
 

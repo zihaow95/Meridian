@@ -79,3 +79,53 @@ def test_completed_upload_session_cannot_be_completed_twice(
         complete_upload(upload_session.public_id, actor=active_user, storage=file_storage)
 
     assert DocumentVersion.objects.filter(status=VersionStatus.CONTROLLED).count() == 1
+
+
+@pytest.mark.django_db(transaction=True)
+def test_concurrent_complete_upload_leaves_one_controlled_version(
+    upload_session, file_storage, active_user
+) -> None:
+    """Two concurrent completes settle to one ACTIVE/CONTROLLED MySQL fact."""
+
+    import threading
+
+    from django.db import connection
+
+    results: list[str] = []
+    barrier = threading.Barrier(2)
+    lock = threading.Lock()
+
+    def _complete(label: str) -> None:
+        connection.close()
+        try:
+            barrier.wait(timeout=5)
+            complete_upload(
+                upload_session.public_id,
+                actor=active_user,
+                storage=file_storage,
+            )
+            with lock:
+                results.append(f"ok:{label}")
+        except UploadValidationFailed:
+            with lock:
+                results.append(f"done:{label}")
+        except Exception as exc:  # noqa: BLE001 - collect for assert
+            with lock:
+                results.append(f"error:{type(exc).__name__}:{label}")
+        finally:
+            connection.close()
+
+    threads = [
+        threading.Thread(target=_complete, args=("a",)),
+        threading.Thread(target=_complete, args=("b",)),
+    ]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join(timeout=30)
+
+    assert not any(item.startswith("error:") for item in results)
+    assert any(item.startswith("ok:") for item in results)
+    assert DocumentVersion.objects.filter(status=VersionStatus.CONTROLLED).count() == 1
+    upload_session.refresh_from_db()
+    assert upload_session.completed_at is not None

@@ -187,9 +187,10 @@ def activate_staged_content(staged: StagedContent, storage: FileStorage) -> Docu
     """Move the staged payload into permanent storage and mark it controlled.
 
     Runs after the staging transaction commits. The move happens first; database
-    activation is a single atomic block. On move failure the temp file is removed
-    and the PENDING rows are left for reconciliation. On database failure after a
-    successful move, the formal object remains and
+    activation is a single atomic block. On move failure the temp file is
+    **retained** so CompleteUpload / migration confirm can retry without
+    reconstructing bytes; PENDING rows stay for reconciliation. On database
+    failure after a successful move, the formal object remains and
     :func:`complete_pending_file_activation` recovers it.
     """
 

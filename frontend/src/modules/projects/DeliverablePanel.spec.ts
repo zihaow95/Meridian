@@ -51,7 +51,8 @@ const stubs = {
     name: 'ElAlertStub',
     props: ['title'],
     setup(props) {
-      return () => h('div', { class: 'alert', 'data-test': 'action-message' }, props.title as string)
+      return () =>
+        h('div', { class: 'alert', 'data-test': 'action-message' }, props.title as string)
     },
   }),
   'el-input': defineComponent({

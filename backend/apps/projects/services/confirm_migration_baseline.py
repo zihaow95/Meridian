@@ -48,6 +48,7 @@ from apps.projects.services.initialize_runtime import (
     require_template_departments,
 )
 from apps.projects.services.migration_activation import activate_or_recover_history_file
+from apps.projects.services.migration_file_staging import mark_staged_files_consumed
 from apps.stage_gates.services.open_execution_gates import open_execution_gates_for_stages
 from apps.work_items.services.materialize_template import (
     materialize_template_deliverables,
@@ -113,10 +114,14 @@ def _drop_staging_relpaths(items: list[Any]) -> list[dict[str, Any]]:
     """Keep durable metadata after activation; drop ephemeral staging paths."""
 
     cleaned: list[dict[str, Any]] = []
+    consumed: list[str] = []
     for item in items:
         if not isinstance(item, dict):
             cleaned.append({"filename": str(item)})
             continue
+        rel = item.get("staging_relpath")
+        if rel:
+            consumed.append(str(rel).replace("\\", "/"))
         cleaned.append(
             {
                 key: value
@@ -127,9 +132,11 @@ def _drop_staging_relpaths(items: list[Any]) -> list[dict[str, Any]]:
                     "content_text",
                     "content",
                     "staging_relpath",
+                    "stage_public_id",
                 }
             }
         )
+    mark_staged_files_consumed(consumed)
     return cleaned
 
 
