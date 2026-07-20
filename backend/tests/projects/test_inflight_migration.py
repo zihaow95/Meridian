@@ -875,6 +875,159 @@ def test_archive_only_activate_failure_retries_with_same_idempotency_key(
 
 
 @pytest.mark.django_db
+def test_archive_only_mid_file_activate_failure_consumes_success_and_retries(
+    migrator: User,
+    project_template_version,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """First file ACTIVE + second fail must consume the success stage; retry finishes both."""
+
+    del project_template_version
+    from apps.documents.models import DocumentVersion, VersionStatus
+    from apps.documents.services.ingest import ControlledIngestFailed
+    from apps.projects.models import MigrationFileStage
+    from apps.projects.services import confirm_migration_baseline as confirm_mod
+
+    first = _stage_history_file(
+        migrator.organization, migrator, filename="arc-a.pdf", content=b"%PDF-1.4 a"
+    )
+    second = _stage_history_file(
+        migrator.organization, migrator, filename="arc-b.pdf", content=b"%PDF-1.4 b"
+    )
+    imported = ImportProjectMigrationBatch(
+        context=CommandContext.for_actor(migrator),
+        batch_key="batch-archive-midfail",
+        rows=[
+            _d3_row(
+                migrator.organization,
+                migrator,
+                external_id="EXT-ARC-MID",
+                history_files=[
+                    _history_file_entry(first),
+                    _history_file_entry(second),
+                ],
+            )
+        ],
+    ).execute()
+    baseline = imported.baselines[0]
+    staging_a = baseline.history_files[0]["staging_relpath"]
+    staging_b = baseline.history_files[1]["staging_relpath"]
+    idempotency_key = "confirm-arc-midfail"
+
+    original = confirm_mod.activate_or_recover_history_file
+    calls = {"n": 0}
+
+    def _fail_second(item: dict[str, Any], **kwargs: Any) -> DocumentVersion | None:
+        calls["n"] += 1
+        if calls["n"] == 2:
+            raise ControlledIngestFailed("simulated mid-file activate failure")
+        return original(item, **kwargs)
+
+    monkeypatch.setattr(confirm_mod, "activate_or_recover_history_file", _fail_second)
+    with pytest.raises(ControlledIngestFailed, match="simulated mid-file activate failure"):
+        ConfirmMigrationBaseline(
+            context=CommandContext.for_actor(migrator),
+            baseline_public_id=baseline.public_id,
+            disposition=MigrationDisposition.ARCHIVE_ONLY,
+            idempotency_key=idempotency_key,
+        ).execute()
+
+    baseline.refresh_from_db()
+    assert baseline.history_files[0].get("document_version_public_id")
+    assert baseline.history_files[0].get("staging_relpath") == staging_a
+    assert baseline.history_files[1].get("pending_version_public_id")
+    assert not baseline.history_files[1].get("document_version_public_id")
+    stage_a = MigrationFileStage.objects.get(staging_relpath=staging_a)
+    stage_b = MigrationFileStage.objects.get(staging_relpath=staging_b)
+    assert stage_a.consumed_at is not None
+    assert stage_b.consumed_at is None
+
+    monkeypatch.undo()
+    result = ConfirmMigrationBaseline(
+        context=CommandContext.for_actor(migrator),
+        baseline_public_id=baseline.public_id,
+        disposition=MigrationDisposition.ARCHIVE_ONLY,
+        idempotency_key=idempotency_key,
+    ).execute()
+    assert result.project is None
+    baseline.refresh_from_db()
+    assert "staging_relpath" not in baseline.history_files[0]
+    assert "staging_relpath" not in baseline.history_files[1]
+    for row in baseline.history_files:
+        version = DocumentVersion.objects.get(public_id=row["document_version_public_id"])
+        assert version.status == VersionStatus.CONTROLLED
+    stage_a.refresh_from_db()
+    stage_b.refresh_from_db()
+    assert stage_a.consumed_at is not None
+    assert stage_b.consumed_at is not None
+
+
+@pytest.mark.django_db
+def test_archive_only_pending_stage_failure_rolls_back_orphans(
+    migrator: User,
+    project_template_version,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """PENDING staging must be one transaction: later stage failure leaves no orphan rows."""
+
+    del project_template_version
+    from apps.documents.models import DocumentVersion, FileObject
+    from apps.documents.services.ingest import ControlledIngestFailed, stage_controlled_content
+
+    first = _stage_history_file(
+        migrator.organization, migrator, filename="pend-a.pdf", content=b"%PDF-1.4 pa"
+    )
+    second = _stage_history_file(
+        migrator.organization, migrator, filename="pend-b.pdf", content=b"%PDF-1.4 pb"
+    )
+    imported = ImportProjectMigrationBatch(
+        context=CommandContext.for_actor(migrator),
+        batch_key="batch-archive-pend-txn",
+        rows=[
+            _d3_row(
+                migrator.organization,
+                migrator,
+                external_id="EXT-ARC-PEND",
+                history_files=[
+                    _history_file_entry(first),
+                    _history_file_entry(second),
+                ],
+            )
+        ],
+    ).execute()
+    baseline = imported.baselines[0]
+    before_files = FileObject.objects.count()
+    before_versions = DocumentVersion.objects.count()
+
+    original = stage_controlled_content
+    calls = {"n": 0}
+
+    def _fail_second(**kwargs: Any) -> tuple[Any, Any]:
+        calls["n"] += 1
+        if calls["n"] == 2:
+            raise ControlledIngestFailed("simulated pending stage failure")
+        return original(**kwargs)
+
+    monkeypatch.setattr(
+        "apps.documents.services.ingest.stage_controlled_content",
+        _fail_second,
+    )
+    with pytest.raises(ControlledIngestFailed, match="simulated pending stage failure"):
+        ConfirmMigrationBaseline(
+            context=CommandContext.for_actor(migrator),
+            baseline_public_id=baseline.public_id,
+            disposition=MigrationDisposition.ARCHIVE_ONLY,
+            idempotency_key="confirm-arc-pend-txn",
+        ).execute()
+
+    baseline.refresh_from_db()
+    assert not baseline.history_files[0].get("pending_version_public_id")
+    assert not baseline.history_files[1].get("pending_version_public_id")
+    assert FileObject.objects.count() == before_files
+    assert DocumentVersion.objects.count() == before_versions
+
+
+@pytest.mark.django_db
 def test_cross_list_duplicate_handle_rolls_back_while_sibling_row_succeeds(
     migrator: User,
     project_template_version,

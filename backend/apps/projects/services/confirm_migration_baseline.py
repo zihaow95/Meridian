@@ -324,19 +324,20 @@ class ConfirmMigrationBaseline:
 
         # Activate after commit, then attach business references only to ACTIVE files.
         # Idempotent retries (same confirm key) resume ARCHIVE_ONLY / CONTINUE file work.
-        if result.project is not None:
+        project = result.project
+        if project is not None:
             if already_confirmed_retry:
                 self._finish_migrated_history_files(
-                    project=result.project,
+                    project=project,
                     baseline=result.baseline,
                     actor=actor,
                     storage=storage,
                 )
                 baseline = MigrationBaseline.objects.get(pk=result.baseline.pk)
-                result = ConfirmMigrationResult(baseline=baseline, project=result.project)
+                result = ConfirmMigrationResult(baseline=baseline, project=project)
             else:
                 self._activate_and_attach_pending(
-                    project=result.project,
+                    project=project,
                     actor=actor,
                     storage=storage,
                     baseline=result.baseline,
@@ -352,7 +353,7 @@ class ConfirmMigrationBaseline:
                     baseline.save(
                         update_fields=["history_files", "history_deliverables", "updated_at"]
                     )
-                result = ConfirmMigrationResult(baseline=baseline, project=result.project)
+                result = ConfirmMigrationResult(baseline=baseline, project=project)
         elif result.baseline.disposition == MigrationDisposition.ARCHIVE_ONLY:
             baseline = self._activate_archived_history_files(
                 baseline=result.baseline,
@@ -370,7 +371,13 @@ class ConfirmMigrationBaseline:
         actor: User,
         storage: FileStorage,
     ) -> MigrationBaseline:
-        """Activate ARCHIVE_ONLY history files into formal DocumentVersions and consume stages."""
+        """Activate ARCHIVE_ONLY history files into formal DocumentVersions and consume stages.
+
+        PENDING rows + ``pending_version_public_id`` persistence run in one caller
+        transaction (``stage_controlled_content`` contract). Storage moves happen
+        only after that commit. Successful activations always consume their stage
+        handles, including the recover-ACTIVE retry path.
+        """
 
         from uuid import uuid4
 
@@ -397,23 +404,15 @@ class ConfirmMigrationBaseline:
                 }
             }
 
-        def _activate_items(field_name: str) -> list[dict[str, Any]]:
-            items = [_normalize_item(item) for item in (getattr(baseline, field_name) or [])]
-            staged_moves: list[tuple[int, Any, str | None]] = []
+        def _ensure_pending_ids(items: list[dict[str, Any]]) -> list[dict[str, Any]]:
+            """Create PENDING file/doc/version rows; keep staging_relpath for later consume."""
+
             for index, row in enumerate(items):
                 if row.get("document_version_public_id") and not row.get(
                     "pending_version_public_id"
                 ):
                     row["pending_version_public_id"] = row["document_version_public_id"]
                 if row.get("pending_version_public_id"):
-                    version = activate_or_recover_history_file(
-                        row,
-                        organization_id=baseline.organization_id,
-                        storage=storage,
-                    )
-                    if version is not None:
-                        row["document_version_public_id"] = str(version.public_id)
-                        row["pending_version_public_id"] = str(version.public_id)
                     items[index] = row
                     continue
                 staging_relpath = row.get("staging_relpath")
@@ -433,7 +432,7 @@ class ConfirmMigrationBaseline:
                     )
                 filename = str(row.get("filename") or row.get("name") or "migrated-file")
                 mime = str(row.get("mime_type") or "application/octet-stream")
-                pending_version, staged = stage_controlled_content(
+                pending_version, _staged = stage_controlled_content(
                     organization=baseline.organization,
                     source_temp_path=temp_path,
                     sha256=sha256,
@@ -448,23 +447,88 @@ class ConfirmMigrationBaseline:
                 )
                 row["pending_version_public_id"] = str(pending_version.public_id)
                 items[index] = row
-                staged_moves.append((index, staged, str(staging_relpath).replace("\\", "/")))
+            return items
 
-            setattr(baseline, field_name, items)
-            baseline.save(update_fields=[field_name, "updated_at"])
+        def _activate_and_consume(
+            items: list[dict[str, Any]],
+        ) -> tuple[list[dict[str, Any]], list[str], Exception | None]:
+            """Activate each pending row; return updated items, consumed relpaths, first error."""
 
             consumed: list[str] = []
-            for index, staged, rel in staged_moves:
-                version = activate_staged_content(staged, storage)
-                items[index]["document_version_public_id"] = str(version.public_id)
-                items[index]["pending_version_public_id"] = str(version.public_id)
-                if rel:
-                    consumed.append(rel)
-            mark_staged_files_consumed(consumed)
-            return [_clean_row(row) for row in items]
+            first_error: Exception | None = None
+            for index, row in enumerate(items):
+                if first_error is not None:
+                    break
+                pending_raw = row.get("pending_version_public_id") or row.get(
+                    "document_version_public_id"
+                )
+                if not pending_raw:
+                    items[index] = row
+                    continue
+                if not row.get("pending_version_public_id") and row.get(
+                    "document_version_public_id"
+                ):
+                    row["pending_version_public_id"] = row["document_version_public_id"]
+                try:
+                    version = activate_or_recover_history_file(
+                        row,
+                        organization_id=baseline.organization_id,
+                        storage=storage,
+                    )
+                    if version is None:
+                        raise MigrationImportFailed(
+                            message="Archived history file pending version could not be activated."
+                        )
+                    row["document_version_public_id"] = str(version.public_id)
+                    row["pending_version_public_id"] = str(version.public_id)
+                    rel = str(row.get("staging_relpath") or "").replace("\\", "/")
+                    if rel:
+                        consumed.append(rel)
+                    items[index] = row
+                except Exception as exc:  # noqa: BLE001 - persist progress then re-raise
+                    first_error = exc
+                    items[index] = row
+            return items, consumed, first_error
 
-        baseline.history_files = _activate_items("history_files")
-        baseline.history_deliverables = _activate_items("history_deliverables")
+        history_files = [_normalize_item(item) for item in (baseline.history_files or [])]
+        history_deliverables = [
+            _normalize_item(item) for item in (baseline.history_deliverables or [])
+        ]
+
+        # Phase 1: all PENDING staging + pending ID persistence in one transaction.
+        with transaction.atomic():
+            baseline = (
+                MigrationBaseline.objects.select_for_update()
+                .select_related("organization")
+                .get(pk=baseline.pk)
+            )
+            history_files = _ensure_pending_ids(history_files)
+            history_deliverables = _ensure_pending_ids(history_deliverables)
+            baseline.history_files = history_files
+            baseline.history_deliverables = history_deliverables
+            baseline.save(update_fields=["history_files", "history_deliverables", "updated_at"])
+
+        # Phase 2: storage moves / recover ACTIVE after staging txn commits.
+        history_files, consumed_files, files_error = _activate_and_consume(history_files)
+        consumed_deliverables: list[str] = []
+        deliverables_error: Exception | None = None
+        if files_error is None:
+            history_deliverables, consumed_deliverables, deliverables_error = _activate_and_consume(
+                history_deliverables
+            )
+        consumed = consumed_files + consumed_deliverables
+        mark_staged_files_consumed(consumed)
+
+        first_error = files_error or deliverables_error
+        if first_error is not None:
+            # Persist partial progress (ACTIVE ids) while retaining staging on unfinished rows.
+            baseline.history_files = history_files
+            baseline.history_deliverables = history_deliverables
+            baseline.save(update_fields=["history_files", "history_deliverables", "updated_at"])
+            raise first_error
+
+        baseline.history_files = [_clean_row(row) for row in history_files]
+        baseline.history_deliverables = [_clean_row(row) for row in history_deliverables]
         baseline.save(update_fields=["history_files", "history_deliverables", "updated_at"])
         return MigrationBaseline.objects.get(pk=baseline.pk)
 

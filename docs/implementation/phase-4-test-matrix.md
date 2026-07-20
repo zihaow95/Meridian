@@ -1,6 +1,6 @@
 # 阶段4 开发到首次上市 —— 测试矩阵
 
-状态：第十一轮 NO-GO（相对 `9417a54`）已本地修复：stage 事务内重判权、ARCHIVE_ONLY 激活失败同键恢复、跨列表重复 handle + 行级 savepoint、confirm `history_files` OpenAPI 类型化。本切片以域内 pytest/契约再生为准；全量 `scripts\check.ps1`（含 Playwright）以再次验收复跑为准。
+状态：第十二轮 NO-GO（相对 `816336e`）已本地修复：ARCHIVE_ONLY PENDING 建档事务、部分激活 consume、真实中途失败恢复、mypy Project 缩窄。本轮 `scripts\check.ps1` 除 Docker 镜像拉取（环境阻断）外已绿；Playwright 16 passed。
 
 对应计划：`docs/superpowers/plans/2026-07-14-phase-4-development-first-launch.md`
 
@@ -28,7 +28,7 @@
 | EXE-011 | PlanChange | projects | `ApplyPlanChange` | plan_change.* | plan-changes | — | 已通过：`test_execution_controls` |
 | EXE-012 | 逾期提醒 | work_items | Celery scan | 查询过滤 | tasks | — | 已通过：`test_overdue` |
 | EXE-013 | EmergencyExecution | projects | `CreateEmergencyExecution` | emergency_execution.create | emergency-executions | — | 已通过：`test_execution_controls` + E2E 拒绝 |
-| EXE-014 | MigrationBaseline | projects | Import/Confirm + stream stage | project_migration.confirm | migration files/stage + batches | DeliverablePanel 下载 | 已通过：`test_inflight_migration`（事务内重判权 / ARCHIVE 同键恢复 / 跨列表重复+sibling）+ E2E D3/ARCHIVE（覆盖存在；本切片未重跑 Playwright） |
+| EXE-014 | MigrationBaseline | projects | Import/Confirm + stream stage | project_migration.confirm | migration files/stage + batches | DeliverablePanel 下载 | 已通过：`test_inflight_migration`（PENDING 事务 / 中途失败 consume / 同键恢复）+ E2E D3/ARCHIVE（本轮 Playwright 16 passed） |
 
 ## API / OpenAPI
 
@@ -50,13 +50,13 @@
 
 | 场景 | 证据 | 状态 |
 |---|---|---|
-| 新品主链与运行时 | `tests/e2e/development-first-launch.spec.ts` | 已通过（历史覆盖；本切片未重跑） |
-| 发布失败→待修复→按原决定重试→OPERATING（唯一版本/运营范围） | 同上（`retries=0`；每次种子经真实双人决策+失败发布；响应断言 `product_version_count`/`monitoring_scope_count` == 1） | 已通过（历史覆盖；本切片未重跑） |
-| 在途 D3 与权限拒绝 | 同上 | 已通过（历史覆盖；本切片未重跑） |
-| ARCHIVE_ONLY 归档下载 | 同上（confirm `history_files` → download-ticket） | 已通过（历史覆盖；本切片未重跑 Playwright；上次干净 `9417a54` 验收曾 16 passed） |
+| 新品主链与运行时 | `tests/e2e/development-first-launch.spec.ts` | 已通过（本轮 Playwright 复跑） |
+| 发布失败→待修复→按原决定重试→OPERATING（唯一版本/运营范围） | 同上（`retries=0`；每次种子经真实双人决策+失败发布；响应断言 `product_version_count`/`monitoring_scope_count` == 1） | 已通过（本轮 Playwright 复跑） |
+| 在途 D3 与权限拒绝 | 同上 | 已通过（本轮 Playwright 复跑） |
+| ARCHIVE_ONLY 归档下载 | 同上（confirm `history_files` → download-ticket） | 已通过（本轮 Playwright 复跑，16 passed） |
 
 ## 门禁纳入
 
 | 检查 | 结果 | 日期 |
 |---|---|---|
-| `scripts\check.ps1` 含 `development-first-launch.spec.ts` | 脚本已纳入；干净 `9417a54` 曾全绿，本轮代码修复后待再次整跑验收 | 2026-07-20 |
+| `scripts\check.ps1` 含 `development-first-launch.spec.ts` | 本轮除 Docker Hub 拉镜像超时外全绿（pytest 317 / Playwright 16 / mypy 261）；Docker 步骤环境阻断 | 2026-07-20 |
