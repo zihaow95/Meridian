@@ -537,7 +537,8 @@ class MigrationFileStage(OrganizationOwnedModel):
         on_delete=models.PROTECT,
         related_name="uploaded_migration_file_stages",
     )
-    staging_relpath = models.CharField(max_length=512, unique=True)
+    # Keep under MySQL utf8mb4 unique index length limits (mysql.W003).
+    staging_relpath = models.CharField(max_length=191, unique=True)
     original_filename = models.CharField(max_length=255)
     declared_mime_type = models.CharField(max_length=128)
     size_bytes = models.BigIntegerField(default=0)

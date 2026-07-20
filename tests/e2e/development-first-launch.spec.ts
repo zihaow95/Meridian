@@ -565,6 +565,24 @@ test("migration continue from D3 skips prior stages; archive creates no project"
   const download = await page.request.get(`/api/v1/documents/download/${token}`);
   expect(download.ok()).toBeTruthy();
 
+  const archiveStaged = await page.request.post(
+    "/api/v1/project-migration-files/stage",
+    {
+      headers: await csrfHeaders(page),
+      multipart: {
+        file: {
+          name: "archive-report.pdf",
+          mimeType: "application/pdf",
+          buffer: Buffer.from("%PDF-1.4 e2e archive history"),
+        },
+        filename: "archive-report.pdf",
+        mime_type: "application/pdf",
+      },
+    },
+  );
+  expect(archiveStaged.status()).toBe(201);
+  const archiveStagedBody = await archiveStaged.json();
+
   const archiveBatch = await authedJson(
     page,
     "POST",
@@ -579,7 +597,17 @@ test("migration continue from D3 skips prior stages; archive creates no project"
           disposition: "ARCHIVE_ONLY",
           history_decision_summary: "Closed offline.",
           history_tasks: [],
-          history_files: [],
+          history_files: [
+            {
+              filename: archiveStagedBody.filename,
+              mime_type: archiveStagedBody.mime_type,
+              sha256: archiveStagedBody.sha256,
+              size_bytes: archiveStagedBody.size_bytes,
+              staging_relpath: archiveStagedBody.staging_relpath,
+              source_note: "E2E archive NAS",
+              source_version: "1",
+            },
+          ],
         },
       ],
     },
@@ -599,6 +627,19 @@ test("migration continue from D3 skips prior stages; archive creates no project"
   expect(confirmArchive.ok()).toBeTruthy();
   const archiveResult = await confirmArchive.json();
   expect(archiveResult.project_public_id).toBeNull();
+  const archivedVersionId = archiveResult.history_files?.[0]?.document_version_public_id;
+  expect(archivedVersionId).toBeTruthy();
+  const archiveTicket = await authedJson(
+    page,
+    "POST",
+    `/api/v1/documents/versions/${archivedVersionId}/download-ticket`,
+  );
+  expect(archiveTicket.status()).toBe(200);
+  const archiveToken = (await archiveTicket.json()).token as string;
+  const archiveDownload = await page.request.get(
+    `/api/v1/documents/download/${archiveToken}`,
+  );
+  expect(archiveDownload.ok()).toBeTruthy();
 });
 
 test("limited user cannot confirm migration or create emergency execution", async ({

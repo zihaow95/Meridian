@@ -64,6 +64,7 @@ MIGRATION_CONFIRM_RESPONSE = inline_serializer(
         "disposition": serializers.CharField(),
         "status": serializers.CharField(),
         "project_public_id": serializers.UUIDField(allow_null=True),
+        "history_files": serializers.ListField(required=False),
     },
 )
 
@@ -185,11 +186,22 @@ class ProjectMigrationBaselineConfirmView(APIView):
             disposition=disposition,
             idempotency_key=idempotency_key,
         ).execute()
+        history_files = [
+            {
+                "filename": str(item.get("filename") or item.get("name") or "migrated-file"),
+                "document_version_public_id": item.get("document_version_public_id"),
+                "sha256": item.get("sha256"),
+                "size_bytes": item.get("size_bytes"),
+            }
+            for item in list(result.baseline.history_files or [])
+            if isinstance(item, dict)
+        ]
         return Response(
             {
                 "baseline_public_id": str(result.baseline.public_id),
                 "disposition": result.baseline.disposition,
                 "status": result.baseline.status,
                 "project_public_id": str(result.project.public_id) if result.project else None,
+                "history_files": history_files,
             }
         )

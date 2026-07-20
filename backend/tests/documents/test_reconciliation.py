@@ -105,3 +105,69 @@ def test_reconcile_sweeps_stale_pending_object_without_backing_file(
     file_object.refresh_from_db()
     assert result["pending_swept"] == 1
     assert file_object.storage_status == StorageStatus.MISSING
+
+
+@pytest.mark.django_db
+def test_reconcile_keeps_claimed_migration_parts_via_registered_provider(
+    file_storage, active_user
+) -> None:
+    """projects.ready() provider must protect aged claimed MigrationFileStage parts."""
+
+    import os
+
+    from apps.projects.models import (
+        MigrationBaseline,
+        MigrationBaselineStatus,
+        MigrationBatch,
+        MigrationBatchStatus,
+        MigrationDisposition,
+        MigrationFileStage,
+    )
+
+    organization = active_user.organization
+    batch = MigrationBatch.objects.create(
+        organization=organization,
+        batch_key="reconcile-protect",
+        imported_by=active_user,
+        status=MigrationBatchStatus.OPEN,
+        source_row_count=1,
+        accepted_row_count=1,
+    )
+    baseline = MigrationBaseline.objects.create(
+        organization=organization,
+        batch=batch,
+        external_project_id="EXT-RECONCILE",
+        name="Reconcile protect",
+        current_stage_code="D3",
+        disposition=MigrationDisposition.CONTINUE,
+        status=MigrationBaselineStatus.CONFIRMED,
+        history_files=[{"filename": "kept.pdf", "staging_relpath": "migration/kept.part"}],
+    )
+    rel = "migration/kept.part"
+    part = file_storage.temp_dir() / rel
+    part.parent.mkdir(parents=True, exist_ok=True)
+    part.write_bytes(b"%PDF-1.4 kept")
+    aged = (timezone.now() - timedelta(hours=5)).timestamp()
+    os.utime(part, (aged, aged))
+
+    MigrationFileStage.objects.create(
+        organization=organization,
+        uploaded_by=active_user,
+        staging_relpath=rel,
+        original_filename="kept.pdf",
+        declared_mime_type="application/pdf",
+        size_bytes=part.stat().st_size,
+        sha256="a" * 64,
+        expires_at=timezone.now() - timedelta(hours=1),
+        claimed_baseline=baseline,
+        claimed_at=timezone.now() - timedelta(hours=2),
+    )
+
+    orphan = file_storage.temp_dir() / "migration" / "orphan.part"
+    orphan.write_bytes(b"orphan")
+    os.utime(orphan, (aged, aged))
+
+    result = ReconcileStorage(storage=file_storage, pending_timeout_minutes=60).execute()
+    assert part.is_file()
+    assert not orphan.is_file()
+    assert result["cleaned_temp"] >= 1

@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Any
 from uuid import uuid4
 
+from django.db import transaction
 from django.utils import timezone
 
 from apps.documents.policy import UploadPolicy, resolve_upload_policy
@@ -72,17 +73,14 @@ def _write_streaming_sha(
     return digest.hexdigest(), size
 
 
-def stream_stage_migration_file(
+def write_migration_staging_bytes(
     *,
     chunks: Iterator[bytes],
-    filename: str,
     mime_type: str,
     storage: FileStorage,
     organization: Organization,
-    uploaded_by: User,
-    ttl_minutes: int = 120,
-) -> dict[str, Any]:
-    """Stream file bytes into ``tmp/migration/*.part`` and persist a claimable handle."""
+) -> tuple[str, Path, str, int]:
+    """Stream bytes to a new ``migration/*.part``; return relpath, path, sha256, size."""
 
     policy = resolve_upload_policy(organization)
     staging_name = f"migration/{uuid4().hex}.part"
@@ -100,17 +98,67 @@ def stream_stage_migration_file(
     if size_bytes <= 0:
         temp_path.unlink(missing_ok=True)
         raise MigrationImportFailed(message="Migrated history file content is empty.")
+    return staging_name, temp_path, sha256, size_bytes
 
-    stage = MigrationFileStage.objects.create(
+
+def persist_migration_file_stage(
+    *,
+    organization: Organization,
+    uploaded_by: User,
+    staging_relpath: str,
+    filename: str,
+    mime_type: str,
+    sha256: str,
+    size_bytes: int,
+    ttl_minutes: int = 120,
+) -> MigrationFileStage:
+    """Create the durable claimable handle row (call inside a DB transaction)."""
+
+    return MigrationFileStage.objects.create(
         organization=organization,
         uploaded_by=uploaded_by,
-        staging_relpath=staging_name,
+        staging_relpath=staging_relpath,
         original_filename=filename,
         declared_mime_type=mime_type,
         size_bytes=size_bytes,
         sha256=sha256,
         expires_at=timezone.now() + timedelta(minutes=ttl_minutes),
     )
+
+
+def stream_stage_migration_file(
+    *,
+    chunks: Iterator[bytes],
+    filename: str,
+    mime_type: str,
+    storage: FileStorage,
+    organization: Organization,
+    uploaded_by: User,
+    ttl_minutes: int = 120,
+) -> dict[str, Any]:
+    """Write bytes and persist a handle; cleans the part if the DB insert fails."""
+
+    staging_name, temp_path, sha256, size_bytes = write_migration_staging_bytes(
+        chunks=chunks,
+        mime_type=mime_type,
+        storage=storage,
+        organization=organization,
+    )
+    try:
+        with transaction.atomic():
+            stage = persist_migration_file_stage(
+                organization=organization,
+                uploaded_by=uploaded_by,
+                staging_relpath=staging_name,
+                filename=filename,
+                mime_type=mime_type,
+                sha256=sha256,
+                size_bytes=size_bytes,
+                ttl_minutes=ttl_minutes,
+            )
+    except Exception:
+        temp_path.unlink(missing_ok=True)
+        raise
     return {
         "public_id": str(stage.public_id),
         "filename": filename,
@@ -217,12 +265,20 @@ def stage_history_file_list(
     """Normalize history file entries for MySQL; never accept inline binary or version ids."""
 
     staged: list[dict[str, Any]] = []
+    seen_relpaths: set[str] = set()
     for item in items:
         if not isinstance(item, dict):
             raise MigrationImportFailed(
                 message="Migrated history file entries must be objects with content."
             )
-        staged.append(_verify_existing_staging(item, storage=storage, organization=organization))
+        meta = _verify_existing_staging(item, storage=storage, organization=organization)
+        rel = str(meta["staging_relpath"])
+        if rel in seen_relpaths:
+            raise MigrationImportFailed(
+                message="Duplicate staging_relpath is not allowed within one baseline."
+            )
+        seen_relpaths.add(rel)
+        staged.append(meta)
     return staged
 
 
@@ -231,13 +287,19 @@ def claim_staged_files_for_baseline(
     baseline: MigrationBaseline,
     history_items: list[dict[str, Any]],
 ) -> None:
-    """Bind each staging handle to exactly one baseline (single claim)."""
+    """Bind each staging handle to exactly one baseline entry (single claim)."""
 
     now = timezone.now()
+    seen_relpaths: set[str] = set()
     for item in history_items:
         rel = str(item.get("staging_relpath") or "")
         if not rel:
             continue
+        if rel in seen_relpaths:
+            raise MigrationImportFailed(
+                message="Duplicate staging_relpath is not allowed within one baseline."
+            )
+        seen_relpaths.add(rel)
         stage = (
             MigrationFileStage.objects.select_for_update()
             .filter(organization_id=baseline.organization_id, staging_relpath=rel)
@@ -247,16 +309,15 @@ def claim_staged_files_for_baseline(
             raise MigrationImportFailed(message=f"Unknown migration staging handle: {rel}")
         if stage.consumed_at is not None:
             raise MigrationImportFailed(message="Migration staging handle already consumed.")
-        if stage.claimed_at is not None and stage.claimed_baseline_id != baseline.id:
+        if stage.claimed_at is not None:
             raise MigrationImportFailed(
                 message="Migration staging handle already claimed by another baseline."
             )
-        if stage.expires_at <= now and stage.claimed_at is None:
+        if stage.expires_at <= now:
             raise MigrationImportFailed(message="Migration staging handle expired.")
-        if stage.claimed_at is None:
-            stage.claimed_baseline = baseline
-            stage.claimed_at = now
-            stage.save(update_fields=["claimed_baseline", "claimed_at"])
+        stage.claimed_baseline = baseline
+        stage.claimed_at = now
+        stage.save(update_fields=["claimed_baseline", "claimed_at"])
 
 
 def mark_staged_files_consumed(staging_relpaths: list[str]) -> None:

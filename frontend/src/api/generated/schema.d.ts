@@ -1787,6 +1787,7 @@ export interface components {
             status: string;
             /** Format: uuid */
             project_public_id: string | null;
+            history_files?: unknown[];
         };
         MigrationBatchCreateRequest: {
             batch_key: string;

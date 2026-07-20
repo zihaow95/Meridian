@@ -83,9 +83,7 @@ def _d3_row(
     history_files: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     if history_files is None:
-        history_files = [
-            _history_file_entry(_stage_history_file(organization, uploaded_by))
-        ]
+        history_files = [_history_file_entry(_stage_history_file(organization, uploaded_by))]
     return {
         "external_project_id": external_id,
         "name": "In-flight yogurt",
@@ -715,3 +713,100 @@ def test_staging_handle_is_single_claim(
                 )
             ],
         ).execute()
+
+
+@pytest.mark.django_db
+def test_duplicate_staging_relpath_within_one_baseline_is_rejected(
+    migrator: User,
+    project_template_version,
+) -> None:
+    """One baseline must not reference the same staging handle twice."""
+
+    del project_template_version
+    staged = _stage_history_file(migrator.organization, migrator)
+    entry = _history_file_entry(staged)
+    with pytest.raises(MigrationImportFailed):
+        ImportProjectMigrationBatch(
+            context=CommandContext.for_actor(migrator),
+            batch_key="batch-dup-handle",
+            rows=[
+                _d3_row(
+                    migrator.organization,
+                    migrator,
+                    external_id="EXT-DUP",
+                    history_files=[entry, dict(entry)],
+                )
+            ],
+        ).execute()
+    assert MigrationBaseline.objects.filter(external_project_id="EXT-DUP").count() == 0
+
+
+@pytest.mark.django_db(transaction=True)
+def test_stage_command_rolls_back_when_audit_write_fails(
+    migrator: User,
+    project_template_version,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Audit failure must not leave a MigrationFileStage row or temp part."""
+
+    del project_template_version
+    from apps.audit.services.append_event import AuditWriteFailed
+    from apps.documents.storage.factory import get_file_storage
+    from apps.projects.models import MigrationFileStage
+    from apps.projects.services.stage_migration_file import StageMigrationFile
+
+    def _boom(*_args: object, **_kwargs: object) -> None:
+        raise AuditWriteFailed("audit insert failed")
+
+    monkeypatch.setattr(
+        "apps.projects.services.stage_migration_file.append_event",
+        _boom,
+    )
+    storage = get_file_storage()
+    with pytest.raises(AuditWriteFailed):
+        StageMigrationFile(
+            context=CommandContext.for_actor(migrator),
+            chunks=iter([HISTORY_FILE_BYTES]),
+            filename="rollback.pdf",
+            mime_type="application/pdf",
+            storage=storage,
+        ).execute()
+    assert MigrationFileStage.objects.count() == 0
+    migration_dir = storage.temp_dir() / "migration"
+    leftovers = list(migration_dir.glob("*.part")) if migration_dir.exists() else []
+    assert leftovers == []
+
+
+@pytest.mark.django_db
+def test_archive_only_activates_and_consumes_history_files(
+    migrator: User,
+    project_template_version,
+) -> None:
+    """ARCHIVE_ONLY must create formal DocumentVersions and consume staging handles."""
+
+    del project_template_version
+    from apps.documents.models import DocumentVersion, VersionStatus
+    from apps.projects.models import MigrationFileStage
+
+    imported = ImportProjectMigrationBatch(
+        context=CommandContext.for_actor(migrator),
+        batch_key="batch-archive-files",
+        rows=[_d3_row(migrator.organization, migrator, external_id="EXT-ARC-FILE")],
+    ).execute()
+    baseline = imported.baselines[0]
+    staging = baseline.history_files[0]["staging_relpath"]
+    result = ConfirmMigrationBaseline(
+        context=CommandContext.for_actor(migrator),
+        baseline_public_id=baseline.public_id,
+        disposition=MigrationDisposition.ARCHIVE_ONLY,
+        idempotency_key="confirm-arc-files",
+    ).execute()
+    assert result.project is None
+    baseline.refresh_from_db()
+    assert "staging_relpath" not in baseline.history_files[0]
+    version_id = baseline.history_files[0]["document_version_public_id"]
+    assert version_id
+    version = DocumentVersion.objects.get(public_id=version_id)
+    assert version.status == VersionStatus.CONTROLLED
+    stage = MigrationFileStage.objects.get(staging_relpath=staging)
+    assert stage.consumed_at is not None

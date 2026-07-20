@@ -5,7 +5,8 @@ from __future__ import annotations
 from collections.abc import Iterator
 from dataclasses import dataclass
 from typing import Any
-from uuid import UUID
+
+from django.db import transaction
 
 from apps.audit.models import AuditResult
 from apps.audit.services.append_event import AuditRecord, append_event
@@ -17,7 +18,10 @@ from apps.documents.storage.base import FileStorage
 from apps.platform.api.errors import PermissionDeniedError
 from apps.platform.application.command import CommandContext
 from apps.platform.outbox.services import OutboxMessage, register_outbox_event
-from apps.projects.services.migration_file_staging import stream_stage_migration_file
+from apps.projects.services.migration_file_staging import (
+    persist_migration_file_stage,
+    write_migration_staging_bytes,
+)
 
 
 @dataclass(frozen=True)
@@ -43,44 +47,65 @@ class StageMigrationFile:
         if not decision.allowed:
             raise PermissionDeniedError()
 
-        staged = stream_stage_migration_file(
+        staging_name, temp_path, sha256, size_bytes = write_migration_staging_bytes(
             chunks=self.chunks,
-            filename=self.filename,
             mime_type=self.mime_type,
             storage=self.storage,
             organization=actor.organization,
-            uploaded_by=actor,
         )
-        stage_public_id = UUID(str(staged["public_id"]))
-        append_event(
-            AuditRecord(
-                actor=actor,
-                action_code="project_migration.confirm",
-                resource_type="project",
-                resource_public_id=stage_public_id,
-                result=AuditResult.SUCCESS,
-                trace_id=self.context.trace_id,
-                occurred_at=self.context.occurred_at,
-                acting_roles_snapshot=acting_roles_snapshot(actor),
-                after_summary={
-                    "staging_relpath": staged["staging_relpath"],
-                    "sha256": staged["sha256"],
-                    "size_bytes": staged["size_bytes"],
-                    "filename": staged["filename"],
-                },
-            )
-        )
-        register_outbox_event(
-            OutboxMessage(
-                event_type="project_migration.file_staged",
-                aggregate_type="migration_file_stage",
-                aggregate_id=stage_public_id,
-                payload={
-                    "staging_relpath": staged["staging_relpath"],
-                    "sha256": staged["sha256"],
-                    "size_bytes": staged["size_bytes"],
-                },
-                occurred_at=self.context.occurred_at,
-            )
-        )
-        return staged
+        try:
+            with transaction.atomic():
+                stage = persist_migration_file_stage(
+                    organization=actor.organization,
+                    uploaded_by=actor,
+                    staging_relpath=staging_name,
+                    filename=self.filename,
+                    mime_type=self.mime_type,
+                    sha256=sha256,
+                    size_bytes=size_bytes,
+                )
+                stage_public_id = stage.public_id
+                append_event(
+                    AuditRecord(
+                        actor=actor,
+                        action_code="project_migration.confirm",
+                        resource_type="project",
+                        resource_public_id=stage_public_id,
+                        result=AuditResult.SUCCESS,
+                        trace_id=self.context.trace_id,
+                        occurred_at=self.context.occurred_at,
+                        acting_roles_snapshot=acting_roles_snapshot(actor),
+                        after_summary={
+                            "staging_relpath": staging_name,
+                            "sha256": sha256,
+                            "size_bytes": size_bytes,
+                            "filename": self.filename,
+                        },
+                    )
+                )
+                register_outbox_event(
+                    OutboxMessage(
+                        event_type="project_migration.file_staged",
+                        aggregate_type="migration_file_stage",
+                        aggregate_id=stage_public_id,
+                        payload={
+                            "staging_relpath": staging_name,
+                            "sha256": sha256,
+                            "size_bytes": size_bytes,
+                        },
+                        occurred_at=self.context.occurred_at,
+                    )
+                )
+        except Exception:
+            temp_path.unlink(missing_ok=True)
+            raise
+
+        return {
+            "public_id": str(stage.public_id),
+            "filename": self.filename,
+            "mime_type": self.mime_type,
+            "sha256": sha256,
+            "size_bytes": size_bytes,
+            "staging_relpath": staging_name,
+            "expires_at": stage.expires_at.isoformat(),
+        }

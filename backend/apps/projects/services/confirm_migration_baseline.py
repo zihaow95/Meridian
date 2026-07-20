@@ -342,8 +342,120 @@ class ConfirmMigrationBaseline:
                 )
                 baseline.save(update_fields=["history_files", "history_deliverables", "updated_at"])
             result = ConfirmMigrationResult(baseline=baseline, project=result.project)
+        elif result.baseline.disposition == MigrationDisposition.ARCHIVE_ONLY:
+            baseline = self._activate_archived_history_files(
+                baseline=result.baseline,
+                actor=actor,
+                storage=storage,
+            )
+            result = ConfirmMigrationResult(baseline=baseline, project=None)
 
         return result
+
+    def _activate_archived_history_files(
+        self,
+        *,
+        baseline: MigrationBaseline,
+        actor: User,
+        storage: FileStorage,
+    ) -> MigrationBaseline:
+        """Activate ARCHIVE_ONLY history files into formal DocumentVersions and consume stages."""
+
+        from uuid import uuid4
+
+        from apps.documents.models import DocumentSource
+        from apps.documents.services.ingest import stage_controlled_content
+        from apps.projects.services.migration_file_staging import resolve_migration_staging_path
+
+        def _normalize_item(item: Any) -> dict[str, Any]:
+            if isinstance(item, dict):
+                return dict(item)
+            return {"filename": str(item)}
+
+        def _clean_row(row: dict[str, Any]) -> dict[str, Any]:
+            return {
+                key: value
+                for key, value in row.items()
+                if key
+                not in {
+                    "content_base64",
+                    "content_text",
+                    "content",
+                    "staging_relpath",
+                    "stage_public_id",
+                }
+            }
+
+        def _activate_items(field_name: str) -> list[dict[str, Any]]:
+            items = [_normalize_item(item) for item in (getattr(baseline, field_name) or [])]
+            staged_moves: list[tuple[int, Any, str | None]] = []
+            for index, row in enumerate(items):
+                if row.get("document_version_public_id") and not row.get(
+                    "pending_version_public_id"
+                ):
+                    row["pending_version_public_id"] = row["document_version_public_id"]
+                if row.get("pending_version_public_id"):
+                    version = activate_or_recover_history_file(
+                        row,
+                        organization_id=baseline.organization_id,
+                        storage=storage,
+                    )
+                    if version is not None:
+                        row["document_version_public_id"] = str(version.public_id)
+                        row["pending_version_public_id"] = str(version.public_id)
+                    items[index] = row
+                    continue
+                staging_relpath = row.get("staging_relpath")
+                if not staging_relpath:
+                    items[index] = row
+                    continue
+                temp_path = resolve_migration_staging_path(storage, str(staging_relpath))
+                if not temp_path.is_file():
+                    raise MigrationImportFailed(
+                        message=f"Staged migration file missing on disk: {staging_relpath}"
+                    )
+                sha256 = str(row.get("sha256") or "")
+                size_bytes = int(row.get("size_bytes") or 0)
+                if not sha256 or size_bytes <= 0:
+                    raise MigrationImportFailed(
+                        message="Archived history file requires sha256/size_bytes."
+                    )
+                filename = str(row.get("filename") or row.get("name") or "migrated-file")
+                mime = str(row.get("mime_type") or "application/octet-stream")
+                pending_version, staged = stage_controlled_content(
+                    organization=baseline.organization,
+                    source_temp_path=temp_path,
+                    sha256=sha256,
+                    size_bytes=size_bytes,
+                    original_filename=filename,
+                    mime_type=mime,
+                    uploaded_by=actor,
+                    source=DocumentSource.MIGRATION,
+                    category="MIGRATION_ARCHIVE",
+                    document_code=f"MIG-ARC-{uuid4().hex[:12].upper()}",
+                    title=filename,
+                )
+                row["pending_version_public_id"] = str(pending_version.public_id)
+                items[index] = row
+                staged_moves.append((index, staged, str(staging_relpath).replace("\\", "/")))
+
+            setattr(baseline, field_name, items)
+            baseline.save(update_fields=[field_name, "updated_at"])
+
+            consumed: list[str] = []
+            for index, staged, rel in staged_moves:
+                version = activate_staged_content(staged, storage)
+                items[index]["document_version_public_id"] = str(version.public_id)
+                items[index]["pending_version_public_id"] = str(version.public_id)
+                if rel:
+                    consumed.append(rel)
+            mark_staged_files_consumed(consumed)
+            return [_clean_row(row) for row in items]
+
+        baseline.history_files = _activate_items("history_files")
+        baseline.history_deliverables = _activate_items("history_deliverables")
+        baseline.save(update_fields=["history_files", "history_deliverables", "updated_at"])
+        return MigrationBaseline.objects.get(pk=baseline.pk)
 
     def _activate_and_attach_pending(
         self,

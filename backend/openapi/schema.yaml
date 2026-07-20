@@ -3242,6 +3242,9 @@ components:
           type: string
           format: uuid
           nullable: true
+        history_files:
+          type: array
+          items: {}
       required:
       - baseline_public_id
       - disposition

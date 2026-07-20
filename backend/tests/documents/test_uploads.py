@@ -123,7 +123,9 @@ def test_concurrent_complete_upload_leaves_one_controlled_version(
         thread.start()
     for thread in threads:
         thread.join(timeout=30)
+        assert not thread.is_alive(), "concurrent complete_upload worker did not finish"
 
+    assert len(results) == 2
     assert not any(item.startswith("error:") for item in results)
     assert any(item.startswith("ok:") for item in results)
     assert DocumentVersion.objects.filter(status=VersionStatus.CONTROLLED).count() == 1

@@ -1,6 +1,6 @@
 # 阶段4 开发到首次上市 —— 测试矩阵
 
-状态：第九轮 NO-GO（相对 `d090f01`）已本地修复：stage 领域授权/单次领取句柄、reconcile provider、并发 CompleteUpload、E2E stage→confirm→download、`can_download` 列表断言、Prettier。全量 `scripts\check.ps1` 以再次验收复跑为准。
+状态：第十轮 NO-GO（相对 `902550f`）已本地修复：stage 事务原子性与审计回滚、同基线重复 handle 拒绝、ARCHIVE_ONLY 正式文件激活与 E2E 下载、并发 join 断言、reconcile provider 证据。全量 `scripts\check.ps1` 以再次验收复跑为准。
 
 对应计划：`docs/superpowers/plans/2026-07-14-phase-4-development-first-launch.md`
 
