@@ -8,7 +8,7 @@
 
 对应测试矩阵：`docs/implementation/phase-4-test-matrix.md`
 
-基准：`816336e` → 十二次 `13d9ee2` / `b147eb0` → 十三次（本检查点提交后回填哈希）
+基准：`816336e` → 十二次 `13d9ee2` / `b147eb0` → 十三次 `06424d3`（本检查点）
 
 ## 十三次复审修复摘要（相对 `b147eb0`）
 
@@ -20,7 +20,7 @@
 
 ```text
 Base commits reviewed: 13d9ee2, b147eb0
-Remediation commit: <pending local commit>
+Remediation commit: 06424d3
 Backend pytest tests/projects/test_inflight_migration.py: 26 passed
 Backend ruff (touched files): pass
 scripts\check.ps1 full gate: not re-run this slice (code-only P1)
