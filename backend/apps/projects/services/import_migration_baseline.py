@@ -12,6 +12,7 @@ from apps.audit.services.snapshots import acting_roles_snapshot
 from apps.authorization.context import AuthorizationContext, ResourceDescriptor
 from apps.authorization.policies.engine import authorize
 from apps.authorization.services.subject import subject_for
+from apps.documents.storage.factory import get_file_storage
 from apps.platform.api.errors import PermissionDeniedError
 from apps.platform.application.command import CommandContext
 from apps.platform.outbox.services import OutboxMessage, register_outbox_event
@@ -23,6 +24,7 @@ from apps.projects.models import (
     MigrationBatchStatus,
     MigrationDisposition,
 )
+from apps.projects.services.migration_file_staging import stage_history_file_list
 
 
 @dataclass(frozen=True)
@@ -89,7 +91,7 @@ class ImportProjectMigrationBatch:
                             "error": "Row conflicted with existing data.",
                         }
                     )
-                except (KeyError, ValueError) as exc:
+                except (KeyError, ValueError, MigrationImportFailed) as exc:
                     errors.append(
                         {
                             "row_index": index,
@@ -154,6 +156,15 @@ class ImportProjectMigrationBatch:
         disposition = row.get("disposition") or MigrationDisposition.CONTINUE
         if disposition not in MigrationDisposition.values:
             raise ValueError(f"Invalid disposition: {disposition}")
+        storage = get_file_storage()
+        history_files = stage_history_file_list(
+            list(row.get("history_files") or []),
+            storage=storage,
+        )
+        history_deliverables = stage_history_file_list(
+            list(row.get("history_deliverables") or []),
+            storage=storage,
+        )
         return MigrationBaseline.objects.create(
             organization=batch.organization,
             batch=batch,
@@ -165,7 +176,7 @@ class ImportProjectMigrationBatch:
             history_decision_summary=str(row.get("history_decision_summary") or ""),
             plan_summary=dict(row.get("plan_summary") or {}),
             history_tasks=list(row.get("history_tasks") or []),
-            history_files=list(row.get("history_files") or []),
-            history_deliverables=list(row.get("history_deliverables") or []),
+            history_files=history_files,
+            history_deliverables=history_deliverables,
             status=MigrationBaselineStatus.IMPORTED,
         )

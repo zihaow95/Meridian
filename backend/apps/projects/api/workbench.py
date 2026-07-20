@@ -13,8 +13,10 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from apps.identity.models.user import User
+from apps.operations.models import MonitoringScope
 from apps.platform.api.errors import ResourceNotFoundError, ValidationFailedError
 from apps.platform.application.command import CommandContext
+from apps.products.models import ProductVersion
 from apps.projects.api.schemas import (
     CUSTOM_DELIVERABLE_CREATE_REQUEST,
     CUSTOM_TASK_CREATE_REQUEST,
@@ -426,5 +428,13 @@ class ProjectPublishRepairView(APIView):
                     if result.monitoring_scope is not None
                     else None
                 ),
+                "product_version_count": (
+                    ProductVersion.objects.filter(change_set_id=result.project.product_draft_id).count()
+                    if result.project.product_draft_id is not None
+                    else 0
+                ),
+                "monitoring_scope_count": MonitoringScope.objects.filter(
+                    project_id=result.project.id
+                ).count(),
             }
         )

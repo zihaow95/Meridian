@@ -163,6 +163,8 @@ PUBLISH_REPAIR_RESPONSE = inline_serializer(
         "handover_error": serializers.CharField(required=False, allow_null=True),
         "product_version_public_id": serializers.UUIDField(allow_null=True),
         "monitoring_scope_public_id": serializers.UUIDField(allow_null=True),
+        "product_version_count": serializers.IntegerField(),
+        "monitoring_scope_count": serializers.IntegerField(),
     },
 )
 

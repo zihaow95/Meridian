@@ -10,11 +10,13 @@ failures:
 
 * :func:`stage_controlled_content` creates the PENDING database rows inside the
   caller's transaction and leaves the payload in the isolated temp directory.
-* :func:`activate_staged_content` performs the physical storage move and flips
-  the objects to ACTIVE/CONTROLLED. Callers run it **after** their transaction
-  commits, so a later database failure that rolls the transaction back never
-  leaves an orphaned formal object behind. If activation itself fails the
-  objects stay PENDING and :class:`ReconcileStorage` compensates them.
+* :func:`activate_staged_content` performs the physical storage move, then flips
+  PENDING→ACTIVE / DRAFT→CONTROLLED in **one** database transaction. Callers run
+  it **after** their staging transaction commits. If the move succeeds but the
+  database update fails, the formal object remains on disk with a PENDING row and
+  :func:`complete_pending_file_activation` / :class:`ReconcileStorage` finish it.
+* Business objects must only reference versions after activation (ACTIVE file +
+  CONTROLLED version).
 """
 
 from __future__ import annotations
@@ -23,6 +25,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from uuid import uuid4
 
+from django.db import transaction
 from django.utils import timezone
 
 from apps.documents.models import (
@@ -48,10 +51,8 @@ class StagedContent:
 
     version_id: int
     file_object_id: int
-    document_id: int
     temp_path: Path
     object_key: str
-    version_public_id: str
 
 
 def stage_controlled_content(
@@ -112,39 +113,85 @@ def stage_controlled_content(
     staged = StagedContent(
         version_id=version.id,
         file_object_id=file_object.id,
-        document_id=document.id,
         temp_path=Path(source_temp_path),
         object_key=object_key,
-        version_public_id=str(version.public_id),
     )
     return version, staged
+
+
+def complete_pending_file_activation(file_object: FileObject) -> DocumentVersion | None:
+    """Mark a PENDING file ACTIVE when its formal object already exists on disk.
+
+    Used by reconcile (and idempotent retries) when the storage move succeeded
+    but the subsequent database activation did not.
+    """
+
+    if file_object.storage_status != StorageStatus.PENDING:
+        version = (
+            DocumentVersion.objects.select_related("document")
+            .filter(file_object=file_object)
+            .order_by("-version_number")
+            .first()
+        )
+        return version
+
+    now = timezone.now()
+    with transaction.atomic():
+        locked = FileObject.objects.select_for_update().get(id=file_object.id)
+        if locked.storage_status != StorageStatus.PENDING:
+            return (
+                DocumentVersion.objects.select_related("document")
+                .filter(file_object=locked)
+                .order_by("-version_number")
+                .first()
+            )
+        version = (
+            DocumentVersion.objects.select_for_update()
+            .select_related("document")
+            .filter(file_object=locked)
+            .order_by("-version_number")
+            .first()
+        )
+        if version is None:
+            return None
+        locked.storage_status = StorageStatus.ACTIVE
+        locked.save(update_fields=["storage_status"])
+        version.status = VersionStatus.CONTROLLED
+        version.controlled_at = now
+        version.save(update_fields=["status", "controlled_at"])
+        document = version.document
+        document.current_version = version
+        document.save(update_fields=["current_version"])
+        return version
 
 
 def activate_staged_content(staged: StagedContent, storage: FileStorage) -> DocumentVersion:
     """Move the staged payload into permanent storage and mark it controlled.
 
-    Runs after the staging transaction commits. On move failure the temp file is
-    removed and the PENDING rows are left for reconciliation.
+    Runs after the staging transaction commits. The move happens first; database
+    activation is a single atomic block. On move failure the temp file is removed
+    and the PENDING rows are left for reconciliation. On database failure after a
+    successful move, the formal object remains and
+    :func:`complete_pending_file_activation` recovers it.
     """
 
     file_object = FileObject.objects.get(id=staged.file_object_id)
-    version = DocumentVersion.objects.select_related("document").get(id=staged.version_id)
+    final_path = storage.final_path_for(staged.object_key)
 
-    try:
-        storage.atomic_move(staged.temp_path, staged.object_key)
-    except StorageMoveFailed:
-        # Leave the PENDING rows for reconciliation and surface the storage
-        # failure unchanged so callers keep their existing contract.
+    if file_object.storage_status == StorageStatus.ACTIVE and final_path.exists():
+        version = DocumentVersion.objects.select_related("document").get(id=staged.version_id)
+        return version
+
+    if not final_path.exists():
+        try:
+            storage.atomic_move(staged.temp_path, staged.object_key)
+        except StorageMoveFailed:
+            staged.temp_path.unlink(missing_ok=True)
+            raise
+    else:
         staged.temp_path.unlink(missing_ok=True)
-        raise
 
-    now = timezone.now()
-    file_object.storage_status = StorageStatus.ACTIVE
-    file_object.save(update_fields=["storage_status"])
-    version.status = VersionStatus.CONTROLLED
-    version.controlled_at = now
-    version.save(update_fields=["status", "controlled_at"])
-    document = version.document
-    document.current_version = version
-    document.save(update_fields=["current_version"])
-    return version
+    activated = complete_pending_file_activation(file_object)
+    if activated is None:
+        raise ControlledIngestFailed("Pending file object has no document version to activate.")
+    return activated

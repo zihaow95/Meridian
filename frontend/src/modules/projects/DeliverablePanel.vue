@@ -2,6 +2,7 @@
 import { ref } from 'vue'
 
 import { apiFetch, ApiError } from '@/api/client'
+import type { WorkbenchDeliverableItem } from '@/modules/projects/store'
 import { useProjectStore } from '@/modules/projects/store'
 
 defineProps<{ projectPublicId: string }>()
@@ -12,6 +13,7 @@ const confirmerPublicId = ref('confirmer-1')
 const confirmationPublicId = ref('confirm-1')
 const actionMessage = ref('')
 const submitting = ref(false)
+const downloadingId = ref('')
 
 async function submitCurrentRevision(): Promise<void> {
   const deliverable = projects.deliverables[0]
@@ -59,6 +61,34 @@ async function decideConfirmation(): Promise<void> {
     submitting.value = false
   }
 }
+
+async function downloadDeliverable(row: WorkbenchDeliverableItem): Promise<void> {
+  const versionId = row.document_version_public_id
+  if (!versionId) {
+    actionMessage.value = '该交付物尚无可下载文件版本。'
+    return
+  }
+  downloadingId.value = row.public_id
+  actionMessage.value = ''
+  try {
+    const ticket = await apiFetch<{ token: string }>(
+      `/api/v1/documents/versions/${versionId}/download-ticket`,
+      { method: 'POST' },
+    )
+    // Ticket consumption relies on the download endpoint's X-Accel-Redirect
+    // headers; navigating preserves cookies and lets the gateway stream bytes.
+    window.location.assign(`/api/v1/documents/download/${ticket.token}`)
+    actionMessage.value = `已开始下载：${row.name}`
+  } catch (err: unknown) {
+    if (err instanceof ApiError) {
+      actionMessage.value = `${err.code}: ${err.message} (trace ${err.traceId})`
+    } else {
+      actionMessage.value = '下载失败'
+    }
+  } finally {
+    downloadingId.value = ''
+  }
+}
 </script>
 
 <template>
@@ -77,6 +107,22 @@ async function decideConfirmation(): Promise<void> {
       <el-table-column prop="name" label="名称" />
       <el-table-column prop="tier" label="层级" width="100" />
       <el-table-column prop="status" label="状态" width="140" />
+      <el-table-column label="文件" width="120">
+        <template #default="{ row }">
+          <el-button
+            v-if="row.document_version_public_id"
+            link
+            type="primary"
+            data-test="download-deliverable"
+            :loading="downloadingId === row.public_id"
+            :disabled="Boolean(downloadingId)"
+            @click="downloadDeliverable(row)"
+          >
+            下载
+          </el-button>
+          <span v-else class="deliverable-panel__muted">—</span>
+        </template>
+      </el-table-column>
     </el-table>
 
     <div v-if="projects.deliverables.length > 0" class="deliverable-panel__actions">
@@ -112,5 +158,9 @@ async function decideConfirmation(): Promise<void> {
   gap: 0.75rem;
   margin-top: 1rem;
   align-items: center;
+}
+
+.deliverable-panel__muted {
+  color: var(--el-text-color-secondary);
 }
 </style>

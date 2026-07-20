@@ -18,7 +18,11 @@ from apps.documents.models import (
     UploadSession,
 )
 from apps.documents.policy import resolve_upload_policy
-from apps.documents.services.ingest import activate_staged_content, stage_controlled_content
+from apps.documents.services.ingest import (
+    StagedContent,
+    activate_staged_content,
+    stage_controlled_content,
+)
 from apps.documents.storage.base import FileStorage
 from apps.identity.models.user import User
 
@@ -61,6 +65,8 @@ class CompleteUpload:
     title: str | None = None
 
     def execute(self) -> DocumentVersion:
+        staged: StagedContent | None = None
+        version_id: int | None = None
         with transaction.atomic():
             session = UploadSession.objects.select_for_update().get(
                 public_id=self.session_public_id
@@ -93,11 +99,13 @@ class CompleteUpload:
                 document_code=self.document_code,
                 title=self.title,
             )
-            activate_staged_content(staged, self.storage)
+            version_id = version.id
             session.completed_at = now
             session.save(update_fields=["completed_at"])
 
-        return DocumentVersion.objects.get(id=version.id)
+        # Activate only after the staging transaction commits.
+        assert staged is not None and version_id is not None
+        return activate_staged_content(staged, self.storage)
 
 
 def complete_upload(

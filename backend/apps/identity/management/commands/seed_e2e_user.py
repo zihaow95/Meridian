@@ -599,14 +599,16 @@ class Command(BaseCommand):
         repaired_draft.save(update_fields=["change_scope", "updated_at"])
 
     def _rearm_repair_retry_project(self, project: Project, *, business_no: str) -> None:
-        """Reset an already-decided repair project so the E2E UI path can run again.
+        """Re-drive a real publish failure so every E2E run starts from PENDING_REPAIR.
 
-        Clears published artifacts (monitoring scope, SKUs, version scopes, product
-        version) while keeping the original FIRST_LAUNCH decision, then restores a
-        publishable draft and ``PUBLISH_PENDING_REPAIR`` status.
+        Clears prior publish artifacts, resets the FIRST_LAUNCH decision, empties the
+        draft scope, re-submits the gate, and re-records dual-actor decisions so
+        PublishAndHandover fails again with audit/outbox. Then repairs the scope so
+        the UI retry can succeed.
         """
 
         from apps.operations.models import MonitoringScope
+        from apps.platform.application.command import CommandContext
         from apps.products.models import (
             SKU,
             ChangeSetStatus,
@@ -617,6 +619,18 @@ class Command(BaseCommand):
             ProductVersionScope,
         )
         from apps.projects.models import ProjectStatus
+        from apps.stage_gates.models import GateResult, MajorGateDecision, StageGateInstance
+        from apps.stage_gates.services.record_first_launch_decision import (
+            RecordFirstLaunchFinalDecision,
+            RecordFirstLaunchManagementConclusion,
+        )
+
+        leader = project.leader
+        if leader is None:
+            raise CommandError("Repair-retry project is missing its leader.")
+        approver = User.objects.filter(login_key=E2E_APPROVER_LOGIN_KEY).first()
+        if approver is None:
+            raise CommandError("Approver must be seeded before the repair-retry project.")
 
         MonitoringScope.objects.filter(project=project).delete()
         draft = project.product_draft
@@ -633,6 +647,54 @@ class Command(BaseCommand):
                 primary_version=None
             )
             ProductVersion.objects.filter(id__in=version_ids).delete()
+
+        # Empty scope so the re-driven publish fails for real.
+        draft.change_scope = {
+            "effective_from": timezone.now().isoformat(),
+            "skus": [],
+            "channels": [],
+        }
+        draft.status = ChangeSetStatus.APPROVED
+        draft.save(update_fields=["change_scope", "status", "updated_at"])
+
+        product = project.product_asset
+        if product is not None:
+            product.lifecycle_status = ProductLifecycleStatus.DEVELOPING
+            product.save(update_fields=["lifecycle_status", "updated_at"])
+
+        MajorGateDecision.objects.filter(
+            stage_gate__project=project,
+            stage_gate__stage_code="FIRST_LAUNCH",
+        ).delete()
+        StageGateInstance.objects.filter(project=project, stage_code="FIRST_LAUNCH").update(
+            current_submission=None
+        )
+
+        project.status = ProjectStatus.ACTIVE
+        project.save(update_fields=["status", "updated_at"])
+
+        gate = self._submit_first_launch_gate(project, submitter=leader)
+        RecordFirstLaunchManagementConclusion(
+            context=CommandContext.for_actor(leader),
+            stage_gate_public_id=gate.public_id,
+            management_conclusion=GateResult.APPROVED,
+            decision_summary="Re-arm repair-retry management conclusion.",
+            idempotency_key=f"e2e-repair-retry-mgmt-{project.public_id}-{timezone.now().timestamp()}",
+        ).execute()
+        final = RecordFirstLaunchFinalDecision(
+            context=CommandContext.for_actor(approver),
+            stage_gate_public_id=gate.public_id,
+            final_decision=GateResult.APPROVED,
+            decision_summary="Re-arm repair-retry final decision.",
+            idempotency_key=f"e2e-repair-retry-final-{project.public_id}-{timezone.now().timestamp()}",
+        ).execute()
+
+        project.refresh_from_db()
+        if project.status != ProjectStatus.PUBLISH_PENDING_REPAIR:
+            raise CommandError(
+                "Repair-retry re-arm did not enter PUBLISH_PENDING_REPAIR "
+                f"(status={project.status}, handover_error={final.handover_error})."
+            )
 
         draft.change_scope = {
             "effective_from": timezone.now().isoformat(),
@@ -652,16 +714,7 @@ class Command(BaseCommand):
                 }
             ],
         }
-        draft.status = ChangeSetStatus.APPROVED
-        draft.save(update_fields=["change_scope", "status", "updated_at"])
-
-        product = project.product_asset
-        if product is not None:
-            product.lifecycle_status = ProductLifecycleStatus.DEVELOPING
-            product.save(update_fields=["lifecycle_status", "updated_at"])
-
-        project.status = ProjectStatus.PUBLISH_PENDING_REPAIR
-        project.save(update_fields=["status", "updated_at"])
+        draft.save(update_fields=["change_scope", "updated_at"])
 
     def _submit_first_launch_gate(self, project: Project, *, submitter: User) -> StageGateInstance:
         """Put the FIRST_LAUNCH gate into a decideable SUBMITTED + active L2 state."""

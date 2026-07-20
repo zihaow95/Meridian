@@ -16,7 +16,8 @@ from apps.authorization.policies.engine import authorize
 from apps.authorization.services.subject import subject_for
 from apps.configuration.models import ConfigurationStatus, ConfigurationVersion
 from apps.configuration.services import CreateSnapshot
-from apps.documents.services.ingest import StagedContent, activate_staged_content
+from apps.documents.models import DocumentSource, FileObject, StorageStatus
+from apps.documents.services.ingest import activate_staged_content, complete_pending_file_activation
 from apps.documents.storage.base import FileStorage
 from apps.documents.storage.factory import get_file_storage
 from apps.identity.models.department import Department, DepartmentStatus
@@ -53,9 +54,10 @@ from apps.work_items.services.materialize_template import (
     materialize_template_tasks,
 )
 from apps.work_items.services.migrated_history import (
-    MigratedDeliverableResult,
-    create_migrated_history_deliverable,
+    MigratedFileStage,
+    attach_migrated_history_deliverable,
     create_migrated_history_task,
+    stage_migrated_history_file,
 )
 
 
@@ -85,25 +87,8 @@ def _resolve_migration_leader(*, baseline: MigrationBaseline, actor: User) -> Us
     return actor
 
 
-def _materialize_history_file(
-    *,
-    project: Project,
-    stage: ProjectStage,
-    item: dict[str, Any],
-    actor: User,
-    storage: FileStorage,
-) -> MigratedDeliverableResult:
-    return create_migrated_history_deliverable(
-        project=project,
-        stage=stage,
-        item=item,
-        actor=actor,
-        storage=storage,
-    )
-
-
 def _history_file_audit_metadata(items: list[Any]) -> list[dict[str, Any]]:
-    """Audit-safe metadata for migrated files (never the base64 content)."""
+    """Audit-safe metadata for migrated files (never binary content)."""
 
     metadata: list[dict[str, Any]] = []
     for item in items:
@@ -117,13 +102,15 @@ def _history_file_audit_metadata(items: list[Any]) -> list[dict[str, Any]]:
                 "source_version": item.get("source_version")
                 or item.get("migration_source_version"),
                 "mime_type": item.get("mime_type"),
+                "sha256": item.get("sha256"),
+                "size_bytes": item.get("size_bytes"),
             }
         )
     return metadata
 
 
-def _strip_history_file_content(items: list[Any]) -> list[dict[str, Any]]:
-    """Drop transient base64 payloads once files are staged into storage."""
+def _drop_staging_relpaths(items: list[Any]) -> list[dict[str, Any]]:
+    """Keep durable metadata after activation; drop ephemeral staging paths."""
 
     cleaned: list[dict[str, Any]] = []
     for item in items:
@@ -134,10 +121,35 @@ def _strip_history_file_content(items: list[Any]) -> list[dict[str, Any]]:
             {
                 key: value
                 for key, value in item.items()
-                if key not in {"content_base64", "content_text", "content"}
+                if key
+                not in {
+                    "content_base64",
+                    "content_text",
+                    "content",
+                    "staging_relpath",
+                }
             }
         )
     return cleaned
+
+
+def _retry_pending_migration_activations(*, project: Project, storage: FileStorage) -> None:
+    """Finish PENDING migration files left behind by a prior activation failure."""
+
+    pending = FileObject.objects.filter(
+        organization_id=project.organization_id,
+        storage_status=StorageStatus.PENDING,
+        versions__document__source=DocumentSource.MIGRATION,
+        versions__document__category="MIGRATION_HISTORY",
+    ).distinct()
+    for file_object in pending:
+        path = storage.final_path_for(file_object.object_key)
+        if path.exists():
+            complete_pending_file_activation(file_object)
+            continue
+        # Attempt a deferred move if a temp sibling still exists is not possible
+        # without the original StagedContent handle; reconcile will mark MISSING.
+        continue
 
 
 def _filter_content_for_stages(content: dict[str, Any], stage_codes: set[str]) -> dict[str, Any]:
@@ -181,7 +193,8 @@ class ConfirmMigrationBaseline:
 
     def execute(self) -> ConfirmMigrationResult:
         actor = self.context.actor
-        self._staged_files: list[StagedContent] = []
+        self._pending_migrated_files: list[MigratedFileStage] = []
+        self._attach_stage: ProjectStage | None = None
         storage = get_file_storage()
         with transaction.atomic():
             baseline = (
@@ -212,6 +225,13 @@ class ConfirmMigrationBaseline:
             if baseline.status == MigrationBaselineStatus.CONFIRMED:
                 if baseline.confirm_idempotency_key == self.idempotency_key:
                     project = Project.objects.filter(migration_baseline=baseline).first()
+                    if project is not None:
+                        self._finish_migrated_history_files(
+                            project=project,
+                            baseline=baseline,
+                            actor=actor,
+                            storage=storage,
+                        )
                     return ConfirmMigrationResult(baseline=baseline, project=project)
                 raise MigrationBaselineAlreadyConfirmed()
 
@@ -255,17 +275,6 @@ class ConfirmMigrationBaseline:
             if self.disposition == MigrationDisposition.CONTINUE:
                 project = self._materialize_continued_project(baseline=baseline, actor=actor)
 
-            # Drop transient base64 payloads now that files are staged into
-            # storage: the baseline keeps only auditable metadata references.
-            if baseline.history_files or baseline.history_deliverables:
-                baseline.history_files = _strip_history_file_content(
-                    list(baseline.history_files or [])
-                )
-                baseline.history_deliverables = _strip_history_file_content(
-                    list(baseline.history_deliverables or [])
-                )
-                baseline.save(update_fields=["history_files", "history_deliverables", "updated_at"])
-
             append_event(
                 AuditRecord(
                     actor=actor,
@@ -298,11 +307,91 @@ class ConfirmMigrationBaseline:
             )
             result = ConfirmMigrationResult(baseline=baseline, project=project)
 
-        # Activate staged files only after the transaction has committed so a
-        # rolled-back confirmation never leaves an orphaned formal object.
-        for staged in self._staged_files:
-            activate_staged_content(staged, storage)
+        # Activate after commit, then attach business references only to ACTIVE files.
+        if result.project is not None:
+            self._activate_and_attach_pending(project=result.project, actor=actor, storage=storage)
+            baseline = MigrationBaseline.objects.get(pk=result.baseline.pk)
+            if not self._pending_migrated_files:
+                baseline.history_files = _drop_staging_relpaths(list(baseline.history_files or []))
+                baseline.history_deliverables = _drop_staging_relpaths(
+                    list(baseline.history_deliverables or [])
+                )
+                baseline.save(update_fields=["history_files", "history_deliverables", "updated_at"])
+            result = ConfirmMigrationResult(baseline=baseline, project=result.project)
+
         return result
+
+    def _activate_and_attach_pending(
+        self,
+        *,
+        project: Project,
+        actor: User,
+        storage: FileStorage,
+    ) -> None:
+        attach_stage = self._attach_stage or project.current_stage
+        if attach_stage is None:
+            raise MigrationImportFailed(message="Migrated history files require an active stage.")
+        remaining: list[MigratedFileStage] = []
+        first_error: Exception | None = None
+        for pending in self._pending_migrated_files:
+            try:
+                version = activate_staged_content(pending.staged, storage)
+                attach_migrated_history_deliverable(
+                    project=project,
+                    stage=attach_stage,
+                    version=version,
+                    filename=pending.filename,
+                    deliverable_code=pending.deliverable_code,
+                    source_note=pending.source_note,
+                    source_version=pending.source_version,
+                    sha256=pending.sha256,
+                    actor=actor,
+                )
+            except Exception as exc:  # noqa: BLE001 - preserve for idempotent retry
+                remaining.append(pending)
+                if first_error is None:
+                    first_error = exc
+        self._pending_migrated_files = remaining
+        if first_error is not None:
+            raise first_error
+
+    def _finish_migrated_history_files(
+        self,
+        *,
+        project: Project,
+        baseline: MigrationBaseline,
+        actor: User,
+        storage: FileStorage,
+    ) -> None:
+        """Idempotent retry: complete PENDING activations and attach missing deliverables."""
+
+        _retry_pending_migration_activations(project=project, storage=storage)
+        attach_stage = project.current_stage
+        if attach_stage is None:
+            return
+        self._pending_migrated_files = []
+        self._attach_stage = attach_stage
+        for item in list(baseline.history_deliverables or []) + list(baseline.history_files or []):
+            if not isinstance(item, dict):
+                continue
+            code = str(item.get("deliverable_code") or "")
+            if code and project.deliverables.filter(deliverable_code=code).exists():
+                continue
+            pending = stage_migrated_history_file(
+                project=project,
+                item=item,
+                actor=actor,
+                storage=storage,
+            )
+            if pending is not None:
+                self._pending_migrated_files.append(pending)
+        if self._pending_migrated_files:
+            self._activate_and_attach_pending(project=project, actor=actor, storage=storage)
+            baseline.history_files = _drop_staging_relpaths(list(baseline.history_files or []))
+            baseline.history_deliverables = _drop_staging_relpaths(
+                list(baseline.history_deliverables or [])
+            )
+            baseline.save(update_fields=["history_files", "history_deliverables", "updated_at"])
 
     def _materialize_continued_project(
         self,
@@ -431,16 +520,16 @@ class ConfirmMigrationBaseline:
                 ) from exc
 
         storage = get_file_storage()
+        self._attach_stage = current
         for item in list(baseline.history_deliverables or []) + list(baseline.history_files or []):
-            outcome = _materialize_history_file(
+            pending = stage_migrated_history_file(
                 project=project,
-                stage=current,
                 item=item if isinstance(item, dict) else {"filename": str(item)},
                 actor=actor,
                 storage=storage,
             )
-            if outcome.staged_file is not None:
-                self._staged_files.append(outcome.staged_file)
+            if pending is not None:
+                self._pending_migrated_files.append(pending)
 
         stages_by_code = {stage.stage_code: stage for stage in created_stages}
         materialize_template_tasks(

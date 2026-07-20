@@ -3783,8 +3783,14 @@ components:
           type: string
           format: uuid
           nullable: true
+        product_version_count:
+          type: integer
+        monitoring_scope_count:
+          type: integer
       required:
+      - monitoring_scope_count
       - monitoring_scope_public_id
+      - product_version_count
       - product_version_public_id
       - public_id
       - status

@@ -118,16 +118,17 @@ onMounted(async () => {
       >
         按原决定重试发布
       </el-button>
-      <el-alert
-        v-if="repairMessage"
-        data-test="repair-message"
-        type="info"
-        :closable="false"
-        :title="repairMessage"
-        show-icon
-        class="workbench__banner"
-      />
     </div>
+
+    <el-alert
+      v-if="repairMessage"
+      data-test="repair-message"
+      type="info"
+      :closable="false"
+      :title="repairMessage"
+      show-icon
+      class="workbench__banner"
+    />
 
     <el-alert
       v-if="errorText"

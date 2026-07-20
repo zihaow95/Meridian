@@ -1987,6 +1987,8 @@ export interface components {
             product_version_public_id: string | null;
             /** Format: uuid */
             monitoring_scope_public_id: string | null;
+            product_version_count: number;
+            monitoring_scope_count: number;
         };
         ProjectWorkbenchDetail: {
             launch_capabilities: components["schemas"]["ProjectLaunchCapabilities"];

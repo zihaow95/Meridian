@@ -1,6 +1,6 @@
 # 阶段4 开发到首次上市 —— 测试矩阵
 
-状态：已通过（2026-07-15；见 `phase-4-checkpoint.md`。Playwright development-first-launch 6 passed；projects Vitest 16 passed。全量 `scripts\check.cmd` / `verify-trd.ps1` 以验收复跑为准）
+状态：第六轮 NO-GO 文件补偿 / 下载前端 / repair 闭环项已本地修复（`f44fddb` 之后）。Playwright `retries=0`；Vitest projects 模块与域内 pytest 已对齐。全量 `scripts\check.ps1` 以再次验收复跑为准。
 
 对应计划：`docs/superpowers/plans/2026-07-14-phase-4-development-first-launch.md`
 
@@ -27,20 +27,21 @@
 | EXE-011 | PlanChange | projects | `ApplyPlanChange` | plan_change.* | plan-changes | — | 已通过：`test_execution_controls` |
 | EXE-012 | 逾期提醒 | work_items | Celery scan | 查询过滤 | tasks | — | 已通过：`test_overdue` |
 | EXE-013 | EmergencyExecution | projects | `CreateEmergencyExecution` | emergency_execution.create | emergency-executions | — | 已通过：`test_execution_controls` + E2E 拒绝 |
-| EXE-014 | MigrationBaseline | projects | Import/Confirm | project_migration.confirm | migration batches | — | 已通过：`test_inflight_migration` + E2E D3/ARCHIVE |
+| EXE-014 | MigrationBaseline | projects | Import/Confirm | project_migration.confirm | migration batches | DeliverablePanel 下载 | 已通过：`test_inflight_migration` + 下载票据回归 + E2E D3/ARCHIVE |
 
 ## API / OpenAPI
 
 | 场景 | 证据 | 状态 |
 |---|---|---|
 | 权限过滤与命令 API | `test_workbench_permissions.py`、`test_phase4_openapi.py` | 已通过 |
-| OpenAPI ↔ schema.d.ts | `frontend/src/api/generated/schema.d.ts` | 已通过（Task 4.8 生成） |
+| OpenAPI ↔ schema.d.ts | `frontend/src/api/generated/schema.d.ts` | 已通过（含 `document_version_public_id` / `can_publish_repair` / publish-repair 计数） |
 
 ## 前端工作台
 
 | 场景 | 证据 | 状态 |
 |---|---|---|
-| 看板与工作台 | `frontend/src/modules/projects/*.spec.ts`（16） | 已通过 |
+| 看板与工作台 | `frontend/src/modules/projects/*.spec.ts` | 已通过 |
+| 交付物下载入口 | `DeliverablePanel.vue`（`document_version_public_id` → download-ticket） | 已通过 |
 | 首次上市路由与 todo 深链 | `router/index.ts`；`TodoListView.vue` | 已通过 |
 
 ## E2E
@@ -48,11 +49,11 @@
 | 场景 | 证据 | 状态 |
 |---|---|---|
 | 新品主链与运行时 | `tests/e2e/development-first-launch.spec.ts` | 已通过 |
-| 发布失败→待修复→按原决定重试→OPERATING（唯一版本/运营范围） | 同上（`retries=0`，种子经真实双人决策与发布失败进入 `PUBLISH_PENDING_REPAIR`）+ `test_launch_handover.test_repair_retry_publishes_idempotently` | 已通过：完整 UI 闭环，重试幂等返回同一产品版本与运营范围 |
+| 发布失败→待修复→按原决定重试→OPERATING（唯一版本/运营范围） | 同上（`retries=0`；每次种子经真实双人决策+失败发布；响应断言 `product_version_count`/`monitoring_scope_count` == 1） | 已通过 |
 | 在途 D3 与权限拒绝 | 同上 | 已通过 |
 
 ## 门禁纳入
 
 | 检查 | 结果 | 日期 |
 |---|---|---|
-| `scripts\check.ps1` 含 `development-first-launch.spec.ts` | 已改脚本；全量复跑待验收 | 2026-07-15 |
+| `scripts\check.ps1` 含 `development-first-launch.spec.ts` | 脚本已纳入；第六轮全量曾因 repair-message 竞态失败，已修；待再次整跑验收 | 2026-07-20 |

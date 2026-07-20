@@ -234,11 +234,11 @@ def test_migrated_history_file_is_discoverable_and_downloadable(
 
 
 @pytest.mark.django_db
-def test_confirm_strips_base64_content_after_materialization(
+def test_import_stages_history_files_without_storing_base64(
     migrator: User,
     project_template_version,
 ) -> None:
-    """The base64 payload must not linger in the baseline JSON after confirm."""
+    """Import must write bytes to temp storage and never persist Base64 in MySQL."""
 
     del project_template_version
     imported = ImportProjectMigrationBatch(
@@ -247,7 +247,16 @@ def test_confirm_strips_base64_content_after_materialization(
         rows=[_d3_row(external_id="EXT-STRIP")],
     ).execute()
     baseline = imported.baselines[0]
-    assert baseline.history_files[0]["content_base64"] == HISTORY_FILE_B64
+    assert "content_base64" not in baseline.history_files[0]
+    assert baseline.history_files[0]["filename"] == "d2-report.pdf"
+    assert baseline.history_files[0]["sha256"] == HISTORY_FILE_SHA256
+    assert baseline.history_files[0]["size_bytes"] == len(HISTORY_FILE_BYTES)
+    staging = baseline.history_files[0]["staging_relpath"]
+    from apps.documents.storage.factory import get_file_storage
+
+    staged_path = get_file_storage().temp_dir() / staging
+    assert staged_path.is_file()
+    assert staged_path.read_bytes() == HISTORY_FILE_BYTES
 
     ConfirmMigrationBaseline(
         context=CommandContext.for_actor(migrator),
@@ -259,6 +268,7 @@ def test_confirm_strips_base64_content_after_materialization(
     baseline.refresh_from_db()
     assert baseline.history_files
     assert "content_base64" not in baseline.history_files[0]
+    assert "staging_relpath" not in baseline.history_files[0]
     assert baseline.history_files[0]["filename"] == "d2-report.pdf"
 
 

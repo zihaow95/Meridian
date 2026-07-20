@@ -448,6 +448,8 @@ test("publish pending repair retries with original decision to reach OPERATING",
   expect(payload1.handover_error).toBeFalsy();
   expect(payload1.product_version_public_id).toBeTruthy();
   expect(payload1.monitoring_scope_public_id).toBeTruthy();
+  expect(payload1.product_version_count).toBe(1);
+  expect(payload1.monitoring_scope_count).toBe(1);
 
   const retry2 = await authedJson(
     page,
@@ -462,6 +464,8 @@ test("publish pending repair retries with original decision to reach OPERATING",
   expect(payload2.monitoring_scope_public_id).toBe(
     payload1.monitoring_scope_public_id,
   );
+  expect(payload2.product_version_count).toBe(1);
+  expect(payload2.monitoring_scope_count).toBe(1);
 });
 
 test("migration continue from D3 skips prior stages; archive creates no project", async ({

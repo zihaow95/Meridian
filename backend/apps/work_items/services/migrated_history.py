@@ -2,16 +2,13 @@
 
 from __future__ import annotations
 
-import base64
-import binascii
-import hashlib
 from dataclasses import dataclass
 from typing import Any
 from uuid import uuid4
 
 from django.utils import timezone
 
-from apps.documents.models import DocumentSource
+from apps.documents.models import DocumentSource, DocumentVersion, StorageStatus, VersionStatus
 from apps.documents.services.ingest import StagedContent, stage_controlled_content
 from apps.documents.storage.base import FileStorage
 from apps.identity.models.department import Department
@@ -31,41 +28,15 @@ from apps.work_items.models import (
 
 
 @dataclass(frozen=True)
-class MigratedDeliverableResult:
-    """A materialized history deliverable plus any staged file awaiting activation."""
+class MigratedFileStage:
+    """PENDING staged file plus the metadata needed to attach a deliverable later."""
 
-    deliverable: Deliverable
-    staged_file: StagedContent | None
-
-
-def _decode_history_file_content(item: dict[str, Any]) -> bytes:
-    """Extract the real bytes for a migrated history file.
-
-    A migrated file must ship auditable content so a checksummed storage object
-    can be written. Missing/empty content fails closed rather than fabricating a
-    zero-hash ACTIVE file.
-    """
-
-    raw = item.get("content_base64")
-    if raw is not None:
-        try:
-            return base64.b64decode(str(raw), validate=True)
-        except (binascii.Error, ValueError) as exc:
-            raise MigrationImportFailed(
-                message="Migrated history file content_base64 is not valid base64."
-            ) from exc
-    text = item.get("content_text")
-    if text is not None:
-        return str(text).encode("utf-8")
-    content = item.get("content")
-    if isinstance(content, bytes | bytearray):
-        return bytes(content)
-    raise MigrationImportFailed(
-        message=(
-            "Migrated history file requires real content "
-            "(content_base64/content_text) to write a storage object."
-        )
-    )
+    staged: StagedContent
+    filename: str
+    deliverable_code: str
+    source_note: str
+    source_version: str
+    sha256: str
 
 
 def create_migrated_history_task(
@@ -96,44 +67,51 @@ def create_migrated_history_task(
     )
 
 
-def create_migrated_history_deliverable(
+def stage_migrated_history_file(
     *,
     project: Project,
-    stage: ProjectStage,
     item: dict[str, Any],
     actor: User,
     storage: FileStorage,
-) -> MigratedDeliverableResult:
-    """Create a history deliverable bound to a real, checksummed storage object.
+) -> MigratedFileStage | None:
+    """Stage a migrated history file as PENDING without creating a business reference.
 
-    File-object creation is delegated to the ``documents`` public ingest service
-    (no cross-domain writes here). Bytes are written to the isolated temp dir and
-    a PENDING storage object is staged; the physical move + activation is deferred
-    to the caller via the returned :class:`StagedContent`, so a later database
-    failure cannot leave an orphaned formal object behind.
+    Bytes must already live on the storage temp dir (``staging_relpath`` from import).
+    This never loads Base64 from MySQL and never marks a deliverable CONTROLLED.
     """
 
     filename = str(item.get("filename") or item.get("name") or "migrated-file")
     code = str(item.get("deliverable_code") or f"MIG-FILE-{uuid4().hex[:10]}")
     existing = Deliverable.objects.filter(project=project, deliverable_code=code).first()
     if existing is not None:
-        return MigratedDeliverableResult(deliverable=existing, staged_file=None)
+        return None
 
+    staging_relpath = item.get("staging_relpath")
+    if not staging_relpath:
+        raise MigrationImportFailed(
+            message=(
+                "Migrated history file requires a staged storage payload "
+                "(staging_relpath) before confirmation."
+            )
+        )
+    temp_path = storage.temp_dir() / str(staging_relpath)
+    if not temp_path.is_file():
+        raise MigrationImportFailed(
+            message=f"Staged migration file missing on disk: {staging_relpath}"
+        )
+
+    sha256 = str(item.get("sha256") or "")
+    size_bytes = int(item.get("size_bytes") or 0)
+    if not sha256 or size_bytes <= 0:
+        raise MigrationImportFailed(
+            message="Migrated history file staging metadata (sha256/size_bytes) is required."
+        )
+
+    mime = str(item.get("mime_type") or "application/octet-stream")
     source_note = str(item.get("source_note") or "Migrated history file")
     source_version = str(item.get("source_version") or item.get("migration_source_version") or "1")
-    mime = str(item.get("mime_type") or "application/octet-stream")
 
-    content = _decode_history_file_content(item)
-    if not content:
-        raise MigrationImportFailed(message="Migrated history file content is empty.")
-    sha256 = hashlib.sha256(content).hexdigest()
-    size_bytes = len(content)
-
-    temp_path = storage.temp_dir() / f"{uuid4()}.part"
-    temp_path.parent.mkdir(parents=True, exist_ok=True)
-    temp_path.write_bytes(content)
-
-    version, staged = stage_controlled_content(
+    _, staged = stage_controlled_content(
         organization=project.organization,
         source_temp_path=temp_path,
         sha256=sha256,
@@ -146,13 +124,52 @@ def create_migrated_history_deliverable(
         document_code=f"MIG-{uuid4().hex[:12].upper()}",
         title=filename,
     )
+    return MigratedFileStage(
+        staged=staged,
+        filename=filename,
+        deliverable_code=code,
+        source_note=source_note,
+        source_version=source_version,
+        sha256=sha256,
+    )
+
+
+def attach_migrated_history_deliverable(
+    *,
+    project: Project,
+    stage: ProjectStage,
+    version: DocumentVersion,
+    filename: str,
+    deliverable_code: str,
+    source_note: str,
+    source_version: str,
+    sha256: str,
+    actor: User,
+) -> Deliverable:
+    """Bind a CONTROLLED deliverable only after the file version is ACTIVE."""
+
+    version.refresh_from_db()
+    file_object = version.file_object
+    if (
+        version.status != VersionStatus.CONTROLLED
+        or file_object.storage_status != StorageStatus.ACTIVE
+    ):
+        raise MigrationImportFailed(
+            message="Only ACTIVE/CONTROLLED document versions may be referenced by deliverables."
+        )
+
+    existing = Deliverable.objects.filter(
+        project=project, deliverable_code=deliverable_code
+    ).first()
+    if existing is not None:
+        return existing
 
     now = timezone.now()
     deliverable = Deliverable.objects.create(
         organization=project.organization,
         project=project,
         stage=stage,
-        deliverable_code=code,
+        deliverable_code=deliverable_code,
         name=filename,
         tier=DeliverableTier.PROJECT_CUSTOM,
         status=DeliverableStatus.CONTROLLED,
@@ -172,4 +189,4 @@ def create_migrated_history_deliverable(
     )
     deliverable.current_revision = revision
     deliverable.save(update_fields=["current_revision", "updated_at"])
-    return MigratedDeliverableResult(deliverable=deliverable, staged_file=staged)
+    return deliverable
