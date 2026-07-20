@@ -8,7 +8,7 @@
 
 对应测试矩阵：`docs/implementation/phase-4-test-matrix.md`
 
-基准：`9417a54` → 十一次 `1feed8b` / `816336e` → 十二次（本检查点提交后回填哈希）
+基准：`9417a54` → 十一次 `1feed8b` / `816336e` → 十二次 `13d9ee2`（本检查点）
 
 ## 十二次复审修复摘要（相对 `816336e`）
 
@@ -24,7 +24,7 @@
 
 ```text
 Base commits reviewed: 1feed8b, 816336e
-Remediation commit: <pending local commit>
+Remediation commit: 13d9ee2
 scripts\check.ps1 (re-run after fix):
   preflight / compose / ruff / mypy(261) / django / migrations: pass
   MySQL pytest: 317 passed
