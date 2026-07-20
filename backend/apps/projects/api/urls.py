@@ -7,6 +7,7 @@ from django.urls import path
 from apps.projects.api.migrations import (
     ProjectMigrationBaselineConfirmView,
     ProjectMigrationBatchCreateView,
+    ProjectMigrationFileStageView,
 )
 from apps.projects.api.workbench import (
     EmergencyExecutionCompleteView,
@@ -85,6 +86,11 @@ urlpatterns = [
         "projects/<uuid:public_id>/publish-repair",
         ProjectPublishRepairView.as_view(),
         name="project-publish-repair",
+    ),
+    path(
+        "project-migration-files/stage",
+        ProjectMigrationFileStageView.as_view(),
+        name="project-migration-files-stage",
     ),
     path(
         "project-migration-batches",

@@ -166,15 +166,17 @@ def _can_publish_repair(user: User, project: Project) -> bool:
     ).allowed
 
 
-def _can_download_documents(user: User) -> bool:
-    """Whether the actor may request document download tickets."""
+def _can_download_version(user: User, version_public_id: UUID | None) -> bool:
+    """Resource-scoped download capability for one document version."""
 
+    if version_public_id is None:
+        return False
     return authorize(
         subject_for(user),
         action="document.version.download",
         resource=ResourceDescriptor(
             resource_type="document.version",
-            public_id=None,
+            public_id=version_public_id,
             organization_id=user.organization_id,
         ),
         context=AuthorizationContext.current(),
@@ -188,7 +190,6 @@ def serialize_workbench_project(project: Project, *, user: User) -> dict[str, An
     )
     payload["launch_capabilities"] = _launch_capabilities(user, project)
     payload["can_publish_repair"] = _can_publish_repair(user, project)
-    payload["can_download_documents"] = _can_download_documents(user)
     return payload
 
 
@@ -296,24 +297,31 @@ def list_project_deliverables(
     )
     count = qs.count()
     offset = (page - 1) * page_size
-    items = [
-        {
-            "public_id": str(item.public_id),
-            "deliverable_code": item.deliverable_code,
-            "name": item.name,
-            "stage_code": item.stage.stage_code,
-            "tier": item.tier,
-            "status": item.status,
-            "current_revision_public_id": (
-                str(item.current_revision.public_id) if item.current_revision is not None else None
-            ),
-            "document_version_public_id": (
-                str(item.current_revision.document_version.public_id)
-                if item.current_revision is not None
-                and item.current_revision.document_version_id is not None
-                else None
-            ),
-        }
-        for item in qs[offset : offset + page_size]
-    ]
+    items: list[dict[str, Any]] = []
+    for item in qs[offset : offset + page_size]:
+        version_public_id = (
+            item.current_revision.document_version.public_id
+            if item.current_revision is not None
+            and item.current_revision.document_version_id is not None
+            else None
+        )
+        items.append(
+            {
+                "public_id": str(item.public_id),
+                "deliverable_code": item.deliverable_code,
+                "name": item.name,
+                "stage_code": item.stage.stage_code,
+                "tier": item.tier,
+                "status": item.status,
+                "current_revision_public_id": (
+                    str(item.current_revision.public_id)
+                    if item.current_revision is not None
+                    else None
+                ),
+                "document_version_public_id": (
+                    str(version_public_id) if version_public_id is not None else None
+                ),
+                "can_download": _can_download_version(user, version_public_id),
+            }
+        )
     return ProjectSearchPage(items=items, page=page, page_size=page_size, count=count)

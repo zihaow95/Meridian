@@ -7,17 +7,21 @@ from uuid import UUID
 
 from drf_spectacular.utils import extend_schema, inline_serializer
 from rest_framework import serializers
+from rest_framework.parsers import FormParser, MultiPartParser
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.request import Request
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from apps.documents.storage.factory import get_file_storage
 from apps.identity.models.user import User
 from apps.platform.api.errors import ValidationFailedError
 from apps.platform.application.command import CommandContext
+from apps.projects.errors import MigrationImportFailed
 from apps.projects.models import MigrationDisposition
 from apps.projects.services.confirm_migration_baseline import ConfirmMigrationBaseline
 from apps.projects.services.import_migration_baseline import ImportProjectMigrationBatch
+from apps.projects.services.migration_file_staging import stream_stage_migration_file
 
 MIGRATION_BATCH_REQUEST = inline_serializer(
     name="MigrationBatchCreateRequest",
@@ -56,6 +60,57 @@ MIGRATION_CONFIRM_RESPONSE = inline_serializer(
         "project_public_id": serializers.UUIDField(allow_null=True),
     },
 )
+
+
+class ProjectMigrationFileStageView(APIView):
+    """Stream a migration history file into tmp/migration before batch import."""
+
+    permission_classes = [IsAuthenticated]
+    parser_classes = [MultiPartParser, FormParser]
+
+    @extend_schema(
+        operation_id="project_migration_files_stage",
+        request=inline_serializer(
+            name="MigrationFileStageRequest",
+            fields={
+                "file": serializers.FileField(),
+                "filename": serializers.CharField(required=False),
+                "mime_type": serializers.CharField(required=False),
+            },
+        ),
+        responses={
+            201: inline_serializer(
+                name="MigrationFileStageResponse",
+                fields={
+                    "filename": serializers.CharField(),
+                    "mime_type": serializers.CharField(),
+                    "sha256": serializers.CharField(),
+                    "size_bytes": serializers.IntegerField(),
+                    "staging_relpath": serializers.CharField(),
+                },
+            ),
+        },
+    )
+    def post(self, request: Request) -> Response:
+        user = cast(User, request.user)
+        uploaded = request.FILES.get("file")
+        if uploaded is None:
+            raise ValidationFailedError(details={"file": ["This field is required."]})
+        filename = str(request.data.get("filename") or uploaded.name or "migrated-file")
+        mime_type = str(
+            request.data.get("mime_type") or uploaded.content_type or "application/octet-stream"
+        )
+        try:
+            staged = stream_stage_migration_file(
+                chunks=uploaded.chunks(),
+                filename=filename,
+                mime_type=mime_type,
+                storage=get_file_storage(),
+                organization=user.organization,
+            )
+        except MigrationImportFailed as exc:
+            raise ValidationFailedError(message=str(exc)) from exc
+        return Response(staged, status=201)
 
 
 class ProjectMigrationBatchCreateView(APIView):

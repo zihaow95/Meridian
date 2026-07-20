@@ -1832,6 +1832,31 @@ paths:
               schema:
                 $ref: '#/components/schemas/MigrationBatchCreateResponse'
           description: ''
+  /api/v1/project-migration-files/stage:
+    post:
+      operationId: project_migration_files_stage
+      description: Stream a migration history file into tmp/migration before batch
+        import.
+      tags:
+      - project-migration-files
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/MigrationFileStageRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/MigrationFileStageRequest'
+        required: true
+      security:
+      - cookieAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MigrationFileStageResponse'
+          description: ''
   /api/v1/project-stages/{public_id}/handling-requests:
     post:
       operationId: project_stages_handling_request
@@ -3260,6 +3285,37 @@ components:
       - error_count
       - public_id
       - row_errors
+    MigrationFileStageRequest:
+      type: object
+      properties:
+        file:
+          type: string
+          format: uri
+        filename:
+          type: string
+        mime_type:
+          type: string
+      required:
+      - file
+    MigrationFileStageResponse:
+      type: object
+      properties:
+        filename:
+          type: string
+        mime_type:
+          type: string
+        sha256:
+          type: string
+        size_bytes:
+          type: integer
+        staging_relpath:
+          type: string
+      required:
+      - filename
+      - mime_type
+      - sha256
+      - size_bytes
+      - staging_relpath
     MyTodoListItem:
       type: object
       properties:
@@ -3837,11 +3893,8 @@ components:
           items: {}
         can_publish_repair:
           type: boolean
-        can_download_documents:
-          type: boolean
       required:
       - business_no
-      - can_download_documents
       - can_publish_repair
       - candidate_public_id
       - current_stage_code
@@ -4406,7 +4459,10 @@ components:
           type: string
           format: uuid
           nullable: true
+        can_download:
+          type: boolean
       required:
+      - can_download
       - current_revision_public_id
       - deliverable_code
       - document_version_public_id

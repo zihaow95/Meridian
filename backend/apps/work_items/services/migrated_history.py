@@ -39,6 +39,7 @@ class MigratedFileStage:
     source_version: str
     sha256: str
     version_public_id: str
+    staging_relpath: str | None = None
 
 
 def create_migrated_history_task(
@@ -103,7 +104,11 @@ def stage_migrated_history_file(
                 staged=StagedContent(
                     version_id=version.id,
                     file_object_id=version.file_object_id,
-                    temp_path=storage.temp_dir() / "unused",
+                    temp_path=(
+                        resolve_migration_staging_path(storage, str(item["staging_relpath"]))
+                        if item.get("staging_relpath")
+                        else storage.temp_dir() / "unused"
+                    ),
                     object_key=version.file_object.object_key,
                 ),
                 filename=filename,
@@ -114,6 +119,9 @@ def stage_migrated_history_file(
                 ),
                 sha256=str(item.get("sha256") or version.file_object.sha256),
                 version_public_id=str(version.public_id),
+                staging_relpath=(
+                    str(item["staging_relpath"]) if item.get("staging_relpath") else None
+                ),
             )
 
     staging_relpath = item.get("staging_relpath")
@@ -162,6 +170,7 @@ def stage_migrated_history_file(
         source_version=source_version,
         sha256=sha256,
         version_public_id=str(version.public_id),
+        staging_relpath=str(staging_relpath),
     )
 
 

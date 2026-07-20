@@ -2,17 +2,20 @@
 
 from __future__ import annotations
 
-import base64
 import hashlib
 from collections.abc import Callable
+from typing import Any
 
 import pytest
 from django.utils import timezone
 
+from apps.documents.storage.factory import get_file_storage
+from apps.identity.models.organization import Organization
 from apps.identity.models.user import User, UserStatus
 from apps.notifications.models import Todo
 from apps.platform.api.errors import PermissionDeniedError
 from apps.platform.application.command import CommandContext
+from apps.projects.errors import MigrationImportFailed
 from apps.projects.models import (
     MigrationBaseline,
     MigrationDisposition,
@@ -21,6 +24,7 @@ from apps.projects.models import (
 )
 from apps.projects.services.confirm_migration_baseline import ConfirmMigrationBaseline
 from apps.projects.services.import_migration_baseline import ImportProjectMigrationBatch
+from apps.projects.services.migration_file_staging import stream_stage_migration_file
 from apps.stage_gates.models import StageGateInstance
 from apps.work_items.models import ProfessionalConfirmation, Task
 
@@ -39,10 +43,44 @@ def migrator(organization, grant_action: Callable[..., None]) -> User:
 
 HISTORY_FILE_BYTES = b"%PDF-1.4 migrated d2 report body"
 HISTORY_FILE_SHA256 = hashlib.sha256(HISTORY_FILE_BYTES).hexdigest()
-HISTORY_FILE_B64 = base64.b64encode(HISTORY_FILE_BYTES).decode("ascii")
 
 
-def _d3_row(*, external_id: str = "EXT-D3-001") -> dict:
+def _stage_history_file(
+    organization: Organization,
+    *,
+    filename: str = "d2-report.pdf",
+    content: bytes = HISTORY_FILE_BYTES,
+) -> dict[str, Any]:
+    return stream_stage_migration_file(
+        chunks=iter([content]),
+        filename=filename,
+        mime_type="application/pdf",
+        storage=get_file_storage(),
+        organization=organization,
+    )
+
+
+def _history_file_entry(staged: dict[str, Any], **extra: Any) -> dict[str, Any]:
+    return {
+        "filename": staged["filename"],
+        "source_note": "NAS archive",
+        "source_version": "3",
+        "mime_type": staged["mime_type"],
+        "sha256": staged["sha256"],
+        "size_bytes": staged["size_bytes"],
+        "staging_relpath": staged["staging_relpath"],
+        **extra,
+    }
+
+
+def _d3_row(
+    organization: Organization,
+    *,
+    external_id: str = "EXT-D3-001",
+    history_files: list[dict[str, Any]] | None = None,
+) -> dict[str, Any]:
+    if history_files is None:
+        history_files = [_history_file_entry(_stage_history_file(organization))]
     return {
         "external_project_id": external_id,
         "name": "In-flight yogurt",
@@ -55,15 +93,7 @@ def _d3_row(*, external_id: str = "EXT-D3-001") -> dict:
             {"task_code": "D1-LEGACY", "name": "Legacy D1", "stage_code": "D1"},
             {"task_code": "D2-LEGACY", "name": "Legacy D2", "stage_code": "D2"},
         ],
-        "history_files": [
-            {
-                "filename": "d2-report.pdf",
-                "source_note": "NAS archive",
-                "source_version": "3",
-                "mime_type": "application/pdf",
-                "content_base64": HISTORY_FILE_B64,
-            },
-        ],
+        "history_files": history_files,
     }
 
 
@@ -76,12 +106,12 @@ def test_import_batch_is_idempotent_by_external_id(
     first = ImportProjectMigrationBatch(
         context=CommandContext.for_actor(migrator),
         batch_key="batch-1",
-        rows=[_d3_row()],
+        rows=[_d3_row(migrator.organization)],
     ).execute()
     second = ImportProjectMigrationBatch(
         context=CommandContext.for_actor(migrator),
         batch_key="batch-1",
-        rows=[_d3_row()],
+        rows=[_d3_row(migrator.organization)],
     ).execute()
     assert first.batch.public_id == second.batch.public_id
     assert MigrationBaseline.objects.filter(batch=first.batch).count() == 1
@@ -98,7 +128,7 @@ def test_unconfirmed_baseline_cannot_continue(
     imported = ImportProjectMigrationBatch(
         context=CommandContext.for_actor(migrator),
         batch_key="batch-unconfirmed",
-        rows=[_d3_row()],
+        rows=[_d3_row(migrator.organization)],
     ).execute()
     baseline = imported.baselines[0]
     assert baseline.confirmed_at is None
@@ -114,7 +144,7 @@ def test_continue_from_d3_skips_prior_gates_and_confirmations(
     imported = ImportProjectMigrationBatch(
         context=CommandContext.for_actor(migrator),
         batch_key="batch-d3",
-        rows=[_d3_row()],
+        rows=[_d3_row(migrator.organization)],
     ).execute()
     baseline = imported.baselines[0]
     result = ConfirmMigrationBaseline(
@@ -167,24 +197,16 @@ def test_history_file_without_real_content_fails_closed(
     migrator: User,
     project_template_version,
 ) -> None:
-    """A migrated file lacking real bytes must not fabricate an ACTIVE file fact."""
+    """A migrated file lacking a streaming stage must fail closed on import."""
 
     del project_template_version
-    row = _d3_row(external_id="EXT-NOFILE")
+    row = _d3_row(migrator.organization, external_id="EXT-NOFILE", history_files=[])
     row["history_files"] = [{"filename": "ghost.pdf", "source_note": "no bytes"}]
-    imported = ImportProjectMigrationBatch(
-        context=CommandContext.for_actor(migrator),
-        batch_key="batch-nofile",
-        rows=[row],
-    ).execute()
-    from apps.projects.errors import MigrationImportFailed
-
     with pytest.raises(MigrationImportFailed):
-        ConfirmMigrationBaseline(
+        ImportProjectMigrationBatch(
             context=CommandContext.for_actor(migrator),
-            baseline_public_id=imported.baselines[0].public_id,
-            disposition=MigrationDisposition.CONTINUE,
-            idempotency_key="confirm-nofile",
+            batch_key="batch-nofile",
+            rows=[row],
         ).execute()
 
 
@@ -201,7 +223,7 @@ def test_migrated_history_file_is_discoverable_and_downloadable(
     imported = ImportProjectMigrationBatch(
         context=CommandContext.for_actor(migrator),
         batch_key="batch-download",
-        rows=[_d3_row(external_id="EXT-DOWNLOAD")],
+        rows=[_d3_row(migrator.organization, external_id="EXT-DOWNLOAD")],
     ).execute()
     result = ConfirmMigrationBaseline(
         context=CommandContext.for_actor(migrator),
@@ -254,25 +276,71 @@ def test_resolve_migration_staging_path_rejects_traversal(
 
 
 @pytest.mark.django_db
+def test_import_rejects_inline_base64_and_client_pending_version(
+    migrator: User,
+    project_template_version,
+) -> None:
+    """Import must not accept Base64 or client-supplied pending_version_public_id."""
+
+    del project_template_version
+    staged = _stage_history_file(migrator.organization)
+    with pytest.raises(MigrationImportFailed):
+        ImportProjectMigrationBatch(
+            context=CommandContext.for_actor(migrator),
+            batch_key="batch-reject-b64",
+            rows=[
+                _d3_row(
+                    migrator.organization,
+                    external_id="EXT-B64",
+                    history_files=[
+                        {
+                            "filename": "d2-report.pdf",
+                            "mime_type": "application/pdf",
+                            "content_base64": "AAAA",
+                        }
+                    ],
+                )
+            ],
+        ).execute()
+    with pytest.raises(MigrationImportFailed):
+        ImportProjectMigrationBatch(
+            context=CommandContext.for_actor(migrator),
+            batch_key="batch-reject-pending",
+            rows=[
+                _d3_row(
+                    migrator.organization,
+                    external_id="EXT-PENDING",
+                    history_files=[
+                        {
+                            **_history_file_entry(staged),
+                            "pending_version_public_id": "00000000-0000-0000-0000-000000000099",
+                        }
+                    ],
+                )
+            ],
+        ).execute()
+
+
+@pytest.mark.django_db
 def test_import_stages_history_files_without_storing_base64(
     migrator: User,
     project_template_version,
 ) -> None:
-    """Import must write bytes to temp storage and never persist Base64 in MySQL."""
+    """Import must reference streamed staging paths and never persist Base64 in MySQL."""
 
     del project_template_version
     imported = ImportProjectMigrationBatch(
         context=CommandContext.for_actor(migrator),
         batch_key="batch-strip",
-        rows=[_d3_row(external_id="EXT-STRIP")],
+        rows=[_d3_row(migrator.organization, external_id="EXT-STRIP")],
     ).execute()
     baseline = imported.baselines[0]
     assert "content_base64" not in baseline.history_files[0]
+    assert "pending_version_public_id" not in baseline.history_files[0]
     assert baseline.history_files[0]["filename"] == "d2-report.pdf"
     assert baseline.history_files[0]["sha256"] == HISTORY_FILE_SHA256
     assert baseline.history_files[0]["size_bytes"] == len(HISTORY_FILE_BYTES)
     staging = baseline.history_files[0]["staging_relpath"]
-    from apps.documents.storage.factory import get_file_storage
 
     staged_path = get_file_storage().temp_dir() / staging
     assert staged_path.is_file()
@@ -312,7 +380,7 @@ def test_confirm_rollback_leaves_no_orphaned_storage_object(
     imported = ImportProjectMigrationBatch(
         context=CommandContext.for_actor(migrator),
         batch_key="batch-rollback",
-        rows=[_d3_row(external_id="EXT-ROLLBACK")],
+        rows=[_d3_row(migrator.organization, external_id="EXT-ROLLBACK")],
     ).execute()
 
     def _boom(**_kwargs: object) -> None:
@@ -351,7 +419,6 @@ def test_confirm_idempotency_key_is_organization_scoped(
     """The same confirm key may be reused by a different organization without conflict."""
 
     del project_template_version
-    from apps.identity.models.organization import Organization
 
     other_org = Organization.objects.create(name="Other Migration Org")
     other_director = User.objects.create_user(
@@ -373,7 +440,7 @@ def test_confirm_idempotency_key_is_organization_scoped(
     first = ImportProjectMigrationBatch(
         context=CommandContext.for_actor(migrator),
         batch_key="org-a-batch",
-        rows=[_d3_row(external_id="EXT-ORG-A")],
+        rows=[_d3_row(migrator.organization, external_id="EXT-ORG-A")],
     ).execute()
     ConfirmMigrationBaseline(
         context=CommandContext.for_actor(migrator),
@@ -385,7 +452,7 @@ def test_confirm_idempotency_key_is_organization_scoped(
     second = ImportProjectMigrationBatch(
         context=CommandContext.for_actor(other_director),
         batch_key="org-b-batch",
-        rows=[_d3_row(external_id="EXT-ORG-B")],
+        rows=[_d3_row(other_org, external_id="EXT-ORG-B")],
     ).execute()
     other_result = ConfirmMigrationBaseline(
         context=CommandContext.for_actor(other_director),
@@ -406,7 +473,7 @@ def test_archive_only_creates_no_project_or_todos(
     imported = ImportProjectMigrationBatch(
         context=CommandContext.for_actor(migrator),
         batch_key="batch-archive",
-        rows=[_d3_row(external_id="EXT-ARC-1")],
+        rows=[_d3_row(migrator.organization, external_id="EXT-ARC-1")],
     ).execute()
     baseline = imported.baselines[0]
     result = ConfirmMigrationBaseline(
@@ -451,7 +518,7 @@ def test_confirm_requires_permission(
     imported = ImportProjectMigrationBatch(
         context=CommandContext.for_actor(director),
         batch_key="batch-deny",
-        rows=[_d3_row(external_id="EXT-DENY")],
+        rows=[_d3_row(director.organization, external_id="EXT-DENY")],
     ).execute()
     with pytest.raises(PermissionDeniedError):
         ConfirmMigrationBaseline(
@@ -460,3 +527,75 @@ def test_confirm_requires_permission(
             disposition=MigrationDisposition.CONTINUE,
             idempotency_key="deny-confirm",
         ).execute()
+
+
+@pytest.mark.django_db
+def test_pending_version_recovery_uses_staging_when_formal_missing(
+    migrator: User,
+    project_template_version,
+) -> None:
+    """Crash after remembering pending_version must still resume from staging bytes."""
+
+    del project_template_version
+    from apps.documents.models import DocumentSource, DocumentVersion, StorageStatus
+    from apps.documents.services.ingest import stage_controlled_content
+    from apps.projects.services.migration_activation import activate_or_recover_history_file
+
+    staged = _stage_history_file(migrator.organization)
+    storage = get_file_storage()
+    temp_path = storage.temp_dir() / staged["staging_relpath"]
+    version, pending = stage_controlled_content(
+        organization=migrator.organization,
+        source_temp_path=temp_path,
+        sha256=staged["sha256"],
+        size_bytes=staged["size_bytes"],
+        original_filename=staged["filename"],
+        mime_type=staged["mime_type"],
+        uploaded_by=migrator,
+        source=DocumentSource.MIGRATION,
+    )
+    assert version.file_object.storage_status == StorageStatus.PENDING
+    assert not storage.final_path_for(pending.object_key).exists()
+    assert temp_path.is_file()
+
+    item = {
+        **_history_file_entry(staged),
+        "pending_version_public_id": str(version.public_id),
+    }
+    activated = activate_or_recover_history_file(
+        item,
+        organization_id=migrator.organization_id,
+        storage=storage,
+    )
+    assert activated is not None
+    activated.file_object.refresh_from_db()
+    assert activated.file_object.storage_status == StorageStatus.ACTIVE
+    assert DocumentVersion.objects.filter(public_id=version.public_id).count() == 1
+
+
+@pytest.mark.django_db
+def test_remember_pending_version_binds_by_staging_relpath_not_first_empty_code() -> None:
+    """Multiple files without deliverable_code must not share one pending version id."""
+
+    from apps.projects.services.confirm_migration_baseline import _remember_pending_version
+
+    items = [
+        {
+            "filename": "a.pdf",
+            "staging_relpath": "migration/aaa.part",
+            "sha256": "a" * 64,
+        },
+        {
+            "filename": "b.pdf",
+            "staging_relpath": "migration/bbb.part",
+            "sha256": "b" * 64,
+        },
+    ]
+    updated = _remember_pending_version(
+        items,
+        deliverable_code="MIG-FILE-aaa",
+        staging_relpath="migration/aaa.part",
+        version_public_id="11111111-1111-1111-1111-111111111111",
+    )
+    assert updated[0]["pending_version_public_id"] == "11111111-1111-1111-1111-111111111111"
+    assert "pending_version_public_id" not in updated[1]

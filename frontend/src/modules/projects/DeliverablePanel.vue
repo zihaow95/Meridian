@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { ref } from 'vue'
 
 import { apiFetch, ApiError } from '@/api/client'
 import type { WorkbenchDeliverableItem } from '@/modules/projects/store'
@@ -14,7 +14,6 @@ const confirmationPublicId = ref('confirm-1')
 const actionMessage = ref('')
 const submitting = ref(false)
 const downloadingId = ref('')
-const canDownload = computed(() => projects.detail?.can_download_documents ?? false)
 
 async function submitCurrentRevision(): Promise<void> {
   const deliverable = projects.deliverables[0]
@@ -110,10 +109,14 @@ async function downloadDeliverable(row: WorkbenchDeliverableItem): Promise<void>
       <el-table-column prop="status" label="状态" width="140" />
     </el-table>
 
-    <ul v-if="canDownload" class="deliverable-panel__downloads" data-test="deliverable-downloads">
+    <ul
+      v-if="projects.deliverables.some((row) => row.can_download && row.document_version_public_id)"
+      class="deliverable-panel__downloads"
+      data-test="deliverable-downloads"
+    >
       <li v-for="row in projects.deliverables" :key="row.public_id">
         <el-button
-          v-if="row.document_version_public_id"
+          v-if="row.can_download && row.document_version_public_id"
           link
           type="primary"
           data-test="download-deliverable"

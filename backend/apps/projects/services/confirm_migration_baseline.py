@@ -16,9 +16,7 @@ from apps.authorization.policies.engine import authorize
 from apps.authorization.services.subject import subject_for
 from apps.configuration.models import ConfigurationStatus, ConfigurationVersion
 from apps.configuration.services import CreateSnapshot
-from apps.documents.models import DocumentVersion
 from apps.documents.services.ingest import activate_staged_content
-from apps.documents.services.recovery import recover_pending_migration_versions
 from apps.documents.storage.base import FileStorage
 from apps.documents.storage.factory import get_file_storage
 from apps.identity.models.department import Department, DepartmentStatus
@@ -49,6 +47,7 @@ from apps.projects.services.initialize_runtime import (
     PROJECT_EXECUTION_TEMPLATE_CODE,
     require_template_departments,
 )
+from apps.projects.services.migration_activation import activate_or_recover_history_file
 from apps.stage_gates.services.open_execution_gates import open_execution_gates_for_stages
 from apps.work_items.services.materialize_template import (
     materialize_template_deliverables,
@@ -135,21 +134,32 @@ def _drop_staging_relpaths(items: list[Any]) -> list[dict[str, Any]]:
 
 
 def _remember_pending_version(
-    items: list[Any], *, deliverable_code: str, version_public_id: str
+    items: list[Any],
+    *,
+    deliverable_code: str,
+    staging_relpath: str | None,
+    version_public_id: str,
 ) -> list[dict[str, Any]]:
-    """Persist the PENDING version public id so retries need no temp file."""
+    """Bind a PENDING version id to exactly one history file row."""
 
     updated: list[dict[str, Any]] = []
+    matched = False
     for item in items:
         if not isinstance(item, dict):
             updated.append({"filename": str(item)})
             continue
         row = dict(item)
+        if matched:
+            updated.append(row)
+            continue
         code = str(row.get("deliverable_code") or "")
-        if code == deliverable_code or (
-            not code and row.get("filename") and not row.get("pending_version_public_id")
-        ):
+        rel = str(row.get("staging_relpath") or "")
+        if staging_relpath and rel == staging_relpath:
             row["pending_version_public_id"] = version_public_id
+            matched = True
+        elif deliverable_code and code == deliverable_code:
+            row["pending_version_public_id"] = version_public_id
+            matched = True
         updated.append(row)
     return updated
 
@@ -349,11 +359,13 @@ class ConfirmMigrationBaseline:
                     baseline.history_files = _remember_pending_version(
                         list(baseline.history_files or []),
                         deliverable_code=pending.deliverable_code,
+                        staging_relpath=pending.staging_relpath,
                         version_public_id=pending.version_public_id,
                     )
                     baseline.history_deliverables = _remember_pending_version(
                         list(baseline.history_deliverables or []),
                         deliverable_code=pending.deliverable_code,
+                        staging_relpath=pending.staging_relpath,
                         version_public_id=pending.version_public_id,
                     )
                     baseline.save(
@@ -389,7 +401,6 @@ class ConfirmMigrationBaseline:
     ) -> None:
         """Idempotent retry: complete PENDING activations and attach missing deliverables."""
 
-        recover_pending_migration_versions(baseline=baseline, storage=storage)
         attach_stage = project.current_stage
         if attach_stage is None:
             return
@@ -403,33 +414,28 @@ class ConfirmMigrationBaseline:
                 existing = project.deliverables.filter(deliverable_code=code).first()
                 if existing is not None and existing.current_revision_id is not None:
                     continue
-            version_public_id = item.get("pending_version_public_id")
-            if version_public_id:
-                version = (
-                    DocumentVersion.objects.filter(
-                        public_id=version_public_id,
-                        organization_id=project.organization_id,
-                    )
-                    .select_related("file_object")
-                    .first()
+            recovered = None
+            if item.get("pending_version_public_id"):
+                recovered = activate_or_recover_history_file(
+                    item,
+                    organization_id=project.organization_id,
+                    storage=storage,
                 )
-                if version is not None:
-                    attach_migrated_history_deliverable(
-                        project=project,
-                        stage=attach_stage,
-                        version=version,
-                        filename=str(item.get("filename") or item.get("name") or "migrated-file"),
-                        deliverable_code=code or f"MIG-FILE-{version.public_id.hex[:10]}",
-                        source_note=str(item.get("source_note") or "Migrated history file"),
-                        source_version=str(
-                            item.get("source_version")
-                            or item.get("migration_source_version")
-                            or "1"
-                        ),
-                        sha256=str(item.get("sha256") or version.file_object.sha256),
-                        actor=actor,
-                    )
-                    continue
+            if recovered is not None:
+                attach_migrated_history_deliverable(
+                    project=project,
+                    stage=attach_stage,
+                    version=recovered,
+                    filename=str(item.get("filename") or item.get("name") or "migrated-file"),
+                    deliverable_code=code or f"MIG-FILE-{recovered.public_id.hex[:10]}",
+                    source_note=str(item.get("source_note") or "Migrated history file"),
+                    source_version=str(
+                        item.get("source_version") or item.get("migration_source_version") or "1"
+                    ),
+                    sha256=str(item.get("sha256") or recovered.file_object.sha256),
+                    actor=actor,
+                )
+                continue
             pending = stage_migrated_history_file(
                 project=project,
                 item=item,

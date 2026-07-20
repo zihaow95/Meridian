@@ -1112,6 +1112,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/project-migration-files/stage": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description Stream a migration history file into tmp/migration before batch import. */
+        post: operations["project_migration_files_stage"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/project-stages/{public_id}/handling-requests": {
         parameters: {
             query?: never;
@@ -1786,6 +1803,19 @@ export interface components {
             row_errors: unknown[];
             baselines: unknown[];
         };
+        MigrationFileStageRequest: {
+            /** Format: uri */
+            file: string;
+            filename?: string;
+            mime_type?: string;
+        };
+        MigrationFileStageResponse: {
+            filename: string;
+            mime_type: string;
+            sha256: string;
+            size_bytes: number;
+            staging_relpath: string;
+        };
         MyTodoListItem: {
             public_id: string;
             title: string;
@@ -2011,7 +2041,6 @@ export interface components {
             current_stage_code: string | null;
             opportunity_sources: unknown[];
             can_publish_repair: boolean;
-            can_download_documents: boolean;
         };
         ProposalVersion: {
             public_id: string;
@@ -2244,6 +2273,7 @@ export interface components {
             current_revision_public_id: string | null;
             /** Format: uuid */
             document_version_public_id: string | null;
+            can_download: boolean;
         };
         WorkbenchDeliverablesResponse: {
             items: components["schemas"]["WorkbenchDeliverableItem"][];
@@ -3985,6 +4015,30 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["MigrationBatchCreateResponse"];
+                };
+            };
+        };
+    };
+    project_migration_files_stage: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": components["schemas"]["MigrationFileStageRequest"];
+                "application/x-www-form-urlencoded": components["schemas"]["MigrationFileStageRequest"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MigrationFileStageResponse"];
                 };
             };
         };

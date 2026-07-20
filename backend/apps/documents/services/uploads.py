@@ -85,26 +85,38 @@ class CompleteUpload:
             if session.size_bytes > policy.max_bytes:
                 raise UploadValidationFailed("Uploaded file exceeds size limit.")
 
-            version, staged = stage_controlled_content(
-                organization=session.organization,
-                source_temp_path=Path(session.temp_path),
-                sha256=session.sha256,
-                size_bytes=session.size_bytes,
-                original_filename=session.original_filename,
-                mime_type=session.declared_mime_type,
-                uploaded_by=session.uploaded_by,
-                source=DocumentSource.PROJECT,
-                document_code=self.document_code,
-                title=self.title,
-            )
+            if session.document_version_id is not None:
+                version = DocumentVersion.objects.select_related("file_object").get(
+                    id=session.document_version_id
+                )
+                staged = StagedContent(
+                    version_id=version.id,
+                    file_object_id=version.file_object_id,
+                    temp_path=Path(session.temp_path),
+                    object_key=version.file_object.object_key,
+                )
+            else:
+                version, staged = stage_controlled_content(
+                    organization=session.organization,
+                    source_temp_path=Path(session.temp_path),
+                    sha256=session.sha256,
+                    size_bytes=session.size_bytes,
+                    original_filename=session.original_filename,
+                    mime_type=session.declared_mime_type,
+                    uploaded_by=session.uploaded_by,
+                    source=DocumentSource.PROJECT,
+                    document_code=self.document_code,
+                    title=self.title,
+                )
+                session.document_version = version
+                session.save(update_fields=["document_version"])
 
-        # Activate only after the staging transaction commits. Mark the session
-        # completed only after activation succeeds so move failures remain retryable.
         assert staged is not None
         try:
             activated = activate_staged_content(staged, self.storage)
         except StorageMoveFailed:
-            # Leave the session incomplete; PENDING rows stay for reconcile.
+            # Leave the session incomplete with the same bound PENDING version;
+            # the temp file remains for a true retry.
             raise
         with transaction.atomic():
             session = UploadSession.objects.select_for_update().get(
@@ -113,6 +125,8 @@ class CompleteUpload:
             if session.completed_at is None:
                 session.completed_at = timezone.now()
                 session.save(update_fields=["completed_at"])
+            elif session.document_version_id != activated.id:
+                raise UploadValidationFailed("Upload session already completed.")
         return activated
 
 

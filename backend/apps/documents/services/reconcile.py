@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import timedelta
 from pathlib import Path
@@ -11,13 +12,15 @@ from django.utils import timezone
 from apps.documents.models import FileObject, StorageStatus, UploadSession
 from apps.documents.services.ingest import complete_pending_file_activation
 from apps.documents.storage.base import FileStorage
-from apps.projects.queries.migration_staging import referenced_migration_staging_relpaths
 
 
 @dataclass(frozen=True)
 class ReconcileStorage:
     storage: FileStorage
     pending_timeout_minutes: int = 120
+    # Callers (e.g. projects domain) supply protected temp relpaths; documents
+    # must not import projects models to discover them.
+    protected_temp_relpaths: Callable[[], set[str]] | set[str] | None = None
 
     def execute(self) -> dict[str, int]:
         marked_missing = 0
@@ -47,17 +50,32 @@ class ReconcileStorage:
         for session in UploadSession.objects.filter(
             completed_at__isnull=True, expires_at__lt=cutoff
         ):
+            # Never delete temps still claimed by an incomplete upload session
+            # that has not expired under the pending timeout window above.
             temp_path = Path(session.temp_path)
-            if temp_path.exists():
+            if temp_path.exists() and session.expires_at < cutoff:
                 temp_path.unlink()
                 cleaned_temp += 1
 
-        referenced_migration_parts = referenced_migration_staging_relpaths()
+        protected: set[str] = set()
+        if callable(self.protected_temp_relpaths):
+            protected = set(self.protected_temp_relpaths())
+        elif self.protected_temp_relpaths is not None:
+            protected = set(self.protected_temp_relpaths)
+
         temp_dir = self.storage.temp_dir()
         if temp_dir.exists():
             cutoff_ts = cutoff.timestamp()
             for part in temp_dir.glob("*.part"):
                 try:
+                    rel = part.name
+                    if rel in protected or f"migration/{part.name}" in protected:
+                        continue
+                    # Skip temps still owned by non-expired incomplete sessions.
+                    if UploadSession.objects.filter(
+                        temp_path=str(part), completed_at__isnull=True, expires_at__gte=cutoff
+                    ).exists():
+                        continue
                     if part.stat().st_mtime < cutoff_ts:
                         part.unlink()
                         cleaned_temp += 1
@@ -68,7 +86,7 @@ class ReconcileStorage:
                 for part in migration_dir.glob("*.part"):
                     try:
                         rel = f"migration/{part.name}"
-                        if rel in referenced_migration_parts:
+                        if rel in protected:
                             continue
                         if part.stat().st_mtime < cutoff_ts:
                             part.unlink()

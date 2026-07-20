@@ -36,7 +36,7 @@ from apps.documents.models import (
     StorageStatus,
     VersionStatus,
 )
-from apps.documents.storage.base import FileStorage, StorageMoveFailed
+from apps.documents.storage.base import FileStorage
 from apps.identity.models.organization import Organization
 from apps.identity.models.user import User
 
@@ -201,11 +201,9 @@ def activate_staged_content(staged: StagedContent, storage: FileStorage) -> Docu
         return version
 
     if not final_path.exists():
-        try:
-            storage.atomic_move(staged.temp_path, staged.object_key)
-        except StorageMoveFailed:
-            staged.temp_path.unlink(missing_ok=True)
-            raise
+        # On move failure keep the temp payload so CompleteUpload / migration
+        # confirm can retry without reconstructing bytes.
+        storage.atomic_move(staged.temp_path, staged.object_key)
     else:
         staged.temp_path.unlink(missing_ok=True)
 

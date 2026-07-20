@@ -1,6 +1,6 @@
 # 阶段4 开发到首次上市 —— 测试矩阵
 
-状态：第六轮 NO-GO 文件补偿 / 下载前端 / repair 闭环项已本地修复（`f44fddb` 之后）。Playwright `retries=0`；Vitest projects 模块与域内 pytest 已对齐。全量 `scripts\check.ps1` 以再次验收复跑为准。
+状态：第八轮 NO-GO（相对 `a220f18`）已本地修复：流式迁移暂存、pending_version 注入关闭、恢复窗口、CompleteUpload 真实重试、资源级 `can_download`、DeliverablePanel 修订/冲突/下载 Vitest。全量 `scripts\check.ps1` 以再次验收复跑为准。
 
 对应计划：`docs/superpowers/plans/2026-07-14-phase-4-development-first-launch.md`
 
@@ -27,21 +27,22 @@
 | EXE-011 | PlanChange | projects | `ApplyPlanChange` | plan_change.* | plan-changes | — | 已通过：`test_execution_controls` |
 | EXE-012 | 逾期提醒 | work_items | Celery scan | 查询过滤 | tasks | — | 已通过：`test_overdue` |
 | EXE-013 | EmergencyExecution | projects | `CreateEmergencyExecution` | emergency_execution.create | emergency-executions | — | 已通过：`test_execution_controls` + E2E 拒绝 |
-| EXE-014 | MigrationBaseline | projects | Import/Confirm | project_migration.confirm | migration batches | DeliverablePanel 下载 | 已通过：`test_inflight_migration` + 下载票据回归 + E2E D3/ARCHIVE |
+| EXE-014 | MigrationBaseline | projects | Import/Confirm + stream stage | project_migration.confirm | migration files/stage + batches | DeliverablePanel 下载 | 已通过：`test_inflight_migration`（注入拒绝/恢复）+ 下载票据回归 + E2E D3/ARCHIVE |
 
 ## API / OpenAPI
 
 | 场景 | 证据 | 状态 |
 |---|---|---|
 | 权限过滤与命令 API | `test_workbench_permissions.py`、`test_phase4_openapi.py` | 已通过 |
-| OpenAPI ↔ schema.d.ts | `frontend/src/api/generated/schema.d.ts` | 已通过（含 `document_version_public_id` / `can_publish_repair` / publish-repair 计数） |
+| OpenAPI ↔ schema.d.ts | `frontend/src/api/generated/schema.d.ts` | 已通过（含 `document_version_public_id` / `can_download` / `project_migration_files_stage` / `can_publish_repair`） |
 
 ## 前端工作台
 
 | 场景 | 证据 | 状态 |
 |---|---|---|
 | 看板与工作台 | `frontend/src/modules/projects/*.spec.ts` | 已通过 |
-| 交付物下载入口 | `DeliverablePanel.vue`（`document_version_public_id` → download-ticket） | 已通过 |
+| 交付物下载入口 | `DeliverablePanel.vue`（per-version `can_download` → download-ticket；无权隐藏 + 403） | 已通过：DeliverablePanel Vitest |
+| 修订确认与冲突 | `DeliverablePanel.spec.ts`（submit / 409 DELIVERABLE_REVISION_CONFLICT） | 已通过 |
 | 首次上市路由与 todo 深链 | `router/index.ts`；`TodoListView.vue` | 已通过 |
 
 ## E2E

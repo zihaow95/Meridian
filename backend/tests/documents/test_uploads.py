@@ -29,7 +29,9 @@ def test_atomic_move_failure_never_activates_file(
 def test_upload_activation_failure_remains_retryable(
     upload_session, storage_that_fails_move, file_storage, active_user
 ) -> None:
-    """A failed move must leave the session incomplete so the client can retry."""
+    """A failed move must keep the temp file and bound PENDING version for retry."""
+
+    from pathlib import Path
 
     with pytest.raises(StorageMoveFailed):
         complete_upload(
@@ -39,14 +41,9 @@ def test_upload_activation_failure_remains_retryable(
         )
     upload_session.refresh_from_db()
     assert upload_session.completed_at is None
-
-    # Recreate the temp payload for the retry (move deleted the failed temp file).
-    from pathlib import Path
-
-    Path(upload_session.temp_path).write_bytes(b"%PDF-1.4 retry body")
-    upload_session.sha256 = "a" * 64
-    upload_session.size_bytes = 18
-    upload_session.save(update_fields=["sha256", "size_bytes"])
+    assert upload_session.document_version_id is not None
+    assert Path(upload_session.temp_path).is_file()
+    bound_version_id = upload_session.document_version_id
 
     version = complete_upload(
         upload_session.public_id,
@@ -54,8 +51,10 @@ def test_upload_activation_failure_remains_retryable(
         storage=file_storage,
     )
     assert version.status == VersionStatus.CONTROLLED
+    assert version.id == bound_version_id
     upload_session.refresh_from_db()
     assert upload_session.completed_at is not None
+    assert DocumentVersion.objects.filter(status=VersionStatus.CONTROLLED).count() == 1
 
 
 @pytest.mark.django_db

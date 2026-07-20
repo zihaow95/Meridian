@@ -53,7 +53,6 @@ PROJECT_DETAIL_RESPONSE = inline_serializer(
         "opportunity_sources": serializers.ListField(),
         "launch_capabilities": LAUNCH_CAPABILITIES,
         "can_publish_repair": serializers.BooleanField(),
-        "can_download_documents": serializers.BooleanField(),
     },
 )
 
@@ -99,6 +98,7 @@ DELIVERABLE_ITEM = inline_serializer(
         "status": serializers.CharField(),
         "current_revision_public_id": serializers.UUIDField(allow_null=True),
         "document_version_public_id": serializers.UUIDField(allow_null=True),
+        "can_download": serializers.BooleanField(),
     },
 )
 
