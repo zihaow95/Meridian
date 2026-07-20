@@ -1776,6 +1776,13 @@ export interface components {
             public_id: string;
             invitation_status: string;
         };
+        MigrationBaselineConfirmHistoryFile: {
+            filename: string;
+            /** Format: uuid */
+            document_version_public_id?: string | null;
+            sha256?: string;
+            size_bytes?: number;
+        };
         MigrationBaselineConfirmRequest: {
             disposition: string;
             idempotency_key: string;
@@ -1787,7 +1794,7 @@ export interface components {
             status: string;
             /** Format: uuid */
             project_public_id: string | null;
-            history_files?: unknown[];
+            history_files?: components["schemas"]["MigrationBaselineConfirmHistoryFile"][];
         };
         MigrationBatchCreateRequest: {
             batch_key: string;

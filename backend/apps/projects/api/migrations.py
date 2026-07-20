@@ -57,6 +57,16 @@ MIGRATION_CONFIRM_REQUEST = inline_serializer(
     },
 )
 
+MIGRATION_CONFIRM_HISTORY_FILE = inline_serializer(
+    name="MigrationBaselineConfirmHistoryFile",
+    fields={
+        "filename": serializers.CharField(),
+        "document_version_public_id": serializers.UUIDField(allow_null=True, required=False),
+        "sha256": serializers.CharField(required=False, allow_blank=True),
+        "size_bytes": serializers.IntegerField(required=False),
+    },
+)
+
 MIGRATION_CONFIRM_RESPONSE = inline_serializer(
     name="MigrationBaselineConfirmResponse",
     fields={
@@ -64,7 +74,10 @@ MIGRATION_CONFIRM_RESPONSE = inline_serializer(
         "disposition": serializers.CharField(),
         "status": serializers.CharField(),
         "project_public_id": serializers.UUIDField(allow_null=True),
-        "history_files": serializers.ListField(required=False),
+        "history_files": serializers.ListField(
+            child=MIGRATION_CONFIRM_HISTORY_FILE,
+            required=False,
+        ),
     },
 )
 

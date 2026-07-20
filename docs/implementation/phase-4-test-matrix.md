@@ -1,6 +1,6 @@
 # 阶段4 开发到首次上市 —— 测试矩阵
 
-状态：第十轮 NO-GO（相对 `902550f`）已本地修复：stage 事务原子性与审计回滚、同基线重复 handle 拒绝、ARCHIVE_ONLY 正式文件激活与 E2E 下载、并发 join 断言、reconcile provider 证据。全量 `scripts\check.ps1` 以再次验收复跑为准。
+状态：第十一轮 NO-GO（相对 `9417a54`）已本地修复：stage 事务内重判权、ARCHIVE_ONLY 激活失败同键恢复、跨列表重复 handle + 行级 savepoint、confirm `history_files` OpenAPI 类型化。本切片以域内 pytest/契约再生为准；全量 `scripts\check.ps1`（含 Playwright）以再次验收复跑为准。
 
 对应计划：`docs/superpowers/plans/2026-07-14-phase-4-development-first-launch.md`
 
@@ -9,6 +9,7 @@
 对应阶段4检查点：`docs/implementation/phase-4-checkpoint.md`
 
 > 状态取值：`未实现` / `进行中` / `已通过：<测试位置>` / `后置：<阶段>`。
+> 「已通过」指该场景在既有提交中有对应自动化覆盖；**不等于**本轮修复切片已重跑全量门禁。
 
 ## EXE 需求追踪
 
@@ -27,14 +28,14 @@
 | EXE-011 | PlanChange | projects | `ApplyPlanChange` | plan_change.* | plan-changes | — | 已通过：`test_execution_controls` |
 | EXE-012 | 逾期提醒 | work_items | Celery scan | 查询过滤 | tasks | — | 已通过：`test_overdue` |
 | EXE-013 | EmergencyExecution | projects | `CreateEmergencyExecution` | emergency_execution.create | emergency-executions | — | 已通过：`test_execution_controls` + E2E 拒绝 |
-| EXE-014 | MigrationBaseline | projects | Import/Confirm + stream stage | project_migration.confirm | migration files/stage + batches | DeliverablePanel 下载 | 已通过：`test_inflight_migration`（注入拒绝/恢复）+ 下载票据回归 + E2E D3/ARCHIVE |
+| EXE-014 | MigrationBaseline | projects | Import/Confirm + stream stage | project_migration.confirm | migration files/stage + batches | DeliverablePanel 下载 | 已通过：`test_inflight_migration`（事务内重判权 / ARCHIVE 同键恢复 / 跨列表重复+sibling）+ E2E D3/ARCHIVE（覆盖存在；本切片未重跑 Playwright） |
 
 ## API / OpenAPI
 
 | 场景 | 证据 | 状态 |
 |---|---|---|
 | 权限过滤与命令 API | `test_workbench_permissions.py`、`test_phase4_openapi.py` | 已通过 |
-| OpenAPI ↔ schema.d.ts | `frontend/src/api/generated/schema.d.ts` | 已通过（含 `document_version_public_id` / `can_download` / `project_migration_files_stage` / `can_publish_repair`） |
+| OpenAPI ↔ schema.d.ts | `frontend/src/api/generated/schema.d.ts` | 已通过（含 typed `MigrationBaselineConfirmHistoryFile.document_version_public_id`；本切片再生契约） |
 
 ## 前端工作台
 
@@ -49,12 +50,13 @@
 
 | 场景 | 证据 | 状态 |
 |---|---|---|
-| 新品主链与运行时 | `tests/e2e/development-first-launch.spec.ts` | 已通过 |
-| 发布失败→待修复→按原决定重试→OPERATING（唯一版本/运营范围） | 同上（`retries=0`；每次种子经真实双人决策+失败发布；响应断言 `product_version_count`/`monitoring_scope_count` == 1） | 已通过 |
-| 在途 D3 与权限拒绝 | 同上 | 已通过 |
+| 新品主链与运行时 | `tests/e2e/development-first-launch.spec.ts` | 已通过（历史覆盖；本切片未重跑） |
+| 发布失败→待修复→按原决定重试→OPERATING（唯一版本/运营范围） | 同上（`retries=0`；每次种子经真实双人决策+失败发布；响应断言 `product_version_count`/`monitoring_scope_count` == 1） | 已通过（历史覆盖；本切片未重跑） |
+| 在途 D3 与权限拒绝 | 同上 | 已通过（历史覆盖；本切片未重跑） |
+| ARCHIVE_ONLY 归档下载 | 同上（confirm `history_files` → download-ticket） | 已通过（历史覆盖；本切片未重跑 Playwright；上次干净 `9417a54` 验收曾 16 passed） |
 
 ## 门禁纳入
 
 | 检查 | 结果 | 日期 |
 |---|---|---|
-| `scripts\check.ps1` 含 `development-first-launch.spec.ts` | 脚本已纳入；第六轮全量曾因 repair-message 竞态失败，已修；待再次整跑验收 | 2026-07-20 |
+| `scripts\check.ps1` 含 `development-first-launch.spec.ts` | 脚本已纳入；干净 `9417a54` 曾全绿，本轮代码修复后待再次整跑验收 | 2026-07-20 |

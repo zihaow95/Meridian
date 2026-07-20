@@ -84,7 +84,10 @@ class ImportProjectMigrationBatch:
             errors: list[dict] = []
             for index, row in enumerate(self.rows):
                 try:
-                    baseline = self._import_row(batch=batch, row=row)
+                    # Nested atomic creates a savepoint so a failed row cannot leave
+                    # a half-created baseline / partial claim in the outer transaction.
+                    with transaction.atomic():
+                        baseline = self._import_row(batch=batch, row=row)
                     accepted.append(baseline)
                 except IntegrityError:
                     errors.append(
@@ -170,6 +173,20 @@ class ImportProjectMigrationBatch:
             storage=storage,
             organization=batch.organization,
         )
+        combined = history_files + history_deliverables
+        seen_relpaths: set[str] = set()
+        for item in combined:
+            rel = str(item.get("staging_relpath") or "")
+            if not rel:
+                continue
+            if rel in seen_relpaths:
+                raise MigrationImportFailed(
+                    message=(
+                        "Duplicate staging_relpath is not allowed across "
+                        "history_files and history_deliverables."
+                    )
+                )
+            seen_relpaths.add(rel)
         baseline = MigrationBaseline.objects.create(
             organization=batch.organization,
             batch=batch,

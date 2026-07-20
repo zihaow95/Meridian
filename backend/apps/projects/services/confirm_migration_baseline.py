@@ -215,6 +215,7 @@ class ConfirmMigrationBaseline:
         self._pending_migrated_files: list[MigratedFileStage] = []
         self._attach_stage: ProjectStage | None = None
         storage = get_file_storage()
+        already_confirmed_retry = False
         with transaction.atomic():
             baseline = (
                 MigrationBaseline.objects.select_for_update()
@@ -243,105 +244,115 @@ class ConfirmMigrationBaseline:
 
             if baseline.status == MigrationBaselineStatus.CONFIRMED:
                 if baseline.confirm_idempotency_key == self.idempotency_key:
+                    already_confirmed_retry = True
                     project = Project.objects.filter(migration_baseline=baseline).first()
-                    if project is not None:
-                        self._finish_migrated_history_files(
-                            project=project,
-                            baseline=baseline,
-                            actor=actor,
-                            storage=storage,
-                        )
-                    return ConfirmMigrationResult(baseline=baseline, project=project)
-                raise MigrationBaselineAlreadyConfirmed()
-
-            conflicting = (
-                MigrationBaseline.objects.filter(
-                    organization_id=actor.organization_id,
-                    confirm_idempotency_key=self.idempotency_key,
+                    result = ConfirmMigrationResult(baseline=baseline, project=project)
+                else:
+                    raise MigrationBaselineAlreadyConfirmed()
+            else:
+                conflicting = (
+                    MigrationBaseline.objects.filter(
+                        organization_id=actor.organization_id,
+                        confirm_idempotency_key=self.idempotency_key,
+                    )
+                    .exclude(pk=baseline.pk)
+                    .first()
                 )
-                .exclude(pk=baseline.pk)
-                .first()
-            )
-            if conflicting is not None:
-                raise MigrationImportFailed(
-                    message="Idempotency key is already bound to another migration baseline."
+                if conflicting is not None:
+                    raise MigrationImportFailed(
+                        message="Idempotency key is already bound to another migration baseline."
+                    )
+
+                if self.disposition not in MigrationDisposition.values:
+                    raise MigrationImportFailed(message=f"Invalid disposition: {self.disposition}")
+
+                baseline.disposition = self.disposition
+                baseline.status = MigrationBaselineStatus.CONFIRMED
+                baseline.confirmed_by = actor
+                baseline.confirmed_at = self.context.occurred_at
+                baseline.confirm_idempotency_key = self.idempotency_key
+                baseline.save(
+                    update_fields=[
+                        "disposition",
+                        "status",
+                        "confirmed_by",
+                        "confirmed_at",
+                        "confirm_idempotency_key",
+                        "updated_at",
+                    ]
                 )
 
-            if self.disposition not in MigrationDisposition.values:
-                raise MigrationImportFailed(message=f"Invalid disposition: {self.disposition}")
-
-            baseline.disposition = self.disposition
-            baseline.status = MigrationBaselineStatus.CONFIRMED
-            baseline.confirmed_by = actor
-            baseline.confirmed_at = self.context.occurred_at
-            baseline.confirm_idempotency_key = self.idempotency_key
-            baseline.save(
-                update_fields=[
-                    "disposition",
-                    "status",
-                    "confirmed_by",
-                    "confirmed_at",
-                    "confirm_idempotency_key",
-                    "updated_at",
-                ]
-            )
-
-            history_file_metadata = _history_file_audit_metadata(
-                list(baseline.history_deliverables or []) + list(baseline.history_files or [])
-            )
-
-            project = None
-            if self.disposition == MigrationDisposition.CONTINUE:
-                project = self._materialize_continued_project(baseline=baseline, actor=actor)
-
-            append_event(
-                AuditRecord(
-                    actor=actor,
-                    action_code="project_migration.confirm",
-                    resource_type="project",
-                    resource_public_id=project.public_id if project else baseline.public_id,
-                    result=AuditResult.SUCCESS,
-                    trace_id=self.context.trace_id,
-                    occurred_at=self.context.occurred_at,
-                    acting_roles_snapshot=acting_roles_snapshot(actor),
-                    after_summary={
-                        "baseline_public_id": str(baseline.public_id),
-                        "disposition": baseline.disposition,
-                        "project_public_id": str(project.public_id) if project else None,
-                        "history_files": history_file_metadata,
-                    },
+                history_file_metadata = _history_file_audit_metadata(
+                    list(baseline.history_deliverables or []) + list(baseline.history_files or [])
                 )
-            )
-            register_outbox_event(
-                OutboxMessage(
-                    event_type="project_migration.baseline_confirmed",
-                    aggregate_type="migration_baseline",
-                    aggregate_id=baseline.public_id,
-                    payload={
-                        "disposition": baseline.disposition,
-                        "project_public_id": str(project.public_id) if project else None,
-                    },
-                    occurred_at=self.context.occurred_at,
+
+                project = None
+                if self.disposition == MigrationDisposition.CONTINUE:
+                    project = self._materialize_continued_project(baseline=baseline, actor=actor)
+
+                append_event(
+                    AuditRecord(
+                        actor=actor,
+                        action_code="project_migration.confirm",
+                        resource_type="project",
+                        resource_public_id=project.public_id if project else baseline.public_id,
+                        result=AuditResult.SUCCESS,
+                        trace_id=self.context.trace_id,
+                        occurred_at=self.context.occurred_at,
+                        acting_roles_snapshot=acting_roles_snapshot(actor),
+                        after_summary={
+                            "baseline_public_id": str(baseline.public_id),
+                            "disposition": baseline.disposition,
+                            "project_public_id": str(project.public_id) if project else None,
+                            "history_files": history_file_metadata,
+                        },
+                    )
                 )
-            )
-            result = ConfirmMigrationResult(baseline=baseline, project=project)
+                register_outbox_event(
+                    OutboxMessage(
+                        event_type="project_migration.baseline_confirmed",
+                        aggregate_type="migration_baseline",
+                        aggregate_id=baseline.public_id,
+                        payload={
+                            "disposition": baseline.disposition,
+                            "project_public_id": str(project.public_id) if project else None,
+                        },
+                        occurred_at=self.context.occurred_at,
+                    )
+                )
+                result = ConfirmMigrationResult(baseline=baseline, project=project)
 
         # Activate after commit, then attach business references only to ACTIVE files.
+        # Idempotent retries (same confirm key) resume ARCHIVE_ONLY / CONTINUE file work.
         if result.project is not None:
-            self._activate_and_attach_pending(
-                project=result.project,
-                actor=actor,
-                storage=storage,
-                baseline=result.baseline,
-            )
-            baseline = MigrationBaseline.objects.get(pk=result.baseline.pk)
-            if not self._pending_migrated_files:
-                baseline.history_files = _drop_staging_relpaths(list(baseline.history_files or []))
-                baseline.history_deliverables = _drop_staging_relpaths(
-                    list(baseline.history_deliverables or [])
+            if already_confirmed_retry:
+                self._finish_migrated_history_files(
+                    project=result.project,
+                    baseline=result.baseline,
+                    actor=actor,
+                    storage=storage,
                 )
-                baseline.save(update_fields=["history_files", "history_deliverables", "updated_at"])
-            result = ConfirmMigrationResult(baseline=baseline, project=result.project)
+                baseline = MigrationBaseline.objects.get(pk=result.baseline.pk)
+                result = ConfirmMigrationResult(baseline=baseline, project=result.project)
+            else:
+                self._activate_and_attach_pending(
+                    project=result.project,
+                    actor=actor,
+                    storage=storage,
+                    baseline=result.baseline,
+                )
+                baseline = MigrationBaseline.objects.get(pk=result.baseline.pk)
+                if not self._pending_migrated_files:
+                    baseline.history_files = _drop_staging_relpaths(
+                        list(baseline.history_files or [])
+                    )
+                    baseline.history_deliverables = _drop_staging_relpaths(
+                        list(baseline.history_deliverables or [])
+                    )
+                    baseline.save(
+                        update_fields=["history_files", "history_deliverables", "updated_at"]
+                    )
+                result = ConfirmMigrationResult(baseline=baseline, project=result.project)
         elif result.baseline.disposition == MigrationDisposition.ARCHIVE_ONLY:
             baseline = self._activate_archived_history_files(
                 baseline=result.baseline,

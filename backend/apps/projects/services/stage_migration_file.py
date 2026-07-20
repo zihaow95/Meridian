@@ -15,6 +15,7 @@ from apps.authorization.context import AuthorizationContext, ResourceDescriptor
 from apps.authorization.policies.engine import authorize
 from apps.authorization.services.subject import subject_for
 from apps.documents.storage.base import FileStorage
+from apps.identity.models.user import User
 from apps.platform.api.errors import PermissionDeniedError
 from apps.platform.application.command import CommandContext
 from apps.platform.outbox.services import OutboxMessage, register_outbox_event
@@ -22,6 +23,21 @@ from apps.projects.services.migration_file_staging import (
     persist_migration_file_stage,
     write_migration_staging_bytes,
 )
+
+
+def _authorize_migration_stage(actor: User) -> None:
+    decision = authorize(
+        subject_for(actor),
+        action="project_migration.confirm",
+        resource=ResourceDescriptor(
+            resource_type="project",
+            public_id=None,
+            organization_id=actor.organization_id,
+        ),
+        context=AuthorizationContext.current(),
+    )
+    if not decision.allowed:
+        raise PermissionDeniedError()
 
 
 @dataclass(frozen=True)
@@ -34,18 +50,8 @@ class StageMigrationFile:
 
     def execute(self) -> dict[str, Any]:
         actor = self.context.actor
-        decision = authorize(
-            subject_for(actor),
-            action="project_migration.confirm",
-            resource=ResourceDescriptor(
-                resource_type="project",
-                public_id=None,
-                organization_id=actor.organization_id,
-            ),
-            context=AuthorizationContext.current(),
-        )
-        if not decision.allowed:
-            raise PermissionDeniedError()
+        # Fast-fail before streaming large payloads when already denied.
+        _authorize_migration_stage(actor)
 
         staging_name, temp_path, sha256, size_bytes = write_migration_staging_bytes(
             chunks=self.chunks,
@@ -55,6 +61,9 @@ class StageMigrationFile:
         )
         try:
             with transaction.atomic():
+                # Re-check inside the write transaction (permissions may have changed
+                # while bytes were streaming to temp storage).
+                _authorize_migration_stage(actor)
                 stage = persist_migration_file_stage(
                     organization=actor.organization,
                     uploaded_by=actor,

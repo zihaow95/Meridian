@@ -3218,6 +3218,21 @@ components:
       required:
       - invitation_status
       - public_id
+    MigrationBaselineConfirmHistoryFile:
+      type: object
+      properties:
+        filename:
+          type: string
+        document_version_public_id:
+          type: string
+          format: uuid
+          nullable: true
+        sha256:
+          type: string
+        size_bytes:
+          type: integer
+      required:
+      - filename
     MigrationBaselineConfirmRequest:
       type: object
       properties:
@@ -3244,7 +3259,8 @@ components:
           nullable: true
         history_files:
           type: array
-          items: {}
+          items:
+            $ref: '#/components/schemas/MigrationBaselineConfirmHistoryFile'
       required:
       - baseline_public_id
       - disposition

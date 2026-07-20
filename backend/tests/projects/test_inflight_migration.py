@@ -810,3 +810,142 @@ def test_archive_only_activates_and_consumes_history_files(
     assert version.status == VersionStatus.CONTROLLED
     stage = MigrationFileStage.objects.get(staging_relpath=staging)
     assert stage.consumed_at is not None
+
+
+@pytest.mark.django_db
+def test_archive_only_activate_failure_retries_with_same_idempotency_key(
+    migrator: User,
+    project_template_version,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """ARCHIVE_ONLY activate failure must recover on same-key retry (no stuck CONFIRMED)."""
+
+    del project_template_version
+    from apps.documents.models import DocumentVersion, VersionStatus
+    from apps.projects.models import MigrationBaselineStatus, MigrationFileStage
+
+    imported = ImportProjectMigrationBatch(
+        context=CommandContext.for_actor(migrator),
+        batch_key="batch-archive-retry",
+        rows=[_d3_row(migrator.organization, migrator, external_id="EXT-ARC-RETRY")],
+    ).execute()
+    baseline = imported.baselines[0]
+    staging = baseline.history_files[0]["staging_relpath"]
+    idempotency_key = "confirm-arc-retry"
+
+    def _boom(self: object, **_kwargs: object) -> MigrationBaseline:
+        del self
+        raise MigrationImportFailed(message="simulated archive activate failure")
+
+    monkeypatch.setattr(
+        ConfirmMigrationBaseline,
+        "_activate_archived_history_files",
+        _boom,
+    )
+    with pytest.raises(MigrationImportFailed, match="simulated archive activate failure"):
+        ConfirmMigrationBaseline(
+            context=CommandContext.for_actor(migrator),
+            baseline_public_id=baseline.public_id,
+            disposition=MigrationDisposition.ARCHIVE_ONLY,
+            idempotency_key=idempotency_key,
+        ).execute()
+
+    baseline.refresh_from_db()
+    assert baseline.status == MigrationBaselineStatus.CONFIRMED
+    assert baseline.history_files[0].get("staging_relpath") == staging
+    stage = MigrationFileStage.objects.get(staging_relpath=staging)
+    assert stage.consumed_at is None
+
+    monkeypatch.undo()
+    result = ConfirmMigrationBaseline(
+        context=CommandContext.for_actor(migrator),
+        baseline_public_id=baseline.public_id,
+        disposition=MigrationDisposition.ARCHIVE_ONLY,
+        idempotency_key=idempotency_key,
+    ).execute()
+    assert result.project is None
+    baseline.refresh_from_db()
+    assert "staging_relpath" not in baseline.history_files[0]
+    version_id = baseline.history_files[0]["document_version_public_id"]
+    assert version_id
+    version = DocumentVersion.objects.get(public_id=version_id)
+    assert version.status == VersionStatus.CONTROLLED
+    stage.refresh_from_db()
+    assert stage.consumed_at is not None
+
+
+@pytest.mark.django_db
+def test_cross_list_duplicate_handle_rolls_back_while_sibling_row_succeeds(
+    migrator: User,
+    project_template_version,
+) -> None:
+    """Cross-list duplicate handle must not leave a baseline when a sibling succeeds."""
+
+    del project_template_version
+    from apps.projects.models import MigrationFileStage
+
+    staged = _stage_history_file(migrator.organization, migrator)
+    entry = _history_file_entry(staged)
+    good_row = _d3_row(migrator.organization, migrator, external_id="EXT-SIB-GOOD")
+    bad_row = {
+        "external_project_id": "EXT-SIB-BAD",
+        "name": "Cross-list duplicate",
+        "current_stage_code": "D3",
+        "leader_display_name": "Legacy Leader",
+        "disposition": MigrationDisposition.CONTINUE,
+        "history_decision_summary": "bad row",
+        "plan_summary": {},
+        "history_tasks": [],
+        "history_files": [entry],
+        "history_deliverables": [dict(entry)],
+    }
+    imported = ImportProjectMigrationBatch(
+        context=CommandContext.for_actor(migrator),
+        batch_key="batch-cross-dup-sibling",
+        rows=[bad_row, good_row],
+    ).execute()
+    assert imported.accepted_count == 1
+    assert imported.error_count == 1
+    assert MigrationBaseline.objects.filter(external_project_id="EXT-SIB-BAD").count() == 0
+    assert MigrationBaseline.objects.filter(external_project_id="EXT-SIB-GOOD").count() == 1
+    assert any(
+        err.get("external_project_id") == "EXT-SIB-BAD"
+        and "Duplicate staging_relpath" in str(err.get("error") or "")
+        for err in imported.batch.row_errors
+    )
+    # Bad row must not leave a claim on the duplicated handle.
+    bad_stage = MigrationFileStage.objects.get(staging_relpath=entry["staging_relpath"])
+    assert bad_stage.claimed_baseline_id is None
+
+
+@pytest.mark.django_db(transaction=True)
+def test_stage_reauthorizes_inside_write_transaction(
+    migrator: User,
+    project_template_version,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Permission revoked after streaming must deny persist/audit/outbox."""
+
+    del project_template_version
+    from apps.authorization.models.assignment import RoleAssignment
+    from apps.documents.storage.factory import get_file_storage
+    from apps.projects.models import MigrationFileStage
+    from apps.projects.services import stage_migration_file as stage_mod
+
+    original_write = stage_mod.write_migration_staging_bytes
+
+    def write_then_revoke(*args: object, **kwargs: object) -> tuple[str, object, str, int]:
+        result = original_write(*args, **kwargs)
+        RoleAssignment.objects.filter(user=migrator).delete()
+        return result
+
+    monkeypatch.setattr(stage_mod, "write_migration_staging_bytes", write_then_revoke)
+    with pytest.raises(PermissionDeniedError):
+        stage_mod.StageMigrationFile(
+            context=CommandContext.for_actor(migrator),
+            chunks=iter([HISTORY_FILE_BYTES]),
+            filename="reauth.pdf",
+            mime_type="application/pdf",
+            storage=get_file_storage(),
+        ).execute()
+    assert MigrationFileStage.objects.count() == 0
