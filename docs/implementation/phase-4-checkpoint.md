@@ -21,7 +21,7 @@
 
 ```text
 Base commits reviewed: 06424d3, db361fc
-Remediation commit: <pending local commit>
+Remediation commit: d643fd8
 Backend pytest tests/projects/test_inflight_migration.py: 26 passed
 Concurrent confirm + move-race tests: 5/5 consecutive passes
 Backend ruff (touched files): pass
