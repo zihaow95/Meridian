@@ -922,9 +922,8 @@ class Command(BaseCommand):
                 project.refresh_from_db()
 
         # Runtime init already expands tasks/deliverables/gates from the published template.
-        # Only advance FIRST_LAUNCH to SUBMITTED for launch/repair decision fixture paths.
-
-        stage = project.stages.get(stage_code="L2")
+        # Launch/repair fixtures need a real SUBMITTED gate with current_submission so
+        # management-conclusion / final-decision APIs are decideable (not bare status flip).
         gate = (
             StageGateInstance.objects.filter(
                 project=project,
@@ -937,6 +936,4 @@ class Command(BaseCommand):
         if gate is None:
             raise RuntimeError("FIRST_LAUNCH gate missing after InitializeProjectRuntime")
         if gate.status not in {GateStatus.DECIDED, GateStatus.APPROVED}:
-            gate.status = GateStatus.SUBMITTED
-            gate.project_stage = stage
-            gate.save(update_fields=["status", "project_stage", "updated_at"])
+            self._submit_first_launch_gate(project, submitter=leader)
