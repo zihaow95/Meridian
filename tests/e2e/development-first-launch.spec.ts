@@ -342,6 +342,8 @@ test("first launch publishes product and hands over monitoring", async ({
   expect(payload.project_status).toBe("OPERATING");
   expect(payload.handover_error).toBeFalsy();
 
+  // Approver can decide but may lack project detail read; verify as the primary actor.
+  await reloginAs(page, E2E_LOGIN_KEY);
   const after = await page.request.get(`/api/v1/projects/${project.public_id}`);
   expect(after.ok()).toBeTruthy();
   expect((await after.json()).status).toBe("OPERATING");
