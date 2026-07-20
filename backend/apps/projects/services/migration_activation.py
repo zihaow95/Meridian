@@ -70,6 +70,14 @@ def activate_or_recover_history_file(
         )
     temp_path = resolve_migration_staging_path(storage, str(staging_relpath))
     if not temp_path.is_file():
+        # Concurrent activator may have already moved the bytes into formal storage.
+        if final_path.exists():
+            activated = complete_pending_file_activation(file_object)
+            if activated is None:
+                raise MigrationImportFailed(
+                    message="Pending migration file has no document version to activate."
+                )
+            return activated
         raise MigrationImportFailed(
             message=f"Staged migration file missing on disk: {staging_relpath}"
         )

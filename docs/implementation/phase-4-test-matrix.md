@@ -1,6 +1,6 @@
 # 阶段4 开发到首次上市 —— 测试矩阵
 
-状态：第十三轮 NO-GO（相对 `b147eb0`）已本地修复：ARCHIVE_ONLY 锁内重读历史列表 + 同键并发唯一事实（Barrier）。域内 `test_inflight_migration` 26 passed；全量门禁/Docker 本切片未重跑。
+状态：第十四轮 NO-GO（相对 `db361fc`）已本地修复：同键并发审计/outbox 唯一事实、atomic_move TOCTOU 恢复 + move 窗口 Barrier、测试矩阵 E2E 证据口径对齐。本切片以域内 pytest 为准；全量门禁/Playwright/Docker 未重跑。
 
 对应计划：`docs/superpowers/plans/2026-07-14-phase-4-development-first-launch.md`
 
@@ -28,7 +28,7 @@
 | EXE-011 | PlanChange | projects | `ApplyPlanChange` | plan_change.* | plan-changes | — | 已通过：`test_execution_controls` |
 | EXE-012 | 逾期提醒 | work_items | Celery scan | 查询过滤 | tasks | — | 已通过：`test_overdue` |
 | EXE-013 | EmergencyExecution | projects | `CreateEmergencyExecution` | emergency_execution.create | emergency-executions | — | 已通过：`test_execution_controls` + E2E 拒绝 |
-| EXE-014 | MigrationBaseline | projects | Import/Confirm + stream stage | project_migration.confirm | migration files/stage + batches | DeliverablePanel 下载 | 已通过：`test_inflight_migration`（锁内重读 / 同键并发唯一事实 / 中途失败 consume）+ E2E D3/ARCHIVE |
+| EXE-014 | MigrationBaseline | projects | Import/Confirm + stream stage | project_migration.confirm | migration files/stage + batches | DeliverablePanel 下载 | 已通过：`test_inflight_migration`（锁内重读 / 同键并发文件+审计+outbox / move TOCTOU 恢复）+ E2E D3/ARCHIVE（历史覆盖） |
 
 ## API / OpenAPI
 
@@ -50,13 +50,13 @@
 
 | 场景 | 证据 | 状态 |
 |---|---|---|
-| 新品主链与运行时 | `tests/e2e/development-first-launch.spec.ts` | 已通过（本轮 Playwright 复跑） |
-| 发布失败→待修复→按原决定重试→OPERATING（唯一版本/运营范围） | 同上（`retries=0`；每次种子经真实双人决策+失败发布；响应断言 `product_version_count`/`monitoring_scope_count` == 1） | 已通过（本轮 Playwright 复跑） |
-| 在途 D3 与权限拒绝 | 同上 | 已通过（本轮 Playwright 复跑） |
-| ARCHIVE_ONLY 归档下载 | 同上（confirm `history_files` → download-ticket） | 已通过（本轮 Playwright 复跑，16 passed） |
+| 新品主链与运行时 | `tests/e2e/development-first-launch.spec.ts` | 已通过（历史：`13d9ee2`/`b147eb0` 门禁 Playwright 16；本切片未重跑） |
+| 发布失败→待修复→按原决定重试→OPERATING（唯一版本/运营范围） | 同上（`retries=0`；每次种子经真实双人决策+失败发布；响应断言 `product_version_count`/`monitoring_scope_count` == 1） | 已通过（历史：`13d9ee2`/`b147eb0`；本切片未重跑） |
+| 在途 D3 与权限拒绝 | 同上 | 已通过（历史：`13d9ee2`/`b147eb0`；本切片未重跑） |
+| ARCHIVE_ONLY 归档下载 | 同上（confirm `history_files` → download-ticket） | 已通过（历史：`13d9ee2`/`b147eb0` Playwright 16；本切片未重跑） |
 
 ## 门禁纳入
 
 | 检查 | 结果 | 日期 |
 |---|---|---|
-| `scripts\check.ps1` 含 `development-first-launch.spec.ts` | 本轮除 Docker Hub 拉镜像超时外全绿（pytest 317 / Playwright 16 / mypy 261）；Docker 步骤环境阻断 | 2026-07-20 |
+| `scripts\check.ps1` 含 `development-first-launch.spec.ts` | 上一轮（`13d9ee2`/`b147eb0`）除 Docker Hub 外全绿；本切片未重跑全量门禁 | 2026-07-20 |

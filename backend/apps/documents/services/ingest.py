@@ -192,7 +192,13 @@ def activate_staged_content(staged: StagedContent, storage: FileStorage) -> Docu
     reconstructing bytes; PENDING rows stay for reconciliation. On database
     failure after a successful move, the formal object remains and
     :func:`complete_pending_file_activation` recovers it.
+
+    Concurrent same-key activators may race on ``atomic_move``. If the move fails
+    because another worker already relocated the bytes, re-check the formal path
+    and continue with PENDING→ACTIVE recovery instead of failing closed.
     """
+
+    from apps.documents.storage.base import StorageMoveFailed
 
     file_object = FileObject.objects.get(id=staged.file_object_id)
     final_path = storage.final_path_for(staged.object_key)
@@ -203,8 +209,14 @@ def activate_staged_content(staged: StagedContent, storage: FileStorage) -> Docu
 
     if not final_path.exists():
         # On move failure keep the temp payload so CompleteUpload / migration
-        # confirm can retry without reconstructing bytes.
-        storage.atomic_move(staged.temp_path, staged.object_key)
+        # confirm can retry without reconstructing bytes — unless a concurrent
+        # worker already placed the formal object.
+        try:
+            storage.atomic_move(staged.temp_path, staged.object_key)
+        except StorageMoveFailed:
+            if not storage.final_path_for(staged.object_key).exists():
+                raise
+            staged.temp_path.unlink(missing_ok=True)
     else:
         staged.temp_path.unlink(missing_ok=True)
 

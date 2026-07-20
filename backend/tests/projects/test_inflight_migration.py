@@ -1039,7 +1039,16 @@ def test_archive_only_same_key_concurrent_confirm_leaves_one_file_fact(
 
     from django.db import connection
 
-    from apps.documents.models import Document, DocumentSource, DocumentVersion, VersionStatus
+    from apps.audit.models import AuditEvent
+    from apps.documents.models import (
+        Document,
+        DocumentSource,
+        DocumentVersion,
+        FileObject,
+        StorageStatus,
+        VersionStatus,
+    )
+    from apps.platform.outbox.models import OutboxEvent
     from apps.projects.models import MigrationFileStage
 
     imported = ImportProjectMigrationBatch(
@@ -1106,7 +1115,6 @@ def test_archive_only_same_key_concurrent_confirm_leaves_one_file_fact(
     assert str(version.public_id) == str(version_id)
     assert version.status == VersionStatus.CONTROLLED
     assert version.file_object_id is not None
-    from apps.documents.models import FileObject, StorageStatus
 
     assert (
         FileObject.objects.filter(
@@ -1116,7 +1124,6 @@ def test_archive_only_same_key_concurrent_confirm_leaves_one_file_fact(
         ).count()
         == 1
     )
-    # No orphan migration-archive FileObjects beyond the single baseline fact.
     assert (
         FileObject.objects.filter(
             organization_id=org_id,
@@ -1131,6 +1138,145 @@ def test_archive_only_same_key_concurrent_confirm_leaves_one_file_fact(
     stage = MigrationFileStage.objects.get(staging_relpath=staging)
     assert stage.consumed_at is not None
     assert stage.claimed_baseline_id == baseline.id
+
+    assert (
+        AuditEvent.objects.filter(
+            action_code="project_migration.confirm",
+            resource_public_id=baseline.public_id,
+        ).count()
+        == 1
+    )
+    assert (
+        OutboxEvent.objects.filter(
+            event_type="project_migration.baseline_confirmed",
+            aggregate_id=baseline.public_id,
+        ).count()
+        == 1
+    )
+
+
+@pytest.mark.django_db(transaction=True)
+def test_archive_only_same_key_concurrent_move_recovers_when_source_gone(
+    migrator: User,
+    project_template_version,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Race both workers inside atomic_move; loser must recover via formal object."""
+
+    del project_template_version
+    import threading
+
+    from django.db import connection
+
+    from apps.audit.models import AuditEvent
+    from apps.documents.models import Document, DocumentSource, DocumentVersion, VersionStatus
+    from apps.documents.services.ingest import activate_staged_content as original_activate
+    from apps.documents.storage.filesystem import FilesystemStorage
+    from apps.platform.outbox.models import OutboxEvent
+    from apps.projects.models import MigrationFileStage
+
+    imported = ImportProjectMigrationBatch(
+        context=CommandContext.for_actor(migrator),
+        batch_key="batch-archive-move-race",
+        rows=[_d3_row(migrator.organization, migrator, external_id="EXT-ARC-MOVE")],
+    ).execute()
+    baseline = imported.baselines[0]
+    staging = baseline.history_files[0]["staging_relpath"]
+    idempotency_key = "confirm-arc-move-race"
+    baseline_public_id = baseline.public_id
+    org_id = migrator.organization_id
+
+    # Barrier before exists/move decision so both workers observe an absent formal file,
+    # then barrier inside atomic_move so both attempt the relocate.
+    pre_move_barrier = threading.Barrier(2)
+    move_barrier = threading.Barrier(2)
+    original_move = FilesystemStorage.atomic_move
+
+    def _gated_activate(staged: Any, storage: Any) -> DocumentVersion:
+        pre_move_barrier.wait(timeout=15)
+        return original_activate(staged, storage)
+
+    def _gated_move(self: FilesystemStorage, source: Any, object_key: str) -> None:
+        move_barrier.wait(timeout=15)
+        return original_move(self, source, object_key)
+
+    monkeypatch.setattr(
+        "apps.projects.services.migration_activation.activate_staged_content",
+        _gated_activate,
+    )
+    monkeypatch.setattr(FilesystemStorage, "atomic_move", _gated_move)
+
+    results: list[str] = []
+    lock = threading.Lock()
+
+    def _confirm(label: str) -> None:
+        connection.close()
+        try:
+            ConfirmMigrationBaseline(
+                context=CommandContext.for_actor(migrator),
+                baseline_public_id=baseline_public_id,
+                disposition=MigrationDisposition.ARCHIVE_ONLY,
+                idempotency_key=idempotency_key,
+            ).execute()
+            with lock:
+                results.append(f"ok:{label}")
+        except Exception as exc:  # noqa: BLE001 - collect for assert
+            with lock:
+                results.append(f"error:{type(exc).__name__}:{label}")
+        finally:
+            connection.close()
+
+    threads = [
+        threading.Thread(target=_confirm, args=("a",)),
+        threading.Thread(target=_confirm, args=("b",)),
+    ]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join(timeout=60)
+        assert not thread.is_alive(), "move-race ARCHIVE_ONLY worker did not finish"
+
+    assert len(results) == 2
+    assert results.count("ok:a") + results.count("ok:b") == 2, results
+
+    baseline.refresh_from_db()
+    version_id = baseline.history_files[0]["document_version_public_id"]
+    assert version_id
+    assert "staging_relpath" not in baseline.history_files[0]
+    assert (
+        Document.objects.filter(
+            organization_id=org_id,
+            source=DocumentSource.MIGRATION,
+            category="MIGRATION_ARCHIVE",
+        ).count()
+        == 1
+    )
+    assert (
+        DocumentVersion.objects.filter(
+            organization_id=org_id,
+            document__source=DocumentSource.MIGRATION,
+            document__category="MIGRATION_ARCHIVE",
+        ).count()
+        == 1
+    )
+    version = DocumentVersion.objects.get(public_id=version_id)
+    assert version.status == VersionStatus.CONTROLLED
+    stage = MigrationFileStage.objects.get(staging_relpath=staging)
+    assert stage.consumed_at is not None
+    assert (
+        AuditEvent.objects.filter(
+            action_code="project_migration.confirm",
+            resource_public_id=baseline.public_id,
+        ).count()
+        == 1
+    )
+    assert (
+        OutboxEvent.objects.filter(
+            event_type="project_migration.baseline_confirmed",
+            aggregate_id=baseline.public_id,
+        ).count()
+        == 1
+    )
 
 
 @pytest.mark.django_db
