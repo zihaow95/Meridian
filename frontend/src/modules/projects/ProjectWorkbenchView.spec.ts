@@ -93,6 +93,7 @@ const detailPayload = {
     can_record_final_decision: false,
   },
   can_publish_repair: true,
+  can_download_documents: true,
 }
 
 function mockWorkbenchApis(status = 'EXECUTING', canPublishRepair = true): void {

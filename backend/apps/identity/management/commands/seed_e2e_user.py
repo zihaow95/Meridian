@@ -765,16 +765,24 @@ class Command(BaseCommand):
 
         submission = gate.current_submission
         if submission is None:
+            next_number = (
+                GateSubmission.objects.filter(stage_gate=gate)
+                .order_by("-submission_number")
+                .values_list("submission_number", flat=True)
+                .first()
+                or 0
+            ) + 1
+            stamp = timezone.now().strftime("%Y%m%d%H%M%S%f")
             submission = GateSubmission.objects.create(
                 organization=project.organization,
                 stage_gate=gate,
-                submission_number=1,
+                submission_number=next_number,
                 snapshot_json={"stage_code": "L2", "gate_code": "FIRST_LAUNCH"},
-                content_hash=f"e2e-first-launch-{gate.public_id}",
+                content_hash=f"e2e-first-launch-{gate.public_id}-{next_number}",
                 validation_result_json={"blocks": [], "warnings": []},
                 submitted_by=submitter,
                 submitted_at=timezone.now(),
-                idempotency_key=f"e2e-repair-submit-{gate.public_id}",
+                idempotency_key=f"e2e-repair-submit-{gate.public_id}-{stamp}",
             )
         gate.status = GateStatus.SUBMITTED
         gate.current_submission = submission

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
 
 import { apiFetch, ApiError } from '@/api/client'
 import type { WorkbenchDeliverableItem } from '@/modules/projects/store'
@@ -14,6 +14,7 @@ const confirmationPublicId = ref('confirm-1')
 const actionMessage = ref('')
 const submitting = ref(false)
 const downloadingId = ref('')
+const canDownload = computed(() => projects.detail?.can_download_documents ?? false)
 
 async function submitCurrentRevision(): Promise<void> {
   const deliverable = projects.deliverables[0]
@@ -107,23 +108,23 @@ async function downloadDeliverable(row: WorkbenchDeliverableItem): Promise<void>
       <el-table-column prop="name" label="名称" />
       <el-table-column prop="tier" label="层级" width="100" />
       <el-table-column prop="status" label="状态" width="140" />
-      <el-table-column label="文件" width="120">
-        <template #default="{ row }">
-          <el-button
-            v-if="row.document_version_public_id"
-            link
-            type="primary"
-            data-test="download-deliverable"
-            :loading="downloadingId === row.public_id"
-            :disabled="Boolean(downloadingId)"
-            @click="downloadDeliverable(row)"
-          >
-            下载
-          </el-button>
-          <span v-else class="deliverable-panel__muted">—</span>
-        </template>
-      </el-table-column>
     </el-table>
+
+    <ul v-if="canDownload" class="deliverable-panel__downloads" data-test="deliverable-downloads">
+      <li v-for="row in projects.deliverables" :key="row.public_id">
+        <el-button
+          v-if="row.document_version_public_id"
+          link
+          type="primary"
+          data-test="download-deliverable"
+          :loading="downloadingId === row.public_id"
+          :disabled="Boolean(downloadingId)"
+          @click="downloadDeliverable(row)"
+        >
+          下载 {{ row.name }}
+        </el-button>
+      </li>
+    </ul>
 
     <div v-if="projects.deliverables.length > 0" class="deliverable-panel__actions">
       <el-input v-model="confirmerPublicId" placeholder="确认人 public_id" />

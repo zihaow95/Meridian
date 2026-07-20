@@ -23,7 +23,7 @@ from apps.documents.services.ingest import (
     activate_staged_content,
     stage_controlled_content,
 )
-from apps.documents.storage.base import FileStorage
+from apps.documents.storage.base import FileStorage, StorageMoveFailed
 from apps.identity.models.user import User
 
 
@@ -66,7 +66,6 @@ class CompleteUpload:
 
     def execute(self) -> DocumentVersion:
         staged: StagedContent | None = None
-        version_id: int | None = None
         with transaction.atomic():
             session = UploadSession.objects.select_for_update().get(
                 public_id=self.session_public_id
@@ -86,7 +85,6 @@ class CompleteUpload:
             if session.size_bytes > policy.max_bytes:
                 raise UploadValidationFailed("Uploaded file exceeds size limit.")
 
-            now = timezone.now()
             version, staged = stage_controlled_content(
                 organization=session.organization,
                 source_temp_path=Path(session.temp_path),
@@ -99,13 +97,23 @@ class CompleteUpload:
                 document_code=self.document_code,
                 title=self.title,
             )
-            version_id = version.id
-            session.completed_at = now
-            session.save(update_fields=["completed_at"])
 
-        # Activate only after the staging transaction commits.
-        assert staged is not None and version_id is not None
-        return activate_staged_content(staged, self.storage)
+        # Activate only after the staging transaction commits. Mark the session
+        # completed only after activation succeeds so move failures remain retryable.
+        assert staged is not None
+        try:
+            activated = activate_staged_content(staged, self.storage)
+        except StorageMoveFailed:
+            # Leave the session incomplete; PENDING rows stay for reconcile.
+            raise
+        with transaction.atomic():
+            session = UploadSession.objects.select_for_update().get(
+                public_id=self.session_public_id
+            )
+            if session.completed_at is None:
+                session.completed_at = timezone.now()
+                session.save(update_fields=["completed_at"])
+        return activated
 
 
 def complete_upload(

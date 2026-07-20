@@ -15,6 +15,7 @@ from apps.identity.models.department import Department
 from apps.identity.models.user import User
 from apps.projects.errors import MigrationImportFailed
 from apps.projects.models import Project, ProjectStage
+from apps.projects.services.migration_file_staging import resolve_migration_staging_path
 from apps.work_items.models import (
     Deliverable,
     DeliverableRevision,
@@ -37,6 +38,7 @@ class MigratedFileStage:
     source_note: str
     source_version: str
     sha256: str
+    version_public_id: str
 
 
 def create_migrated_history_task(
@@ -83,8 +85,36 @@ def stage_migrated_history_file(
     filename = str(item.get("filename") or item.get("name") or "migrated-file")
     code = str(item.get("deliverable_code") or f"MIG-FILE-{uuid4().hex[:10]}")
     existing = Deliverable.objects.filter(project=project, deliverable_code=code).first()
-    if existing is not None:
+    if existing is not None and existing.current_revision_id is not None:
         return None
+
+    pending_version_public_id = item.get("pending_version_public_id")
+    if pending_version_public_id:
+        version = (
+            DocumentVersion.objects.filter(
+                public_id=pending_version_public_id,
+                organization_id=project.organization_id,
+            )
+            .select_related("file_object")
+            .first()
+        )
+        if version is not None:
+            return MigratedFileStage(
+                staged=StagedContent(
+                    version_id=version.id,
+                    file_object_id=version.file_object_id,
+                    temp_path=storage.temp_dir() / "unused",
+                    object_key=version.file_object.object_key,
+                ),
+                filename=filename,
+                deliverable_code=code,
+                source_note=str(item.get("source_note") or "Migrated history file"),
+                source_version=str(
+                    item.get("source_version") or item.get("migration_source_version") or "1"
+                ),
+                sha256=str(item.get("sha256") or version.file_object.sha256),
+                version_public_id=str(version.public_id),
+            )
 
     staging_relpath = item.get("staging_relpath")
     if not staging_relpath:
@@ -94,7 +124,7 @@ def stage_migrated_history_file(
                 "(staging_relpath) before confirmation."
             )
         )
-    temp_path = storage.temp_dir() / str(staging_relpath)
+    temp_path = resolve_migration_staging_path(storage, str(staging_relpath))
     if not temp_path.is_file():
         raise MigrationImportFailed(
             message=f"Staged migration file missing on disk: {staging_relpath}"
@@ -111,7 +141,7 @@ def stage_migrated_history_file(
     source_note = str(item.get("source_note") or "Migrated history file")
     source_version = str(item.get("source_version") or item.get("migration_source_version") or "1")
 
-    _, staged = stage_controlled_content(
+    version, staged = stage_controlled_content(
         organization=project.organization,
         source_temp_path=temp_path,
         sha256=sha256,
@@ -131,6 +161,7 @@ def stage_migrated_history_file(
         source_note=source_note,
         source_version=source_version,
         sha256=sha256,
+        version_public_id=str(version.public_id),
     )
 
 
@@ -161,10 +192,29 @@ def attach_migrated_history_deliverable(
     existing = Deliverable.objects.filter(
         project=project, deliverable_code=deliverable_code
     ).first()
+    now = timezone.now()
     if existing is not None:
+        if existing.current_revision_id is not None:
+            return existing
+        revision = DeliverableRevision.objects.create(
+            organization=project.organization,
+            deliverable=existing,
+            revision_number=1,
+            document_version=version,
+            status=DeliverableRevisionStatus.CONTROLLED,
+            content_hash=sha256,
+            submitted_by=actor,
+            submitted_at=now,
+            locked_at=now,
+        )
+        existing.current_revision = revision
+        existing.status = DeliverableStatus.CONTROLLED
+        existing.exemption_reason = f"{source_note}; source_version={source_version}"
+        existing.save(
+            update_fields=["current_revision", "status", "exemption_reason", "updated_at"]
+        )
         return existing
 
-    now = timezone.now()
     deliverable = Deliverable.objects.create(
         organization=project.organization,
         project=project,

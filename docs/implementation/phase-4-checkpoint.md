@@ -2,37 +2,38 @@
 
 日期：2026-07-20
 
-状态：第六轮 NO-GO（文件补偿链、Base64 入库、前端下载、repair 真实失败链、repair-message 竞态）已本地修复；待再次全量门禁验收。
+状态：第七轮 NO-GO（P0 路径穿越、文件补偿链、repair re-arm、下载权限态、Ruff format）已本地修复；待再次全量门禁验收。
 
 对应计划：`docs/superpowers/plans/2026-07-14-phase-4-development-first-launch.md`
 
 对应测试矩阵：`docs/implementation/phase-4-test-matrix.md`
 
-基准：`631b004` → 五次修复 `f44fddb` → 六次修复（本检查点）
+基准：`f44fddb` → 六次 `0a9cec4` → 七次修复（本检查点）
 
-## 六次复审修复摘要（相对 `f44fddb`）
+## 七次复审修复摘要（相对 `0a9cec4`）
 
 ### Standards
-- **P1**：导入时将历史文件写入存储临时目录，MySQL 只保留 `staging_relpath`/SHA/大小等元数据，不再持久化 Base64。
-- **P1**：`activate_staged_content` 移动后以单事务完成 ACTIVE/CONTROLLED；`ReconcileStorage` 对「PENDING 且正式文件已存在」补激活；确认幂等重试会继续激活并挂接交付物；`CompleteUpload` 在事务提交后激活；交付物仅在 ACTIVE 后引用。
-- **P2**：移除未使用的 `StagedContent.document_id` / `version_public_id`。
+- **P0**：拒绝客户端 `staging_relpath`；服务端路径解析禁止绝对路径与 `..`。
+- **P1**：Base64 增量解码；导入执行 MIME/大小策略；激活前持久化 `pending_version_public_id` 以便无暂存文件恢复；空壳交付物可补挂接；reconcile 不清理仍被 IMPORTED 基线引用的 `migration/*.part`；CompleteUpload 仅在激活成功后标记 completed。
+- **P1**：`workbench.py` Ruff format 已对齐。
+- **P2**：恢复走 `documents.services.recovery` 公开入口，按基线 `pending_version_public_id` 绑定。
 
 ### Spec
-- **P1**：`DeliverablePanel` 基于 `document_version_public_id` 申请下载票据并触发下载。
-- **P1**：E2E repair 种子每次 re-arm 都重新走双人决策 + 真实发布失败；响应断言 MySQL 计数 `product_version_count` / `monitoring_scope_count` == 1。
-- **P2**：`repair-message` 移出 `PUBLISH_PENDING_REPAIR` 条件块，状态刷新后仍可见。
-- **P2**：测试矩阵与本检查点已更新。
+- **P1**：repair re-arm 使用递增 `submission_number` 与唯一幂等键。
+- **P2**：`can_download_documents` + DeliverablePanel 隐藏下载；Vitest 覆盖无权隐藏与 403。
+- **P2**：本检查点记录精确验证数量。
 
-## 本轮实测证据（域内，非整轮 check.ps1）
+## 本轮实测证据（域内）
 
 ```text
-Backend: ruff + mypy config apps + related pytest (documents/projects migration/workbench/handover)
-Frontend: typecheck + projects vitest
-Playwright: publish-repair E2E with retries=0 (prior round passed; re-verify after this fix)
+Commit target: post-0a9cec4 seventh-pass remediation
+Backend ruff format --check apps/projects/api/workbench.py: pass
+Backend ruff check (changed documents/projects modules): pass
+Backend pytest tests/documents/test_uploads.py + tests/projects/test_inflight_migration.py: 15 passed
+Frontend npm run typecheck: pass
+Frontend npx vitest run src/modules/projects: 20 passed (5 files)
+Playwright publish-repair retries=0: not re-run this slice
+scripts\check.ps1 full gate: not run this slice (pending re-acceptance)
 ```
 
-全量 `scripts\check.ps1`（含 Docker / 旧依赖扫描）待批准后复跑。
-
-## 显式不在阶段4范围
-
-运营监测深度能力、退市流程、多组织迁移工具 UI。
+全量 `scripts\check.ps1` 与 Playwright publish-repair 待批准后复跑。

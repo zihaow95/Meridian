@@ -429,7 +429,9 @@ class ProjectPublishRepairView(APIView):
                     else None
                 ),
                 "product_version_count": (
-                    ProductVersion.objects.filter(change_set_id=result.project.product_draft_id).count()
+                    ProductVersion.objects.filter(
+                        change_set_id=result.project.product_draft_id
+                    ).count()
                     if result.project.product_draft_id is not None
                     else 0
                 ),

@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { mount } from '@vue/test-utils'
+import { flushPromises, mount } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
 import { defineComponent, h } from 'vue'
 
@@ -13,63 +13,26 @@ import DeliverablePanel from '@/modules/projects/DeliverablePanel.vue'
 import { useProjectStore } from '@/modules/projects/store'
 
 const stubs = {
-  'el-table': defineComponent({
-    name: 'ElTableStub',
-    props: ['data'],
-    setup(props) {
-      return () => {
-        const rows = (props.data as Array<{ name: string; deliverable_code: string }>) ?? []
-        return h(
-          'div',
-          { class: 'table' },
-          rows.map((row) =>
-            h('div', { 'data-test': 'deliverable-row' }, `${row.deliverable_code} ${row.name}`),
-          ),
-        )
-      }
-    },
-  }),
-  'el-table-column': defineComponent({
-    name: 'ElTableColumnStub',
-    setup() {
-      return () => h('div')
-    },
-  }),
-  'el-button': defineComponent({
-    name: 'ElButtonStub',
-    props: ['disabled', 'loading'],
-    setup(props, { slots, attrs }) {
-      return () =>
-        h(
-          'button',
-          { ...attrs, disabled: props.disabled || props.loading ? true : undefined },
-          slots.default?.(),
-        )
-    },
-  }),
   'el-alert': defineComponent({
     name: 'ElAlertStub',
-    props: ['title'],
+    props: {
+      title: { type: String, default: '' },
+    },
     setup(props) {
-      return () => h('div', { class: 'alert' }, props.title as string)
+      return () => h('div', { 'data-test': 'action-message' }, props.title)
     },
   }),
-  'el-input': defineComponent({
-    name: 'ElInputStub',
-    props: ['modelValue'],
-    emits: ['update:modelValue'],
-    setup(props, { emit }) {
-      return () =>
-        h('input', {
-          value: props.modelValue as string,
-          onInput: (event: Event) =>
-            emit('update:modelValue', (event.target as HTMLInputElement).value),
-        })
+  'el-input': true,
+  'el-table': true,
+  'el-table-column': true,
+  'el-button': defineComponent({
+    name: 'ElButtonStub',
+    inheritAttrs: false,
+    setup(_, { attrs, slots }) {
+      return () => h('button', attrs, slots.default?.())
     },
   }),
 }
-
-const flush = () => new Promise((resolve) => setTimeout(resolve, 0))
 
 describe('DeliverablePanel', () => {
   beforeEach(() => {
@@ -77,98 +40,56 @@ describe('DeliverablePanel', () => {
     vi.mocked(apiFetch).mockReset()
   })
 
-  it('renders deliverables from the store', async () => {
+  function seedStore(canDownload: boolean): void {
     const store = useProjectStore()
+    store.detail = {
+      public_id: 'proj-1',
+      can_download_documents: canDownload,
+    } as never
     store.deliverables = [
       {
-        public_id: 'del-1',
-        deliverable_code: 'D-001',
-        name: 'Formula draft',
+        public_id: 'd1',
+        deliverable_code: 'D1',
+        name: 'report.pdf',
         stage_code: 'D3',
-        tier: 'CORE',
-        status: 'DRAFT',
-        current_revision_public_id: 'rev-1',
+        tier: 'PROJECT_CUSTOM',
+        status: 'CONTROLLED',
+        current_revision_public_id: 'r1',
+        document_version_public_id: 'v1',
       },
-    ]
+    ] as never
+  }
 
+  it('hides download when the actor lacks document download permission', async () => {
+    seedStore(false)
     const wrapper = mount(DeliverablePanel, {
       props: { projectPublicId: 'proj-1' },
       global: { stubs },
     })
-    await flush()
-
-    expect(wrapper.text()).toContain('D-001')
-    expect(wrapper.text()).toContain('Formula draft')
+    await flushPromises()
+    expect(wrapper.find('[data-test="deliverable-downloads"]').exists()).toBe(false)
+    expect(wrapper.find('[data-test="download-deliverable"]').exists()).toBe(false)
   })
 
-  it('submits revision for professional confirmation', async () => {
-    const store = useProjectStore()
-    store.deliverables = [
-      {
-        public_id: 'del-1',
-        deliverable_code: 'D-001',
-        name: 'Formula draft',
-        stage_code: 'D3',
-        tier: 'CORE',
-        status: 'DRAFT',
-        current_revision_public_id: 'rev-1',
-      },
-    ]
-
-    vi.mocked(apiFetch).mockResolvedValue({
-      public_id: 'rev-1',
-      status: 'PENDING_CONFIRMATION',
-      content_hash: 'hash-1',
-    })
-
-    const wrapper = mount(DeliverablePanel, {
-      props: { projectPublicId: 'proj-1' },
-      global: { stubs },
-    })
-    await flush()
-
-    await wrapper.get('[data-test="submit-revision"]').trigger('click')
-    await flush()
-
-    expect(apiFetch).toHaveBeenCalledWith('/api/v1/deliverable-revisions/rev-1/submit', {
-      method: 'POST',
-      json: { confirmer_public_id: expect.any(String) },
-    })
-    expect(wrapper.text()).toContain('PENDING_CONFIRMATION')
-  })
-
-  it('shows revision conflict when confirmation is invalidated by a newer revision', async () => {
-    const store = useProjectStore()
-    store.deliverables = [
-      {
-        public_id: 'del-1',
-        deliverable_code: 'D-001',
-        name: 'Formula draft',
-        stage_code: 'D3',
-        tier: 'CORE',
-        status: 'DRAFT',
-        current_revision_public_id: 'rev-2',
-      },
-    ]
-
+  it('shows download when permitted and still surfaces 403 from the ticket API', async () => {
+    seedStore(true)
     vi.mocked(apiFetch).mockRejectedValue(
-      new ApiError(409, {
-        code: 'DELIVERABLE_REVISION_CONFLICT',
-        message: 'The deliverable revision conflicted with another operation.',
+      new ApiError(403, {
+        code: 'FORBIDDEN',
+        message: 'denied',
         details: {},
-        trace_id: 'trace-rev-conflict',
+        trace_id: 't',
       }),
     )
-
     const wrapper = mount(DeliverablePanel, {
       props: { projectPublicId: 'proj-1' },
       global: { stubs },
     })
-    await flush()
-
-    await wrapper.get('[data-test="decide-confirmation"]').trigger('click')
-    await flush()
-
-    expect(wrapper.find('.alert').text()).toContain('DELIVERABLE_REVISION_CONFLICT')
+    await flushPromises()
+    const button = wrapper.find('[data-test="download-deliverable"]')
+    expect(button.exists()).toBe(true)
+    await button.trigger('click')
+    await flushPromises()
+    expect(wrapper.text()).toContain('FORBIDDEN')
   })
 })

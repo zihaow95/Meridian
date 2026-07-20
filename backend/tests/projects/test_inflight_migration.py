@@ -60,6 +60,7 @@ def _d3_row(*, external_id: str = "EXT-D3-001") -> dict:
                 "filename": "d2-report.pdf",
                 "source_note": "NAS archive",
                 "source_version": "3",
+                "mime_type": "application/pdf",
                 "content_base64": HISTORY_FILE_B64,
             },
         ],
@@ -231,6 +232,25 @@ def test_migrated_history_file_is_discoverable_and_downloadable(
     token = ticket.json()["token"]
     download = api_client.get(f"/api/v1/documents/download/{token}")
     assert download.status_code == 200
+
+
+@pytest.mark.django_db
+def test_resolve_migration_staging_path_rejects_traversal(
+    migrator: User,
+    project_template_version,
+) -> None:
+    """Absolute paths and .. must not resolve outside the storage temp root."""
+
+    del migrator, project_template_version
+    from apps.documents.storage.factory import get_file_storage
+    from apps.projects.errors import MigrationImportFailed
+    from apps.projects.services.migration_file_staging import resolve_migration_staging_path
+
+    storage = get_file_storage()
+    with pytest.raises(MigrationImportFailed):
+        resolve_migration_staging_path(storage, "../secrets/passwd")
+    with pytest.raises(MigrationImportFailed):
+        resolve_migration_staging_path(storage, "/etc/passwd")
 
 
 @pytest.mark.django_db

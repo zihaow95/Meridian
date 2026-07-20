@@ -3837,8 +3837,11 @@ components:
           items: {}
         can_publish_repair:
           type: boolean
+        can_download_documents:
+          type: boolean
       required:
       - business_no
+      - can_download_documents
       - can_publish_repair
       - candidate_public_id
       - current_stage_code

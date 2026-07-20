@@ -160,10 +160,12 @@ class ImportProjectMigrationBatch:
         history_files = stage_history_file_list(
             list(row.get("history_files") or []),
             storage=storage,
+            organization=batch.organization,
         )
         history_deliverables = stage_history_file_list(
             list(row.get("history_deliverables") or []),
             storage=storage,
+            organization=batch.organization,
         )
         return MigrationBaseline.objects.create(
             organization=batch.organization,

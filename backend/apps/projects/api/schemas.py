@@ -53,6 +53,7 @@ PROJECT_DETAIL_RESPONSE = inline_serializer(
         "opportunity_sources": serializers.ListField(),
         "launch_capabilities": LAUNCH_CAPABILITIES,
         "can_publish_repair": serializers.BooleanField(),
+        "can_download_documents": serializers.BooleanField(),
     },
 )
 

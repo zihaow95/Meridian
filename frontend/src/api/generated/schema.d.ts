@@ -2011,6 +2011,7 @@ export interface components {
             current_stage_code: string | null;
             opportunity_sources: unknown[];
             can_publish_repair: boolean;
+            can_download_documents: boolean;
         };
         ProposalVersion: {
             public_id: string;

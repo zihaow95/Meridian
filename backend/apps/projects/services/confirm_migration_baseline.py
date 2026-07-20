@@ -16,8 +16,9 @@ from apps.authorization.policies.engine import authorize
 from apps.authorization.services.subject import subject_for
 from apps.configuration.models import ConfigurationStatus, ConfigurationVersion
 from apps.configuration.services import CreateSnapshot
-from apps.documents.models import DocumentSource, FileObject, StorageStatus
-from apps.documents.services.ingest import activate_staged_content, complete_pending_file_activation
+from apps.documents.models import DocumentVersion
+from apps.documents.services.ingest import activate_staged_content
+from apps.documents.services.recovery import recover_pending_migration_versions
 from apps.documents.storage.base import FileStorage
 from apps.documents.storage.factory import get_file_storage
 from apps.identity.models.department import Department, DepartmentStatus
@@ -133,23 +134,24 @@ def _drop_staging_relpaths(items: list[Any]) -> list[dict[str, Any]]:
     return cleaned
 
 
-def _retry_pending_migration_activations(*, project: Project, storage: FileStorage) -> None:
-    """Finish PENDING migration files left behind by a prior activation failure."""
+def _remember_pending_version(
+    items: list[Any], *, deliverable_code: str, version_public_id: str
+) -> list[dict[str, Any]]:
+    """Persist the PENDING version public id so retries need no temp file."""
 
-    pending = FileObject.objects.filter(
-        organization_id=project.organization_id,
-        storage_status=StorageStatus.PENDING,
-        versions__document__source=DocumentSource.MIGRATION,
-        versions__document__category="MIGRATION_HISTORY",
-    ).distinct()
-    for file_object in pending:
-        path = storage.final_path_for(file_object.object_key)
-        if path.exists():
-            complete_pending_file_activation(file_object)
+    updated: list[dict[str, Any]] = []
+    for item in items:
+        if not isinstance(item, dict):
+            updated.append({"filename": str(item)})
             continue
-        # Attempt a deferred move if a temp sibling still exists is not possible
-        # without the original StagedContent handle; reconcile will mark MISSING.
-        continue
+        row = dict(item)
+        code = str(row.get("deliverable_code") or "")
+        if code == deliverable_code or (
+            not code and row.get("filename") and not row.get("pending_version_public_id")
+        ):
+            row["pending_version_public_id"] = version_public_id
+        updated.append(row)
+    return updated
 
 
 def _filter_content_for_stages(content: dict[str, Any], stage_codes: set[str]) -> dict[str, Any]:
@@ -309,7 +311,12 @@ class ConfirmMigrationBaseline:
 
         # Activate after commit, then attach business references only to ACTIVE files.
         if result.project is not None:
-            self._activate_and_attach_pending(project=result.project, actor=actor, storage=storage)
+            self._activate_and_attach_pending(
+                project=result.project,
+                actor=actor,
+                storage=storage,
+                baseline=result.baseline,
+            )
             baseline = MigrationBaseline.objects.get(pk=result.baseline.pk)
             if not self._pending_migrated_files:
                 baseline.history_files = _drop_staging_relpaths(list(baseline.history_files or []))
@@ -327,6 +334,7 @@ class ConfirmMigrationBaseline:
         project: Project,
         actor: User,
         storage: FileStorage,
+        baseline: MigrationBaseline | None = None,
     ) -> None:
         attach_stage = self._attach_stage or project.current_stage
         if attach_stage is None:
@@ -335,6 +343,22 @@ class ConfirmMigrationBaseline:
         first_error: Exception | None = None
         for pending in self._pending_migrated_files:
             try:
+                # Persist the version id before the move so retries no longer need
+                # the ephemeral staging temp file.
+                if baseline is not None:
+                    baseline.history_files = _remember_pending_version(
+                        list(baseline.history_files or []),
+                        deliverable_code=pending.deliverable_code,
+                        version_public_id=pending.version_public_id,
+                    )
+                    baseline.history_deliverables = _remember_pending_version(
+                        list(baseline.history_deliverables or []),
+                        deliverable_code=pending.deliverable_code,
+                        version_public_id=pending.version_public_id,
+                    )
+                    baseline.save(
+                        update_fields=["history_files", "history_deliverables", "updated_at"]
+                    )
                 version = activate_staged_content(pending.staged, storage)
                 attach_migrated_history_deliverable(
                     project=project,
@@ -365,7 +389,7 @@ class ConfirmMigrationBaseline:
     ) -> None:
         """Idempotent retry: complete PENDING activations and attach missing deliverables."""
 
-        _retry_pending_migration_activations(project=project, storage=storage)
+        recover_pending_migration_versions(baseline=baseline, storage=storage)
         attach_stage = project.current_stage
         if attach_stage is None:
             return
@@ -375,8 +399,37 @@ class ConfirmMigrationBaseline:
             if not isinstance(item, dict):
                 continue
             code = str(item.get("deliverable_code") or "")
-            if code and project.deliverables.filter(deliverable_code=code).exists():
-                continue
+            if code:
+                existing = project.deliverables.filter(deliverable_code=code).first()
+                if existing is not None and existing.current_revision_id is not None:
+                    continue
+            version_public_id = item.get("pending_version_public_id")
+            if version_public_id:
+                version = (
+                    DocumentVersion.objects.filter(
+                        public_id=version_public_id,
+                        organization_id=project.organization_id,
+                    )
+                    .select_related("file_object")
+                    .first()
+                )
+                if version is not None:
+                    attach_migrated_history_deliverable(
+                        project=project,
+                        stage=attach_stage,
+                        version=version,
+                        filename=str(item.get("filename") or item.get("name") or "migrated-file"),
+                        deliverable_code=code or f"MIG-FILE-{version.public_id.hex[:10]}",
+                        source_note=str(item.get("source_note") or "Migrated history file"),
+                        source_version=str(
+                            item.get("source_version")
+                            or item.get("migration_source_version")
+                            or "1"
+                        ),
+                        sha256=str(item.get("sha256") or version.file_object.sha256),
+                        actor=actor,
+                    )
+                    continue
             pending = stage_migrated_history_file(
                 project=project,
                 item=item,
@@ -386,7 +439,11 @@ class ConfirmMigrationBaseline:
             if pending is not None:
                 self._pending_migrated_files.append(pending)
         if self._pending_migrated_files:
-            self._activate_and_attach_pending(project=project, actor=actor, storage=storage)
+            self._activate_and_attach_pending(
+                project=project, actor=actor, storage=storage, baseline=baseline
+            )
+        baseline.refresh_from_db()
+        if not self._pending_migrated_files:
             baseline.history_files = _drop_staging_relpaths(list(baseline.history_files or []))
             baseline.history_deliverables = _drop_staging_relpaths(
                 list(baseline.history_deliverables or [])

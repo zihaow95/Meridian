@@ -11,6 +11,7 @@ from django.utils import timezone
 from apps.documents.models import FileObject, StorageStatus, UploadSession
 from apps.documents.services.ingest import complete_pending_file_activation
 from apps.documents.storage.base import FileStorage
+from apps.projects.queries.migration_staging import referenced_migration_staging_relpaths
 
 
 @dataclass(frozen=True)
@@ -32,8 +33,6 @@ class ReconcileStorage:
                 file_object.save(update_fields=["storage_status"])
                 marked_missing += 1
 
-        # PENDING with a formal object on disk: finish the interrupted activation.
-        # PENDING past timeout with no formal object: surface as MISSING.
         for file_object in FileObject.objects.filter(storage_status=StorageStatus.PENDING):
             path = self.storage.final_path_for(file_object.object_key)
             if path.exists():
@@ -53,6 +52,7 @@ class ReconcileStorage:
                 temp_path.unlink()
                 cleaned_temp += 1
 
+        referenced_migration_parts = referenced_migration_staging_relpaths()
         temp_dir = self.storage.temp_dir()
         if temp_dir.exists():
             cutoff_ts = cutoff.timestamp()
@@ -67,6 +67,9 @@ class ReconcileStorage:
             if migration_dir.exists():
                 for part in migration_dir.glob("*.part"):
                     try:
+                        rel = f"migration/{part.name}"
+                        if rel in referenced_migration_parts:
+                            continue
                         if part.stat().st_mtime < cutoff_ts:
                             part.unlink()
                             cleaned_temp += 1

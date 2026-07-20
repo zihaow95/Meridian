@@ -165,6 +165,24 @@ def complete_pending_file_activation(file_object: FileObject) -> DocumentVersion
         return version
 
 
+def activate_pending_version(*, version_id: int, storage: FileStorage) -> DocumentVersion:
+    """Public recovery: finish activation for a known PENDING document version."""
+
+    version = DocumentVersion.objects.select_related("document", "file_object").get(id=version_id)
+    file_object = version.file_object
+    final_path = storage.final_path_for(file_object.object_key)
+    if file_object.storage_status == StorageStatus.ACTIVE and final_path.exists():
+        return version
+    if not final_path.exists():
+        raise ControlledIngestFailed(
+            "Pending migration file has no formal storage object to activate."
+        )
+    activated = complete_pending_file_activation(file_object)
+    if activated is None:
+        raise ControlledIngestFailed("Pending file object has no document version to activate.")
+    return activated
+
+
 def activate_staged_content(staged: StagedContent, storage: FileStorage) -> DocumentVersion:
     """Move the staged payload into permanent storage and mark it controlled.
 

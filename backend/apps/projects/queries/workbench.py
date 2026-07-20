@@ -166,6 +166,21 @@ def _can_publish_repair(user: User, project: Project) -> bool:
     ).allowed
 
 
+def _can_download_documents(user: User) -> bool:
+    """Whether the actor may request document download tickets."""
+
+    return authorize(
+        subject_for(user),
+        action="document.version.download",
+        resource=ResourceDescriptor(
+            resource_type="document.version",
+            public_id=None,
+            organization_id=user.organization_id,
+        ),
+        context=AuthorizationContext.current(),
+    ).allowed
+
+
 def serialize_workbench_project(project: Project, *, user: User) -> dict[str, Any]:
     payload = serialize_project_detail(project)
     payload["current_stage_code"] = (
@@ -173,6 +188,7 @@ def serialize_workbench_project(project: Project, *, user: User) -> dict[str, An
     )
     payload["launch_capabilities"] = _launch_capabilities(user, project)
     payload["can_publish_repair"] = _can_publish_repair(user, project)
+    payload["can_download_documents"] = _can_download_documents(user)
     return payload
 
 
