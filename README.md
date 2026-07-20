@@ -18,8 +18,8 @@ D:\Projects\Meridian
 - **阶段0工程基础与阶段1平台内核已完成**（Django 5.2 + Vue 3 正式工程，MySQL 测试门禁与 Playwright E2E 已通过 remediation 验收）；
 - **阶段2（提案→立案→立项）已完成**（两个重大阶段门、原子项目/产品草稿创建、前端最小闭环与 E2E 验收已通过本地门禁）；
 - **阶段3（产品档案与存量迁移）已完成**（见 [`phase-3-checkpoint.md`](docs/implementation/phase-3-checkpoint.md)；全量门禁 `All quality gates passed.`，pytest 199、产品迁移 E2E 9）；
-- **阶段4（开发到首次上市）已完成实现与退出证据**（见 [`phase-4-checkpoint.md`](docs/implementation/phase-4-checkpoint.md)；EXE-001—014、工作台 Vitest 16、Playwright development-first-launch 6；全量 `scripts\check.cmd` / `verify-trd.ps1` 以验收复跑为准）；
-- **阶段5（运营与退市）尚未开始**。
+- **阶段4（开发到首次上市）已完成实现与退出证据**（见 [`phase-4-checkpoint.md`](docs/implementation/phase-4-checkpoint.md)；EXE-001—014；全量门禁以阶段4 GO / 阶段5 Task 5.0 复验为准）；
+- **阶段5（运营、迭代和退市）执行基线已建立，实现尚未开始**（任务级计划与 [`phase-5-test-matrix.md`](docs/implementation/phase-5-test-matrix.md)；分支 `codex/phase-5-operations-iteration-retirement` @ `edd50ce`）。
 
 ## 文档入口
 
@@ -51,7 +51,11 @@ D:\Projects\Meridian
 - [阶段2完成检查点](docs/implementation/phase-2-checkpoint.md)
 - [阶段3完成检查点](docs/implementation/phase-3-checkpoint.md)
 - [阶段3测试矩阵](docs/implementation/phase-3-test-matrix.md)
+- [阶段4完成检查点](docs/implementation/phase-4-checkpoint.md)
+- [阶段4测试矩阵](docs/implementation/phase-4-test-matrix.md)
 - [阶段4任务级计划](docs/superpowers/plans/2026-07-14-phase-4-development-first-launch.md)
+- [阶段5任务级计划](docs/superpowers/plans/2026-07-20-phase-5-operations-iteration-retirement.md)
+- [阶段5测试矩阵](docs/implementation/phase-5-test-matrix.md)
 
 ## 开发环境
 
@@ -194,6 +198,6 @@ Major stage gates: 4
 
 ## 下一步
 
-1. 按阶段4计划 Task 4.0 建立执行基线（确认门禁、创建 `phase-4-test-matrix.md`、链接主计划）；
-2. 依次交付 Task 4.1—4.10（建议按 PR1—PR5 拆分）：运行时初始化 → 任务/R → 交付物/确认 → 阶段策略与逾期 → 阶段门与 `FIRST_LAUNCH` → 在途迁移 → API/OpenAPI → 前端工作台 → E2E与退出证据；
-3. 阶段4退出后进入阶段5（运营、迭代和退市）；本阶段不实现经营事实、指标、信号或退市门。
+1. 按阶段5计划 Task 5.0 已建立执行基线；继续 Task 5.1（权限目录、监控范围、数据源和指标版本）；
+2. 依次交付 Task 5.1—5.10（建议按 PR1—PR7 拆分）：配置与监控 → 接入/事实/人工值 → 汇总与风险 → 议题与迭代 → 退市 → API/OpenAPI → 前端与 E2E 退出证据；
+3. 阶段5退出前不得宣布 OPS 完成；阶段6（钉钉与正式连接器）尚未开始。

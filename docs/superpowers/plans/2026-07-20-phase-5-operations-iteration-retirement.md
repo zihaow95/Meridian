@@ -1,0 +1,323 @@
+# Project Meridian 阶段5运营、迭代和退市实施计划
+
+> **For agentic workers:** 每个任务单独调用 /implement，按测试先行的小切片执行；每个任务结束运行相关回归和 /code-review，未经 Task 5.10 全量门禁不得宣布阶段完成。
+
+**Goal:** 从阶段4首次上市和 MonitoringScope 交接继续，交付经营数据接入、人工有效值、指标汇总、风险信号、经营议题、产品迭代触发与 PRODUCT_RETIREMENT 退市闭环，覆盖 OPS-001 至 OPS-014。
+
+**Architecture:** 保持 Django 模块化单体。integrations 拥有数据源、接入批次、暂存行和映射错误；operations 拥有监控范围、指标版本、经营事实、人工有效值、汇总、数据快照、风险信号、经营议题和退市计划；opportunities 仍是迭代提案唯一写入口，products 仍是产品版本、SKU、渠道及退市状态的唯一写入口，stage_gates 复用不可变提交和 MajorGateDecision 并新增退市专用双步骤服务。可靠异步处理使用 MySQL outbox + Celery，Redis 不保存唯一业务事实。
+
+**Tech Stack:** Python 3.13、Django 5.2、DRF 3.16、MySQL 8.0、Redis、Celery 5.6、Vue 3、TypeScript、Pinia、Element Plus、Vitest、Playwright、OpenAPI 3、Docker Compose。
+
+**Status:** 执行基线已建立（Task 5.0 完成；`scripts\check.cmd` 通过）；OPS 实现未开始
+
+**Date:** 2026-07-20
+
+**Branch / worktree:** `codex/phase-5-operations-iteration-retirement` @ `.worktrees/phase-5-operations-iteration-retirement`（自 `edd50ce`）
+
+## Global Constraints
+
+- 正式仓库固定为 D:\Projects\Meridian；阶段5分支必须从阶段4 GO 分支 codex/phase-4-development-first-launch 的 edd50ce 或其后续已验收合并点创建，不得从当前阶段3分支开工。
+- 阶段4退出依据为 docs/implementation/phase-4-checkpoint.md 和 phase-4-test-matrix.md；Task 5.0 仍须在实际阶段5检出重新运行全量门禁。
+- 最小经营事实粒度固定为 SKU × 渠道 × 真实时间期间；季度数据不得拆成伪造日数据。
+- 外部专业系统仍是原始事实权威；本系统只保存标准化副本、人工有效值、计算结果和决策快照。人工值不得覆盖或删除原始事实。
+- 指标和风险规则使用发布后不可变的版本及代码中受控计算器；不得在数据库执行任意 Python、SQL 或用户脚本。
+- 数据覆盖不足时显示不足，不生成“正常”结论或风险信号；迟到数据可以重算当前展示，但不得改写历史信号、决策或快照。
+- 风险信号不自动创建经营议题、提案或项目；议题转迭代只创建 DRAFT 提案，之后完整经过提案、立案、立项和产品发布主干。
+- PRODUCT_RETIREMENT 是固定重大阶段门；经管会结论与老板最终决策由两个已认证步骤记录，以老板结果迁移状态，不记录个人投票。
+- 产品、版本、SKU 和渠道状态只由 products 公开应用服务修改；operations 和 Celery 任务不得跨模块直接更新产品表。
+- 写命令在 MySQL 事务内重新判权、锁定或校验 version_no，并原子写审计和 outbox；通知失败不回滚已提交业务事实。
+- 数据源、批次、事实、人工值、信号、活动主议题、迭代转换和退市动作均以 MySQL 唯一约束作为最终幂等保障。
+- 权限采用 RBAC + ABAC，默认拒绝；经营监督人只获得已配置产品/SKU/渠道范围，平台管理员不默认读取经营敏感值，导出单独判权和审计。
+- API 使用 /api/v1、UUID public_id、统一错误结构和动作端点；列表分页并稳定排序，高精度值以字符串传输。
+- OpenAPI 是前端类型唯一来源；前端不长期维护重复类型，不缓存敏感正文，不以隐藏按钮代替后端拒绝。
+- 每个任务先写失败测试；MySQL 约束、独立连接并发、权限允许/拒绝、审计回滚、outbox 重放和失败恢复不得以 SQLite 或纯 mock 替代。
+
+---
+
+## 1. 当前代码基线与冲突裁决
+
+- operations 当前只有 MonitoringScope 与 InitializeMonitoringScope，直接调用方是 projects.PublishAndHandover。阶段5保留该入口，并增量增加经营监督范围；不创建第二个上市交接服务。
+- MonitoringScope 当前按项目、首次上市决策和产品版本幂等，只有一个 owner，不能表达 PRD 要求的产品/SKU/渠道有效范围。新增 MonitoringAssignment，并由 InitializeMonitoringScope 原子创建产品级默认范围；后续范围调整走 operations 公开命令。
+- integrations 当前只有 ExternalBinding 和 UpsertExternalBinding。阶段5在同一应用新增 DataSource、IngestionBatch 和 IngestionRow，不改变产品外部绑定语义。
+- 数据源映射、来源优先级和合理范围复用 ConfigurationVersion 发布/不可变机制；指标版本和风险规则按 TRD 04 使用 operations 领域表，禁止同时维护第二份运行时口径。
+- ProductAsset 已有 ACTIVE/SUSPENDED/RETIRED 和 retired_at，ProductVersion、SKU、ChannelConfiguration 已有失效状态；退市不建立第二套产品主模型。为区分“停产但仍可售库存”，只给 SKU 增加独立 production_status 与 production_stopped_at。
+- CreateOpportunityDraft 当前把调用人固定为提案负责人。新增 opportunities.CreateIterationOpportunityDraftFromSource，接收已验证的负责人和锁定来源快照；现有 API 与 CreateOpportunityDraft 保持兼容。operations.ConvertIssueToIterationProposal 是唯一调用方。
+- PublishProductChangeSet 是产品迭代发布唯一入口，并已发出 product_version.published。阶段5新增幂等 outbox 消费者回写议题，不在发布服务内反向依赖 operations。
+- RecordMajorGateDecision 只处理 Opportunity/ProjectCandidate，RecordFirstLaunch* 只处理 FIRST_LAUNCH 项目门。退市新增 Validate/Submit/RecordRetirement* 专用服务，复用 GateSubmission、MajorGateDecision 和固定结果码，不扩张旧服务的主体状态映射。
+- StageGateInstance 当前没有 RETIREMENT_PLAN 主体类型，MaterialType 没有经营数据快照和退市计划。只补这三个固定枚举值，不复制阶段门表。
+- platform.dispatch_outbox 当前只装配通知消费者。阶段5增加 operations 本地消费者注册表并在 dispatcher 合并，不引入新消息中间件。
+- frontend 当前没有 operations 模块；新增业务域页面并在 ProductDetailView、TodoListView 和路由中建立最小入口。
+- TRD 04 权限动作清单未单列数据源配置和监控范围维护，但 PRD 明确要求两者可配置。本计划增加 data_source.configure 和 monitoring_scope.manage 两个支持动作，其余动作严格沿用 TRD 04 第15节；Task 5.0 将此裁决写入测试矩阵，不扩张为平台管理员业务读取权。
+
+## 2. 完成定义
+
+1. API、Excel/CSV 和手工数据进入同一批次/校验链；结构错误阻止单行，WARNING 经授权确认后可导入，失败不覆盖上次有效事实。
+2. 经营事实保留真实粒度、来源和版本；迟到修订新增版本并 supersede 旧事实，不原位覆盖，同批次重试不重复累计。
+3. 同一 SKU/渠道/指标/期间最多一个 ACTIVE 人工值；撤销后恢复当前来源值，汇总、看板和信号显示人工标记及来源。
+4. 发布指标和风险规则不可修改；汇总可从事实重建，可下钻，比例按分子分母重算，不兼容单位/币种/口径不强行相加。
+5. 风险信号保存规则版本、公式、阈值、实际值、期间、覆盖率和不可变快照；重复执行幂等，新周期可再次触发，迟到数据保留重算履历。
+6. 经营监督人可查看和关闭授权范围内的轻微信号；一个议题可关联多个信号，一个信号同一时间只有一个活动主议题，研判状态和行动追加留痕。
+7. 议题转迭代仅创建一个预填 DRAFT 提案；负责人资格在事务内确认；后续产品版本发布通过幂等事件回写议题、项目、版本和生效时间。
+8. 退市材料预检、不可变提交、经管会结论、老板最终决策和执行计划可运行；批准和执行分离，失败保留批准事实并可按动作幂等重试。
+9. 产品、版本、SKU 和渠道按已批准范围与日期变更，不物理删除；历史档案、经营事实、剩余库存和售后跟踪仍可查询。
+10. 数据源、批次、看板、风险、议题、迭代、退市及导出 API 权限过滤、分页、错误码、OpenAPI 和生成类型一致。
+11. 经营看板、风险中心、议题工作台、批次页、退市页、产品运营页和 todo 深链形成最小前端闭环；403、409、数据不足和重复提交反馈明确。
+12. OPS-001—014 测试矩阵、空库/阶段4库迁移、MySQL、后端/前端测试、OpenAPI、build、阶段5 E2E、TRD 校验、Docker 镜像和检查点均有本轮真实证据。
+
+## 3. 需求与任务映射
+
+| 需求 | 任务 |
+|---|---|
+| OPS-001、OPS-002、OPS-003 | Task 5.1—5.2 |
+| OPS-004 | Task 5.2 |
+| OPS-005、OPS-006 | Task 5.1、5.3 |
+| OPS-007 | Task 5.4 |
+| OPS-008 | Task 5.5 |
+| OPS-009、OPS-010 | Task 5.6 |
+| OPS-011、OPS-012 | Task 5.7 |
+| OPS-013、OPS-014 | Task 5.8—5.9 |
+| API/OpenAPI | Task 5.8 |
+| 前端 | Task 5.9 |
+| E2E与退出证据 | Task 5.10 |
+
+## 4. 文件与迁移顺序
+
+- backend/apps/operations/models.py：保留 MonitoringScope，追加 MonitoringAssignment、MetricDefinitionVersion、OperatingFact、ManualEffectiveValue、MetricAggregate、OperatingDataSnapshot、RiskRuleVersion、RiskSignal、SignalRecalculation、OperatingIssue、IssueSignal、IssueDecision、RetirementPlan 和 RetirementExecutionAction。
+- backend/apps/operations/services/：按监控范围、指标、接入确认、有效值、汇总、快照、风险、议题、迭代转换和退市拆分命令；queries 只做权限过滤后的读取和下钻。
+- backend/apps/integrations/models.py：追加 DataSource、IngestionBatch、IngestionRow；保留 ExternalBinding。
+- backend/apps/integrations/services/：拥有数据源配置、接入批次、解析、校验、映射与批次状态写入；经营事实由 operations 公开服务创建。
+- backend/apps/opportunities/services/create_iteration_from_source.py：提供从受控来源创建迭代提案草稿的唯一跨域入口。
+- backend/apps/products/services/retirement.py：提供已批准退市动作的唯一产品状态迁移入口；不改变 PublishProductChangeSet。
+- backend/apps/stage_gates/：扩展 RETIREMENT_PLAN 主体和材料类型，新增退市预检、提交及双步骤决策服务。
+- backend/apps/authorization/actions.py 与 migration 0008：在首个受保护阶段5命令前登记全部运营动作。
+- backend/config/urls.py、settings/base.py：注册 ENABLE_OPERATIONS_API；backend/config/celery.py 发现 operations/integrations 任务。
+- frontend/src/modules/operations/：store、批次页、经营看板、风险中心、议题工作台、退市页与 Vitest。
+- tests/e2e/operations-iteration-retirement.spec.ts：老品运营→迭代和退市两条纵向主链。
+- 迁移顺序固定为 configuration 0003 → authorization 0008 → operations 0002 → integrations 0002/0003 → operations 0003/0004/0005/0006 → stage_gates 0006 → products 0011 → operations 0007；禁止形成 integrations ↔ operations 或 products ↔ operations 迁移循环。
+- 0003 配置迁移只登记数据源映射 schema/definition，不发布虚构业务阈值；首批数据源、指标、覆盖率、阈值和渠道映射由业务发布版本提供。
+
+## 5. PR 拆分
+
+| PR | 范围 | 独立验收结果 |
+|---|---|---|
+| PR1 | Task 5.0—5.1 | 阶段基线、动作目录、监控范围、数据源和指标版本 |
+| PR2 | Task 5.2 | 三类接入、标准事实和人工有效值 |
+| PR3 | Task 5.3—5.4 | 汇总/快照、风险规则、信号和迟到重算 |
+| PR4 | Task 5.5—5.6 | 经营议题、迭代提案和发布结果回写 |
+| PR5 | Task 5.7 | PRODUCT_RETIREMENT 决策与执行 |
+| PR6 | Task 5.8 | 权限查询、命令 API、导出和 OpenAPI |
+| PR7 | Task 5.9—5.10 | 前端闭环、E2E和退出证据 |
+
+## 6. Task 5.0：建立阶段5执行基线
+
+**Files:** Create docs/implementation/phase-5-test-matrix.md; Modify docs/development/01-phased-implementation-plan.md.
+
+**Interfaces:** Consumes phase-4-checkpoint.md、phase-4-test-matrix.md 和 scripts\check.cmd；produces OPS-001—014 evidence matrix。
+
+- [x] 从阶段4 GO tip 创建阶段5分支；确认工作区无未归属改动，不执行 reset/checkout 覆盖用户文件。
+- [x] 运行 scripts\check.cmd；预期退出码 0 和 All quality gates passed.。失败即记录阻塞，不把阶段4文档中的旧结果当成本轮基线通过。
+- [x] 创建测试矩阵，逐项列出领域、服务、权限、API、前端/E2E、失败/并发证据，初始状态为未实现。
+- [x] 在矩阵中记录 data_source.configure、monitoring_scope.manage 的 PRD 来源和本计划裁决；如产品负责人拒绝新增支持动作，停线并先修订 TRD 04 权限目录。
+- [x] 在主计划阶段5链接本计划和矩阵，不提前标记任何 OPS 需求完成。
+- [x] 提交：git commit -m "docs: establish phase 5 execution baseline"。
+
+## 7. Task 5.1：权限目录、监控范围、数据源和指标版本
+
+**Files:** Modify backend/apps/authorization/actions.py, backend/apps/operations/apps.py, backend/apps/operations/models.py, backend/apps/operations/services/initialize_monitoring_scope.py, backend/apps/integrations/models.py, backend/apps/configuration/schema_registry.py; Create backend/apps/authorization/migrations/0008_seed_operations_actions.py, backend/apps/configuration/migrations/0003_seed_operating_source_mapping_definition.py, backend/apps/integrations/migrations/0002_operating_data_sources.py, backend/apps/integrations/services/data_sources.py, backend/apps/operations/migrations/0002_monitoring_assignments_metric_definitions.py, backend/apps/operations/services/monitoring_assignments.py, backend/apps/operations/services/metric_definitions.py, backend/apps/operations/policies/__init__.py, backend/apps/operations/policies/identity_provider.py, backend/tests/integrations/test_data_sources.py, backend/tests/operations/test_monitoring_assignments.py, backend/tests/operations/test_metric_definitions.py, backend/tests/operations/test_permissions.py; Modify backend/tests/projects/test_launch_handover.py.
+
+**Interfaces:** ConfigureOperatingDataSource(context, ...), AssignMonitoringSupervisor(context, monitoring_scope_public_id, ...), PublishMetricDefinition(context, metric_public_id), InitializeMonitoringScope.execute() 保持原签名并幂等创建默认产品范围。
+
+动作目录一次性登记：operating_fact.read、operating_detail.export、data_source.configure、ingestion_batch.create、ingestion_batch.confirm、ingestion_batch.retry、mapping.resolve、monitoring_scope.manage、manual_effective_value.create、manual_effective_value.modify、manual_effective_value.revoke、risk_signal.read、risk_signal.close、risk_signal.escalate、operating_issue.create、operating_issue.analyze、operating_issue.close、iteration_proposal.convert、retirement_plan.create、retirement_plan.submit、retirement_plan.execute、retirement.management_conclusion.record、retirement.final_decision.record、metric_rule.configure。
+
+- [ ] 先写 MySQL 测试：上市交接重复调用只有一个 MonitoringScope 和一个默认产品级 assignment；同一监督人/范围只有一个活动 assignment；过期范围立即失效；平台管理员仅有配置权时不能读经营值。
+- [ ] 写指标版本测试：同 metric_code 版本递增、发布后不可修改、相同生效区间冲突被拒绝、任意 Python/SQL 表达式被 schema 拒绝。
+- [ ] 写数据源测试：配置版本必须已发布、凭据不得进入配置正文/审计、INACTIVE 来源不能建批次、来源优先级和映射规则来自锁定 ConfigurationVersion。
+- [ ] 运行目标测试；预期因动作、模型、provider 和服务不存在失败。
+- [ ] 实现最小模型、唯一约束、索引和公开服务；operations provider 只从当前有效 assignment 派生产品/SKU/渠道身份，并保留数据等级限制。
+- [ ] ConfigureOperatingDataSource 复用 CreateDraft/ValidateVersion/PublishVersion，不复制配置发布状态机；MetricDefinitionVersion 使用领域表和受控 calculation_type。
+- [ ] 所有命令事务内 authorize，写 audit/outbox；配置动作与业务读取权分离。
+- [ ] 运行空库迁移、makemigrations --check、阶段4 launch handover 回归和目标测试。
+- [ ] 提交：git commit -m "feat: establish governed operating configuration"。
+
+## 8. Task 5.2：统一接入批次、标准经营事实和人工有效值
+
+**Files:** Modify backend/apps/integrations/models.py, backend/apps/operations/models.py; Create backend/apps/integrations/migrations/0003_operating_ingestion.py, backend/apps/integrations/services/ingestion.py, backend/apps/integrations/services/parsers.py, backend/apps/integrations/services/validation.py, backend/apps/operations/migrations/0003_operating_facts.py, backend/apps/operations/services/ingestion.py, backend/apps/operations/services/operating_facts.py, backend/apps/operations/services/effective_values.py, backend/apps/operations/errors.py, backend/tests/integrations/test_operating_ingestion.py, backend/tests/operations/test_operating_facts.py, backend/tests/operations/test_effective_values.py, backend/tests/operations/test_ingestion_concurrency.py.
+
+**Interfaces:** CreateIngestionBatch(context, source_public_id, batch_key, source_type, rows|input_file_version_public_id), ValidateIngestionBatch(...), ConfirmOperatingIngestionBatch(context, batch_public_id, idempotency_key), RetryIngestionBatch(...), ResolveIngestionMapping(...), ResolveEffectiveOperatingValue(...), Create/Modify/RevokeManualEffectiveValue(...)。
+
+- [ ] 先写测试：API、CSV、Excel 和 MANUAL 进入同一批次；文件必须引用 ACTIVE DocumentVersion；原始粒度、来源时间、外部业务键、单位和币种完整保留。
+- [ ] 测试结构错误、未映射、批次内重复阻止该行；合理范围异常为 WARNING，未经授权确认不能导入；结果统计新增、修订、跳过、警告和错误。
+- [ ] 测试 source_id + batch_key 幂等；同键并发确认只产生一组事实、一条成功审计和一个 outbox；失败/重试不覆盖上次有效事实。
+- [ ] 测试迟到修订创建新 OperatingFact，将旧事实置 SUPERSEDED；使用业务键 + active_slot 的 MySQL 唯一约束保证同一来源业务键只有一个 VALID 当前版本。
+- [ ] 测试同一 SKU/渠道/指标/期间并发创建人工值只有一个 ACTIVE；修改追加新版本；撤销恢复按来源优先级选出的当前事实。
+- [ ] 运行目标测试；预期批次、事实、有效值服务不存在失败。
+- [ ] integrations 只负责批次、暂存、映射和状态；ConfirmOperatingIngestionBatch 在 operations 编排 integrations 公开锁定/完成接口，不跨模块直接保存对方模型。
+- [ ] 文件解析分批、流式处理；完整原始载荷仅在必要时引用受控文件，不保存凭据或无关个人信息。
+- [ ] 每个成功事实/人工值命令原子写审计和 operating_fact.imported / operating_value.overridden outbox；部分成功保留有效行和错误行。
+- [ ] 运行目标测试、文档文件回归、两连接并发测试、空库和阶段4库迁移。
+- [ ] 提交：git commit -m "feat: ingest governed operating facts"。
+
+## 9. Task 5.3：可重建汇总、下钻和不可变经营快照
+
+**Files:** Modify backend/apps/operations/models.py, backend/config/celery.py; Create backend/apps/operations/migrations/0004_operating_aggregates_snapshots.py, backend/apps/operations/services/aggregations.py, backend/apps/operations/services/data_snapshots.py, backend/apps/operations/queries/operating_summary.py, backend/apps/operations/tasks.py, backend/tests/operations/test_metric_aggregates.py, backend/tests/operations/test_operating_snapshots.py, backend/tests/operations/test_aggregate_tasks.py.
+
+**Interfaces:** RecalculateMetricAggregates(calculation_run_id, affected_keys), QueryProductOperatingSummary(...), QuerySkuOperatingSummary(...), CreateOperatingDataSnapshot(context, purpose, scope, periods, metric_codes)。
+
+- [ ] 先写测试：先按 SKU/渠道/真实期间计算，再汇总 SKU/产品；SUM/AVERAGE/LAST 正确；RATIO 使用分子分母重算而不是平均比例。
+- [ ] 测试不同币种、单位或不兼容渠道口径返回 NOT_COMPARABLE；覆盖率不足显示 INSUFFICIENT；人工值参与并设置 has_manual_value。
+- [ ] 测试每个汇总可下钻到参与计算的当前事实/人工值；汇总可删除后由事实完整重建，事实本身不受影响。
+- [ ] 测试 OperatingDataSnapshot 固定产品/SKU/渠道、期间、指标版本、值、阈值、覆盖率、人工标记、事实 ID/摘要和 SHA-256；创建后任何更新被拒绝。
+- [ ] 运行目标测试；预期汇总、快照和任务不存在失败。
+- [ ] 实现受控 calculator registry；任务参数只传 calculation_run_id/业务键并从 MySQL 重读，不把明细载荷放进 Redis。
+- [ ] 为高增长事实/汇总表建立组织、指标、SKU/产品、渠道、期间组合索引；看板查询只读汇总和有界下钻，不做无界全表计算。
+- [ ] 运行目标测试、Celery 同步调用回归和查询数量/分页检查。
+- [ ] 提交：git commit -m "feat: aggregate operating metrics and snapshots"。
+
+## 10. Task 5.4：风险规则、唯一信号和迟到数据重算
+
+**Files:** Modify backend/apps/operations/models.py, backend/apps/operations/tasks.py, backend/apps/platform/outbox/tasks.py; Create backend/apps/operations/migrations/0005_risk_rules_signals.py, backend/apps/operations/services/risk_rules.py, backend/apps/operations/services/risk_signals.py, backend/apps/operations/consumers.py, backend/tests/operations/test_risk_rules.py, backend/tests/operations/test_risk_signals.py, backend/tests/operations/test_signal_recalculation.py, backend/tests/operations/test_risk_concurrency.py, backend/tests/platform/test_operations_outbox.py.
+
+**Interfaces:** PublishRiskRule(context, rule_public_id), EvaluateRiskRules(rule_version_id, period), MarkRiskSignalViewed(...), CloseRiskSignal(...), RecalculateAffectedSignals(fact_public_id|manual_value_public_id), operations.local_consumer_registry()。
+
+- [ ] 先写测试：只执行 PUBLISHED 规则、适用范围、已结束窗口和满足覆盖率的数据；数据不足只保留汇总覆盖状态，不生成“正常”或风险信号。
+- [ ] 测试四分之一效期最低生产量受控计算器显示版本、参数、公式、阈值、实际值、期间和数据快照；数据库参数不能选择未注册 evaluator_code。
+- [ ] 测试 rule_version + scope_key + period 唯一；两个并发评估只有一个信号、审计和通知请求；新周期可产生新信号。
+- [ ] 测试 NEW → VIEWED、NEW/VIEWED → CLOSED；关闭必须有理由且不删依据；无范围或数据等级不足拒绝且不泄露对象。
+- [ ] 测试迟到事实和人工值变更触发增量重算；SignalRecalculation 保存旧/新值、原因和影响，历史信号与决策快照不更新。
+- [ ] 运行目标测试；预期规则、信号、消费者不存在失败。
+- [ ] 合并 notifications 与 operations consumer registry，消费者按 event_id 幂等；生成 risk_signal.created/closed outbox 和权限过滤后的 todo/通知摘要。
+- [ ] Redis/通知故障测试证明信号与重算记录仍在 MySQL，可由 outbox 重放恢复且不重复。
+- [ ] 提交：git commit -m "feat: evaluate governed operating risk signals"。
+
+## 11. Task 5.5：经营议题、信号主关联和轻量研判
+
+**Files:** Modify backend/apps/operations/models.py; Create backend/apps/operations/migrations/0006_operating_issues.py, backend/apps/operations/services/operating_issues.py, backend/apps/operations/queries/operating_issues.py, backend/tests/operations/test_operating_issues.py, backend/tests/operations/test_issue_permissions.py, backend/tests/operations/test_issue_concurrency.py, backend/tests/operations/test_issue_notifications.py.
+
+**Interfaces:** CreateOperatingIssue(context, signal_public_ids|direct_source, ...), EscalateRiskSignal(context, signal_public_id, ...), RecordOperatingIssueDecision(context, issue_public_id, version_no, recommendation_type, ...), TransitionOperatingIssue(...)。
+
+- [ ] 先写测试：一个议题可关联多个信号；signal_id + active_primary_slot 保证一个信号只有一个活动主议题；两个并发升级只有一个议题成为主关联。
+- [ ] 测试 PENDING → ANALYZING → OBSERVING/ACTIONING/CONVERTED_TO_PROPOSAL/RETIREMENT_REVIEW/CLOSED；观察或轻量行动可回到 ANALYZING，已转换/退市评审不能删除。
+- [ ] 测试无信号的产品组合复盘/质量合规/战略来源必须保存来源类型和材料；创建时生成不可变经营快照。
+- [ ] 测试经营监督人仅在 assignment 范围内首次研判、关闭和记录轻量行动，不因角色读取成本、供应商、工艺或立项全文。
+- [ ] 测试旧 version_no 返回 409；审计失败回滚状态和 IssueDecision；截止提醒不自动升级状态。
+- [ ] 运行目标测试；预期议题模型和服务不存在失败。
+- [ ] 实现追加式 IssueDecision、审计/outbox、责任人和截止 todo；关闭/取消主关联只清空 active slot，不删除历史链接。
+- [ ] 运行信号回归、权限允许/拒绝、并发最终事实和 outbox 去重测试。
+- [ ] 提交：git commit -m "feat: add operating issue assessment workflow"。
+
+## 12. Task 5.6：议题转迭代提案和发布结果回写
+
+**Files:** Create backend/apps/opportunities/services/create_iteration_from_source.py, backend/apps/operations/services/iteration_proposals.py, backend/apps/operations/services/iteration_results.py, backend/tests/opportunities/test_iteration_source_draft.py, backend/tests/operations/test_issue_conversion.py, backend/tests/operations/test_iteration_result_consumer.py; Modify backend/apps/operations/consumers.py, backend/apps/platform/outbox/tasks.py.
+
+**Interfaces:** opportunities.CreateIterationOpportunityDraftFromSource(context, proposal_owner_public_id, source_snapshot, ...), operations.ConvertIssueToIterationProposal(context, issue_public_id, proposal_owner_public_id, idempotency_key), HandleProductVersionPublished(event_id, payload)。
+
+- [ ] 先写测试：转换锁定议题、验证未转换、指定负责人 ACTIVE 且当前具备 opportunity.create 资格；无资格返回 PROPOSAL_OWNER_NOT_ELIGIBLE。
+- [ ] 测试预填产品/版本、触发信号、不可变数据快照、问题摘要、建议方向和 SKU/渠道；新 Opportunity.initial_type 固定 ITERATION、状态固定 DRAFT，不自动 submit。
+- [ ] 测试 issue_id + conversion_type 唯一；两个独立连接并发转换只创建一个 Opportunity、一个活动来源关系、一条成功审计和一个 outbox。
+- [ ] 测试机会模块公开服务拥有 Opportunity/ProposalVersion/OpportunityMember 写入；operations 只保存 linked_opportunity，不直接修改机会模型。
+- [ ] 测试 product_version.published 重放两次只回写一次；仅匹配该议题后续项目/change set 的迭代版本，保存 linked_project、版本和 effective_from。
+- [ ] 运行目标测试；预期跨域入口和消费者不存在失败。
+- [ ] 保持 CreateOpportunityDraft、SubmitProposal、PublishProductChangeSet 的现有调用方和行为不变；新增服务只为受控来源草稿创建。
+- [ ] 运行阶段2机会、阶段3产品发布、阶段4 PublishAndHandover 回归以及 operations 消费者测试。
+- [ ] 提交：git commit -m "feat: convert operating issues into iteration proposals"。
+
+## 13. Task 5.7：PRODUCT_RETIREMENT 提交、双步骤决策和计划执行
+
+**Files:** Modify backend/apps/operations/models.py, backend/apps/stage_gates/models.py, backend/apps/products/models.py, backend/apps/operations/tasks.py; Create backend/apps/stage_gates/migrations/0006_retirement_gate_support.py, backend/apps/products/migrations/0011_retirement_state.py, backend/apps/operations/migrations/0007_retirement_plans.py, backend/apps/operations/services/retirement_plans.py, backend/apps/stage_gates/services/validate_retirement_submission.py, backend/apps/stage_gates/services/submit_retirement_gate.py, backend/apps/stage_gates/services/record_retirement_decision.py, backend/apps/products/services/retirement.py, backend/tests/operations/test_retirement.py, backend/tests/operations/test_retirement_execution.py, backend/tests/stage_gates/test_retirement_gate.py, backend/tests/stage_gates/test_retirement_concurrency.py, backend/tests/products/test_retirement_state.py.
+
+**Interfaces:** CreateRetirementPlan(...), ValidateRetirementSubmission(...), SubmitRetirementGate(...), RecordRetirementManagementConclusion(...), RecordRetirementFinalDecision(...), ExecuteRetirementPlan(context, plan_public_id, as_of), products.ApplyApprovedRetirementAction(...)。
+
+- [ ] 先写测试：来自议题和 DIRECT 来源均可创建；DIRECT 自动建立轻量议题；范围锁定产品、版本、SKU、渠道，计划保存库存/临期、供应合同、客户市场、替代方案及三个日期。
+- [ ] 测试预检完整覆盖 TRD 04 第11.2节；DocumentVersion 必须 ACTIVE；数据覆盖不足必须有说明；缺失返回 RETIREMENT_SUBMISSION_INCOMPLETE。
+- [ ] 测试提交创建不可变 GateSubmission，材料引用 RetirementPlan、OperatingDataSnapshot 和 DocumentVersion 的 public_id + hash；后续数据/文件版本不污染旧提交。
+- [ ] 测试经管会和老板分别以 retirement.management_conclusion.record、retirement.final_decision.record 认证；同一操作者双步骤拒绝；老板结果权威；NEEDS_INFO/DEFERRED/PASSED/批准状态正确。
+- [ ] 测试两个并发结论/最终决策只有一个数据库事实；批准事务原子保存 MajorGateDecision、plan APPROVED、审计和 retirement.approved outbox，不在决策事务内提前执行日期动作。
+- [ ] 为 STOP_PRODUCTION、STOP_SALE、RETIRE 建立 RetirementExecutionAction 唯一行；到期任务只执行已批准动作，失败保存 EXECUTION_ERROR/错误码并可幂等重试。
+- [ ] products.ApplyApprovedRetirementAction 锁定产品范围：停产只更新 SKU.production_status；停售更新 ChannelConfiguration.OFF_SALE/valid_to；最终退市更新 SKU.INACTIVE、ProductVersion.INACTIVE/effective_to、ProductAsset.RETIRED/retired_at。operations 不直接保存这些模型。
+- [ ] 测试部分动作失败整体回滚该动作但保留批准和其他已完成动作；重复执行不重复审计/outbox；历史档案、事实和售后查询仍可用。
+- [ ] 运行阶段2重大门、FIRST_LAUNCH、产品发布、两连接并发、空库/阶段4库迁移和目标测试。
+- [ ] 提交：git commit -m "feat: close the governed product retirement loop"。
+
+## 14. Task 5.8：权限过滤查询、命令 API、导出和 OpenAPI
+
+**Files:** Modify backend/config/urls.py, backend/config/settings/base.py, backend/openapi/schema.yaml; Create backend/apps/operations/api/__init__.py, backend/apps/operations/api/urls.py, backend/apps/operations/api/data_sources.py, backend/apps/operations/api/ingestion.py, backend/apps/operations/api/values.py, backend/apps/operations/api/summaries.py, backend/apps/operations/api/risk_signals.py, backend/apps/operations/api/issues.py, backend/apps/operations/api/retirement.py, backend/apps/operations/queries/visible_resources.py, backend/apps/operations/services/exports.py, backend/tests/api/test_phase5_openapi.py, backend/tests/operations/test_operating_api.py, backend/tests/operations/test_operating_query_permissions.py, backend/tests/operations/test_operating_export.py.
+
+**Interfaces:** 提供 TRD 04 第14节全部路径，并补齐业务配置与执行入口：
+
+- GET/POST /api/v1/operating-data-sources；POST /api/v1/operating-data-sources/{id}/publish
+- GET/POST /api/v1/operating-metrics；POST /api/v1/operating-metrics/{id}/publish
+- GET/POST /api/v1/risk-rules；POST /api/v1/risk-rules/{id}/publish
+- POST /api/v1/operating-data/batches；GET /api/v1/operating-data/batches/{id}；POST confirm/retry；GET /api/v1/operating-data/unmapped
+- POST /api/v1/operating-values/overrides；POST /api/v1/operating-values/overrides/{id}/revoke
+- GET /api/v1/products/{id}/operating-summary；GET /api/v1/skus/{id}/operating-summary
+- GET /api/v1/risk-signals；POST view/close/escalate
+- GET/POST /api/v1/operating-issues；POST decisions/iteration-proposal
+- POST /api/v1/retirement-plans；POST validate/submit/execute
+- POST /api/v1/stage-gates/{id}/retirement-management-conclusion；POST /api/v1/stage-gates/{id}/retirement-final-decision
+- POST /api/v1/operating-data/exports，返回受控导出文件和短时下载票据
+
+- [ ] 先写 API/权限测试：无角色、无对象范围、数据等级不足默认拒绝；列表先过滤；详情/字段/下钻/导出分别判权；平台管理员不能读取敏感值；404 风格拒绝不泄露存在性。
+- [ ] 测试 UUID、分页、稳定排序、DECIMAL 字符串、统一错误结构和 TRD 04 全部错误码；关键状态不允许普通 PATCH。
+- [ ] 测试批次 confirm、人工值、信号、议题转换、退市提交/决策/执行的重复 idempotency_key 返回第一次结果或稳定 409。
+- [ ] 测试导出独立权限、范围裁剪、敏感字段脱敏、审计和文件清理；查看权不隐含导出权。
+- [ ] 运行 API 测试；预期端点和 schema 不存在失败。
+- [ ] View 只解析请求并调用 Task 5.1—5.7 服务；跨表看板/风险/议题查询只调用权限过滤 query service。
+- [ ] 注册 ENABLE_OPERATIONS_API；生成 backend/openapi/schema.yaml，再运行 frontend npm.cmd run api:generate 并提交 schema.d.ts。
+- [ ] 运行 OpenAPI 漂移、错误契约、权限、审计、文件下载和现有阶段2—4 API 回归。
+- [ ] 提交：git commit -m "feat: expose governed operations APIs"。
+
+## 15. Task 5.9：经营看板、风险中心、议题和退市工作台
+
+**Files:** Create frontend/src/modules/operations/store.ts, frontend/src/modules/operations/OperatingDataBatchPage.vue, frontend/src/modules/operations/OperatingDataBatchPage.spec.ts, frontend/src/modules/operations/OperatingDashboardPage.vue, frontend/src/modules/operations/OperatingDashboardPage.spec.ts, frontend/src/modules/operations/RiskSignalCenterPage.vue, frontend/src/modules/operations/RiskSignalCenterPage.spec.ts, frontend/src/modules/operations/OperatingIssuePage.vue, frontend/src/modules/operations/OperatingIssuePage.spec.ts, frontend/src/modules/operations/RetirementPlanPage.vue, frontend/src/modules/operations/RetirementPlanPage.spec.ts; Modify frontend/src/router/index.ts, frontend/src/router/index.spec.ts, frontend/src/modules/products/ProductDetailView.vue, frontend/src/modules/todos/TodoListView.vue.
+
+**Interfaces:** 仅使用生成的 components['schemas'][...] 与 Task 5.8 API；store 按 operations 域组织，只缓存列表/汇总和当前页面状态。
+
+- [ ] 先写 Vitest：批次上传/预览/确认与错误行；人工值标记/撤销；经营看板产品→SKU→渠道下钻；覆盖率/数据不足/不兼容口径。
+- [ ] 测试风险筛选、公式依据、关闭理由、升级议题；并发 409 后刷新权威状态；无权动作隐藏且 403 仍安全处理。
+- [ ] 测试议题快照、研判记录、行动、转迭代但不自动提交、关联提案/项目/发布版本。
+- [ ] 测试退市预检阻塞、材料版本、经管会/老板分步界面、已批准执行状态和错误重试。
+- [ ] 运行 operations 目标 Vitest；预期页面/store 不存在失败。
+- [ ] 实现 /operations、/operations/data-batches、/operations/risk-signals、/operations/issues/:id、/retirement-plans/:id 路由；产品详情增加运营页入口，todo 深链接重新判权。
+- [ ] 关键提交防重复点击；409 提示刷新比较；敏感值不进入 URL、localStorage 或前端日志；导出只通过后端票据。
+- [ ] 运行 frontend lint、format:check、typecheck、operations Vitest、router/product/todo 回归和 build。
+- [ ] 提交：git commit -m "feat: add operations and retirement workbenches"。
+
+## 16. Task 5.10：阶段5 E2E、全量门禁和退出证据
+
+**Files:** Create tests/e2e/operations-iteration-retirement.spec.ts, docs/implementation/phase-5-checkpoint.md; Modify backend/apps/identity/management/commands/seed_e2e_user.py, docs/implementation/phase-5-test-matrix.md, scripts/check.ps1, README.md, docs/development/01-phased-implementation-plan.md.
+
+**Interfaces:** Playwright 通过浏览器和真实 API/MySQL 验证老品运营→迭代、老品运营→退市两条主链；检查点只记录本轮实际证据。
+
+- [ ] 扩展 seed_e2e_user：稳定创建运营监督人、经管会、老板、受限用户、已上市产品/SKU/渠道、已发布数据源/指标/规则；不得绕过业务命令预制最终信号、议题或退市决策。
+- [ ] E2E 主链一：文件/API 批次→人工值→汇总/下钻→风险信号→关闭或升级→经营议题→迭代提案 DRAFT；使用既有真实 API 推进迭代发布后断言议题回写唯一产品版本。
+- [ ] E2E 主链二：退市议题→计划/快照/文件→预检→提交→经管会结论→老板决定→到期 execute→停产/停售/退市；断言产品/SKU/渠道状态、历史经营数据和剩余跟踪仍可访问。
+- [ ] E2E 失败/权限：结构错误不写事实、数据不足不出信号、未授权导出拒绝、同人双步骤拒绝、执行失败保留批准并按原动作重试只产生一个结果。
+- [ ] 所有 E2E retries=0；断言 API 可观察的数据库结果、计数、状态和不可变快照，不只检查页面成功文案。
+- [ ] 将新 spec 纳入 scripts/check.ps1，运行 scripts\check.cmd；预期 All quality gates passed. 且无跳过/xfail。
+- [ ] 运行 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify-trd.ps1；预期 92 项需求、4 个重大阶段门继续通过。
+- [ ] 在空库和阶段4数据库副本执行 migrate；核对 migration plan 无循环，回滚方案不依赖删除已写入事实。
+- [ ] 更新测试矩阵为真实测试路径和本轮结果；检查点记录提交范围、迁移、pytest/Vitest/Playwright数量、并发证据、OpenAPI漂移、Docker镜像和全部阻塞项。
+- [ ] 仅在 P0/P1/P2 为 0 且上述证据满足后，更新 README 和主计划为“阶段5已完成，阶段6尚未开始”。
+- [ ] 提交：git commit -m "docs: record phase 5 completion evidence"。
+
+## 17. 明确不实现
+
+- 不建设数据仓库、湖仓、实时流平台、搜索集群、通用报表设计器或任意公式脚本引擎。
+- 不接入具体生产业务系统或正式钉钉连接器；阶段5只提供受控 API/文件/手工批次和适配器契约，具体首批连接器属于阶段6。
+- 不建设复杂风险等级、自动处罚、自动冻结、自动调价或自动启动议题/提案/项目。
+- 不让经营监督人因角色自动获得成本、供应商、工艺、文件原件或立项全文。
+- 不把退市做成物理删除，不重写历史事实、人工值、信号、议题、快照、阶段门或产品版本。
+- 不创建第二套机会、项目、产品、SKU、渠道、文件、审计、通知、配置或阶段门模型。
+- 不顺手拆分 products/models.py、重构阶段2—4服务或引入微服务/BPM/Kubernetes/Harbor。
+- 不让 Celery、Redis、前端状态或通知投递成为唯一业务事实或重大决策入口。
+
+## 18. 停线条件与自检
+
+- 无法在 MySQL 约束层保证当前事实、ACTIVE人工值、唯一信号、活动主议题、单次迭代转换或退市动作幂等：停线并回到模型/迁移评审。
+- 必须由 integrations 直接写 operations 模型、operations 直接写 opportunities/products/stage_gates 模型，或形成循环迁移：停线并修正公开服务与依赖方向。
+- 指标/风险规则需要执行数据库保存的 Python/SQL、季度数据必须伪拆粒度、或数据不足只能伪装正常：停线并回到 TRD 评审。
+- 退市无法区分批准事实与日期执行、无法保留失败重试状态、或决定后可改写提交快照：停线，不进入 API/前端。
+- 产品/SKU/渠道范围和数据等级不能在查询前过滤，平台管理员可默认读取敏感经营值，或导出无法独立审计：停线，不进入 E2E。
+- 空库与阶段4库迁移任一路径失败，阶段2—4回归失败，或 outbox 重放产生重复业务事实：不得进入退出验收。
+- 任一权限允许/拒绝、审计失败回滚、两连接并发最终事实、OpenAPI漂移、两条 E2E 主链或 Docker 构建无证据：不得宣布阶段5完成。
+- 覆盖自检：OPS-001—014 全部映射；所有 TRD 04 API、权限动作、错误码、事件和审计项有任务归属；无未披露占位项、跳过、笼统延期项或文档结果冒充本轮实测。
