@@ -8,7 +8,7 @@
 
 对应测试矩阵：`docs/implementation/phase-4-test-matrix.md`
 
-基准：`a220f18` → 八次 `d090f01` → 九次修复（本检查点）
+基准：`a220f18` → 八次 `d090f01` → 九次 `f069177`（本检查点）
 
 ## 九次复审修复摘要（相对 `d090f01`）
 
@@ -28,7 +28,7 @@
 
 ```text
 Base commit reviewed: d090f01
-Commit target: ninth-pass remediation after d090f01
+Remediation commit: f069177
 Backend pytest uploads + inflight_migration + reconciliation: 24 passed
 Backend ruff check (changed modules): pass
 OpenAPI spectacular: regenerated (MigrationFileStageResponse expires_at/public_id)
