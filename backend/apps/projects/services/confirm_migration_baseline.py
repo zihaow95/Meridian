@@ -16,6 +16,7 @@ from apps.authorization.policies.engine import authorize
 from apps.authorization.services.subject import subject_for
 from apps.configuration.models import ConfigurationStatus, ConfigurationVersion
 from apps.configuration.services import CreateSnapshot
+from apps.documents.services.ingest import StagedContent, activate_staged_content
 from apps.documents.storage.base import FileStorage
 from apps.documents.storage.factory import get_file_storage
 from apps.identity.models.department import Department, DepartmentStatus
@@ -52,6 +53,7 @@ from apps.work_items.services.materialize_template import (
     materialize_template_tasks,
 )
 from apps.work_items.services.migrated_history import (
+    MigratedDeliverableResult,
     create_migrated_history_deliverable,
     create_migrated_history_task,
 )
@@ -90,7 +92,7 @@ def _materialize_history_file(
     item: dict[str, Any],
     actor: User,
     storage: FileStorage,
-) -> object:
+) -> MigratedDeliverableResult:
     return create_migrated_history_deliverable(
         project=project,
         stage=stage,
@@ -98,6 +100,44 @@ def _materialize_history_file(
         actor=actor,
         storage=storage,
     )
+
+
+def _history_file_audit_metadata(items: list[Any]) -> list[dict[str, Any]]:
+    """Audit-safe metadata for migrated files (never the base64 content)."""
+
+    metadata: list[dict[str, Any]] = []
+    for item in items:
+        if not isinstance(item, dict):
+            metadata.append({"filename": str(item)})
+            continue
+        metadata.append(
+            {
+                "filename": str(item.get("filename") or item.get("name") or "migrated-file"),
+                "deliverable_code": item.get("deliverable_code"),
+                "source_version": item.get("source_version")
+                or item.get("migration_source_version"),
+                "mime_type": item.get("mime_type"),
+            }
+        )
+    return metadata
+
+
+def _strip_history_file_content(items: list[Any]) -> list[dict[str, Any]]:
+    """Drop transient base64 payloads once files are staged into storage."""
+
+    cleaned: list[dict[str, Any]] = []
+    for item in items:
+        if not isinstance(item, dict):
+            cleaned.append({"filename": str(item)})
+            continue
+        cleaned.append(
+            {
+                key: value
+                for key, value in item.items()
+                if key not in {"content_base64", "content_text", "content"}
+            }
+        )
+    return cleaned
 
 
 def _filter_content_for_stages(content: dict[str, Any], stage_codes: set[str]) -> dict[str, Any]:
@@ -141,6 +181,8 @@ class ConfirmMigrationBaseline:
 
     def execute(self) -> ConfirmMigrationResult:
         actor = self.context.actor
+        self._staged_files: list[StagedContent] = []
+        storage = get_file_storage()
         with transaction.atomic():
             baseline = (
                 MigrationBaseline.objects.select_for_update()
@@ -205,9 +247,24 @@ class ConfirmMigrationBaseline:
                 ]
             )
 
+            history_file_metadata = _history_file_audit_metadata(
+                list(baseline.history_deliverables or []) + list(baseline.history_files or [])
+            )
+
             project = None
             if self.disposition == MigrationDisposition.CONTINUE:
                 project = self._materialize_continued_project(baseline=baseline, actor=actor)
+
+            # Drop transient base64 payloads now that files are staged into
+            # storage: the baseline keeps only auditable metadata references.
+            if baseline.history_files or baseline.history_deliverables:
+                baseline.history_files = _strip_history_file_content(
+                    list(baseline.history_files or [])
+                )
+                baseline.history_deliverables = _strip_history_file_content(
+                    list(baseline.history_deliverables or [])
+                )
+                baseline.save(update_fields=["history_files", "history_deliverables", "updated_at"])
 
             append_event(
                 AuditRecord(
@@ -223,7 +280,7 @@ class ConfirmMigrationBaseline:
                         "baseline_public_id": str(baseline.public_id),
                         "disposition": baseline.disposition,
                         "project_public_id": str(project.public_id) if project else None,
-                        "history_files": list(baseline.history_files or []),
+                        "history_files": history_file_metadata,
                     },
                 )
             )
@@ -239,7 +296,13 @@ class ConfirmMigrationBaseline:
                     occurred_at=self.context.occurred_at,
                 )
             )
-            return ConfirmMigrationResult(baseline=baseline, project=project)
+            result = ConfirmMigrationResult(baseline=baseline, project=project)
+
+        # Activate staged files only after the transaction has committed so a
+        # rolled-back confirmation never leaves an orphaned formal object.
+        for staged in self._staged_files:
+            activate_staged_content(staged, storage)
+        return result
 
     def _materialize_continued_project(
         self,
@@ -369,13 +432,15 @@ class ConfirmMigrationBaseline:
 
         storage = get_file_storage()
         for item in list(baseline.history_deliverables or []) + list(baseline.history_files or []):
-            _materialize_history_file(
+            outcome = _materialize_history_file(
                 project=project,
                 stage=current,
                 item=item if isinstance(item, dict) else {"filename": str(item)},
                 actor=actor,
                 storage=storage,
             )
+            if outcome.staged_file is not None:
+                self._staged_files.append(outcome.staged_file)
 
         stages_by_code = {stage.stage_code: stage for stage in created_stages}
         materialize_template_tasks(

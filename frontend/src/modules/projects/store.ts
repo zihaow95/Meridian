@@ -21,6 +21,7 @@ export type StageGateIdempotentResultRequest =
 export type FirstLaunchManagementRequest = components['schemas']['FirstLaunchManagementRequest']
 export type FirstLaunchFinalRequest = components['schemas']['FirstLaunchFinalRequest']
 export type PublicIdStatusResponse = components['schemas']['PublicIdStatusResponse']
+export type ProjectPublishRepairResponse = components['schemas']['ProjectPublishRepairResponse']
 
 export const useProjectStore = defineStore('projects', {
   state: () => ({
@@ -181,8 +182,8 @@ export const useProjectStore = defineStore('projects', {
       this.lastGateDecision = result
       return result
     },
-    async retryPublishRepair(projectPublicId: string): Promise<PublicIdStatusResponse> {
-      return apiFetch<PublicIdStatusResponse>(
+    async retryPublishRepair(projectPublicId: string): Promise<ProjectPublishRepairResponse> {
+      return apiFetch<ProjectPublishRepairResponse>(
         `/api/v1/projects/${projectPublicId}/publish-repair`,
         {
           method: 'POST',

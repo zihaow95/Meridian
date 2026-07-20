@@ -52,6 +52,7 @@ PROJECT_DETAIL_RESPONSE = inline_serializer(
         "current_stage_code": serializers.CharField(allow_null=True),
         "opportunity_sources": serializers.ListField(),
         "launch_capabilities": LAUNCH_CAPABILITIES,
+        "can_publish_repair": serializers.BooleanField(),
     },
 )
 
@@ -96,6 +97,7 @@ DELIVERABLE_ITEM = inline_serializer(
         "tier": serializers.CharField(),
         "status": serializers.CharField(),
         "current_revision_public_id": serializers.UUIDField(allow_null=True),
+        "document_version_public_id": serializers.UUIDField(allow_null=True),
     },
 )
 
@@ -150,6 +152,17 @@ PUBLIC_ID_STATUS = inline_serializer(
         "result": serializers.CharField(required=False),
         "version_no": serializers.IntegerField(required=False),
         "handover_error": serializers.CharField(required=False, allow_null=True),
+    },
+)
+
+PUBLISH_REPAIR_RESPONSE = inline_serializer(
+    name="ProjectPublishRepairResponse",
+    fields={
+        "public_id": serializers.UUIDField(),
+        "status": serializers.CharField(),
+        "handover_error": serializers.CharField(required=False, allow_null=True),
+        "product_version_public_id": serializers.UUIDField(allow_null=True),
+        "monitoring_scope_public_id": serializers.UUIDField(allow_null=True),
     },
 )
 

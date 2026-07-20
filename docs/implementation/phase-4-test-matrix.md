@@ -47,8 +47,8 @@
 
 | 场景 | 证据 | 状态 |
 |---|---|---|
-| 新品主链与运行时 | `tests/e2e/development-first-launch.spec.ts` | 已通过：6 passed（2026-07-15） |
-| 失败修复 / 待修复 | 同上 + `test_launch_handover` | 已通过（E2E 待修复；重试为 pytest） |
+| 新品主链与运行时 | `tests/e2e/development-first-launch.spec.ts` | 已通过 |
+| 发布失败→待修复→按原决定重试→OPERATING（唯一版本/运营范围） | 同上（`retries=0`，种子经真实双人决策与发布失败进入 `PUBLISH_PENDING_REPAIR`）+ `test_launch_handover.test_repair_retry_publishes_idempotently` | 已通过：完整 UI 闭环，重试幂等返回同一产品版本与运营范围 |
 | 在途 D3 与权限拒绝 | 同上 | 已通过 |
 
 ## 门禁纳入

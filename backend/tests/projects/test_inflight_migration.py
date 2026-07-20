@@ -188,6 +188,131 @@ def test_history_file_without_real_content_fails_closed(
 
 
 @pytest.mark.django_db
+def test_migrated_history_file_is_discoverable_and_downloadable(
+    migrator: User,
+    grant_action: Callable[..., None],
+    project_template_version,
+    api_client,
+) -> None:
+    """A migrated file must be downloadable through the workbench, not just on disk."""
+
+    del project_template_version
+    imported = ImportProjectMigrationBatch(
+        context=CommandContext.for_actor(migrator),
+        batch_key="batch-download",
+        rows=[_d3_row(external_id="EXT-DOWNLOAD")],
+    ).execute()
+    result = ConfirmMigrationBaseline(
+        context=CommandContext.for_actor(migrator),
+        baseline_public_id=imported.baselines[0].public_id,
+        disposition=MigrationDisposition.CONTINUE,
+        idempotency_key="confirm-download",
+    ).execute()
+    project = result.project
+    assert project is not None
+
+    api_client.force_authenticate(user=migrator)
+
+    # The workbench exposes the document version so a client can discover it.
+    listing = api_client.get(f"/api/v1/projects/{project.public_id}/deliverables")
+    assert listing.status_code == 200
+    migrated = next(row for row in listing.json()["items"] if row["name"] == "d2-report.pdf")
+    version_public_id = migrated["document_version_public_id"]
+    assert version_public_id is not None
+
+    # Without the download right, the ticket request is denied.
+    denied = api_client.post(f"/api/v1/documents/versions/{version_public_id}/download-ticket")
+    assert denied.status_code in (403, 404)
+
+    # With the download right, a ticket is issued and the file is served.
+    grant_action(migrator, "document.version.download", "document.version")
+    ticket = api_client.post(f"/api/v1/documents/versions/{version_public_id}/download-ticket")
+    assert ticket.status_code == 200
+    token = ticket.json()["token"]
+    download = api_client.get(f"/api/v1/documents/download/{token}")
+    assert download.status_code == 200
+
+
+@pytest.mark.django_db
+def test_confirm_strips_base64_content_after_materialization(
+    migrator: User,
+    project_template_version,
+) -> None:
+    """The base64 payload must not linger in the baseline JSON after confirm."""
+
+    del project_template_version
+    imported = ImportProjectMigrationBatch(
+        context=CommandContext.for_actor(migrator),
+        batch_key="batch-strip",
+        rows=[_d3_row(external_id="EXT-STRIP")],
+    ).execute()
+    baseline = imported.baselines[0]
+    assert baseline.history_files[0]["content_base64"] == HISTORY_FILE_B64
+
+    ConfirmMigrationBaseline(
+        context=CommandContext.for_actor(migrator),
+        baseline_public_id=baseline.public_id,
+        disposition=MigrationDisposition.CONTINUE,
+        idempotency_key="confirm-strip",
+    ).execute()
+
+    baseline.refresh_from_db()
+    assert baseline.history_files
+    assert "content_base64" not in baseline.history_files[0]
+    assert baseline.history_files[0]["filename"] == "d2-report.pdf"
+
+
+@pytest.mark.django_db
+def test_confirm_rollback_leaves_no_orphaned_storage_object(
+    migrator: User,
+    project_template_version,
+    monkeypatch,
+) -> None:
+    """A database failure after staging must not leave an orphaned formal file.
+
+    File activation is deferred until the confirm transaction commits, so a
+    failure inside the transaction rolls back the file rows and never performs
+    the physical storage move.
+    """
+
+    del project_template_version
+    from apps.documents.models import DocumentSource, FileObject
+    from apps.documents.storage.factory import get_file_storage
+
+    imported = ImportProjectMigrationBatch(
+        context=CommandContext.for_actor(migrator),
+        batch_key="batch-rollback",
+        rows=[_d3_row(external_id="EXT-ROLLBACK")],
+    ).execute()
+
+    def _boom(**_kwargs: object) -> None:
+        raise RuntimeError("simulated downstream DB failure")
+
+    monkeypatch.setattr(
+        "apps.projects.services.confirm_migration_baseline.materialize_template_tasks",
+        _boom,
+    )
+
+    with pytest.raises(RuntimeError):
+        ConfirmMigrationBaseline(
+            context=CommandContext.for_actor(migrator),
+            baseline_public_id=imported.baselines[0].public_id,
+            disposition=MigrationDisposition.CONTINUE,
+            idempotency_key="confirm-rollback",
+        ).execute()
+
+    # The staged file object rows rolled back with the transaction ...
+    assert not FileObject.objects.filter(
+        versions__document__source=DocumentSource.MIGRATION
+    ).exists()
+    # ... and no physical object was moved into permanent storage (the temp
+    # staging payload may remain and is later swept by ReconcileStorage).
+    objects_dir = get_file_storage().final_path_for("placeholder").parent
+    orphans = [p for p in objects_dir.rglob("*") if p.is_file()] if objects_dir.exists() else []
+    assert orphans == []
+
+
+@pytest.mark.django_db
 def test_confirm_idempotency_key_is_organization_scoped(
     migrator: User,
     grant_action: Callable[..., None],

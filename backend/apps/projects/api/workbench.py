@@ -27,6 +27,7 @@ from apps.projects.api.schemas import (
     PROJECT_DETAIL_RESPONSE,
     PROJECT_LIST_RESPONSE,
     PUBLIC_ID_STATUS,
+    PUBLISH_REPAIR_RESPONSE,
     STAGE_HANDLING_REQUEST,
     STAGES_RESPONSE,
     TASKS_RESPONSE,
@@ -402,7 +403,7 @@ class ProjectPublishRepairView(APIView):
     @extend_schema(
         operation_id="projects_publish_repair_create",
         request=EMPTY_BODY_REQUEST,
-        responses={200: PUBLIC_ID_STATUS},
+        responses={200: PUBLISH_REPAIR_RESPONSE},
     )
     def post(self, request: Request, public_id: UUID) -> Response:
         user = cast(User, request.user)
@@ -415,5 +416,15 @@ class ProjectPublishRepairView(APIView):
                 "public_id": str(result.project.public_id),
                 "status": result.project.status,
                 "handover_error": result.error_code,
+                "product_version_public_id": (
+                    str(result.product_version.public_id)
+                    if result.product_version is not None
+                    else None
+                ),
+                "monitoring_scope_public_id": (
+                    str(result.monitoring_scope.public_id)
+                    if result.monitoring_scope is not None
+                    else None
+                ),
             }
         )

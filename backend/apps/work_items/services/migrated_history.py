@@ -5,22 +5,15 @@ from __future__ import annotations
 import base64
 import binascii
 import hashlib
-from pathlib import Path
+from dataclasses import dataclass
 from typing import Any
 from uuid import uuid4
 
 from django.utils import timezone
 
-from apps.documents.models import (
-    Document,
-    DocumentSource,
-    DocumentVersion,
-    FileObject,
-    StorageBackend,
-    StorageStatus,
-    VersionStatus,
-)
-from apps.documents.storage.base import FileStorage, StorageMoveFailed
+from apps.documents.models import DocumentSource
+from apps.documents.services.ingest import StagedContent, stage_controlled_content
+from apps.documents.storage.base import FileStorage
 from apps.identity.models.department import Department
 from apps.identity.models.user import User
 from apps.projects.errors import MigrationImportFailed
@@ -35,6 +28,14 @@ from apps.work_items.models import (
     TaskSourceType,
     TaskStatus,
 )
+
+
+@dataclass(frozen=True)
+class MigratedDeliverableResult:
+    """A materialized history deliverable plus any staged file awaiting activation."""
+
+    deliverable: Deliverable
+    staged_file: StagedContent | None
 
 
 def _decode_history_file_content(item: dict[str, Any]) -> bytes:
@@ -102,19 +103,21 @@ def create_migrated_history_deliverable(
     item: dict[str, Any],
     actor: User,
     storage: FileStorage,
-) -> Deliverable:
+) -> MigratedDeliverableResult:
     """Create a history deliverable bound to a real, checksummed storage object.
 
-    Follows the state-compensated file pipeline: write bytes to the isolated temp
-    dir, compute SHA-256, create a PENDING file object, atomically move to the
-    final object key, then mark ACTIVE/CONTROLLED only after the move succeeds.
+    File-object creation is delegated to the ``documents`` public ingest service
+    (no cross-domain writes here). Bytes are written to the isolated temp dir and
+    a PENDING storage object is staged; the physical move + activation is deferred
+    to the caller via the returned :class:`StagedContent`, so a later database
+    failure cannot leave an orphaned formal object behind.
     """
 
     filename = str(item.get("filename") or item.get("name") or "migrated-file")
     code = str(item.get("deliverable_code") or f"MIG-FILE-{uuid4().hex[:10]}")
     existing = Deliverable.objects.filter(project=project, deliverable_code=code).first()
     if existing is not None:
-        return existing
+        return MigratedDeliverableResult(deliverable=existing, staged_file=None)
 
     source_note = str(item.get("source_note") or "Migrated history file")
     source_version = str(item.get("source_version") or item.get("migration_source_version") or "1")
@@ -125,58 +128,26 @@ def create_migrated_history_deliverable(
         raise MigrationImportFailed(message="Migrated history file content is empty.")
     sha256 = hashlib.sha256(content).hexdigest()
     size_bytes = len(content)
-    object_key = f"{uuid4()}/{uuid4()}"
 
     temp_path = storage.temp_dir() / f"{uuid4()}.part"
     temp_path.parent.mkdir(parents=True, exist_ok=True)
     temp_path.write_bytes(content)
 
-    now = timezone.now()
-    file_object = FileObject.objects.create(
+    version, staged = stage_controlled_content(
         organization=project.organization,
-        storage_backend=StorageBackend.NAS_NFS,
-        object_key=object_key,
-        size_bytes=size_bytes,
+        source_temp_path=temp_path,
         sha256=sha256,
-        detected_mime_type=mime,
-        storage_status=StorageStatus.PENDING,
-    )
-    document = Document.objects.create(
-        organization=project.organization,
-        document_code=f"MIG-{uuid4().hex[:12].upper()}",
-        title=filename,
+        size_bytes=size_bytes,
+        original_filename=filename,
+        mime_type=mime,
+        uploaded_by=actor,
         source=DocumentSource.MIGRATION,
         category="MIGRATION_HISTORY",
+        document_code=f"MIG-{uuid4().hex[:12].upper()}",
+        title=filename,
     )
-    version = DocumentVersion.objects.create(
-        organization=project.organization,
-        document=document,
-        version_number=1,
-        file_object=file_object,
-        original_filename=filename,
-        declared_mime_type=mime,
-        detected_mime_type=mime,
-        status=VersionStatus.DRAFT,
-        uploaded_by=actor,
-        uploaded_at=now,
-        sensitivity_level="INTERNAL",
-    )
-    try:
-        storage.atomic_move(Path(temp_path), object_key)
-    except StorageMoveFailed as exc:
-        temp_path.unlink(missing_ok=True)
-        raise MigrationImportFailed(
-            message=f"Failed to persist migrated history file: {filename}"
-        ) from exc
 
-    file_object.storage_status = StorageStatus.ACTIVE
-    file_object.save(update_fields=["storage_status"])
-    version.status = VersionStatus.CONTROLLED
-    version.controlled_at = now
-    version.save(update_fields=["status", "controlled_at"])
-    document.current_version = version
-    document.save(update_fields=["current_version"])
-
+    now = timezone.now()
     deliverable = Deliverable.objects.create(
         organization=project.organization,
         project=project,
@@ -201,4 +172,4 @@ def create_migrated_history_deliverable(
     )
     deliverable.current_revision = revision
     deliverable.save(update_fields=["current_revision", "updated_at"])
-    return deliverable
+    return MigratedDeliverableResult(deliverable=deliverable, staged_file=staged)

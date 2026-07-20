@@ -415,34 +415,53 @@ test("publish pending repair retries with original decision to reach OPERATING",
     E2E_REPAIR_RETRY_BUSINESS_NO,
   );
 
+  // The project reached PUBLISH_PENDING_REPAIR from a real publish failure
+  // (seeded via the actual dual-actor decision + failed handover). With
+  // retries=0 this keeps the core UI repair path deterministic.
+  expect(project.status).toBe("PUBLISH_PENDING_REPAIR");
+
   await page.goto(`/projects/${project.public_id}`);
   await expect(page.locator('[data-test="project-workbench"]')).toBeVisible();
-
-  if (project.status !== "OPERATING") {
-    await expect(
-      page.locator('[data-test="retry-publish-repair"]'),
-    ).toBeVisible();
-    await page.locator('[data-test="retry-publish-repair"]').click();
-    await expect(page.locator('[data-test="repair-message"]')).toContainText(
-      "OPERATING",
-    );
-  }
+  await expect(
+    page.locator('[data-test="retry-publish-repair"]'),
+  ).toBeVisible();
+  await page.locator('[data-test="retry-publish-repair"]').click();
+  await expect(page.locator('[data-test="repair-message"]')).toContainText(
+    "OPERATING",
+  );
 
   const after = await page.request.get(`/api/v1/projects/${project.public_id}`);
   expect(after.ok()).toBeTruthy();
   expect((await after.json()).status).toBe("OPERATING");
 
-  // Retrying with the original decision is idempotent: it stays OPERATING and
-  // does not re-enter repair (single product version is proven in unit tests).
-  const retryAgain = await authedJson(
+  // Retrying with the original decision is idempotent and yields exactly one
+  // product version and one operating (monitoring) scope: repeated retries
+  // return the same identifiers instead of creating new ones.
+  const retry1 = await authedJson(
     page,
     "POST",
     `/api/v1/projects/${project.public_id}/publish-repair`,
   );
-  expect(retryAgain.ok()).toBeTruthy();
-  const retryPayload = await retryAgain.json();
-  expect(retryPayload.status).toBe("OPERATING");
-  expect(retryPayload.handover_error).toBeFalsy();
+  expect(retry1.ok()).toBeTruthy();
+  const payload1 = await retry1.json();
+  expect(payload1.status).toBe("OPERATING");
+  expect(payload1.handover_error).toBeFalsy();
+  expect(payload1.product_version_public_id).toBeTruthy();
+  expect(payload1.monitoring_scope_public_id).toBeTruthy();
+
+  const retry2 = await authedJson(
+    page,
+    "POST",
+    `/api/v1/projects/${project.public_id}/publish-repair`,
+  );
+  expect(retry2.ok()).toBeTruthy();
+  const payload2 = await retry2.json();
+  expect(payload2.product_version_public_id).toBe(
+    payload1.product_version_public_id,
+  );
+  expect(payload2.monitoring_scope_public_id).toBe(
+    payload1.monitoring_scope_public_id,
+  );
 });
 
 test("migration continue from D3 skips prior stages; archive creates no project", async ({

@@ -151,12 +151,28 @@ def _launch_capabilities(user: User, project: Project) -> dict[str, bool]:
     }
 
 
+def _can_publish_repair(user: User, project: Project) -> bool:
+    """Whether the actor may re-run publish handover for this project."""
+
+    return authorize(
+        subject_for(user),
+        action="project.publish_repair",
+        resource=ResourceDescriptor(
+            resource_type="project",
+            public_id=project.public_id,
+            organization_id=project.organization_id,
+        ),
+        context=AuthorizationContext.current(),
+    ).allowed
+
+
 def serialize_workbench_project(project: Project, *, user: User) -> dict[str, Any]:
     payload = serialize_project_detail(project)
     payload["current_stage_code"] = (
         project.current_stage.stage_code if project.current_stage is not None else None
     )
     payload["launch_capabilities"] = _launch_capabilities(user, project)
+    payload["can_publish_repair"] = _can_publish_repair(user, project)
     return payload
 
 
@@ -259,7 +275,7 @@ def list_project_deliverables(
     page_size = min(max(page_size, 1), _MAX_PAGE_SIZE)
     qs = (
         Deliverable.objects.filter(project=project)
-        .select_related("stage", "current_revision")
+        .select_related("stage", "current_revision", "current_revision__document_version")
         .order_by("stage__sequence_no", "deliverable_code")
     )
     count = qs.count()
@@ -274,6 +290,12 @@ def list_project_deliverables(
             "status": item.status,
             "current_revision_public_id": (
                 str(item.current_revision.public_id) if item.current_revision is not None else None
+            ),
+            "document_version_public_id": (
+                str(item.current_revision.document_version.public_id)
+                if item.current_revision is not None
+                and item.current_revision.document_version_id is not None
+                else None
             ),
         }
         for item in qs[offset : offset + page_size]

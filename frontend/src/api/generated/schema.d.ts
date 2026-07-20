@@ -1978,6 +1978,16 @@ export interface components {
             page_size: number;
             count: number;
         };
+        ProjectPublishRepairResponse: {
+            /** Format: uuid */
+            public_id: string;
+            status: string;
+            handover_error?: string | null;
+            /** Format: uuid */
+            product_version_public_id: string | null;
+            /** Format: uuid */
+            monitoring_scope_public_id: string | null;
+        };
         ProjectWorkbenchDetail: {
             launch_capabilities: components["schemas"]["ProjectLaunchCapabilities"];
             /** Format: uuid */
@@ -1998,6 +2008,7 @@ export interface components {
             product_draft_public_id: string | null;
             current_stage_code: string | null;
             opportunity_sources: unknown[];
+            can_publish_repair: boolean;
         };
         ProposalVersion: {
             public_id: string;
@@ -2228,6 +2239,8 @@ export interface components {
             status: string;
             /** Format: uuid */
             current_revision_public_id: string | null;
+            /** Format: uuid */
+            document_version_public_id: string | null;
         };
         WorkbenchDeliverablesResponse: {
             items: components["schemas"]["WorkbenchDeliverableItem"][];
@@ -4192,7 +4205,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["PublicIdStatusResponse"];
+                    "application/json": components["schemas"]["ProjectPublishRepairResponse"];
                 };
             };
         };

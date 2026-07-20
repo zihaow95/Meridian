@@ -88,12 +88,17 @@ const detailPayload = {
   product_draft_public_id: null,
   current_stage_code: 'D3',
   opportunity_sources: [],
+  launch_capabilities: {
+    can_record_management_conclusion: false,
+    can_record_final_decision: false,
+  },
+  can_publish_repair: true,
 }
 
-function mockWorkbenchApis(status = 'EXECUTING'): void {
+function mockWorkbenchApis(status = 'EXECUTING', canPublishRepair = true): void {
   vi.mocked(apiFetch).mockImplementation(async (url: string) => {
     if (url === '/api/v1/projects/proj-1') {
-      return { ...detailPayload, status }
+      return { ...detailPayload, status, can_publish_repair: canPublishRepair }
     }
     if (url === '/api/v1/projects/proj-1/stages') {
       return {
@@ -163,6 +168,15 @@ describe('ProjectWorkbenchView', () => {
       expect.objectContaining({ method: 'POST' }),
     )
     expect(wrapper.find('[data-test="repair-message"]').exists()).toBe(true)
+  })
+
+  it('hides the repair button when the actor lacks the publish-repair right', async () => {
+    mockWorkbenchApis('PUBLISH_PENDING_REPAIR', false)
+    const wrapper = mount(ProjectWorkbenchView, { global: { stubs } })
+    await flush()
+
+    expect(wrapper.text()).toContain('PUBLISH_PENDING_REPAIR')
+    expect(wrapper.find('[data-test="retry-publish-repair"]').exists()).toBe(false)
   })
 
   it('shows launch gate panel on launch-gate route', async () => {

@@ -110,6 +110,27 @@ def test_workbench_detail_launch_capabilities_reflect_management_only_actor(
 
 
 @pytest.mark.django_db
+def test_workbench_detail_publish_repair_capability_requires_permission(
+    api_client: APIClient,
+    project: Project,
+    grant_action: Callable[..., None],
+) -> None:
+    """The repair capability is false until the actor holds project.publish_repair."""
+
+    leader = project.leader
+    api_client.force_authenticate(user=leader)
+
+    before = api_client.get(f"/api/v1/projects/{project.public_id}")
+    assert before.status_code == 200
+    assert before.json()["can_publish_repair"] is False
+
+    grant_action(leader, "project.publish_repair", "project", role_code="PUBLISH_REPAIRER")
+    after = api_client.get(f"/api/v1/projects/{project.public_id}")
+    assert after.status_code == 200
+    assert after.json()["can_publish_repair"] is True
+
+
+@pytest.mark.django_db
 def test_workbench_detail_launch_capabilities_reflect_final_only_actor(
     api_client: APIClient,
     project: Project,

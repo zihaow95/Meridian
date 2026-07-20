@@ -2,10 +2,15 @@
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
 from uuid import uuid4
 
 from django.core.management.base import BaseCommand, CommandError
 from django.utils import timezone
+
+if TYPE_CHECKING:
+    from apps.projects.models import Project
+    from apps.stage_gates.models import StageGateInstance
 
 from apps.authorization.models.assignment import RoleAssignment, ScopeType
 from apps.authorization.models.role import (
@@ -447,15 +452,13 @@ class Command(BaseCommand):
             ProductChangeSet,
             ProductLifecycleStatus,
             ProductSourceType,
-            ProductVersion,
         )
         from apps.projects.models import Project, ProjectStatus, ProjectType
         from apps.projects.services.initialize_runtime import InitializeProjectRuntime
-        from apps.stage_gates.models import (
-            GateResult,
-            GateStatus,
-            MajorGateDecision,
-            StageGateInstance,
+        from apps.stage_gates.models import GateResult
+        from apps.stage_gates.services.record_first_launch_decision import (
+            RecordFirstLaunchFinalDecision,
+            RecordFirstLaunchManagementConclusion,
         )
 
         business_no = E2E_REPAIR_RETRY_BUSINESS_NO
@@ -464,23 +467,39 @@ class Command(BaseCommand):
             raise CommandError("Approver must be seeded before the repair-retry project.")
 
         project = Project.objects.filter(organization=organization, business_no=business_no).first()
-        if project is not None and project.status == ProjectStatus.OPERATING:
-            return
-        if project is not None and project.status == ProjectStatus.PUBLISH_PENDING_REPAIR:
-            # Already seeded and awaiting the E2E retry; leave it untouched.
-            if ProductVersion.objects.filter(change_set=project.product_draft).exists():
-                return
-            if (
+        if project is not None:
+            from apps.stage_gates.models import MajorGateDecision
+
+            has_final = (
                 MajorGateDecision.objects.filter(
                     stage_gate__project=project,
                     stage_gate__stage_code="FIRST_LAUNCH",
                 )
                 .exclude(final_decision="")
                 .exists()
-            ):
+            )
+            if has_final:
+                # Re-arm so every E2E run starts in PUBLISH_PENDING_REPAIR with a
+                # repaired, publishable draft and no product version yet.
+                self._rearm_repair_retry_project(project, business_no=business_no)
                 return
+            # Incomplete prior seed: tear nothing, fall through after ensuring
+            # the project/draft exist for the real failure path below.
+            if project.product_draft is None:
+                raise CommandError("Repair-retry project is missing its product draft.")
+            # Keep the draft empty so the real publish still fails closed.
+            incomplete_draft = project.product_draft
+            incomplete_draft.change_scope = {
+                "effective_from": timezone.now().isoformat(),
+                "skus": [],
+                "channels": [],
+            }
+            incomplete_draft.status = ChangeSetStatus.APPROVED
+            incomplete_draft.save(update_fields=["change_scope", "status", "updated_at"])
+            project.status = ProjectStatus.ACTIVE
+            project.save(update_fields=["status", "updated_at"])
 
-        if project is None:
+        else:
             product = ProductAsset.objects.create(
                 organization=organization,
                 business_no=f"{business_no}-PRD",
@@ -498,23 +517,12 @@ class Command(BaseCommand):
                 product=product,
                 target_product_asset=product,
                 title="E2E Repair Retry draft",
+                # Deliberately empty scope so the *first* real publish fails and
+                # the project enters PUBLISH_PENDING_REPAIR organically.
                 change_scope={
                     "effective_from": timezone.now().isoformat(),
-                    "skus": [
-                        {
-                            "sku_code": f"SKU-{business_no}",
-                            "name": "Repaired cup",
-                            "barcode": f"69{abs(hash(business_no)) % 10_000_000_000:010d}",
-                            "specification": "120g",
-                        }
-                    ],
-                    "channels": [
-                        {
-                            "sku_code": f"SKU-{business_no}",
-                            "channel_code": "TMALL",
-                            "channel_status": "ON_SALE",
-                        }
-                    ],
+                    "skus": [],
+                    "channels": [],
                 },
                 approved_by=leader,
                 created_by=leader,
@@ -538,36 +546,187 @@ class Command(BaseCommand):
             ).execute()
             project.refresh_from_db()
 
-        gate = (
-            StageGateInstance.objects.filter(
-                project=project,
-                stage_code="FIRST_LAUNCH",
-                cycle_number=1,
-            )
-            .select_related("project_stage")
-            .first()
-        )
-        if gate is None:
-            raise CommandError("FIRST_LAUNCH gate missing for repair-retry project.")
-        gate.status = GateStatus.DECIDED
-        gate.save(update_fields=["status", "updated_at"])
+        gate = self._submit_first_launch_gate(project, submitter=leader)
 
-        MajorGateDecision.objects.get_or_create(
-            stage_gate=gate,
-            defaults={
-                "organization": organization,
-                "management_conclusion": GateResult.APPROVED,
-                "management_conclusion_by": leader,
-                "final_decision": GateResult.APPROVED,
-                "final_decision_by": approver,
-                "has_conclusion_difference": False,
-                "decision_summary": "Seeded repaired FIRST_LAUNCH decision.",
-                "idempotency_key": f"e2e-repair-retry-{project.public_id}",
-                "decided_at": timezone.now(),
-            },
+        # Drive the real FIRST_LAUNCH dual-actor decision. The final decision
+        # triggers PublishAndHandover, which fails on the empty scope and moves
+        # the project into PUBLISH_PENDING_REPAIR with a genuine gate decision.
+        RecordFirstLaunchManagementConclusion(
+            context=CommandContext.for_actor(leader),
+            stage_gate_public_id=gate.public_id,
+            management_conclusion=GateResult.APPROVED,
+            decision_summary="Seed repair-retry management conclusion.",
+            idempotency_key=f"e2e-repair-retry-mgmt-{project.public_id}",
+        ).execute()
+        final = RecordFirstLaunchFinalDecision(
+            context=CommandContext.for_actor(approver),
+            stage_gate_public_id=gate.public_id,
+            final_decision=GateResult.APPROVED,
+            decision_summary="Seed repair-retry final decision.",
+            idempotency_key=f"e2e-repair-retry-final-{project.public_id}",
+        ).execute()
+
+        project.refresh_from_db()
+        if project.status != ProjectStatus.PUBLISH_PENDING_REPAIR:
+            raise CommandError(
+                "Repair-retry project did not enter PUBLISH_PENDING_REPAIR "
+                f"(status={project.status}, handover_error={final.handover_error})."
+            )
+
+        # Repair the underlying data (populate the scope) so a subsequent retry
+        # with the original decision publishes successfully.
+        repaired_draft = project.product_draft
+        if repaired_draft is None:
+            raise CommandError("Repair-retry project is missing its product draft.")
+        repaired_draft.change_scope = {
+            "effective_from": timezone.now().isoformat(),
+            "skus": [
+                {
+                    "sku_code": f"SKU-{business_no}",
+                    "name": "Repaired cup",
+                    "barcode": f"69{abs(hash(business_no)) % 10_000_000_000:010d}",
+                    "specification": "120g",
+                }
+            ],
+            "channels": [
+                {
+                    "sku_code": f"SKU-{business_no}",
+                    "channel_code": "TMALL",
+                    "channel_status": "ON_SALE",
+                }
+            ],
+        }
+        repaired_draft.save(update_fields=["change_scope", "updated_at"])
+
+    def _rearm_repair_retry_project(self, project: Project, *, business_no: str) -> None:
+        """Reset an already-decided repair project so the E2E UI path can run again.
+
+        Clears published artifacts (monitoring scope, SKUs, version scopes, product
+        version) while keeping the original FIRST_LAUNCH decision, then restores a
+        publishable draft and ``PUBLISH_PENDING_REPAIR`` status.
+        """
+
+        from apps.operations.models import MonitoringScope
+        from apps.products.models import (
+            SKU,
+            ChangeSetStatus,
+            ChannelConfiguration,
+            ProductAsset,
+            ProductLifecycleStatus,
+            ProductVersion,
+            ProductVersionScope,
         )
+        from apps.projects.models import ProjectStatus
+
+        MonitoringScope.objects.filter(project=project).delete()
+        draft = project.product_draft
+        if draft is None:
+            raise CommandError("Repair-retry project is missing its product draft.")
+
+        versions = list(ProductVersion.objects.filter(change_set=draft))
+        version_ids = [version.id for version in versions]
+        if version_ids:
+            ChannelConfiguration.objects.filter(sku__product_version_id__in=version_ids).delete()
+            SKU.objects.filter(product_version_id__in=version_ids).delete()
+            ProductVersionScope.objects.filter(product_version_id__in=version_ids).delete()
+            ProductAsset.objects.filter(primary_version_id__in=version_ids).update(
+                primary_version=None
+            )
+            ProductVersion.objects.filter(id__in=version_ids).delete()
+
+        draft.change_scope = {
+            "effective_from": timezone.now().isoformat(),
+            "skus": [
+                {
+                    "sku_code": f"SKU-{business_no}",
+                    "name": "Repaired cup",
+                    "barcode": f"69{abs(hash(business_no)) % 10_000_000_000:010d}",
+                    "specification": "120g",
+                }
+            ],
+            "channels": [
+                {
+                    "sku_code": f"SKU-{business_no}",
+                    "channel_code": "TMALL",
+                    "channel_status": "ON_SALE",
+                }
+            ],
+        }
+        draft.status = ChangeSetStatus.APPROVED
+        draft.save(update_fields=["change_scope", "status", "updated_at"])
+
+        product = project.product_asset
+        if product is not None:
+            product.lifecycle_status = ProductLifecycleStatus.DEVELOPING
+            product.save(update_fields=["lifecycle_status", "updated_at"])
+
         project.status = ProjectStatus.PUBLISH_PENDING_REPAIR
         project.save(update_fields=["status", "updated_at"])
+
+    def _submit_first_launch_gate(self, project: Project, *, submitter: User) -> StageGateInstance:
+        """Put the FIRST_LAUNCH gate into a decideable SUBMITTED + active L2 state."""
+
+        from apps.projects.models import ProjectStageStatus
+        from apps.stage_gates.models import (
+            GateStatus,
+            GateSubmission,
+            GateType,
+            MaterialType,
+            StageGateInstance,
+            SubjectType,
+        )
+
+        stage = project.stages.get(stage_code="L2")
+        stage.status = ProjectStageStatus.ACTIVE
+        stage.actual_start_at = stage.actual_start_at or timezone.now()
+        stage.save(update_fields=["status", "actual_start_at", "updated_at"])
+        project.current_stage = stage
+        project.save(update_fields=["current_stage", "updated_at"])
+
+        gate = StageGateInstance.objects.filter(
+            project=project,
+            stage_code="FIRST_LAUNCH",
+            cycle_number=1,
+        ).first()
+        if gate is None:
+            raise CommandError("FIRST_LAUNCH gate missing for repair-retry project.")
+        gate.gate_type = GateType.MAJOR
+        gate.project_stage = stage
+        gate.status = GateStatus.READY
+        gate.primary_material_type = MaterialType.PROJECT_STAGE
+        gate.primary_material_public_id = stage.public_id
+        gate.subject_type = SubjectType.PROJECT
+        gate.subject_public_id = project.public_id
+        gate.save(
+            update_fields=[
+                "gate_type",
+                "project_stage",
+                "status",
+                "primary_material_type",
+                "primary_material_public_id",
+                "subject_type",
+                "subject_public_id",
+                "updated_at",
+            ]
+        )
+
+        submission = gate.current_submission
+        if submission is None:
+            submission = GateSubmission.objects.create(
+                organization=project.organization,
+                stage_gate=gate,
+                submission_number=1,
+                snapshot_json={"stage_code": "L2", "gate_code": "FIRST_LAUNCH"},
+                content_hash=f"e2e-first-launch-{gate.public_id}",
+                validation_result_json={"blocks": [], "warnings": []},
+                submitted_by=submitter,
+                submitted_at=timezone.now(),
+                idempotency_key=f"e2e-repair-submit-{gate.public_id}",
+            )
+        gate.status = GateStatus.SUBMITTED
+        gate.current_submission = submission
+        gate.save(update_fields=["status", "current_submission", "updated_at"])
+        return gate
 
     def _ensure_launch_project(
         self,

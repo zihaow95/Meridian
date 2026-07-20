@@ -34,6 +34,7 @@ const canRecordManagementConclusion = computed(
 const canRecordFinalDecision = computed(
   () => detail.value?.launch_capabilities?.can_record_final_decision ?? false,
 )
+const canPublishRepair = computed(() => detail.value?.can_publish_repair ?? false)
 
 async function load(): Promise<void> {
   errorText.value = ''
@@ -108,6 +109,7 @@ onMounted(async () => {
         class="workbench__banner"
       />
       <el-button
+        v-if="canPublishRepair"
         data-test="retry-publish-repair"
         type="primary"
         :loading="repairing"

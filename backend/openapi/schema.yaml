@@ -2073,7 +2073,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/PublicIdStatusResponse'
+                $ref: '#/components/schemas/ProjectPublishRepairResponse'
           description: ''
   /api/v1/projects/{public_id}/stages:
     get:
@@ -3764,6 +3764,30 @@ components:
       - items
       - page
       - page_size
+    ProjectPublishRepairResponse:
+      type: object
+      properties:
+        public_id:
+          type: string
+          format: uuid
+        status:
+          type: string
+        handover_error:
+          type: string
+          nullable: true
+        product_version_public_id:
+          type: string
+          format: uuid
+          nullable: true
+        monitoring_scope_public_id:
+          type: string
+          format: uuid
+          nullable: true
+      required:
+      - monitoring_scope_public_id
+      - product_version_public_id
+      - public_id
+      - status
     ProjectWorkbenchDetail:
       type: object
       properties:
@@ -3805,8 +3829,11 @@ components:
         opportunity_sources:
           type: array
           items: {}
+        can_publish_repair:
+          type: boolean
       required:
       - business_no
+      - can_publish_repair
       - candidate_public_id
       - current_stage_code
       - deputy_leader_public_id
@@ -4366,9 +4393,14 @@ components:
           type: string
           format: uuid
           nullable: true
+        document_version_public_id:
+          type: string
+          format: uuid
+          nullable: true
       required:
       - current_revision_public_id
       - deliverable_code
+      - document_version_public_id
       - name
       - public_id
       - stage_code

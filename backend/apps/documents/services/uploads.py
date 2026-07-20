@@ -13,17 +13,13 @@ from django.db import transaction
 from django.utils import timezone
 
 from apps.documents.models import (
-    Document,
     DocumentSource,
     DocumentVersion,
-    FileObject,
-    StorageBackend,
-    StorageStatus,
     UploadSession,
-    VersionStatus,
 )
 from apps.documents.policy import resolve_upload_policy
-from apps.documents.storage.base import FileStorage, StorageMoveFailed
+from apps.documents.services.ingest import activate_staged_content, stage_controlled_content
+from apps.documents.storage.base import FileStorage
 from apps.identity.models.user import User
 
 
@@ -84,53 +80,24 @@ class CompleteUpload:
             if session.size_bytes > policy.max_bytes:
                 raise UploadValidationFailed("Uploaded file exceeds size limit.")
 
-            object_key = f"{uuid.uuid4()}/{uuid.uuid4()}"
             now = timezone.now()
-            document_code = self.document_code or f"DOC-{uuid.uuid4().hex[:12].upper()}"
-            title = self.title or session.original_filename
-
-            file_object = FileObject.objects.create(
+            version, staged = stage_controlled_content(
                 organization=session.organization,
-                storage_backend=StorageBackend.NAS_NFS,
-                object_key=object_key,
-                size_bytes=session.size_bytes,
+                source_temp_path=Path(session.temp_path),
                 sha256=session.sha256,
-                detected_mime_type=session.declared_mime_type,
-                storage_status=StorageStatus.PENDING,
-            )
-            document = Document.objects.create(
-                organization=session.organization,
-                document_code=document_code,
-                title=title,
-                source=DocumentSource.PROJECT,
-            )
-            version = DocumentVersion.objects.create(
-                organization=session.organization,
-                document=document,
-                version_number=1,
-                file_object=file_object,
+                size_bytes=session.size_bytes,
                 original_filename=session.original_filename,
-                declared_mime_type=session.declared_mime_type,
-                detected_mime_type=session.declared_mime_type,
-                status=VersionStatus.DRAFT,
+                mime_type=session.declared_mime_type,
                 uploaded_by=session.uploaded_by,
-                uploaded_at=now,
+                source=DocumentSource.PROJECT,
+                document_code=self.document_code,
+                title=self.title,
             )
-            try:
-                self.storage.atomic_move(Path(session.temp_path), object_key)
-            except StorageMoveFailed:
-                raise
-            file_object.storage_status = StorageStatus.ACTIVE
-            file_object.save(update_fields=["storage_status"])
-            version.status = VersionStatus.CONTROLLED
-            version.controlled_at = now
-            version.save(update_fields=["status", "controlled_at"])
-            document.current_version = version
-            document.save(update_fields=["current_version"])
+            activate_staged_content(staged, self.storage)
             session.completed_at = now
             session.save(update_fields=["completed_at"])
 
-        return version
+        return DocumentVersion.objects.get(id=version.id)
 
 
 def complete_upload(
