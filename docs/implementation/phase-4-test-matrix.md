@@ -1,6 +1,6 @@
 # 阶段4 开发到首次上市 —— 测试矩阵
 
-状态：第十二轮 NO-GO（相对 `816336e`）已本地修复：ARCHIVE_ONLY PENDING 建档事务、部分激活 consume、真实中途失败恢复、mypy Project 缩窄。本轮 `scripts\check.ps1` 除 Docker 镜像拉取（环境阻断）外已绿；Playwright 16 passed。
+状态：第十三轮 NO-GO（相对 `b147eb0`）已本地修复：ARCHIVE_ONLY 锁内重读历史列表 + 同键并发唯一事实（Barrier）。域内 `test_inflight_migration` 26 passed；全量门禁/Docker 本切片未重跑。
 
 对应计划：`docs/superpowers/plans/2026-07-14-phase-4-development-first-launch.md`
 
@@ -28,7 +28,7 @@
 | EXE-011 | PlanChange | projects | `ApplyPlanChange` | plan_change.* | plan-changes | — | 已通过：`test_execution_controls` |
 | EXE-012 | 逾期提醒 | work_items | Celery scan | 查询过滤 | tasks | — | 已通过：`test_overdue` |
 | EXE-013 | EmergencyExecution | projects | `CreateEmergencyExecution` | emergency_execution.create | emergency-executions | — | 已通过：`test_execution_controls` + E2E 拒绝 |
-| EXE-014 | MigrationBaseline | projects | Import/Confirm + stream stage | project_migration.confirm | migration files/stage + batches | DeliverablePanel 下载 | 已通过：`test_inflight_migration`（PENDING 事务 / 中途失败 consume / 同键恢复）+ E2E D3/ARCHIVE（本轮 Playwright 16 passed） |
+| EXE-014 | MigrationBaseline | projects | Import/Confirm + stream stage | project_migration.confirm | migration files/stage + batches | DeliverablePanel 下载 | 已通过：`test_inflight_migration`（锁内重读 / 同键并发唯一事实 / 中途失败 consume）+ E2E D3/ARCHIVE |
 
 ## API / OpenAPI
 

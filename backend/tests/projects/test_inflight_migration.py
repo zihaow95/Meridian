@@ -1027,6 +1027,112 @@ def test_archive_only_pending_stage_failure_rolls_back_orphans(
     assert DocumentVersion.objects.count() == before_versions
 
 
+@pytest.mark.django_db(transaction=True)
+def test_archive_only_same_key_concurrent_confirm_leaves_one_file_fact(
+    migrator: User,
+    project_template_version,
+) -> None:
+    """Two same-key ARCHIVE_ONLY confirms must leave one Document/Version/FileObject set."""
+
+    del project_template_version
+    import threading
+
+    from django.db import connection
+
+    from apps.documents.models import Document, DocumentSource, DocumentVersion, VersionStatus
+    from apps.projects.models import MigrationFileStage
+
+    imported = ImportProjectMigrationBatch(
+        context=CommandContext.for_actor(migrator),
+        batch_key="batch-archive-concurrent",
+        rows=[_d3_row(migrator.organization, migrator, external_id="EXT-ARC-CONC")],
+    ).execute()
+    baseline = imported.baselines[0]
+    staging = baseline.history_files[0]["staging_relpath"]
+    idempotency_key = "confirm-arc-concurrent"
+    baseline_public_id = baseline.public_id
+    org_id = migrator.organization_id
+
+    results: list[str] = []
+    barrier = threading.Barrier(2)
+    lock = threading.Lock()
+
+    def _confirm(label: str) -> None:
+        connection.close()
+        try:
+            barrier.wait(timeout=10)
+            ConfirmMigrationBaseline(
+                context=CommandContext.for_actor(migrator),
+                baseline_public_id=baseline_public_id,
+                disposition=MigrationDisposition.ARCHIVE_ONLY,
+                idempotency_key=idempotency_key,
+            ).execute()
+            with lock:
+                results.append(f"ok:{label}")
+        except Exception as exc:  # noqa: BLE001 - collect for assert
+            with lock:
+                results.append(f"error:{type(exc).__name__}:{label}")
+        finally:
+            connection.close()
+
+    threads = [
+        threading.Thread(target=_confirm, args=("a",)),
+        threading.Thread(target=_confirm, args=("b",)),
+    ]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join(timeout=60)
+        assert not thread.is_alive(), "concurrent ARCHIVE_ONLY worker did not finish"
+
+    assert len(results) == 2
+    assert results.count("ok:a") + results.count("ok:b") == 2, results
+
+    baseline.refresh_from_db()
+    assert len(baseline.history_files) == 1
+    version_id = baseline.history_files[0]["document_version_public_id"]
+    assert version_id
+    assert "staging_relpath" not in baseline.history_files[0]
+
+    migration_docs = Document.objects.filter(
+        organization_id=org_id,
+        source=DocumentSource.MIGRATION,
+        category="MIGRATION_ARCHIVE",
+    )
+    assert migration_docs.count() == 1
+    versions = DocumentVersion.objects.filter(document__in=migration_docs)
+    assert versions.count() == 1
+    version = versions.get()
+    assert str(version.public_id) == str(version_id)
+    assert version.status == VersionStatus.CONTROLLED
+    assert version.file_object_id is not None
+    from apps.documents.models import FileObject, StorageStatus
+
+    assert (
+        FileObject.objects.filter(
+            id=version.file_object_id,
+            organization_id=org_id,
+            storage_status=StorageStatus.ACTIVE,
+        ).count()
+        == 1
+    )
+    # No orphan migration-archive FileObjects beyond the single baseline fact.
+    assert (
+        FileObject.objects.filter(
+            organization_id=org_id,
+            versions__document__source=DocumentSource.MIGRATION,
+            versions__document__category="MIGRATION_ARCHIVE",
+        )
+        .distinct()
+        .count()
+        == 1
+    )
+
+    stage = MigrationFileStage.objects.get(staging_relpath=staging)
+    assert stage.consumed_at is not None
+    assert stage.claimed_baseline_id == baseline.id
+
+
 @pytest.mark.django_db
 def test_cross_list_duplicate_handle_rolls_back_while_sibling_row_succeeds(
     migrator: User,

@@ -490,18 +490,19 @@ class ConfirmMigrationBaseline:
                     items[index] = row
             return items, consumed, first_error
 
-        history_files = [_normalize_item(item) for item in (baseline.history_files or [])]
-        history_deliverables = [
-            _normalize_item(item) for item in (baseline.history_deliverables or [])
-        ]
-
         # Phase 1: all PENDING staging + pending ID persistence in one transaction.
+        # Rebuild history lists from the locked row so concurrent same-key callers
+        # observe pending IDs already written by the winner (no orphan duplicates).
         with transaction.atomic():
             baseline = (
                 MigrationBaseline.objects.select_for_update()
                 .select_related("organization")
                 .get(pk=baseline.pk)
             )
+            history_files = [_normalize_item(item) for item in (baseline.history_files or [])]
+            history_deliverables = [
+                _normalize_item(item) for item in (baseline.history_deliverables or [])
+            ]
             history_files = _ensure_pending_ids(history_files)
             history_deliverables = _ensure_pending_ids(history_deliverables)
             baseline.history_files = history_files
