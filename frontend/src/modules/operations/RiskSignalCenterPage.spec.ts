@@ -50,12 +50,16 @@ const stubs = {
     emits: ['update:modelValue'],
     setup(props, { emit, attrs, slots }) {
       return () =>
-        h('select', {
-          ...attrs,
-          value: props.modelValue as string,
-          onChange: (event: Event) =>
-            emit('update:modelValue', (event.target as HTMLSelectElement).value),
-        }, slots.default?.())
+        h(
+          'select',
+          {
+            ...attrs,
+            value: props.modelValue as string,
+            onChange: (event: Event) =>
+              emit('update:modelValue', (event.target as HTMLSelectElement).value),
+          },
+          slots.default?.(),
+        )
     },
   }),
   'el-option': defineComponent({

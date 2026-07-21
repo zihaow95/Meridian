@@ -76,7 +76,11 @@ describe('OperatingIssuePage', () => {
 
   it('records a decision and converts to iteration without auto-submit', async () => {
     vi.mocked(apiFetch).mockImplementation(async (url: string, init?: RequestInit) => {
-      if (url.startsWith('/api/v1/operating-issues') && !url.includes('/decisions') && !url.includes('/iteration')) {
+      if (
+        url.startsWith('/api/v1/operating-issues') &&
+        !url.includes('/decisions') &&
+        !url.includes('/iteration')
+      ) {
         if (init?.method === 'POST' && url.endsWith('/iteration-proposal')) {
           return {
             ...issueBrief,

@@ -265,12 +265,7 @@ async function revokeOverride(): Promise<void> {
         <el-button data-test="retry-batch" :loading="busy" :disabled="busy" @click="retryBatch">
           重试
         </el-button>
-        <el-button
-          data-test="load-unmapped"
-          :loading="busy"
-          :disabled="busy"
-          @click="loadUnmapped"
-        >
+        <el-button data-test="load-unmapped" :loading="busy" :disabled="busy" @click="loadUnmapped">
           未映射行
         </el-button>
       </div>

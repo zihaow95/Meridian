@@ -23,9 +23,7 @@ const finalIdempotency = ref(`final-${Date.now()}`)
 const executeAsOf = ref('')
 
 const planId = computed(() => String(route.params.publicId ?? ''))
-const stageGateId = computed(
-  () => operations.retirementPlan?.stage_gate_public_id || '',
-)
+const stageGateId = computed(() => operations.retirementPlan?.stage_gate_public_id || '')
 
 function formatError(err: unknown, fallback: string): string {
   if (err instanceof ApiError) return `${err.code}: ${err.message}`
@@ -222,12 +220,7 @@ async function executePlan(): Promise<void> {
     </p>
 
     <div class="ops-retirement__actions">
-      <el-button
-        data-test="validate-plan"
-        :loading="busy"
-        :disabled="busy"
-        @click="validatePlan"
-      >
+      <el-button data-test="validate-plan" :loading="busy" :disabled="busy" @click="validatePlan">
         预检
       </el-button>
       <el-input
@@ -284,11 +277,7 @@ async function executePlan(): Promise<void> {
     <el-card class="ops-retirement__card">
       <template #header>老板最终决策</template>
       <div class="ops-retirement__form">
-        <el-input
-          v-model="finalDecision"
-          data-test="final-decision"
-          placeholder="final_decision"
-        />
+        <el-input v-model="finalDecision" data-test="final-decision" placeholder="final_decision" />
         <el-input
           v-model="finalIdempotency"
           data-test="final-idempotency"

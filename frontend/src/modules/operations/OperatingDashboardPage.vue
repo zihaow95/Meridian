@@ -3,10 +3,7 @@ import { onMounted, ref } from 'vue'
 import { useRoute } from 'vue-router'
 
 import { ApiError } from '@/api/client'
-import {
-  useOperationsStore,
-  type OperatingSummaryItem,
-} from '@/modules/operations/store'
+import { useOperationsStore, type OperatingSummaryItem } from '@/modules/operations/store'
 
 const route = useRoute()
 const operations = useOperationsStore()
@@ -148,8 +145,8 @@ onMounted(() => {
         :key="`${row.grain_public_id}-${row.metric_code}-${index}`"
         data-test="summary-row"
       >
-        {{ row.metric_code }} / {{ row.grain_public_id }} /
-        覆盖率 {{ row.coverage_rate }} / {{ row.status }}
+        {{ row.metric_code }} / {{ row.grain_public_id }} / 覆盖率 {{ row.coverage_rate }} /
+        {{ row.status }}
         <el-button
           v-if="row.grain_public_id"
           link
@@ -170,8 +167,8 @@ onMounted(() => {
           :key="`${row.grain_public_id}-${row.metric_code}-${index}`"
           data-test="sku-summary-row"
         >
-          {{ row.metric_code }} / {{ row.grain_public_id }} /
-          覆盖率 {{ row.coverage_rate }} / {{ row.status }}
+          {{ row.metric_code }} / {{ row.grain_public_id }} / 覆盖率 {{ row.coverage_rate }} /
+          {{ row.status }}
         </li>
       </ul>
     </template>

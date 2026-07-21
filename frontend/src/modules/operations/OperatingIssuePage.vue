@@ -120,9 +120,9 @@ onMounted(load)
     <template v-if="operations.currentIssue">
       <p data-test="issue-title">{{ operations.currentIssue.title }}</p>
       <p>
-        {{ operations.currentIssue.business_no }} /
-        {{ operations.currentIssue.status }} /
-        v{{ operations.currentIssue.version_no }}
+        {{ operations.currentIssue.business_no }} / {{ operations.currentIssue.status }} / v{{
+          operations.currentIssue.version_no
+        }}
       </p>
       <p>{{ operations.currentIssue.phenomenon_summary }}</p>
 
@@ -156,11 +156,7 @@ onMounted(load)
           data-test="recommendation-type"
           placeholder="recommendation_type"
         />
-        <el-input
-          v-model="actionSummary"
-          data-test="action-summary"
-          placeholder="action_summary"
-        />
+        <el-input v-model="actionSummary" data-test="action-summary" placeholder="action_summary" />
         <el-button
           data-test="record-decision"
           type="primary"

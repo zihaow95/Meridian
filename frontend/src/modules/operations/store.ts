@@ -28,16 +28,13 @@ export type OperatingIssue = components['schemas']['OperatingIssue'] & {
   linked_project_id?: string | null
   linked_product_version_id?: string | null
 }
-export type OperatingIssueDecisionRequest =
-  components['schemas']['OperatingIssueDecisionRequest']
-export type OperatingIssueDecisionResponse =
-  components['schemas']['OperatingIssueDecisionResponse']
+export type OperatingIssueDecisionRequest = components['schemas']['OperatingIssueDecisionRequest']
+export type OperatingIssueDecisionResponse = components['schemas']['OperatingIssueDecisionResponse']
 export type OperatingIssueIterationProposalRequest =
   components['schemas']['OperatingIssueIterationProposalRequest']
 export type RetirementPlan = components['schemas']['RetirementPlan']
 export type RetirementPlanCreateRequest = components['schemas']['RetirementPlanCreateRequest']
-export type RetirementPlanValidateResponse =
-  components['schemas']['RetirementPlanValidateResponse']
+export type RetirementPlanValidateResponse = components['schemas']['RetirementPlanValidateResponse']
 export type RetirementPlanSubmitRequest = components['schemas']['RetirementPlanSubmitRequest']
 export type RetirementPlanSubmitResponse = components['schemas']['RetirementPlanSubmitResponse']
 export type RetirementPlanExecuteRequest = components['schemas']['RetirementPlanExecuteRequest']
@@ -124,7 +121,9 @@ export const useOperationsStore = defineStore('operations', {
       this.conflictHint = ''
     },
 
-    async createBatch(payload: OperatingIngestionBatchCreateRequest): Promise<OperatingIngestionBatch> {
+    async createBatch(
+      payload: OperatingIngestionBatchCreateRequest,
+    ): Promise<OperatingIngestionBatch> {
       this.loading = true
       this.clearConflictHint()
       try {
@@ -340,9 +339,7 @@ export const useOperationsStore = defineStore('operations', {
       const updated = await apiFetch<RiskSignal>(`/api/v1/risk-signals/${publicId}/view`, {
         method: 'POST',
       })
-      this.riskSignals = this.riskSignals.map((row) =>
-        row.public_id === publicId ? updated : row,
-      )
+      this.riskSignals = this.riskSignals.map((row) => (row.public_id === publicId ? updated : row))
     },
 
     async closeRiskSignal(publicId: string, payload: RiskSignalCloseRequest): Promise<void> {

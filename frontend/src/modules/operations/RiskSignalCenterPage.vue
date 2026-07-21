@@ -143,11 +143,7 @@ async function escalateSignal(signal: RiskSignal): Promise<void> {
     <div class="ops-risk__forms">
       <el-input v-model="closeReason" data-test="close-reason" placeholder="关闭理由" />
       <el-input v-model="escalateTitle" data-test="escalate-title" placeholder="升级议题标题" />
-      <el-input
-        v-model="escalateSummary"
-        data-test="escalate-summary"
-        placeholder="现象摘要"
-      />
+      <el-input v-model="escalateSummary" data-test="escalate-summary" placeholder="现象摘要" />
     </div>
 
     <ul class="ops-risk__list" data-test="risk-signal-list">
