@@ -14,6 +14,7 @@ from apps.audit.services.snapshots import acting_roles_snapshot
 from apps.authorization.context import AuthorizationContext, ResourceDescriptor
 from apps.authorization.policies.engine import authorize
 from apps.authorization.services.subject import subject_for
+from apps.identity.models.user import User
 from apps.operations.models import RetirementPlan, RetirementPlanStatus
 from apps.operations.services.retirement_plans import seed_execution_actions
 from apps.platform.api.errors import PermissionDeniedError
@@ -52,7 +53,7 @@ class RetirementDecisionResult:
     plan: RetirementPlan | None = None
 
 
-def _load_retirement_gate(*, actor, stage_gate_public_id: UUID) -> StageGateInstance:
+def _load_retirement_gate(*, actor: User, stage_gate_public_id: UUID) -> StageGateInstance:
     gate = (
         StageGateInstance.objects.select_for_update()
         .select_related("current_submission")
@@ -75,7 +76,7 @@ def _load_retirement_gate(*, actor, stage_gate_public_id: UUID) -> StageGateInst
     return gate
 
 
-def _authorize(*, actor, gate: StageGateInstance, action: str) -> None:
+def _authorize(*, actor: User, gate: StageGateInstance, action: str) -> None:
     decision = authorize(
         subject_for(actor),
         action=action,

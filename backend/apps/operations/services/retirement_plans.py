@@ -17,6 +17,7 @@ from apps.authorization.context import AuthorizationContext, ResourceDescriptor
 from apps.authorization.policies.engine import authorize
 from apps.authorization.services.subject import subject_for
 from apps.documents.models import DocumentVersion, VersionStatus
+from apps.identity.models.user import User
 from apps.operations.errors import RetirementNotExecutable, RetirementSubmissionIncomplete
 from apps.operations.models import (
     IssueSourceType,
@@ -44,7 +45,7 @@ from apps.stage_gates.models import (
 )
 
 
-def _authorize(actor, *, action: str, plan: RetirementPlan | None = None) -> None:
+def _authorize(actor: User, *, action: str, plan: RetirementPlan | None = None) -> None:
     decision = authorize(
         subject_for(actor),
         action=action,
@@ -71,7 +72,7 @@ def validate_retirement_plan_completeness(plan: RetirementPlan) -> dict[str, Any
         missing.append("scope.sku_public_ids")
     if not scope.get("channel_public_ids"):
         missing.append("scope.channel_public_ids")
-    if not plan.operating_snapshot_id:
+    if plan.operating_snapshot is None:
         missing.append("operating_snapshot")
     else:
         payload = plan.operating_snapshot.payload_json or {}
@@ -106,7 +107,7 @@ def validate_retirement_plan_completeness(plan: RetirementPlan) -> dict[str, Any
         if doc is None or doc.status != VersionStatus.CONTROLLED:
             missing.append("document_version.controlled")
     coverage = None
-    if plan.operating_snapshot_id:
+    if plan.operating_snapshot is not None:
         coverage = (plan.operating_snapshot.payload_json or {}).get("coverage_status")
     if coverage == "INSUFFICIENT" and not (plan.coverage_gap_explanation or "").strip():
         missing.append("coverage_gap_explanation")

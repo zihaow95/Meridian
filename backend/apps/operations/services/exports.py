@@ -17,12 +17,13 @@ from apps.audit.models import AuditResult
 from apps.audit.services.append_event import AuditRecord, append_event
 from apps.audit.services.snapshots import acting_roles_snapshot
 from apps.authorization.context import AuthorizationContext, ResourceDescriptor
-from apps.authorization.models.role import DataSensitivityLevel, LEVEL_RANK
+from apps.authorization.models.role import LEVEL_RANK, DataSensitivityLevel
 from apps.authorization.policies.engine import authorize
 from apps.authorization.services.subject import subject_for
 from apps.documents.services.ingest import activate_staged_content, stage_controlled_content
 from apps.documents.services.tickets import IssueDownloadTicket
 from apps.documents.storage.factory import get_file_storage
+from apps.identity.models.user import User
 from apps.operations.models import MetricAggregate, OperatingFact
 from apps.operations.queries.visible_resources import (
     user_max_data_level,
@@ -43,7 +44,7 @@ class OperatingExportResult:
 _SENSITIVE_VALUE_MIN = DataSensitivityLevel.SENSITIVE_CONTROLLED
 
 
-def _authorize_export(actor) -> None:
+def _authorize_export(actor: User) -> None:
     decision = authorize(
         subject_for(actor),
         action="operating_detail.export",
@@ -147,7 +148,7 @@ class CreateOperatingDataExport:
                     "aggregate",
                     row.metric_definition.metric_code,
                     str(row.grain_id),
-                    str(row.channel.public_id) if row.channel_id else "",
+                    str(row.channel.public_id) if row.channel is not None else "",
                     str(row.period_start),
                     str(row.period_end),
                     row.period_granularity,

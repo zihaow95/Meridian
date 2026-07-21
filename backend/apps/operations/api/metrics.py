@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from datetime import datetime
 from typing import Any, cast
-from uuid import UUID
+from uuid import UUID, uuid4
 
 from django.utils.dateparse import parse_datetime
 from drf_spectacular.utils import extend_schema, inline_serializer
@@ -14,13 +14,18 @@ from rest_framework.request import Request
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from apps.authorization.context import AuthorizationContext, ResourceDescriptor
+from apps.authorization.policies.engine import authorize
+from apps.authorization.services.subject import subject_for
 from apps.identity.models.user import User
+from apps.operations.models import MetricDefinitionVersion
 from apps.operations.queries.visible_resources import list_visible_metric_definitions
+from apps.operations.services.aggregations import RecalculateMetricAggregates
 from apps.operations.services.metric_definitions import (
     CreateMetricDefinitionDraft,
     PublishMetricDefinition,
 )
-from apps.platform.api.errors import ValidationFailedError
+from apps.platform.api.errors import PermissionDeniedError, ValidationFailedError
 from apps.platform.application.command import CommandContext
 
 METRIC_SCHEMA = inline_serializer(
@@ -59,7 +64,7 @@ METRIC_CREATE_REQUEST = inline_serializer(
 )
 
 
-def serialize_metric(metric) -> dict[str, Any]:
+def serialize_metric(metric: MetricDefinitionVersion) -> dict[str, Any]:
     return {
         "public_id": str(metric.public_id),
         "metric_code": metric.metric_code,
@@ -157,3 +162,59 @@ class OperatingMetricPublishView(APIView):
             metric_public_id=public_id,
         ).execute()
         return Response(serialize_metric(metric))
+
+
+class OperatingMetricRecalculateView(APIView):
+    """Thin wrapper around RecalculateMetricAggregates for E2E / ops recalculation."""
+
+    permission_classes = [IsAuthenticated]
+
+    @extend_schema(
+        operation_id="operating_metrics_recalculate",
+        request=inline_serializer(
+            name="OperatingMetricRecalculateRequest",
+            fields={
+                "affected_keys": serializers.ListField(child=serializers.DictField()),
+                "calculation_run_id": serializers.UUIDField(required=False),
+            },
+        ),
+        responses=inline_serializer(
+            name="OperatingMetricRecalculateResponse",
+            fields={
+                "written_count": serializers.IntegerField(),
+                "calculation_run_id": serializers.UUIDField(),
+            },
+        ),
+    )
+    def post(self, request: Request) -> Response:
+        user = cast(User, request.user)
+        decision = authorize(
+            subject_for(user),
+            action="operating_fact.read",
+            resource=ResourceDescriptor(
+                resource_type="operating_fact",
+                public_id=None,
+                organization_id=user.organization_id,
+            ),
+            context=AuthorizationContext.current(),
+        )
+        if not decision.allowed:
+            raise PermissionDeniedError()
+
+        keys = list(request.data.get("affected_keys") or [])
+        if not keys:
+            raise ValidationFailedError(message="affected_keys is required.")
+        normalized: list[dict[str, Any]] = []
+        for key in keys:
+            row = dict(key)
+            row.setdefault("organization_id", user.organization_id)
+            normalized.append(row)
+        run_id = request.data.get("calculation_run_id") or uuid4()
+        written = RecalculateMetricAggregates(
+            calculation_run_id=UUID(str(run_id)),
+            affected_keys=normalized,
+        ).execute()
+        return Response(
+            {"written_count": written, "calculation_run_id": str(run_id)},
+            status=200,
+        )

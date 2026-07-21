@@ -206,9 +206,7 @@ def test_issue_created_and_decided_todos_are_idempotent(
     d_code, d_handler = registry["operating_issue.decided"]
     assert consume_once(event=decided_event, consumer_code=d_code, handler=d_handler) is True
     assert consume_once(event=decided_event, consumer_code=d_code, handler=d_handler) is False
-    assert (
-        Todo.objects.filter(source_id=issue.public_id, assignee=another_active_user).count() == 1
-    )
+    assert Todo.objects.filter(source_id=issue.public_id, assignee=another_active_user).count() == 1
     merged = merged_consumer_registry()
     assert "operating_issue.created" in merged
     assert "operating_issue.decided" in merged

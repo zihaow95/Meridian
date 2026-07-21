@@ -14,7 +14,11 @@ from rest_framework.views import APIView
 
 from apps.identity.models.user import User
 from apps.integrations.models import IngestionBatch, IngestionRow
-from apps.integrations.services.ingestion import CreateIngestionBatch, RetryIngestionBatch
+from apps.integrations.services.ingestion import (
+    CreateIngestionBatch,
+    RetryIngestionBatch,
+    ValidateIngestionBatch,
+)
 from apps.operations.queries.visible_resources import list_unmapped_ingestion_rows
 from apps.operations.services.ingestion import ConfirmOperatingIngestionBatch
 from apps.platform.api.errors import PermissionDeniedError, ValidationFailedError
@@ -148,6 +152,23 @@ class OperatingIngestionBatchDetailView(APIView):
         )
         if batch is None:
             raise PermissionDeniedError()
+        return Response(serialize_batch(batch, include_rows=True))
+
+
+class OperatingIngestionBatchValidateView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    @extend_schema(
+        operation_id="operating_data_batches_validate",
+        request=None,
+        responses={200: BATCH_SCHEMA},
+    )
+    def post(self, request: Request, public_id: UUID) -> Response:
+        user = cast(User, request.user)
+        batch = ValidateIngestionBatch(
+            context=CommandContext.for_actor(user),
+            batch_public_id=public_id,
+        ).execute()
         return Response(serialize_batch(batch, include_rows=True))
 
 

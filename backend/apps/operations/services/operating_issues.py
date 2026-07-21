@@ -17,6 +17,7 @@ from apps.authorization.context import AuthorizationContext, ResourceDescriptor
 from apps.authorization.models.role import LEVEL_RANK, DataSensitivityLevel
 from apps.authorization.policies.engine import authorize
 from apps.authorization.services.subject import subject_for
+from apps.identity.models.user import User
 from apps.operations.errors import IssueImmutableState, IssueVersionConflict
 from apps.operations.models import (
     IssueDecision,
@@ -62,7 +63,7 @@ def _not_found() -> PermissionDeniedError:
     return PermissionDeniedError()
 
 
-def _authorize_issue_action(*, actor, action: str, issue: OperatingIssue) -> None:
+def _authorize_issue_action(*, actor: User, action: str, issue: OperatingIssue) -> None:
     decision = authorize(
         subject_for(actor),
         action=action,
@@ -78,9 +79,7 @@ def _authorize_issue_action(*, actor, action: str, issue: OperatingIssue) -> Non
     if decision.allowed:
         return
 
-    assignments = resolve_effective_assignments(
-        user=actor, organization_id=actor.organization_id
-    )
+    assignments = resolve_effective_assignments(user=actor, organization_id=actor.organization_id)
     required = DataSensitivityLevel.SENSITIVE_CONTROLLED
     for assignment in assignments:
         if assignment.product_id != issue.product_id:
@@ -91,7 +90,7 @@ def _authorize_issue_action(*, actor, action: str, issue: OperatingIssue) -> Non
     raise _not_found()
 
 
-def _authorize_create(*, actor, product: ProductAsset) -> None:
+def _authorize_create(*, actor: User, product: ProductAsset) -> None:
     decision = authorize(
         subject_for(actor),
         action="operating_issue.create",
@@ -107,9 +106,7 @@ def _authorize_create(*, actor, product: ProductAsset) -> None:
     if decision.allowed:
         return
 
-    assignments = resolve_effective_assignments(
-        user=actor, organization_id=actor.organization_id
-    )
+    assignments = resolve_effective_assignments(user=actor, organization_id=actor.organization_id)
     required = DataSensitivityLevel.SENSITIVE_CONTROLLED
     for assignment in assignments:
         if assignment.product_id != product.id:
@@ -134,7 +131,7 @@ def _issue_or_deny(*, organization_id: int, issue_public_id: UUID) -> OperatingI
 def _create_issue_snapshot(
     *,
     organization_id: int,
-    actor,
+    actor: User,
     product: ProductAsset,
     signals: list[RiskSignal],
     source_type: str,
@@ -176,11 +173,7 @@ def _create_issue_snapshot(
 
 
 def _clear_primary_links(*, issue: OperatingIssue, now: datetime) -> None:
-    links = list(
-        IssueSignal.objects.select_for_update().filter(
-            issue=issue, active_primary_slot=1
-        )
-    )
+    links = list(IssueSignal.objects.select_for_update().filter(issue=issue, active_primary_slot=1))
     for link in links:
         link.active_primary_slot = None
         link.unlinked_at = now
@@ -268,13 +261,12 @@ class CreateOperatingIssue:
 
             owner = actor
             if self.owner_public_id is not None:
-                from apps.identity.models.user import User
-
-                owner = User.objects.filter(
+                resolved_owner = User.objects.filter(
                     organization_id=actor.organization_id, public_id=self.owner_public_id
                 ).first()
-                if owner is None:
+                if resolved_owner is None:
                     raise ValidationFailedError(message="Owner not found.")
+                owner = resolved_owner
 
             snapshot = _create_issue_snapshot(
                 organization_id=actor.organization_id,
@@ -333,9 +325,7 @@ class CreateOperatingIssue:
                         "organization_id": issue.organization_id,
                         "owner_id": issue.owner_id,
                         "target_review_at": (
-                            issue.target_review_at.isoformat()
-                            if issue.target_review_at
-                            else None
+                            issue.target_review_at.isoformat() if issue.target_review_at else None
                         ),
                         "title": issue.title,
                     },
@@ -359,9 +349,7 @@ class EscalateRiskSignal:
             signal = (
                 RiskSignal.objects.select_for_update()
                 .select_related("channel")
-                .filter(
-                    organization_id=actor.organization_id, public_id=self.signal_public_id
-                )
+                .filter(organization_id=actor.organization_id, public_id=self.signal_public_id)
                 .first()
             )
             if signal is None:
@@ -386,7 +374,7 @@ class EscalateRiskSignal:
                         "product_public_id": str(product.public_id),
                         "sku_public_id": str(sku.public_id),
                         "channel_public_id": (
-                            str(signal.channel.public_id) if signal.channel_id else None
+                            str(signal.channel.public_id) if signal.channel is not None else None
                         ),
                     },
                 ),
@@ -401,9 +389,7 @@ class EscalateRiskSignal:
                 for assignment in assignments:
                     if assignment.product_id != product.id:
                         continue
-                    if LEVEL_RANK.get(assignment.max_data_level, 0) < LEVEL_RANK.get(
-                        required, 0
-                    ):
+                    if LEVEL_RANK.get(assignment.max_data_level, 0) < LEVEL_RANK.get(required, 0):
                         continue
                     covered = True
                     break
@@ -444,9 +430,7 @@ class RecordOperatingIssueDecision:
             issue = (
                 OperatingIssue.objects.select_for_update()
                 .select_related("product")
-                .filter(
-                    organization_id=actor.organization_id, public_id=self.issue_public_id
-                )
+                .filter(organization_id=actor.organization_id, public_id=self.issue_public_id)
                 .first()
             )
             if issue is None:
@@ -508,17 +492,13 @@ class RecordOperatingIssueDecision:
                     issue.status = OperatingIssueStatus.ANALYZING
                     update_fields.append("status")
                 if next_status != issue.status:
-                    if (
-                        issue.status == OperatingIssueStatus.ANALYZING
-                        and next_status
-                        in {
-                            OperatingIssueStatus.OBSERVING,
-                            OperatingIssueStatus.ACTIONING,
-                            OperatingIssueStatus.RETIREMENT_REVIEW,
-                            OperatingIssueStatus.CLOSED,
-                            OperatingIssueStatus.CONVERTED_TO_PROPOSAL,
-                        }
-                    ):
+                    if issue.status == OperatingIssueStatus.ANALYZING and next_status in {
+                        OperatingIssueStatus.OBSERVING,
+                        OperatingIssueStatus.ACTIONING,
+                        OperatingIssueStatus.RETIREMENT_REVIEW,
+                        OperatingIssueStatus.CLOSED,
+                        OperatingIssueStatus.CONVERTED_TO_PROPOSAL,
+                    }:
                         issue.status = next_status
                         if "status" not in update_fields:
                             update_fields.append("status")
@@ -591,9 +571,7 @@ class TransitionOperatingIssue:
             issue = (
                 OperatingIssue.objects.select_for_update()
                 .select_related("product")
-                .filter(
-                    organization_id=actor.organization_id, public_id=self.issue_public_id
-                )
+                .filter(organization_id=actor.organization_id, public_id=self.issue_public_id)
                 .first()
             )
             if issue is None:
@@ -606,9 +584,7 @@ class TransitionOperatingIssue:
             _authorize_issue_action(actor=actor, action=action, issue=issue)
             if issue.version_no != self.version_no:
                 raise IssueVersionConflict()
-            if issue.status in _IMMUTABLE_STATUSES and self.target_status not in {
-                issue.status
-            }:
+            if issue.status in _IMMUTABLE_STATUSES and self.target_status not in {issue.status}:
                 # Converted / retirement review cannot be deleted or reset arbitrarily.
                 if self.target_status == OperatingIssueStatus.CLOSED:
                     raise IssueImmutableState(

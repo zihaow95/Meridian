@@ -19,7 +19,6 @@ from apps.operations.models import (
     CalculationType,
     ManualEffectiveValue,
     ManualEffectiveValueStatus,
-    MetricDefinitionStatus,
     OperatingFactStatus,
 )
 from apps.operations.services.effective_values import (
@@ -36,6 +35,7 @@ from apps.operations.services.metric_definitions import (
 from apps.platform.application.command import CommandContext
 from apps.platform.outbox.models import OutboxEvent
 from apps.products.models import (
+    SKU,
     ChannelConfiguration,
     ChannelStatus,
     ProductAsset,
@@ -43,7 +43,6 @@ from apps.products.models import (
     ProductSourceType,
     ProductVersion,
     ProductVersionStatus,
-    SKU,
     SKUStatus,
 )
 

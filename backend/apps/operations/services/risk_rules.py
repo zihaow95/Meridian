@@ -17,6 +17,7 @@ from apps.audit.services.snapshots import acting_roles_snapshot
 from apps.authorization.context import AuthorizationContext, ResourceDescriptor
 from apps.authorization.policies.engine import authorize
 from apps.authorization.services.subject import subject_for
+from apps.identity.models.user import User
 from apps.operations.models import (
     AggregateGrainType,
     AggregateStatus,
@@ -43,7 +44,7 @@ QUARTER_SHELF_LIFE_MIN_PRODUCTION = "quarter_shelf_life_min_production"
 EVALUATOR_REGISTRY: frozenset[str] = frozenset({QUARTER_SHELF_LIFE_MIN_PRODUCTION})
 
 
-def _authorize_configure(actor) -> None:
+def _authorize_configure(actor: User) -> None:
     decision = authorize(
         subject_for(actor),
         action="metric_rule.configure",
@@ -139,9 +140,7 @@ class PublishRiskRule:
             rule.status = RiskRuleStatus.PUBLISHED
             rule.published_by = actor
             rule.published_at = now
-            rule.save(
-                update_fields=["status", "published_by", "published_at", "updated_at"]
-            )
+            rule.save(update_fields=["status", "published_by", "published_at", "updated_at"])
             return rule
 
 
@@ -168,7 +167,7 @@ def _evaluate_quarter_shelf(
 def _create_risk_snapshot(
     *,
     organization_id: int,
-    actor,
+    actor: User,
     sku: SKU,
     channel: ChannelConfiguration,
     metric: MetricDefinitionVersion,

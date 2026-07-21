@@ -6,7 +6,7 @@ from datetime import datetime
 from typing import Any, cast
 from uuid import UUID
 
-from django.utils.dateparse import parse_datetime
+from django.utils.dateparse import parse_date, parse_datetime
 from drf_spectacular.utils import extend_schema, inline_serializer
 from rest_framework import serializers
 from rest_framework.permissions import IsAuthenticated
@@ -14,10 +14,18 @@ from rest_framework.request import Request
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from apps.authorization.context import AuthorizationContext, ResourceDescriptor
+from apps.authorization.policies.engine import authorize
+from apps.authorization.services.subject import subject_for
 from apps.identity.models.user import User
+from apps.operations.models import RiskRuleVersion
 from apps.operations.queries.visible_resources import list_visible_risk_rules
-from apps.operations.services.risk_rules import CreateRiskRuleDraft, PublishRiskRule
-from apps.platform.api.errors import ValidationFailedError
+from apps.operations.services.risk_rules import (
+    CreateRiskRuleDraft,
+    EvaluateRiskRules,
+    PublishRiskRule,
+)
+from apps.platform.api.errors import PermissionDeniedError, ValidationFailedError
 from apps.platform.application.command import CommandContext
 
 RISK_RULE_SCHEMA = inline_serializer(
@@ -49,7 +57,7 @@ RISK_RULE_CREATE_REQUEST = inline_serializer(
 )
 
 
-def serialize_risk_rule(rule) -> dict[str, Any]:
+def serialize_risk_rule(rule: RiskRuleVersion) -> dict[str, Any]:
     return {
         "public_id": str(rule.public_id),
         "rule_code": rule.rule_code,
@@ -136,3 +144,70 @@ class RiskRulePublishView(APIView):
             rule_public_id=public_id,
         ).execute()
         return Response(serialize_risk_rule(rule))
+
+
+class RiskRuleEvaluateView(APIView):
+    """Thin authenticated wrapper around EvaluateRiskRules for governed E2E/ops runs."""
+
+    permission_classes = [IsAuthenticated]
+
+    @extend_schema(
+        operation_id="risk_rules_evaluate",
+        request=inline_serializer(
+            name="RiskRuleEvaluateRequest",
+            fields={
+                "period_granularity": serializers.CharField(),
+                "period_start": serializers.CharField(),
+                "period_end": serializers.CharField(),
+            },
+        ),
+        responses=inline_serializer(
+            name="RiskRuleEvaluateResponse",
+            fields={
+                "created_count": serializers.IntegerField(),
+                "signal_public_ids": serializers.ListField(child=serializers.UUIDField()),
+            },
+        ),
+    )
+    def post(self, request: Request, public_id: UUID) -> Response:
+        user = cast(User, request.user)
+        decision = authorize(
+            subject_for(user),
+            action="risk_signal.read",
+            resource=ResourceDescriptor(
+                resource_type="risk_signal",
+                public_id=None,
+                organization_id=user.organization_id,
+            ),
+            context=AuthorizationContext.current(),
+        )
+        if not decision.allowed:
+            raise PermissionDeniedError()
+
+        data = request.data
+        granularity = str(data.get("period_granularity") or "").strip()
+        start_raw = data.get("period_start")
+        end_raw = data.get("period_end")
+        if not granularity or not start_raw or not end_raw:
+            raise ValidationFailedError(
+                message="period_granularity, period_start and period_end are required."
+            )
+        period_start = parse_date(str(start_raw))
+        period_end = parse_date(str(end_raw))
+        if period_start is None or period_end is None:
+            raise ValidationFailedError(message="Invalid period_start or period_end.")
+
+        signals = EvaluateRiskRules(
+            rule_version_id=public_id,
+            period={
+                "period_granularity": granularity,
+                "period_start": period_start,
+                "period_end": period_end,
+            },
+        ).execute()
+        return Response(
+            {
+                "created_count": len(signals),
+                "signal_public_ids": [str(signal.public_id) for signal in signals],
+            }
+        )

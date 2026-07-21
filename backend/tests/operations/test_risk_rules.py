@@ -24,14 +24,15 @@ from apps.operations.services.metric_definitions import (
     PublishMetricDefinition,
 )
 from apps.operations.services.risk_rules import (
+    QUARTER_SHELF_LIFE_MIN_PRODUCTION,
     CreateRiskRuleDraft,
     EvaluateRiskRules,
     PublishRiskRule,
-    QUARTER_SHELF_LIFE_MIN_PRODUCTION,
 )
 from apps.platform.api.errors import ValidationFailedError
 from apps.platform.application.command import CommandContext
 from apps.products.models import (
+    SKU,
     ChannelConfiguration,
     ChannelStatus,
     ProductAsset,
@@ -39,7 +40,6 @@ from apps.products.models import (
     ProductSourceType,
     ProductVersion,
     ProductVersionStatus,
-    SKU,
     SKUStatus,
 )
 
@@ -200,7 +200,11 @@ def test_evaluate_skips_draft_rules_and_open_windows(
     )
     created = EvaluateRiskRules(
         rule_version_id=draft.public_id,
-        period={"period_granularity": "QUARTER", "period_start": period_start, "period_end": period_end},
+        period={
+            "period_granularity": "QUARTER",
+            "period_start": period_start,
+            "period_end": period_end,
+        },
     ).execute()
     assert created == []
     assert RiskSignal.objects.count() == 0
@@ -320,9 +324,10 @@ def test_unregistered_evaluator_code_rejected_on_publish(
             scope_type="SKU_CHANNEL",
             valid_from=timezone.now(),
         ).execute()
-    assert "evaluator_code" in str(exc.value.message).lower() or "evaluator" in str(
-        exc.value.message
-    ).lower()
+    assert (
+        "evaluator_code" in str(exc.value.message).lower()
+        or "evaluator" in str(exc.value.message).lower()
+    )
 
 
 @pytest.mark.django_db(transaction=True)
@@ -331,7 +336,9 @@ def test_published_risk_rule_is_immutable(active_user, grant_action, catalog) ->
 
     metric = _publish_metric(active_user, grant_action)
     rule = _publish_quarter_rule(active_user, grant_action, catalog, metric)
-    assert rule.status == MetricDefinitionStatus.PUBLISHED or rule.status == RiskRuleStatus.PUBLISHED
+    assert (
+        rule.status == MetricDefinitionStatus.PUBLISHED or rule.status == RiskRuleStatus.PUBLISHED
+    )
     with pytest.raises(PublishedRiskRuleImmutable):
         rule.name = "Tampered"
         rule.save()

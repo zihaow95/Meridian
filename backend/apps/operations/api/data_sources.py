@@ -13,6 +13,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from apps.identity.models.user import User
+from apps.integrations.models import DataSource
 from apps.integrations.services.data_sources import (
     ConfigureOperatingDataSource,
     PublishOperatingDataSource,
@@ -49,7 +50,7 @@ DATA_SOURCE_CREATE_REQUEST = inline_serializer(
 )
 
 
-def serialize_data_source(source) -> dict[str, Any]:
+def serialize_data_source(source: DataSource) -> dict[str, Any]:
     return {
         "public_id": str(source.public_id),
         "source_code": source.source_code,

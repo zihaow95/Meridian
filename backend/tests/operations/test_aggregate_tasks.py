@@ -25,6 +25,7 @@ from apps.operations.services.metric_definitions import (
 from apps.operations.tasks import recalculate_metric_aggregates_task
 from apps.platform.application.command import CommandContext
 from apps.products.models import (
+    SKU,
     ChannelConfiguration,
     ChannelStatus,
     ProductAsset,
@@ -32,7 +33,6 @@ from apps.products.models import (
     ProductSourceType,
     ProductVersion,
     ProductVersionStatus,
-    SKU,
     SKUStatus,
 )
 

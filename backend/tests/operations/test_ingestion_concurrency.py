@@ -7,7 +7,7 @@ from datetime import date
 from decimal import Decimal
 
 import pytest
-from django.db import connection, IntegrityError
+from django.db import IntegrityError, connection
 from django.utils import timezone
 
 from apps.audit.models import AuditEvent, AuditResult
@@ -33,6 +33,7 @@ from apps.operations.services.metric_definitions import (
 from apps.platform.application.command import CommandContext
 from apps.platform.outbox.models import OutboxEvent
 from apps.products.models import (
+    SKU,
     ChannelConfiguration,
     ChannelStatus,
     ProductAsset,
@@ -40,7 +41,6 @@ from apps.products.models import (
     ProductSourceType,
     ProductVersion,
     ProductVersionStatus,
-    SKU,
     SKUStatus,
 )
 

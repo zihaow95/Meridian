@@ -16,6 +16,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from apps.identity.models.user import User
+from apps.operations.models import ManualEffectiveValue
 from apps.operations.services.effective_values import (
     CreateManualEffectiveValue,
     RevokeManualEffectiveValue,
@@ -60,7 +61,7 @@ REVOKE_REQUEST = inline_serializer(
 )
 
 
-def serialize_manual_value(value) -> dict[str, Any]:
+def serialize_manual_value(value: ManualEffectiveValue) -> dict[str, Any]:
     return {
         "public_id": str(value.public_id),
         "status": value.status,

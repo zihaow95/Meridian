@@ -21,9 +21,7 @@ def get_operating_issue(*, organization_id: int, issue_public_id: UUID) -> dict:
         .select_related("signal")
         .order_by("-is_primary", "linked_at")
     )
-    decisions = list(
-        IssueDecision.objects.filter(issue=issue).order_by("-decided_at", "-id")
-    )
+    decisions = list(IssueDecision.objects.filter(issue=issue).order_by("-decided_at", "-id"))
     return {
         "public_id": str(issue.public_id),
         "business_no": issue.business_no,
@@ -36,7 +34,7 @@ def get_operating_issue(*, organization_id: int, issue_public_id: UUID) -> dict:
         "product_public_id": str(issue.product.public_id),
         "owner_public_id": str(issue.owner.public_id),
         "data_snapshot_public_id": (
-            str(issue.data_snapshot.public_id) if issue.data_snapshot_id else None
+            str(issue.data_snapshot.public_id) if issue.data_snapshot is not None else None
         ),
         "target_review_at": (
             issue.target_review_at.isoformat() if issue.target_review_at else None

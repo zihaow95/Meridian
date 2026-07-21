@@ -8,7 +8,7 @@ from uuid import UUID
 from django.db.models import QuerySet
 
 from apps.authorization.context import AuthorizationContext, ResourceDescriptor
-from apps.authorization.models.role import DataSensitivityLevel, LEVEL_RANK
+from apps.authorization.models.role import LEVEL_RANK, DataSensitivityLevel
 from apps.authorization.policies.engine import authorize
 from apps.authorization.services.subject import subject_for
 from apps.identity.models.user import User
@@ -20,7 +20,7 @@ from apps.operations.models import (
     RiskSignal,
 )
 from apps.operations.policies.identity_provider import resolve_effective_assignments
-from apps.products.models import ProductAsset, SKU
+from apps.products.models import SKU, ProductAsset
 
 
 def _org_action_allowed(
@@ -45,16 +45,12 @@ def _org_action_allowed(
 
 
 def _assigned_product_ids(user: User) -> set[int]:
-    assignments = resolve_effective_assignments(
-        user=user, organization_id=user.organization_id
-    )
+    assignments = resolve_effective_assignments(user=user, organization_id=user.organization_id)
     return {row.product_id for row in assignments if row.product_id}
 
 
 def _assigned_sku_public_ids(user: User) -> set[UUID]:
-    assignments = resolve_effective_assignments(
-        user=user, organization_id=user.organization_id
-    )
+    assignments = resolve_effective_assignments(user=user, organization_id=user.organization_id)
     sku_ids = {row.sku_id for row in assignments if row.sku_id}
     if not sku_ids:
         product_ids = _assigned_product_ids(user)
@@ -86,9 +82,7 @@ def list_visible_metric_definitions(user: User) -> QuerySet[MetricDefinitionVers
     qs = MetricDefinitionVersion.objects.filter(organization_id=user.organization_id).order_by(
         "metric_code", "-version_number", "id"
     )
-    if _org_action_allowed(
-        user, action="metric_rule.configure", resource_type="metric_definition"
-    ):
+    if _org_action_allowed(user, action="metric_rule.configure", resource_type="metric_definition"):
         return qs
     return qs.none()
 
@@ -97,9 +91,7 @@ def list_visible_risk_rules(user: User) -> QuerySet[RiskRuleVersion]:
     qs = RiskRuleVersion.objects.filter(organization_id=user.organization_id).order_by(
         "rule_code", "-version_number", "id"
     )
-    if _org_action_allowed(
-        user, action="metric_rule.configure", resource_type="metric_definition"
-    ):
+    if _org_action_allowed(user, action="metric_rule.configure", resource_type="metric_definition"):
         return qs
     return qs.none()
 
@@ -168,9 +160,7 @@ def list_unmapped_ingestion_rows(user: User) -> QuerySet[IngestionRow]:
     )
     if _org_action_allowed(
         user, action="ingestion_batch.create", resource_type="ingestion_batch"
-    ) or _org_action_allowed(
-        user, action="mapping.resolve", resource_type="ingestion_batch"
-    ):
+    ) or _org_action_allowed(user, action="mapping.resolve", resource_type="ingestion_batch"):
         return qs
     return qs.none()
 
@@ -199,9 +189,10 @@ def visible_product_public_ids_for_export(user: User) -> set[UUID] | None:
 def user_max_data_level(user: User) -> str:
     """Highest max_data_level from role permissions and monitoring assignments."""
 
-    from apps.authorization.models.assignment import AssignmentStatus, RoleAssignment
     from django.db.models import Q
     from django.utils import timezone
+
+    from apps.authorization.models.assignment import AssignmentStatus, RoleAssignment
 
     now = timezone.now()
     levels: list[str] = []

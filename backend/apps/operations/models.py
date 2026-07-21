@@ -700,9 +700,7 @@ class RiskRuleVersion(OrganizationOwnedModel):
             if previous is not None:
                 for field, value in previous.items():
                     if getattr(self, field) != value:
-                        raise PublishedRiskRuleImmutable(
-                            "Published risk rule cannot be edited."
-                        )
+                        raise PublishedRiskRuleImmutable("Published risk rule cannot be edited.")
         super().save(*args, **kwargs)
 
 
@@ -1189,7 +1187,9 @@ class RetirementPlan(OrganizationOwnedModel):
                 str(self.document_version_public_id) if self.document_version_public_id else None
             ),
             "operating_snapshot_id": (
-                str(self.operating_snapshot.public_id) if self.operating_snapshot_id else None
+                str(self.operating_snapshot.public_id)
+                if self.operating_snapshot is not None
+                else None
             ),
         }
         encoded = json.dumps(payload, sort_keys=True, separators=(",", ":"), default=str)

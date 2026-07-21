@@ -157,9 +157,7 @@ class ApplyApprovedRetirementAction:
                 if product.lifecycle_status != ProductLifecycleStatus.RETIRED:
                     product.lifecycle_status = ProductLifecycleStatus.RETIRED
                     product.retired_at = now
-                    product.save(
-                        update_fields=["lifecycle_status", "retired_at", "updated_at"]
-                    )
+                    product.save(update_fields=["lifecycle_status", "retired_at", "updated_at"])
             else:
                 raise ValidationFailedError(
                     message=f"Unknown retirement action: {self.action_type}"

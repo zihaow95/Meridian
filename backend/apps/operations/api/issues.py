@@ -14,6 +14,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from apps.identity.models.user import User
+from apps.operations.models import OperatingIssue
 from apps.operations.queries.operating_issues import get_operating_issue
 from apps.operations.queries.visible_resources import list_visible_operating_issues
 from apps.operations.services.iteration_proposals import ConvertIssueToIterationProposal
@@ -38,7 +39,7 @@ ISSUE_SCHEMA = inline_serializer(
 )
 
 
-def serialize_issue_brief(issue) -> dict[str, Any]:
+def serialize_issue_brief(issue: OperatingIssue) -> dict[str, Any]:
     return {
         "public_id": str(issue.public_id),
         "business_no": issue.business_no,
@@ -67,8 +68,7 @@ class OperatingIssueListCreateView(APIView):
         user = cast(User, request.user)
         status = request.query_params.get("status") or None
         items = [
-            serialize_issue_brief(row)
-            for row in list_visible_operating_issues(user, status=status)
+            serialize_issue_brief(row) for row in list_visible_operating_issues(user, status=status)
         ]
         return Response({"items": items})
 
@@ -136,23 +136,23 @@ class OperatingIssueDecisionView(APIView):
                 "target_status": serializers.CharField(required=False, allow_null=True),
             },
         ),
-        responses={201: inline_serializer(
-            name="OperatingIssueDecisionResponse",
-            fields={
-                "public_id": serializers.UUIDField(),
-                "recommendation_type": serializers.CharField(),
-                "action_summary": serializers.CharField(),
-                "issue": serializers.DictField(),
-            },
-        )},
+        responses={
+            201: inline_serializer(
+                name="OperatingIssueDecisionResponse",
+                fields={
+                    "public_id": serializers.UUIDField(),
+                    "recommendation_type": serializers.CharField(),
+                    "action_summary": serializers.CharField(),
+                    "issue": serializers.DictField(),
+                },
+            )
+        },
     )
     def post(self, request: Request, public_id: UUID) -> Response:
         user = cast(User, request.user)
         data = request.data
         if data.get("version_no") is None or not data.get("recommendation_type"):
-            raise ValidationFailedError(
-                message="version_no and recommendation_type are required."
-            )
+            raise ValidationFailedError(message="version_no and recommendation_type are required.")
         planned_raw = data.get("planned_at")
         responsible_raw = data.get("responsible_user_public_id")
         decision = RecordOperatingIssueDecision(
@@ -161,16 +161,12 @@ class OperatingIssueDecisionView(APIView):
             version_no=int(data["version_no"]),
             recommendation_type=str(data["recommendation_type"]),
             action_summary=str(data.get("action_summary") or ""),
-            responsible_user_public_id=(
-                UUID(str(responsible_raw)) if responsible_raw else None
-            ),
+            responsible_user_public_id=(UUID(str(responsible_raw)) if responsible_raw else None),
             planned_at=parse_datetime(str(planned_raw)) if planned_raw else None,
             materials_snapshot_json=dict(data.get("materials_snapshot_json") or {}),
             target_status=str(data["target_status"]) if data.get("target_status") else None,
         ).execute()
-        issue = get_operating_issue(
-            organization_id=user.organization_id, issue_public_id=public_id
-        )
+        issue = get_operating_issue(organization_id=user.organization_id, issue_public_id=public_id)
         return Response(
             {
                 "public_id": str(decision.public_id),

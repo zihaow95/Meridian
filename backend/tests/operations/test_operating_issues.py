@@ -200,9 +200,7 @@ def test_issue_links_multiple_signals_and_one_active_primary(
     assert OutboxEvent.objects.filter(
         event_type="operating_issue.created", aggregate_id=issue.public_id
     ).exists()
-    payload = get_operating_issue(
-        organization_id=organization.id, issue_public_id=issue.public_id
-    )
+    payload = get_operating_issue(organization_id=organization.id, issue_public_id=issue.public_id)
     assert len(payload["signals"]) == 2
 
 

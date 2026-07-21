@@ -3,13 +3,14 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import date
+from datetime import date, datetime
 from decimal import Decimal
 from uuid import UUID
 
 from apps.authorization.context import AuthorizationContext, ResourceDescriptor
 from apps.authorization.policies.engine import authorize
 from apps.authorization.services.subject import subject_for
+from apps.identity.models.user import User
 from apps.operations.models import AggregateGrainType, MetricAggregate
 from apps.platform.api.errors import PermissionDeniedError, ValidationFailedError
 from apps.platform.application.command import CommandContext
@@ -31,7 +32,7 @@ class OperatingSummaryItem:
     coverage_rate: Decimal
     source_count: int
     has_manual_value: bool
-    calculated_at: object
+    calculated_at: datetime | None
     contributors: list[dict]
 
 
@@ -40,7 +41,7 @@ class OperatingSummaryResult:
     items: list[OperatingSummaryItem]
 
 
-def _authorize_read(actor) -> None:
+def _authorize_read(actor: User) -> None:
     decision = authorize(
         subject_for(actor),
         action="operating_fact.read",
@@ -59,7 +60,7 @@ def _to_item(row: MetricAggregate, *, include_drilldown: bool) -> OperatingSumma
     return OperatingSummaryItem(
         grain_type=row.grain_type,
         grain_public_id=row.grain_id,
-        channel_public_id=row.channel.public_id if row.channel_id else None,
+        channel_public_id=row.channel.public_id if row.channel is not None else None,
         metric_code=row.metric_definition.metric_code,
         metric_definition_public_id=row.metric_definition.public_id,
         period_start=row.period_start,

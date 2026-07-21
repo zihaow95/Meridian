@@ -206,9 +206,12 @@ def test_convert_creates_iteration_draft_and_links_without_submit(
     assert snapshot["product_public_id"] == str(catalog["product"].public_id)
     assert snapshot["phenomenon_summary"]
     assert snapshot["signals"]
-    assert IssueConversion.objects.filter(
-        issue=converted, conversion_type=IssueConversionType.ITERATION_PROPOSAL
-    ).count() == 1
+    assert (
+        IssueConversion.objects.filter(
+            issue=converted, conversion_type=IssueConversionType.ITERATION_PROPOSAL
+        ).count()
+        == 1
+    )
     assert OutboxEvent.objects.filter(event_type="operating_issue.converted").count() == 1
     assert AuditEvent.objects.filter(action_code="iteration_proposal.convert").count() == 1
 

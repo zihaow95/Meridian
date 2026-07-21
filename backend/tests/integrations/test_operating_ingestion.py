@@ -29,6 +29,7 @@ from apps.integrations.services.ingestion import (
 from apps.platform.api.errors import ValidationFailedError
 from apps.platform.application.command import CommandContext
 from apps.products.models import (
+    SKU,
     ChannelConfiguration,
     ChannelStatus,
     ProductAsset,
@@ -36,7 +37,6 @@ from apps.products.models import (
     ProductSourceType,
     ProductVersion,
     ProductVersionStatus,
-    SKU,
     SKUStatus,
 )
 from tests.products.document_factories import build_controlled_document_version

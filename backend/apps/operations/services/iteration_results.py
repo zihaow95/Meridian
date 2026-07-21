@@ -35,12 +35,14 @@ class HandleProductVersionPublished:
             version = ProductVersion.objects.filter(public_id=version_id).first()
             if change_set is None or version is None:
                 return None
-            if change_set.project_id is None:
+            project = change_set.project
+            if project is None:
                 return None
 
             sources = list(
-                ProjectOpportunitySource.objects.filter(project_id=change_set.project_id)
-                .select_related("opportunity")
+                ProjectOpportunitySource.objects.filter(project_id=project.id).select_related(
+                    "opportunity"
+                )
             )
             if not sources:
                 return None
@@ -69,12 +71,10 @@ class HandleProductVersionPublished:
                 parsed = parse_datetime(str(raw_effective))
                 if parsed is not None:
                     effective_from = (
-                        parsed
-                        if timezone.is_aware(parsed)
-                        else timezone.make_aware(parsed)
+                        parsed if timezone.is_aware(parsed) else timezone.make_aware(parsed)
                     )
 
-            issue.linked_project_id = change_set.project.public_id
+            issue.linked_project_id = project.public_id
             issue.linked_product_version_id = version.public_id
             issue.linked_effective_from = effective_from
             issue.version_no += 1

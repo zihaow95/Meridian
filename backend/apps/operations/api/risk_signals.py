@@ -14,6 +14,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from apps.identity.models.user import User
+from apps.operations.models import RiskSignal
 from apps.operations.queries.visible_resources import list_visible_risk_signals
 from apps.operations.services.operating_issues import EscalateRiskSignal
 from apps.operations.services.risk_signals import CloseRiskSignal, MarkRiskSignalViewed
@@ -40,7 +41,7 @@ SIGNAL_SCHEMA = inline_serializer(
 )
 
 
-def serialize_signal(signal) -> dict[str, Any]:
+def serialize_signal(signal: RiskSignal) -> dict[str, Any]:
     return {
         "public_id": str(signal.public_id),
         "status": signal.status,
@@ -78,9 +79,7 @@ class RiskSignalListView(APIView):
         status = request.query_params.get("status") or None
         items = [
             serialize_signal(row)
-            for row in list_visible_risk_signals(user, status=status).select_related(
-                "rule_version"
-            )
+            for row in list_visible_risk_signals(user, status=status).select_related("rule_version")
         ]
         return Response({"items": items})
 
@@ -141,14 +140,16 @@ class RiskSignalEscalateView(APIView):
                 "target_review_at": serializers.CharField(required=False, allow_null=True),
             },
         ),
-        responses={201: inline_serializer(
-            name="RiskSignalEscalateResponse",
-            fields={
-                "issue_public_id": serializers.UUIDField(),
-                "title": serializers.CharField(),
-                "status": serializers.CharField(),
-            },
-        )},
+        responses={
+            201: inline_serializer(
+                name="RiskSignalEscalateResponse",
+                fields={
+                    "issue_public_id": serializers.UUIDField(),
+                    "title": serializers.CharField(),
+                    "status": serializers.CharField(),
+                },
+            )
+        },
     )
     def post(self, request: Request, public_id: UUID) -> Response:
         user = cast(User, request.user)

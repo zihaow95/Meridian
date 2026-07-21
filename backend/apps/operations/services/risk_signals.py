@@ -17,6 +17,7 @@ from apps.authorization.context import AuthorizationContext, ResourceDescriptor
 from apps.authorization.models.role import LEVEL_RANK, DataSensitivityLevel
 from apps.authorization.policies.engine import authorize
 from apps.authorization.services.subject import subject_for
+from apps.identity.models.user import User
 from apps.operations.models import (
     AggregateGrainType,
     AggregateStatus,
@@ -56,13 +57,15 @@ def _signal_or_deny(*, organization_id: int, signal_public_id: UUID) -> RiskSign
 
 def _authorize_signal_action(
     *,
-    actor,
+    actor: User,
     action: str,
     signal: RiskSignal,
 ) -> None:
-    sku = SKU.objects.filter(public_id=signal.scope_id).select_related(
-        "product_version__product"
-    ).first()
+    sku = (
+        SKU.objects.filter(public_id=signal.scope_id)
+        .select_related("product_version__product")
+        .first()
+    )
     channel = signal.channel
     product = sku.product_version.product if sku is not None else None
     decision = authorize(
@@ -85,9 +88,7 @@ def _authorize_signal_action(
         return
 
     # Fallback: monitoring assignment with sufficient data level
-    assignments = resolve_effective_assignments(
-        user=actor, organization_id=actor.organization_id
-    )
+    assignments = resolve_effective_assignments(user=actor, organization_id=actor.organization_id)
     required = DataSensitivityLevel.SENSITIVE_CONTROLLED
     for assignment in assignments:
         if product is None:
@@ -261,6 +262,7 @@ def recalculate_signals_for_scope(
         for signal in signals:
             rule = signal.rule_version
             params = dict(rule.parameters_json or {})
+            new_threshold: Decimal | None
             if rule.evaluator_code == QUARTER_SHELF_LIFE_MIN_PRODUCTION:
                 _triggered, new_threshold, _formula = _evaluate_quarter_shelf(
                     actual=new_value, params=params

@@ -20,22 +20,21 @@ from apps.operations.models import (
     RiskSignal,
     RiskSignalStatus,
 )
-from apps.operations.services.initialize_monitoring_scope import InitializeMonitoringScope
 from apps.operations.services.metric_definitions import (
     CreateMetricDefinitionDraft,
     PublishMetricDefinition,
 )
-from apps.operations.services.monitoring_assignments import AssignMonitoringSupervisor
 from apps.operations.services.risk_rules import (
+    QUARTER_SHELF_LIFE_MIN_PRODUCTION,
     CreateRiskRuleDraft,
     EvaluateRiskRules,
     PublishRiskRule,
-    QUARTER_SHELF_LIFE_MIN_PRODUCTION,
 )
 from apps.operations.services.risk_signals import CloseRiskSignal, MarkRiskSignalViewed
 from apps.platform.api.errors import PermissionDeniedError, ValidationFailedError
 from apps.platform.application.command import CommandContext
 from apps.products.models import (
+    SKU,
     ChannelConfiguration,
     ChannelStatus,
     ProductAsset,
@@ -43,7 +42,6 @@ from apps.products.models import (
     ProductSourceType,
     ProductVersion,
     ProductVersionStatus,
-    SKU,
     SKUStatus,
 )
 from apps.projects.models import Project
@@ -201,10 +199,8 @@ def test_mark_viewed_and_close_with_reason_keeps_evidence(
     actual = signal.actual_value
 
     # Assign supervisor on product scope
-    catalog["product"].id  # ensure product exists
-    # Use project's product if different; create monitoring on catalog product via Initialize
+    assert catalog["product"].id is not None
     # Prefer assigning via monitoring on catalog product version
-    from apps.projects.models import Project as ProjectModel
 
     # Create a lightweight scope using existing project fixture product mismatch —
     # InitializeMonitoringScope needs project+product_version; use catalog version with project

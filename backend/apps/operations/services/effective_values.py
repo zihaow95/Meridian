@@ -16,6 +16,7 @@ from apps.audit.services.snapshots import acting_roles_snapshot
 from apps.authorization.context import AuthorizationContext, ResourceDescriptor
 from apps.authorization.policies.engine import authorize
 from apps.authorization.services.subject import subject_for
+from apps.identity.models.user import User
 from apps.operations.models import (
     ManualEffectiveValue,
     ManualEffectiveValueStatus,
@@ -40,7 +41,7 @@ class EffectiveValueResult:
     fact_public_id: UUID | None = None
 
 
-def _authorize(actor, action: str, *, public_id: UUID | None = None) -> None:
+def _authorize(actor: User, action: str, *, public_id: UUID | None = None) -> None:
     decision = authorize(
         subject_for(actor),
         action=action,
@@ -55,7 +56,9 @@ def _authorize(actor, action: str, *, public_id: UUID | None = None) -> None:
         raise PermissionDeniedError()
 
 
-def _get_sku_channel(organization_id: int, sku_public_id: UUID, channel_public_id: UUID):
+def _get_sku_channel(
+    organization_id: int, sku_public_id: UUID, channel_public_id: UUID
+) -> tuple[SKU, ChannelConfiguration]:
     sku = SKU.objects.filter(organization_id=organization_id, public_id=sku_public_id).first()
     channel = ChannelConfiguration.objects.filter(
         organization_id=organization_id, public_id=channel_public_id
@@ -227,8 +230,10 @@ class CreateManualEffectiveValue:
                     confirmed_by=actor,
                     confirmed_at=now,
                 )
-            except IntegrityError:
-                raise
+            except IntegrityError as exc:
+                raise ValidationFailedError(
+                    message="An ACTIVE manual effective value already exists for this key."
+                ) from exc
             append_event(
                 AuditRecord(
                     actor=actor,

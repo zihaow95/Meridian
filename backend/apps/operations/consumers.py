@@ -26,9 +26,11 @@ class RiskSignalCreatedConsumer:
         signal = RiskSignal.objects.filter(public_id=signal_id).select_related("channel").first()
         if signal is None:
             return
-        sku = SKU.objects.filter(public_id=signal.scope_id).select_related(
-            "product_version__product"
-        ).first()
+        sku = (
+            SKU.objects.filter(public_id=signal.scope_id)
+            .select_related("product_version__product")
+            .first()
+        )
         if sku is None:
             return
         product = sku.product_version.product

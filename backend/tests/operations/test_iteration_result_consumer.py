@@ -195,9 +195,7 @@ def _converted_issue(active_user, another_active_user, grant_action, catalog, or
 def test_product_version_published_writes_back_once(
     organization, active_user, another_active_user, grant_action, catalog
 ) -> None:
-    issue = _converted_issue(
-        active_user, another_active_user, grant_action, catalog, organization
-    )
+    issue = _converted_issue(active_user, another_active_user, grant_action, catalog, organization)
     opportunity = Opportunity.objects.get(public_id=issue.linked_opportunity_id)
     project = Project.objects.create(
         organization=organization,

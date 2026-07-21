@@ -15,6 +15,7 @@ from apps.authorization.context import AuthorizationContext, ResourceDescriptor
 from apps.authorization.models.role import LEVEL_RANK, DataSensitivityLevel
 from apps.authorization.policies.engine import authorize
 from apps.authorization.services.subject import subject_for
+from apps.identity.models.user import User
 from apps.operations.errors import IssueImmutableState, IssueVersionConflict
 from apps.operations.models import (
     IssueConversion,
@@ -36,7 +37,7 @@ def _not_found() -> PermissionDeniedError:
     return PermissionDeniedError()
 
 
-def _authorize_convert(*, actor, issue: OperatingIssue) -> None:
+def _authorize_convert(*, actor: User, issue: OperatingIssue) -> None:
     decision = authorize(
         subject_for(actor),
         action="iteration_proposal.convert",
@@ -51,9 +52,7 @@ def _authorize_convert(*, actor, issue: OperatingIssue) -> None:
     )
     if decision.allowed:
         return
-    assignments = resolve_effective_assignments(
-        user=actor, organization_id=actor.organization_id
-    )
+    assignments = resolve_effective_assignments(user=actor, organization_id=actor.organization_id)
     required = DataSensitivityLevel.SENSITIVE_CONTROLLED
     for assignment in assignments:
         if assignment.product_id != issue.product_id:
@@ -77,10 +76,10 @@ def _build_source_snapshot(issue: OperatingIssue) -> dict:
         "phenomenon_summary": issue.phenomenon_summary,
         "recommendation_type": issue.recommendation_type,
         "data_snapshot_public_id": (
-            str(issue.data_snapshot.public_id) if issue.data_snapshot_id else None
+            str(issue.data_snapshot.public_id) if issue.data_snapshot is not None else None
         ),
         "data_snapshot_content_hash": (
-            issue.data_snapshot.content_hash if issue.data_snapshot_id else None
+            issue.data_snapshot.content_hash if issue.data_snapshot is not None else None
         ),
         "signals": [
             {
@@ -88,7 +87,7 @@ def _build_source_snapshot(issue: OperatingIssue) -> dict:
                 "scope_key": link.signal.scope_key,
                 "sku_public_id": str(link.signal.scope_id),
                 "channel_public_id": (
-                    str(link.signal.channel.public_id) if link.signal.channel_id else None
+                    str(link.signal.channel.public_id) if link.signal.channel is not None else None
                 ),
                 "is_primary": link.is_primary,
             }

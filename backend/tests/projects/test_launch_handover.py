@@ -272,9 +272,12 @@ def test_repair_retry_publishes_idempotently(
     assert first.product_version.public_id == second.product_version.public_id
     assert ProductVersion.objects.filter(change_set=draft).count() == 1
     assert MonitoringScope.objects.filter(project=project).count() == 1
-    assert MonitoringAssignment.objects.filter(
-        monitoring_scope__project=project,
-        scope_type=MonitoringScopeType.PRODUCT,
-        status=MonitoringAssignmentStatus.ACTIVE,
-    ).count() == 1
+    assert (
+        MonitoringAssignment.objects.filter(
+            monitoring_scope__project=project,
+            scope_type=MonitoringScopeType.PRODUCT,
+            status=MonitoringAssignmentStatus.ACTIVE,
+        ).count()
+        == 1
+    )
     assert project.status == ProjectStatus.OPERATING

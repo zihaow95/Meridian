@@ -16,6 +16,7 @@ from apps.authorization.context import AuthorizationContext, ResourceDescriptor
 from apps.authorization.policies.engine import authorize
 from apps.authorization.services.subject import subject_for
 from apps.documents.models import DocumentVersion
+from apps.identity.models.user import User
 from apps.integrations.models import (
     DataSource,
     IngestionBatch,
@@ -33,7 +34,7 @@ from apps.platform.api.errors import PermissionDeniedError, ValidationFailedErro
 from apps.platform.application.command import CommandContext
 
 
-def _authorize(actor, action: str, *, public_id: UUID | None = None) -> None:
+def _authorize(actor: User, action: str, *, public_id: UUID | None = None) -> None:
     decision = authorize(
         subject_for(actor),
         action=action,

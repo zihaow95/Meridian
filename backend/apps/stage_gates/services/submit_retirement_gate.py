@@ -88,6 +88,9 @@ class SubmitRetirementGate:
             plan.content_hash = plan.compute_content_hash()
             plan.save(update_fields=["content_hash", "updated_at"])
 
+            assert plan.stop_production_at is not None
+            assert plan.stop_sale_at is not None
+            assert plan.retire_at is not None
             snapshot_json = {
                 "plan_public_id": str(plan.public_id),
                 "plan_content_hash": plan.content_hash,
@@ -130,7 +133,7 @@ class SubmitRetirementGate:
                     plan.content_hash,
                 ),
             ]
-            if plan.operating_snapshot_id:
+            if plan.operating_snapshot is not None:
                 materials.append(
                     (
                         MaterialType.OPERATING_DATA_SNAPSHOT,

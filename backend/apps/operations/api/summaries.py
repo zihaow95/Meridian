@@ -16,6 +16,7 @@ from rest_framework.views import APIView
 
 from apps.identity.models.user import User
 from apps.operations.queries.operating_summary import (
+    OperatingSummaryResult,
     QueryProductOperatingSummary,
     QuerySkuOperatingSummary,
 )
@@ -37,7 +38,7 @@ def _parse_date(raw: str | None, *, field: str) -> date:
     return parsed
 
 
-def serialize_summary_result(result) -> dict[str, Any]:
+def serialize_summary_result(result: OperatingSummaryResult) -> dict[str, Any]:
     items = []
     for item in result.items:
         items.append(
@@ -57,9 +58,7 @@ def serialize_summary_result(result) -> dict[str, Any]:
                 "coverage_rate": str(item.coverage_rate),
                 "source_count": item.source_count,
                 "has_manual_value": item.has_manual_value,
-                "calculated_at": (
-                    item.calculated_at.isoformat() if item.calculated_at else None
-                ),
+                "calculated_at": (item.calculated_at.isoformat() if item.calculated_at else None),
                 "contributors": item.contributors,
             }
         )

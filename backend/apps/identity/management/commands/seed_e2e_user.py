@@ -87,6 +87,43 @@ _PHASE4_ACTIONS: tuple[tuple[str, str, str], ...] = (
     ("deliverable.create", "project", "PRODUCT_DIRECTOR"),
 )
 
+# Active user = operating supervisor + config actor + retirement management conclusion.
+# Final retirement decision stays on the approver (dual-control).
+_PHASE5_ACTIONS: tuple[tuple[str, str, str], ...] = (
+    ("operating_fact.read", "operating_fact", "OPERATING_SUPERVISOR"),
+    ("data_source.configure", "data_source", "OPERATING_SUPERVISOR"),
+    ("configuration.version.publish", "configuration.version", "OPERATING_SUPERVISOR"),
+    ("ingestion_batch.create", "ingestion_batch", "OPERATING_SUPERVISOR"),
+    ("ingestion_batch.confirm", "ingestion_batch", "OPERATING_SUPERVISOR"),
+    ("ingestion_batch.retry", "ingestion_batch", "OPERATING_SUPERVISOR"),
+    ("mapping.resolve", "ingestion_batch", "OPERATING_SUPERVISOR"),
+    ("monitoring_scope.manage", "monitoring_scope", "OPERATING_SUPERVISOR"),
+    ("manual_effective_value.create", "operating_value", "OPERATING_SUPERVISOR"),
+    ("manual_effective_value.modify", "operating_value", "OPERATING_SUPERVISOR"),
+    ("manual_effective_value.revoke", "operating_value", "OPERATING_SUPERVISOR"),
+    ("metric_rule.configure", "metric_definition", "OPERATING_SUPERVISOR"),
+    ("risk_signal.read", "risk_signal", "OPERATING_SUPERVISOR"),
+    ("risk_signal.close", "risk_signal", "OPERATING_SUPERVISOR"),
+    ("risk_signal.escalate", "risk_signal", "OPERATING_SUPERVISOR"),
+    ("operating_issue.create", "operating_issue", "OPERATING_SUPERVISOR"),
+    ("operating_issue.analyze", "operating_issue", "OPERATING_SUPERVISOR"),
+    ("operating_issue.close", "operating_issue", "OPERATING_SUPERVISOR"),
+    ("iteration_proposal.convert", "operating_issue", "OPERATING_SUPERVISOR"),
+    ("retirement_plan.create", "retirement_plan", "OPERATING_SUPERVISOR"),
+    ("retirement_plan.submit", "retirement_plan", "OPERATING_SUPERVISOR"),
+    ("retirement_plan.execute", "retirement_plan", "OPERATING_SUPERVISOR"),
+    ("retirement.management_conclusion.record", "stage_gate", "MANAGEMENT_COMMITTEE"),
+    ("document.version.upload", "document.version", "OPERATING_SUPERVISOR"),
+)
+
+E2E_OPS_PRODUCT_BUSINESS_NO = "E2E-OPS-PRD"
+E2E_OPS_SKU_CODE = "SKU-E2E-OPS"
+E2E_OPS_CHANNEL_CODE = "TMALL"
+E2E_OPS_SOURCE_CODE = "E2E_OPS_SRC"
+E2E_OPS_METRIC_CODE = "PRODUCTION_QTY"
+E2E_OPS_SALES_METRIC_CODE = "GROSS_SALES"
+E2E_OPS_RULE_CODE = "E2E_QUARTER_SHELF_MIN_PROD"
+
 
 class Command(BaseCommand):
     help = "Create or refresh the deterministic E2E active user, permissions, and sample todo."
@@ -117,12 +154,15 @@ class Command(BaseCommand):
             self._grant_action(user, action_code, resource_type, role_code=role_code)
         for action_code, resource_type, role_code in _PHASE4_ACTIONS:
             self._grant_action(user, action_code, resource_type, role_code=role_code)
+        for action_code, resource_type, role_code in _PHASE5_ACTIONS:
+            self._grant_action(user, action_code, resource_type, role_code=role_code)
         self._publish_opportunity_rules(organization, user)
         self._publish_product_schema(organization)
         self._publish_project_template(organization, user)
         self._ensure_approver(organization)
         self._ensure_limited_user(organization)
         self._ensure_phase4_projects(organization, user)
+        self._ensure_phase5_operating_fixtures(organization, user)
 
         source_id = uuid4()
         Todo.objects.update_or_create(
@@ -192,6 +232,8 @@ class Command(BaseCommand):
             # FIRST_LAUNCH final decision is recorded by the approver (boss),
             # a distinct actor from the management-committee conclusion author.
             ("first_launch.final_decision.record", "stage_gate", "BOSS"),
+            # PRODUCT_RETIREMENT final decision — dual-control vs active user mgmt.
+            ("retirement.final_decision.record", "stage_gate", "BOSS"),
         ):
             self._grant_action(approver, action_code, resource_type, role_code=role_code)
 
@@ -417,6 +459,304 @@ class Command(BaseCommand):
             created_by=actor,
             published_by=actor,
             published_at=timezone.now(),
+        )
+
+    def _ensure_phase5_operating_fixtures(
+        self, organization: Organization, supervisor: User
+    ) -> None:
+        """Seed OPERATING catalog + published source/metric/rule + monitoring assignment.
+
+        Does not create RiskSignal / OperatingIssue decisions / Retirement final decisions.
+        """
+
+        from datetime import timedelta
+
+        from apps.authorization.models.role import DataSensitivityLevel
+        from apps.identity.models.department import Department, DepartmentStatus
+        from apps.integrations.models import DataSource, DataSourceType
+        from apps.integrations.services.data_sources import ConfigureOperatingDataSource
+        from apps.operations.models import (
+            CalculationType,
+            MetricDefinitionStatus,
+            MetricDefinitionVersion,
+            MonitoringScopeType,
+            RiskRuleStatus,
+            RiskRuleVersion,
+        )
+        from apps.operations.services.initialize_monitoring_scope import (
+            InitializeMonitoringScope,
+        )
+        from apps.operations.services.metric_definitions import (
+            CreateMetricDefinitionDraft,
+            PublishMetricDefinition,
+        )
+        from apps.operations.services.monitoring_assignments import AssignMonitoringSupervisor
+        from apps.operations.services.risk_rules import (
+            QUARTER_SHELF_LIFE_MIN_PRODUCTION,
+            CreateRiskRuleDraft,
+            PublishRiskRule,
+        )
+        from apps.platform.application.command import CommandContext
+        from apps.products.models import (
+            SKU,
+            ChannelConfiguration,
+            ChannelStatus,
+            ProductAsset,
+            ProductionStatus,
+            ProductLifecycleStatus,
+            ProductSourceType,
+            ProductVersion,
+            ProductVersionStatus,
+            SKUStatus,
+        )
+        from apps.projects.models import Project, ProjectStatus, ProjectType
+
+        now = timezone.now()
+        ctx = CommandContext.for_actor(supervisor)
+
+        department, _ = Department.objects.get_or_create(
+            organization=organization,
+            department_code="OPS",
+            defaults={
+                "name": "OPS Department",
+                "status": DepartmentStatus.ACTIVE,
+                "valid_from": now,
+            },
+        )
+
+        product = ProductAsset.objects.filter(
+            organization=organization, business_no=E2E_OPS_PRODUCT_BUSINESS_NO
+        ).first()
+        if product is None:
+            product = ProductAsset.objects.create(
+                organization=organization,
+                business_no=E2E_OPS_PRODUCT_BUSINESS_NO,
+                name="E2E Operating Yogurt",
+                brand_code="BRAND-A",
+                category_code="YOGURT",
+                source_type=ProductSourceType.NEW_PROJECT,
+                lifecycle_status=ProductLifecycleStatus.ACTIVE,
+                product_owner=supervisor,
+            )
+        else:
+            product.lifecycle_status = ProductLifecycleStatus.ACTIVE
+            product.product_owner = supervisor
+            product.save(update_fields=["lifecycle_status", "product_owner", "updated_at"])
+
+        version = (
+            ProductVersion.objects.filter(organization=organization, product=product)
+            .order_by("-id")
+            .first()
+        )
+        if version is None:
+            version = ProductVersion.objects.create(
+                organization=organization,
+                product=product,
+                version_code="V1",
+                version_name="Operating baseline",
+                status=ProductVersionStatus.EFFECTIVE,
+                published_at=now,
+                published_by=supervisor,
+                effective_from=now - timedelta(days=120),
+            )
+        product.primary_version = version
+        product.save(update_fields=["primary_version", "updated_at"])
+
+        sku, _ = SKU.objects.get_or_create(
+            organization=organization,
+            product_version=version,
+            sku_code=E2E_OPS_SKU_CODE,
+            defaults={
+                "name": "E2E Ops Cup",
+                "specification": "120g",
+                "status": SKUStatus.ACTIVE,
+                "production_status": ProductionStatus.IN_PRODUCTION,
+            },
+        )
+        if (
+            sku.status != SKUStatus.ACTIVE
+            or sku.production_status != ProductionStatus.IN_PRODUCTION
+        ):
+            sku.status = SKUStatus.ACTIVE
+            sku.production_status = ProductionStatus.IN_PRODUCTION
+            sku.save(update_fields=["status", "production_status", "updated_at"])
+
+        channel, _ = ChannelConfiguration.objects.get_or_create(
+            organization=organization,
+            sku=sku,
+            channel_code=E2E_OPS_CHANNEL_CODE,
+            defaults={
+                "configuration_version": 1,
+                "channel_status": ChannelStatus.ON_SALE,
+            },
+        )
+        if channel.channel_status != ChannelStatus.ON_SALE:
+            channel.channel_status = ChannelStatus.ON_SALE
+            channel.save(update_fields=["channel_status", "updated_at"])
+
+        project = Project.objects.filter(
+            organization=organization, business_no="E2E-OPS-MON"
+        ).first()
+        if project is None:
+            project = Project.objects.create(
+                organization=organization,
+                business_no="E2E-OPS-MON",
+                name="E2E Ops Monitoring",
+                project_type=ProjectType.NEW_PRODUCT,
+                status=ProjectStatus.OPERATING,
+                leader=supervisor,
+                product_asset=product,
+                idempotency_key="e2e-seed-ops-monitoring",
+            )
+        scope = InitializeMonitoringScope(
+            project=project,
+            product_version=version,
+            owner=supervisor,
+            source_decision_public_id=uuid4(),
+            effective_at=now,
+        ).execute()
+        AssignMonitoringSupervisor(
+            context=ctx,
+            monitoring_scope_public_id=scope.public_id,
+            supervisor_public_id=supervisor.public_id,
+            scope_type=MonitoringScopeType.SKU_CHANNEL,
+            product_public_id=product.public_id,
+            sku_public_id=sku.public_id,
+            channel_public_id=channel.public_id,
+            max_data_level=DataSensitivityLevel.SENSITIVE_CONTROLLED,
+        ).execute()
+
+        if not DataSource.objects.filter(
+            organization=organization, source_code=E2E_OPS_SOURCE_CODE
+        ).exists():
+            ConfigureOperatingDataSource(
+                context=ctx,
+                source_code=E2E_OPS_SOURCE_CODE,
+                name="E2E Ops Source",
+                source_type=DataSourceType.API,
+                owner_department_public_id=department.public_id,
+                sensitivity_level="SENSITIVE_CONTROLLED",
+                mapping_content={
+                    "source_priority": 10,
+                    "mapping_rules": [
+                        {"external_field": "sku_code", "internal_field": "sku_code"},
+                        {"external_field": "channel_code", "internal_field": "channel_code"},
+                        {
+                            "external_field": "production_qty",
+                            "internal_field": "numeric_value",
+                        },
+                        {
+                            "external_field": "sales_amount",
+                            "internal_field": "numeric_value",
+                        },
+                        {"external_field": "metric_code", "internal_field": "metric_code"},
+                        {"external_field": "period_start", "internal_field": "period_start"},
+                        {"external_field": "period_end", "internal_field": "period_end"},
+                        {
+                            "external_field": "period_granularity",
+                            "internal_field": "period_granularity",
+                        },
+                        {"external_field": "unit", "internal_field": "unit"},
+                        {"external_field": "currency", "internal_field": "currency"},
+                        {
+                            "external_field": "external_record_key",
+                            "internal_field": "external_record_key",
+                        },
+                        {
+                            "external_field": "source_timestamp",
+                            "internal_field": "source_timestamp",
+                        },
+                    ],
+                    "reasonable_ranges": {
+                        "production_qty": {"min": "0", "max": "10000000"},
+                        "sales_amount": {"min": "0", "max": "10000000"},
+                    },
+                },
+            ).execute()
+
+        def _ensure_metric(
+            *,
+            metric_code: str,
+            name: str,
+            source_field: str,
+            unit: str,
+            currency: str,
+            granularity: str,
+        ) -> MetricDefinitionVersion:
+            existing = (
+                MetricDefinitionVersion.objects.filter(
+                    organization=organization,
+                    metric_code=metric_code,
+                    status=MetricDefinitionStatus.PUBLISHED,
+                )
+                .order_by("-version_number")
+                .first()
+            )
+            if existing is not None:
+                return existing
+            draft = CreateMetricDefinitionDraft(
+                context=ctx,
+                metric_code=metric_code,
+                name=name,
+                value_type="DECIMAL",
+                unit=unit,
+                currency=currency,
+                source_field_codes=[source_field],
+                calculation_type=CalculationType.SUM,
+                aggregation_rule={"by": ["SKU", "CHANNEL", "PRODUCT"]},
+                window_definition={"granularity": granularity},
+                coverage_requirement={"minimum_rate": "0.8"},
+                valid_from=now - timedelta(days=400),
+            ).execute()
+            return PublishMetricDefinition(context=ctx, metric_public_id=draft.public_id).execute()
+
+        production_metric = _ensure_metric(
+            metric_code=E2E_OPS_METRIC_CODE,
+            name="E2E Production qty",
+            source_field="production_qty",
+            unit="EA",
+            currency="NA",
+            granularity="QUARTER",
+        )
+        _ensure_metric(
+            metric_code=E2E_OPS_SALES_METRIC_CODE,
+            name="E2E Gross sales",
+            source_field="sales_amount",
+            unit="CNY",
+            currency="CNY",
+            granularity="MONTH",
+        )
+
+        if not RiskRuleVersion.objects.filter(
+            organization=organization,
+            rule_code=E2E_OPS_RULE_CODE,
+            status=RiskRuleStatus.PUBLISHED,
+        ).exists():
+            draft = CreateRiskRuleDraft(
+                context=ctx,
+                rule_code=E2E_OPS_RULE_CODE,
+                name="E2E quarter shelf min production",
+                metric_codes=[production_metric.metric_code],
+                evaluator_code=QUARTER_SHELF_LIFE_MIN_PRODUCTION,
+                parameters_json={
+                    "min_production": "1000",
+                    "shelf_life_days": "120",
+                    "window_days": "90",
+                    "target_digestion_ratio": "1.0",
+                    "metric_code": production_metric.metric_code,
+                    "applicable_sku_codes": [sku.sku_code],
+                    "applicable_channel_codes": [channel.channel_code],
+                },
+                scope_type=MonitoringScopeType.SKU_CHANNEL,
+                valid_from=now - timedelta(days=400),
+            ).execute()
+            PublishRiskRule(context=ctx, rule_public_id=draft.public_id).execute()
+
+        self.stdout.write(
+            self.style.SUCCESS(
+                f"E2E ops fixtures ready: product={product.business_no} "
+                f"sku={sku.sku_code} source={E2E_OPS_SOURCE_CODE}"
+            )
         )
 
     def _ensure_phase4_projects(self, organization: Organization, leader: User) -> None:

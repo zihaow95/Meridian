@@ -32,14 +32,15 @@ from apps.operations.services.metric_definitions import (
     PublishMetricDefinition,
 )
 from apps.operations.services.risk_rules import (
+    QUARTER_SHELF_LIFE_MIN_PRODUCTION,
     CreateRiskRuleDraft,
     EvaluateRiskRules,
     PublishRiskRule,
-    QUARTER_SHELF_LIFE_MIN_PRODUCTION,
 )
 from apps.operations.services.risk_signals import RecalculateAffectedSignals
 from apps.platform.application.command import CommandContext
 from apps.products.models import (
+    SKU,
     ChannelConfiguration,
     ChannelStatus,
     ProductAsset,
@@ -47,7 +48,6 @@ from apps.products.models import (
     ProductSourceType,
     ProductVersion,
     ProductVersionStatus,
-    SKU,
     SKUStatus,
 )
 

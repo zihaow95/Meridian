@@ -12,6 +12,7 @@ from django.utils import timezone
 from apps.identity.models.organization import Organization
 from apps.identity.models.user import User
 from apps.notifications.models import Todo
+from apps.operations.consumers import local_consumer_registry as operations_registry
 from apps.operations.models import (
     AggregateGrainType,
     AggregateStatus,
@@ -25,23 +26,23 @@ from apps.operations.models import (
     SignalRecalculation,
     build_monitoring_scope_key,
 )
-from apps.operations.consumers import local_consumer_registry as operations_registry
 from apps.operations.services.metric_definitions import (
     CreateMetricDefinitionDraft,
     PublishMetricDefinition,
 )
 from apps.operations.services.risk_rules import (
+    QUARTER_SHELF_LIFE_MIN_PRODUCTION,
     CreateRiskRuleDraft,
     EvaluateRiskRules,
     PublishRiskRule,
-    QUARTER_SHELF_LIFE_MIN_PRODUCTION,
 )
-from apps.operations.services.risk_signals import CloseRiskSignal, RecalculateAffectedSignals
+from apps.operations.services.risk_signals import CloseRiskSignal
 from apps.platform.application.command import CommandContext
 from apps.platform.outbox.consumer import consume_once
 from apps.platform.outbox.models import ConsumerReceipt, OutboxEvent, OutboxStatus
 from apps.platform.outbox.tasks import dispatch_outbox_task
 from apps.products.models import (
+    SKU,
     ChannelConfiguration,
     ChannelStatus,
     ProductAsset,
@@ -49,7 +50,6 @@ from apps.products.models import (
     ProductSourceType,
     ProductVersion,
     ProductVersionStatus,
-    SKU,
     SKUStatus,
 )
 from apps.projects.models import Project
@@ -226,7 +226,9 @@ def test_risk_signal_outbox_consumers_are_idempotent_by_event_id(
     assert consume_once(event=event, consumer_code=consumer_code, handler=handler) is True
     assert consume_once(event=event, consumer_code=consumer_code, handler=handler) is False
     assert ConsumerReceipt.objects.filter(event=event, consumer_code=consumer_code).count() == 1
-    assert Todo.objects.filter(source_id=signal.public_id, assignee=another_active_user).count() == 1
+    assert (
+        Todo.objects.filter(source_id=signal.public_id, assignee=another_active_user).count() == 1
+    )
 
 
 @pytest.mark.django_db(transaction=True)
@@ -267,7 +269,9 @@ def test_notification_failure_keeps_signal_and_recalc_replay_without_duplicates(
         "apps.platform.outbox.tasks.merged_consumer_registry",
         _failing_merged,
     )
-    created = OutboxEvent.objects.get(event_type="risk_signal.created", aggregate_id=signal.public_id)
+    created = OutboxEvent.objects.get(
+        event_type="risk_signal.created", aggregate_id=signal.public_id
+    )
     created.status = OutboxStatus.PENDING
     created.next_attempt_at = timezone.now() - timedelta(seconds=1)
     created.save(update_fields=["status", "next_attempt_at", "updated_at"])
@@ -279,9 +283,6 @@ def test_notification_failure_keeps_signal_and_recalc_replay_without_duplicates(
     assert created.status == OutboxStatus.PENDING
 
     # Recalc still persists in MySQL even if notification path fails later
-    from apps.operations.models import OperatingFact, OperatingFactStatus
-    from apps.integrations.models import DataSource, DataSourceStatus, DataSourceType
-    from apps.configuration.models import ConfigurationDefinition, ConfigurationStatus
 
     # Minimal fact pointing at same scope/period so RecalculateAffectedSignals can resolve
     MetricAggregate.objects.filter(metric_definition=metric).update(value=Decimal("900"))
@@ -310,7 +311,9 @@ def test_notification_failure_keeps_signal_and_recalc_replay_without_duplicates(
     dispatch_outbox_task(limit=20)
     created.refresh_from_db()
     assert created.status == OutboxStatus.PUBLISHED
-    assert Todo.objects.filter(source_id=signal.public_id, assignee=another_active_user).count() == 1
+    assert (
+        Todo.objects.filter(source_id=signal.public_id, assignee=another_active_user).count() == 1
+    )
 
     CloseRiskSignal(
         context=CommandContext.for_actor(active_user),

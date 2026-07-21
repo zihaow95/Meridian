@@ -772,6 +772,27 @@ paths:
               schema:
                 $ref: '#/components/schemas/OperatingIngestionBatch'
           description: ''
+  /api/v1/operating-data/batches/{public_id}/validate:
+    post:
+      operationId: operating_data_batches_validate
+      parameters:
+      - in: path
+        name: public_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - operating-data
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OperatingIngestionBatch'
+          description: ''
   /api/v1/operating-data/exports:
     post:
       operationId: operating_data_exports_create
@@ -797,6 +818,32 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/OperatingDataExportResponse'
+          description: ''
+  /api/v1/operating-data/snapshots:
+    post:
+      operationId: operating_data_snapshots_create
+      tags:
+      - operating-data
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OperatingDataSnapshotCreateRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/OperatingDataSnapshotCreateRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/OperatingDataSnapshotCreateRequest'
+        required: true
+      security:
+      - cookieAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OperatingDataSnapshot'
           description: ''
   /api/v1/operating-data/unmapped:
     get:
@@ -981,6 +1028,33 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/OperatingMetricDefinition'
+          description: ''
+  /api/v1/operating-metrics/recalculate:
+    post:
+      operationId: operating_metrics_recalculate
+      description: Thin wrapper around RecalculateMetricAggregates for E2E / ops recalculation.
+      tags:
+      - operating-metrics
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OperatingMetricRecalculateRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/OperatingMetricRecalculateRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/OperatingMetricRecalculateRequest'
+        required: true
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OperatingMetricRecalculateResponse'
           description: ''
   /api/v1/operating-values/overrides:
     post:
@@ -2836,6 +2910,41 @@ paths:
               schema:
                 $ref: '#/components/schemas/RiskRuleDefinition'
           description: ''
+  /api/v1/risk-rules/{public_id}/evaluate:
+    post:
+      operationId: risk_rules_evaluate
+      description: Thin authenticated wrapper around EvaluateRiskRules for governed
+        E2E/ops runs.
+      parameters:
+      - in: path
+        name: public_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - risk-rules
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RiskRuleEvaluateRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/RiskRuleEvaluateRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/RiskRuleEvaluateRequest'
+        required: true
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RiskRuleEvaluateResponse'
+          description: ''
   /api/v1/risk-rules/{public_id}/publish:
     post:
       operationId: risk_rules_publish
@@ -4249,6 +4358,39 @@ components:
       - document_version_public_id
       - expires_at
       - token
+    OperatingDataSnapshot:
+      type: object
+      properties:
+        public_id:
+          type: string
+          format: uuid
+        purpose:
+          type: string
+        content_hash:
+          type: string
+      required:
+      - content_hash
+      - public_id
+      - purpose
+    OperatingDataSnapshotCreateRequest:
+      type: object
+      properties:
+        product_public_id:
+          type: string
+          format: uuid
+        evidence:
+          type: object
+          additionalProperties: {}
+        metric_codes:
+          type: array
+          items:
+            type: string
+        periods:
+          type: array
+          items: {}
+      required:
+      - evidence
+      - product_public_id
     OperatingDataSource:
       type: object
       properties:
@@ -4710,6 +4852,30 @@ components:
             $ref: '#/components/schemas/OperatingMetricDefinition'
       required:
       - items
+    OperatingMetricRecalculateRequest:
+      type: object
+      properties:
+        affected_keys:
+          type: array
+          items:
+            type: object
+            additionalProperties: {}
+        calculation_run_id:
+          type: string
+          format: uuid
+      required:
+      - affected_keys
+    OperatingMetricRecalculateResponse:
+      type: object
+      properties:
+        written_count:
+          type: integer
+        calculation_run_id:
+          type: string
+          format: uuid
+      required:
+      - calculation_run_id
+      - written_count
     OperatingSummaryResponse:
       type: object
       properties:
@@ -5719,6 +5885,32 @@ components:
       - scope_type
       - status
       - version_number
+    RiskRuleEvaluateRequest:
+      type: object
+      properties:
+        period_granularity:
+          type: string
+        period_start:
+          type: string
+        period_end:
+          type: string
+      required:
+      - period_end
+      - period_granularity
+      - period_start
+    RiskRuleEvaluateResponse:
+      type: object
+      properties:
+        created_count:
+          type: integer
+        signal_public_ids:
+          type: array
+          items:
+            type: string
+            format: uuid
+      required:
+      - created_count
+      - signal_public_ids
     RiskRuleListResponse:
       type: object
       properties:

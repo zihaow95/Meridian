@@ -44,6 +44,8 @@ def _parse_csv_bytes(raw: bytes) -> list[dict[str, Any]]:
 def _parse_xlsx_bytes(raw: bytes) -> list[dict[str, Any]]:
     workbook = load_workbook(filename=io.BytesIO(raw), read_only=True, data_only=True)
     sheet = workbook.active
+    if sheet is None:
+        raise ValidationFailedError(message="Excel workbook has no active sheet.")
     rows_iter = sheet.iter_rows(values_only=True)
     try:
         headers = [str(cell).strip() if cell is not None else "" for cell in next(rows_iter)]

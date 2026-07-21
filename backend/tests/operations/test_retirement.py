@@ -203,9 +203,7 @@ def test_create_direct_builds_lightweight_issue_and_gate(
 
 
 @pytest.mark.django_db(transaction=True)
-def test_validate_requires_trd_fields(
-    organization, active_user, grant_action, catalog
-) -> None:
+def test_validate_requires_trd_fields(organization, active_user, grant_action, catalog) -> None:
     _grants(active_user, grant_action)
     plan = CreateRetirementPlan(
         context=CommandContext.for_actor(active_user),

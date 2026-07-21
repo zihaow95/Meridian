@@ -15,6 +15,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from apps.identity.models.user import User
+from apps.operations.models import RetirementPlan
 from apps.operations.services.retirement_plans import (
     CreateRetirementPlan,
     ExecuteRetirementPlan,
@@ -37,7 +38,7 @@ PLAN_SCHEMA = inline_serializer(
 )
 
 
-def serialize_plan(plan) -> dict[str, Any]:
+def serialize_plan(plan: RetirementPlan) -> dict[str, Any]:
     return {
         "public_id": str(plan.public_id),
         "status": plan.status,
@@ -154,14 +155,16 @@ class RetirementPlanSubmitView(APIView):
             name="RetirementPlanSubmitRequest",
             fields={"idempotency_key": serializers.CharField()},
         ),
-        responses={201: inline_serializer(
-            name="RetirementPlanSubmitResponse",
-            fields={
-                "public_id": serializers.UUIDField(),
-                "submission_number": serializers.IntegerField(),
-                "content_hash": serializers.CharField(),
-            },
-        )},
+        responses={
+            201: inline_serializer(
+                name="RetirementPlanSubmitResponse",
+                fields={
+                    "public_id": serializers.UUIDField(),
+                    "submission_number": serializers.IntegerField(),
+                    "content_hash": serializers.CharField(),
+                },
+            )
+        },
     )
     def post(self, request: Request, public_id: UUID) -> Response:
         user = cast(User, request.user)

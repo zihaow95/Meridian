@@ -536,6 +536,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/operating-data/batches/{public_id}/validate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["operating_data_batches_validate"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/operating-data/exports": {
         parameters: {
             query?: never;
@@ -546,6 +562,22 @@ export interface paths {
         get?: never;
         put?: never;
         post: operations["operating_data_exports_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/operating-data/snapshots": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["operating_data_snapshots_create"];
         delete?: never;
         options?: never;
         head?: never;
@@ -642,6 +674,23 @@ export interface paths {
         get?: never;
         put?: never;
         post: operations["operating_metrics_publish"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/operating-metrics/recalculate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description Thin wrapper around RecalculateMetricAggregates for E2E / ops recalculation. */
+        post: operations["operating_metrics_recalculate"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1657,6 +1706,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/risk-rules/{public_id}/evaluate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description Thin authenticated wrapper around EvaluateRiskRules for governed E2E/ops runs. */
+        post: operations["risk_rules_evaluate"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/risk-rules/{public_id}/publish": {
         parameters: {
             query?: never;
@@ -2310,6 +2376,21 @@ export interface components {
             token: string;
             expires_at: string;
         };
+        OperatingDataSnapshot: {
+            /** Format: uuid */
+            public_id: string;
+            purpose: string;
+            content_hash: string;
+        };
+        OperatingDataSnapshotCreateRequest: {
+            /** Format: uuid */
+            product_public_id: string;
+            evidence: {
+                [key: string]: unknown;
+            };
+            metric_codes?: string[];
+            periods?: unknown[];
+        };
         OperatingDataSource: {
             /** Format: uuid */
             public_id: string;
@@ -2505,6 +2586,18 @@ export interface components {
         };
         OperatingMetricListResponse: {
             items: components["schemas"]["OperatingMetricDefinition"][];
+        };
+        OperatingMetricRecalculateRequest: {
+            affected_keys: {
+                [key: string]: unknown;
+            }[];
+            /** Format: uuid */
+            calculation_run_id?: string;
+        };
+        OperatingMetricRecalculateResponse: {
+            written_count: number;
+            /** Format: uuid */
+            calculation_run_id: string;
         };
         OperatingSummaryResponse: {
             items: unknown[];
@@ -2911,6 +3004,15 @@ export interface components {
             evaluator_code: string;
             scope_type: string;
             metric_codes: string[];
+        };
+        RiskRuleEvaluateRequest: {
+            period_granularity: string;
+            period_start: string;
+            period_end: string;
+        };
+        RiskRuleEvaluateResponse: {
+            created_count: number;
+            signal_public_ids: string[];
         };
         RiskRuleListResponse: {
             items: components["schemas"]["RiskRuleDefinition"][];
@@ -3930,6 +4032,27 @@ export interface operations {
             };
         };
     };
+    operating_data_batches_validate: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                public_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OperatingIngestionBatch"];
+                };
+            };
+        };
+    };
     operating_data_exports_create: {
         parameters: {
             query?: never;
@@ -3951,6 +4074,31 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["OperatingDataExportResponse"];
+                };
+            };
+        };
+    };
+    operating_data_snapshots_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OperatingDataSnapshotCreateRequest"];
+                "application/x-www-form-urlencoded": components["schemas"]["OperatingDataSnapshotCreateRequest"];
+                "multipart/form-data": components["schemas"]["OperatingDataSnapshotCreateRequest"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OperatingDataSnapshot"];
                 };
             };
         };
@@ -4135,6 +4283,31 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["OperatingMetricDefinition"];
+                };
+            };
+        };
+    };
+    operating_metrics_recalculate: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OperatingMetricRecalculateRequest"];
+                "application/x-www-form-urlencoded": components["schemas"]["OperatingMetricRecalculateRequest"];
+                "multipart/form-data": components["schemas"]["OperatingMetricRecalculateRequest"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OperatingMetricRecalculateResponse"];
                 };
             };
         };
@@ -5789,6 +5962,33 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["RiskRuleDefinition"];
+                };
+            };
+        };
+    };
+    risk_rules_evaluate: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                public_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RiskRuleEvaluateRequest"];
+                "application/x-www-form-urlencoded": components["schemas"]["RiskRuleEvaluateRequest"];
+                "multipart/form-data": components["schemas"]["RiskRuleEvaluateRequest"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RiskRuleEvaluateResponse"];
                 };
             };
         };

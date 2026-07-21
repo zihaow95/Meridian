@@ -14,6 +14,7 @@ from apps.operations.api.ingestion import (
     OperatingIngestionBatchCreateView,
     OperatingIngestionBatchDetailView,
     OperatingIngestionBatchRetryView,
+    OperatingIngestionBatchValidateView,
     OperatingUnmappedRowsView,
 )
 from apps.operations.api.issues import (
@@ -24,6 +25,7 @@ from apps.operations.api.issues import (
 from apps.operations.api.metrics import (
     OperatingMetricListCreateView,
     OperatingMetricPublishView,
+    OperatingMetricRecalculateView,
 )
 from apps.operations.api.retirement import (
     RetirementPlanCreateView,
@@ -31,13 +33,18 @@ from apps.operations.api.retirement import (
     RetirementPlanSubmitView,
     RetirementPlanValidateView,
 )
-from apps.operations.api.risk_rules import RiskRuleListCreateView, RiskRulePublishView
+from apps.operations.api.risk_rules import (
+    RiskRuleEvaluateView,
+    RiskRuleListCreateView,
+    RiskRulePublishView,
+)
 from apps.operations.api.risk_signals import (
     RiskSignalCloseView,
     RiskSignalEscalateView,
     RiskSignalListView,
     RiskSignalViewView,
 )
+from apps.operations.api.snapshots import OperatingDataSnapshotCreateView
 from apps.operations.api.summaries import (
     ProductOperatingSummaryView,
     SkuOperatingSummaryView,
@@ -64,6 +71,11 @@ urlpatterns = [
         name="operating-metrics",
     ),
     path(
+        "operating-metrics/recalculate",
+        OperatingMetricRecalculateView.as_view(),
+        name="operating-metrics-recalculate",
+    ),
+    path(
         "operating-metrics/<uuid:public_id>/publish",
         OperatingMetricPublishView.as_view(),
         name="operating-metrics-publish",
@@ -75,6 +87,11 @@ urlpatterns = [
         name="risk-rules-publish",
     ),
     path(
+        "risk-rules/<uuid:public_id>/evaluate",
+        RiskRuleEvaluateView.as_view(),
+        name="risk-rules-evaluate",
+    ),
+    path(
         "operating-data/batches",
         OperatingIngestionBatchCreateView.as_view(),
         name="operating-data-batches-create",
@@ -83,6 +100,11 @@ urlpatterns = [
         "operating-data/batches/<uuid:public_id>",
         OperatingIngestionBatchDetailView.as_view(),
         name="operating-data-batches-detail",
+    ),
+    path(
+        "operating-data/batches/<uuid:public_id>/validate",
+        OperatingIngestionBatchValidateView.as_view(),
+        name="operating-data-batches-validate",
     ),
     path(
         "operating-data/batches/<uuid:public_id>/confirm",
@@ -98,6 +120,11 @@ urlpatterns = [
         "operating-data/unmapped",
         OperatingUnmappedRowsView.as_view(),
         name="operating-data-unmapped",
+    ),
+    path(
+        "operating-data/snapshots",
+        OperatingDataSnapshotCreateView.as_view(),
+        name="operating-data-snapshots-create",
     ),
     path(
         "operating-values/overrides",

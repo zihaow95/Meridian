@@ -21,6 +21,10 @@ from apps.operations.models import (
     MetricDefinitionStatus,
     OperatingFact,
 )
+from apps.operations.queries.operating_summary import (
+    QueryProductOperatingSummary,
+    QuerySkuOperatingSummary,
+)
 from apps.operations.services.aggregations import RecalculateMetricAggregates
 from apps.operations.services.effective_values import CreateManualEffectiveValue
 from apps.operations.services.ingestion import ConfirmOperatingIngestionBatch
@@ -28,12 +32,9 @@ from apps.operations.services.metric_definitions import (
     CreateMetricDefinitionDraft,
     PublishMetricDefinition,
 )
-from apps.operations.queries.operating_summary import (
-    QueryProductOperatingSummary,
-    QuerySkuOperatingSummary,
-)
 from apps.platform.application.command import CommandContext
 from apps.products.models import (
+    SKU,
     ChannelConfiguration,
     ChannelStatus,
     ProductAsset,
@@ -41,7 +42,6 @@ from apps.products.models import (
     ProductSourceType,
     ProductVersion,
     ProductVersionStatus,
-    SKU,
     SKUStatus,
 )
 

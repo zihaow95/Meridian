@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import date
 from typing import Any
 from uuid import UUID
 
@@ -12,6 +13,7 @@ from django.utils.dateparse import parse_date
 from apps.authorization.context import AuthorizationContext, ResourceDescriptor
 from apps.authorization.policies.engine import authorize
 from apps.authorization.services.subject import subject_for
+from apps.identity.models.user import User
 from apps.operations.models import (
     AggregateGrainType,
     MetricAggregate,
@@ -24,7 +26,7 @@ from apps.platform.application.command import CommandContext
 from apps.products.models import SKU, ChannelConfiguration, ProductAsset
 
 
-def _authorize_read(actor) -> None:
+def _authorize_read(actor: User) -> None:
     decision = authorize(
         subject_for(actor),
         action="operating_fact.read",
@@ -39,7 +41,7 @@ def _authorize_read(actor) -> None:
         raise PermissionDeniedError()
 
 
-def _parse_period(value: str):
+def _parse_period(value: str) -> date:
     parsed = parse_date(value)
     if parsed is None:
         raise ValidationFailedError(message=f"Invalid period date: {value}")
@@ -103,8 +105,8 @@ class CreateOperatingDataSnapshot:
                         )
 
                     grain_filters: list[tuple[str, UUID]] = [
-                        (AggregateGrainType.PRODUCT, p.public_id) for p in products
-                    ] + [(AggregateGrainType.SKU, s.public_id) for s in skus]
+                        (AggregateGrainType.PRODUCT.value, p.public_id) for p in products
+                    ] + [(AggregateGrainType.SKU.value, s.public_id) for s in skus]
 
                     for grain_type, grain_id in grain_filters:
                         aggs = MetricAggregate.objects.filter(
@@ -119,7 +121,7 @@ class CreateOperatingDataSnapshot:
                         # Prefer channel-scoped rows matching snapshot channels, else ALL
                         chosen = None
                         for agg in aggs:
-                            if agg.channel_id and str(agg.channel.public_id) in {
+                            if agg.channel is not None and str(agg.channel.public_id) in {
                                 str(c.public_id) for c in channels
                             }:
                                 chosen = agg
@@ -155,7 +157,9 @@ class CreateOperatingDataSnapshot:
                                 "grain_type": chosen.grain_type,
                                 "grain_id": str(chosen.grain_id),
                                 "channel_public_id": (
-                                    str(chosen.channel.public_id) if chosen.channel_id else None
+                                    str(chosen.channel.public_id)
+                                    if chosen.channel is not None
+                                    else None
                                 ),
                                 "period_granularity": period_granularity,
                                 "period_start": period["period_start"],
@@ -191,6 +195,60 @@ class CreateOperatingDataSnapshot:
                 periods_json=periods_json,
                 metric_codes=metric_codes,
                 payload_json=payload_json,
+                created_by=actor,
+            )
+            snapshot.content_hash = snapshot.compute_content_hash()
+            snapshot.save()
+            return snapshot
+
+
+_RETIREMENT_EVIDENCE_KEYS = (
+    "sales",
+    "gross_margin",
+    "inventory",
+    "near_expiry",
+    "complaints",
+)
+
+
+@dataclass
+class CreateRetirementEvidenceSnapshot:
+    """Create a retirement-purpose snapshot with TRD completeness evidence fields."""
+
+    context: CommandContext
+    product_public_id: UUID
+    evidence: dict[str, Any]
+    metric_codes: list[str] | None = None
+    periods: list[dict[str, Any]] | None = None
+
+    def execute(self) -> OperatingDataSnapshot:
+        actor = self.context.actor
+        with transaction.atomic():
+            _authorize_read(actor)
+            product = ProductAsset.objects.filter(
+                organization_id=actor.organization_id,
+                public_id=self.product_public_id,
+            ).first()
+            if product is None:
+                raise ValidationFailedError(message="Product not found.")
+
+            payload = dict(self.evidence or {})
+            missing = [key for key in _RETIREMENT_EVIDENCE_KEYS if key not in payload]
+            if missing:
+                raise ValidationFailedError(
+                    message=f"Missing retirement evidence fields: {', '.join(missing)}"
+                )
+            payload.setdefault("coverage_status", "SUFFICIENT")
+            scope_json = {"product_public_id": str(product.public_id)}
+            metric_codes = list(self.metric_codes or ["GROSS_SALES"])
+            periods_json = list(self.periods or [])
+            snapshot = OperatingDataSnapshot(
+                organization_id=actor.organization_id,
+                purpose="retirement",
+                scope_json=scope_json,
+                periods_json=periods_json,
+                metric_codes=metric_codes,
+                payload_json=payload,
                 created_by=actor,
             )
             snapshot.content_hash = snapshot.compute_content_hash()
