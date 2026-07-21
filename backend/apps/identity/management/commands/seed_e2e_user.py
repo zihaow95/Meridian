@@ -948,7 +948,7 @@ class Command(BaseCommand):
         the UI retry can succeed.
         """
 
-        from apps.operations.models import MonitoringScope
+        from apps.operations.models import MonitoringAssignment, MonitoringScope
         from apps.platform.application.command import CommandContext
         from apps.products.models import (
             SKU,
@@ -973,7 +973,9 @@ class Command(BaseCommand):
         if approver is None:
             raise CommandError("Approver must be seeded before the repair-retry project.")
 
-        MonitoringScope.objects.filter(project=project).delete()
+        scopes = MonitoringScope.objects.filter(project=project)
+        MonitoringAssignment.objects.filter(monitoring_scope__in=scopes).delete()
+        scopes.delete()
         draft = project.product_draft
         if draft is None:
             raise CommandError("Repair-retry project is missing its product draft.")
