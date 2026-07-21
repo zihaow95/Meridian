@@ -25,7 +25,11 @@ async function load(): Promise<void> {
 onMounted(load)
 
 function openLink(link: string): void {
-  if (link.startsWith('/projects/')) {
+  if (
+    link.startsWith('/projects/') ||
+    link.startsWith('/operations') ||
+    link.startsWith('/retirement-plans/')
+  ) {
     router.push(link)
     return
   }
@@ -56,7 +60,9 @@ function openLink(link: string): void {
       <el-table-column prop="status" label="状态" width="140" />
       <el-table-column label="操作" width="160">
         <template #default="{ row }">
-          <el-button link type="primary" @click="openLink(row.deep_link)">打开</el-button>
+          <el-button link type="primary" data-test="open-todo" @click="openLink(row.deep_link)">
+            打开
+          </el-button>
         </template>
       </el-table-column>
     </el-table>
