@@ -158,32 +158,44 @@ async function createProjectFromOpportunity(
   await page.goto(`/stage-gates/${projectGateId}/decide`);
   await submitGateDecision(page, "Approve project creation.");
 
-  const projectsResponse = await page.request.get(
-    "/api/v1/projects?page=1&page_size=100",
-  );
-  expect(projectsResponse.ok()).toBeTruthy();
-  const projects = await projectsResponse.json();
-  const created = projects.items.find(
-    (item: { name: string }) => item.name === uniqueTitle,
-  );
+  let created: { public_id: string; name: string } | undefined;
+  for (let page = 1; page <= 20; page += 1) {
+    const projectsResponse = await page.request.get(
+      `/api/v1/projects?page=${page}&page_size=100`,
+    );
+    expect(projectsResponse.ok()).toBeTruthy();
+    const projects = await projectsResponse.json();
+    created = projects.items.find(
+      (item: { name: string }) => item.name === uniqueTitle,
+    );
+    if (created || projects.items.length < 100) {
+      break;
+    }
+  }
   expect(created?.public_id).toBeTruthy();
-  return created.public_id as string;
+  return created!.public_id as string;
 }
 
 async function findProjectByBusinessNo(
   page: import("@playwright/test").Page,
   businessNo: string,
 ): Promise<{ public_id: string; status: string }> {
-  const response = await page.request.get(
-    "/api/v1/projects?page=1&page_size=100",
-  );
-  expect(response.ok()).toBeTruthy();
-  const payload = await response.json();
-  const item = payload.items.find(
-    (row: { business_no: string }) => row.business_no === businessNo,
-  );
+  let item: { public_id: string; status: string } | undefined;
+  for (let pageNo = 1; pageNo <= 20; pageNo += 1) {
+    const response = await page.request.get(
+      `/api/v1/projects?page=${pageNo}&page_size=100`,
+    );
+    expect(response.ok()).toBeTruthy();
+    const payload = await response.json();
+    item = payload.items.find(
+      (row: { business_no: string }) => row.business_no === businessNo,
+    );
+    if (item || payload.items.length < 100) {
+      break;
+    }
+  }
   expect(item?.public_id).toBeTruthy();
-  return item;
+  return item!;
 }
 
 async function stageGateIdFor(
