@@ -10,4 +10,4 @@ os.environ.setdefault("DJANGO_SETTINGS_MODULE", "config.settings.development")
 
 app = Celery("meridian")
 app.config_from_object("django.conf:settings", namespace="CELERY")
-app.autodiscover_tasks(["apps.platform.outbox"])
+app.autodiscover_tasks(["apps.platform.outbox", "apps.operations"])

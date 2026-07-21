@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import hashlib
+import json
 from datetime import datetime
 from typing import Any
 
@@ -10,6 +12,7 @@ from django.db.models import Q
 from django.utils import timezone
 
 from apps.authorization.models.role import DataSensitivityLevel
+from apps.operations.errors import SnapshotImmutable
 from apps.platform.models.base import OrganizationOwnedModel
 
 
@@ -475,3 +478,131 @@ class ManualEffectiveValue(OrganizationOwnedModel):
 
     def __str__(self) -> str:
         return f"{self.sku_id}:{self.metric_definition_id}:{self.status}"
+
+
+class AggregateGrainType(models.TextChoices):
+    SKU = "SKU", "SKU"
+    PRODUCT = "PRODUCT", "Product"
+
+
+class AggregateStatus(models.TextChoices):
+    OK = "OK", "Ok"
+    NOT_COMPARABLE = "NOT_COMPARABLE", "Not comparable"
+    INSUFFICIENT = "INSUFFICIENT", "Insufficient"
+
+
+class MetricAggregate(OrganizationOwnedModel):
+    grain_type = models.CharField(max_length=16, choices=AggregateGrainType.choices)
+    grain_id = models.UUIDField()
+    channel = models.ForeignKey(
+        "products.ChannelConfiguration",
+        null=True,
+        blank=True,
+        on_delete=models.PROTECT,
+        related_name="metric_aggregates",
+    )
+    channel_key = models.CharField(max_length=64, default="ALL")
+    metric_definition = models.ForeignKey(
+        MetricDefinitionVersion,
+        on_delete=models.PROTECT,
+        related_name="metric_aggregates",
+    )
+    period_granularity = models.CharField(max_length=12)
+    period_start = models.DateField()
+    period_end = models.DateField()
+    value = models.DecimalField(max_digits=24, decimal_places=6, null=True, blank=True)
+    unit = models.CharField(max_length=32, blank=True, default="")
+    currency = models.CharField(max_length=16, blank=True, default="")
+    status = models.CharField(
+        max_length=32,
+        choices=AggregateStatus.choices,
+        default=AggregateStatus.OK,
+    )
+    coverage_rate = models.DecimalField(max_digits=8, decimal_places=6, default=0)
+    source_count = models.PositiveIntegerField(default=0)
+    has_manual_value = models.BooleanField(default=False)
+    contributors_json = models.JSONField(default=list)
+    calculated_at = models.DateTimeField()
+    calculation_run_id = models.UUIDField(db_index=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "operations_metric_aggregate"
+        constraints = [
+            models.UniqueConstraint(
+                fields=[
+                    "organization",
+                    "grain_type",
+                    "grain_id",
+                    "channel_key",
+                    "metric_definition",
+                    "period_granularity",
+                    "period_start",
+                    "period_end",
+                ],
+                name="operations_metric_aggregate_scope_uniq",
+            ),
+        ]
+        indexes = [
+            models.Index(
+                fields=["organization", "metric_definition", "period_start", "period_end"],
+                name="ops_agg_org_metric_period_idx",
+            ),
+            models.Index(
+                fields=["organization", "grain_type", "grain_id", "period_start"],
+                name="ops_agg_grain_period_idx",
+            ),
+            models.Index(
+                fields=["organization", "channel", "period_start"],
+                name="ops_agg_channel_period_idx",
+            ),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.grain_type}:{self.grain_id}:{self.metric_definition_id}"
+
+
+class OperatingDataSnapshot(OrganizationOwnedModel):
+    purpose = models.CharField(max_length=64)
+    scope_json = models.JSONField(default=dict)
+    periods_json = models.JSONField(default=list)
+    metric_codes = models.JSONField(default=list)
+    payload_json = models.JSONField(default=dict)
+    content_hash = models.CharField(max_length=64)
+    created_by = models.ForeignKey(
+        "identity.User",
+        on_delete=models.PROTECT,
+        related_name="operating_data_snapshots_created",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = "operations_operating_data_snapshot"
+        indexes = [
+            models.Index(
+                fields=["organization", "purpose", "created_at"],
+                name="ops_snapshot_org_purpose_idx",
+            ),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.purpose}:{self.content_hash[:12]}"
+
+    def compute_content_hash(self) -> str:
+        canonical = {
+            "purpose": self.purpose,
+            "scope": self.scope_json,
+            "periods": self.periods_json,
+            "metric_codes": self.metric_codes,
+            "payload": self.payload_json,
+        }
+        encoded = json.dumps(canonical, sort_keys=True, separators=(",", ":"), default=str)
+        return hashlib.sha256(encoded.encode("utf-8")).hexdigest()
+
+    def save(self, *args: Any, **kwargs: Any) -> None:
+        if self.pk is not None:
+            raise SnapshotImmutable()
+        if not self.content_hash:
+            self.content_hash = self.compute_content_hash()
+        super().save(*args, **kwargs)

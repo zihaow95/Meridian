@@ -9,3 +9,11 @@ class UnconfirmedIngestionWarnings(Exception):
     def __init__(self, message: str = "WARNING rows require confirm_warnings=True.") -> None:
         super().__init__(message)
         self.message = message
+
+
+class SnapshotImmutable(Exception):
+    """Raised when an OperatingDataSnapshot is mutated after create."""
+
+    def __init__(self, message: str = "Operating data snapshot cannot be updated.") -> None:
+        super().__init__(message)
+        self.message = message
