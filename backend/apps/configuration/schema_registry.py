@@ -116,7 +116,11 @@ _SCHEMAS: dict[str, dict[str, Any]] = {
 
 
 def get_schema(definition_code: str) -> dict[str, Any] | None:
-    return _SCHEMAS.get(definition_code)
+    if definition_code in _SCHEMAS:
+        return _SCHEMAS[definition_code]
+    if definition_code.startswith(f"{OPERATING_SOURCE_MAPPING_CODE}."):
+        return _SCHEMAS[OPERATING_SOURCE_MAPPING_CODE]
+    return None
 
 
 def validate_content(definition_code: str, content: dict[str, Any]) -> list[str]:
@@ -127,9 +131,14 @@ def validate_content(definition_code: str, content: dict[str, Any]) -> list[str]
     errors = [
         error.message for error in sorted(validator.iter_errors(content), key=lambda e: e.path)
     ]
-    if definition_code == PROJECT_EXECUTION_TEMPLATE_CODE:
+    schema_code = (
+        OPERATING_SOURCE_MAPPING_CODE
+        if definition_code.startswith(f"{OPERATING_SOURCE_MAPPING_CODE}.")
+        else definition_code
+    )
+    if schema_code == PROJECT_EXECUTION_TEMPLATE_CODE:
         errors.extend(_validate_project_template_rules(content))
-    if definition_code == OPERATING_SOURCE_MAPPING_CODE:
+    if schema_code == OPERATING_SOURCE_MAPPING_CODE:
         errors.extend(_reject_forbidden_script_keys(content))
     return errors
 

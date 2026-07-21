@@ -179,9 +179,7 @@ class PublishMetricDefinition:
             metric.status = MetricDefinitionStatus.PUBLISHED
             metric.published_by = actor
             metric.published_at = now
-            metric.save(
-                update_fields=["status", "published_by", "published_at", "updated_at"]
-            )
+            metric.save(update_fields=["status", "published_by", "published_at", "updated_at"])
 
             append_event(
                 AuditRecord(

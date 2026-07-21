@@ -67,7 +67,9 @@ def test_configure_requires_published_configuration_and_locks_version(
 
     assert source.status == DataSourceStatus.ACTIVE
     assert source.configuration_version.status == ConfigurationStatus.PUBLISHED
-    assert source.configuration_version.definition.definition_code == OPERATING_SOURCE_MAPPING_CODE
+    assert source.configuration_version.definition.definition_code.startswith(
+        OPERATING_SOURCE_MAPPING_CODE
+    )
     locked = source.configuration_version.content_json
     assert locked["source_priority"] == 10
     assert locked["mapping_rules"][0]["external_field"] == "sku_code"

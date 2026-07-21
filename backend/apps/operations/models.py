@@ -1,4 +1,4 @@
-"""Operations models: monitoring scope, assignments, and metric definitions."""
+"""Operations models: monitoring scope, assignments, metrics, and facts."""
 
 from __future__ import annotations
 
@@ -47,9 +47,7 @@ class PublishedMetricImmutable(Exception):
     pass
 
 
-_FORBIDDEN_METRIC_PARAM_KEYS = frozenset(
-    {"expression", "sql", "python", "python_code", "script"}
-)
+_FORBIDDEN_METRIC_PARAM_KEYS = frozenset({"expression", "sql", "python", "python_code", "script"})
 
 
 class MonitoringScope(OrganizationOwnedModel):
@@ -315,3 +313,165 @@ def overlapping_published_metrics(
             Q(valid_to__isnull=True) | Q(valid_to__gt=valid_from)
         )
     return qs
+
+
+class OperatingFactStatus(models.TextChoices):
+    VALID = "VALID", "Valid"
+    SUPERSEDED = "SUPERSEDED", "Superseded"
+    INVALID = "INVALID", "Invalid"
+
+
+class ManualEffectiveValueStatus(models.TextChoices):
+    ACTIVE = "ACTIVE", "Active"
+    REVOKED = "REVOKED", "Revoked"
+    SUPERSEDED = "SUPERSEDED", "Superseded"
+
+
+class OperatingFact(OrganizationOwnedModel):
+    sku = models.ForeignKey(
+        "products.SKU",
+        on_delete=models.PROTECT,
+        related_name="operating_facts",
+    )
+    channel = models.ForeignKey(
+        "products.ChannelConfiguration",
+        on_delete=models.PROTECT,
+        related_name="operating_facts",
+    )
+    metric_definition = models.ForeignKey(
+        MetricDefinitionVersion,
+        on_delete=models.PROTECT,
+        related_name="operating_facts",
+    )
+    period_granularity = models.CharField(max_length=12)
+    period_start = models.DateField()
+    period_end = models.DateField()
+    numeric_value = models.DecimalField(max_digits=24, decimal_places=6, null=True, blank=True)
+    text_value = models.TextField(blank=True, default="")
+    unit = models.CharField(max_length=32, blank=True, default="")
+    currency = models.CharField(max_length=16, blank=True, default="")
+    source = models.ForeignKey(
+        "integrations.DataSource",
+        on_delete=models.PROTECT,
+        related_name="operating_facts",
+    )
+    batch = models.ForeignKey(
+        "integrations.IngestionBatch",
+        on_delete=models.PROTECT,
+        related_name="operating_facts",
+    )
+    source_record_key = models.CharField(max_length=128)
+    fact_status = models.CharField(
+        max_length=16,
+        choices=OperatingFactStatus.choices,
+        default=OperatingFactStatus.VALID,
+    )
+    active_slot = models.PositiveSmallIntegerField(null=True, blank=True)
+    source_timestamp = models.DateTimeField()
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "operations_operating_fact"
+        constraints = [
+            models.UniqueConstraint(
+                fields=[
+                    "source",
+                    "source_record_key",
+                    "metric_definition",
+                    "sku",
+                    "channel",
+                    "period_granularity",
+                    "period_start",
+                    "period_end",
+                    "active_slot",
+                ],
+                name="operations_operating_fact_active_uniq",
+            ),
+        ]
+        indexes = [
+            models.Index(
+                fields=["organization", "sku", "channel", "metric_definition", "period_start"],
+                name="ops_fact_scope_period_idx",
+            ),
+            models.Index(
+                fields=["source", "source_record_key", "fact_status"],
+                name="ops_fact_source_key_idx",
+            ),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.source_record_key}:{self.fact_status}"
+
+
+class ManualEffectiveValue(OrganizationOwnedModel):
+    sku = models.ForeignKey(
+        "products.SKU",
+        on_delete=models.PROTECT,
+        related_name="manual_effective_values",
+    )
+    channel = models.ForeignKey(
+        "products.ChannelConfiguration",
+        on_delete=models.PROTECT,
+        related_name="manual_effective_values",
+    )
+    metric_definition = models.ForeignKey(
+        MetricDefinitionVersion,
+        on_delete=models.PROTECT,
+        related_name="manual_effective_values",
+    )
+    period_granularity = models.CharField(max_length=12)
+    period_start = models.DateField()
+    period_end = models.DateField()
+    original_fact = models.ForeignKey(
+        OperatingFact,
+        null=True,
+        blank=True,
+        on_delete=models.PROTECT,
+        related_name="manual_overrides",
+    )
+    numeric_value = models.DecimalField(max_digits=24, decimal_places=6, null=True, blank=True)
+    text_value = models.TextField(blank=True, default="")
+    reason = models.TextField()
+    valid_from = models.DateTimeField()
+    valid_to = models.DateTimeField(null=True, blank=True)
+    status = models.CharField(
+        max_length=16,
+        choices=ManualEffectiveValueStatus.choices,
+        default=ManualEffectiveValueStatus.ACTIVE,
+    )
+    active_slot = models.PositiveSmallIntegerField(null=True, blank=True)
+    confirmed_by = models.ForeignKey(
+        "identity.User",
+        on_delete=models.PROTECT,
+        related_name="manual_effective_values_confirmed",
+    )
+    confirmed_at = models.DateTimeField()
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "operations_manual_effective_value"
+        constraints = [
+            models.UniqueConstraint(
+                fields=[
+                    "sku",
+                    "channel",
+                    "metric_definition",
+                    "period_granularity",
+                    "period_start",
+                    "period_end",
+                    "active_slot",
+                ],
+                name="operations_manual_value_active_uniq",
+            ),
+        ]
+        indexes = [
+            models.Index(
+                fields=["organization", "sku", "channel", "status"],
+                name="ops_manual_scope_status_idx",
+            ),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.sku_id}:{self.metric_definition_id}:{self.status}"

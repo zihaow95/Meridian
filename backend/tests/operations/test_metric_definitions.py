@@ -49,16 +49,12 @@ def test_metric_code_versions_increment_on_publish(active_user: User, grant_acti
         context=ctx,
         **_draft_kwargs(valid_from=timezone.now(), valid_to=timezone.now() + timedelta(days=29)),
     ).execute()
-    first = PublishMetricDefinition(
-        context=ctx, metric_public_id=first_draft.public_id
-    ).execute()
+    first = PublishMetricDefinition(context=ctx, metric_public_id=first_draft.public_id).execute()
     second_draft = CreateMetricDefinitionDraft(
         context=ctx,
         **_draft_kwargs(valid_from=timezone.now() + timedelta(days=30)),
     ).execute()
-    second = PublishMetricDefinition(
-        context=ctx, metric_public_id=second_draft.public_id
-    ).execute()
+    second = PublishMetricDefinition(context=ctx, metric_public_id=second_draft.public_id).execute()
 
     assert first.version_number == 1
     assert second.version_number == 2
@@ -98,9 +94,7 @@ def test_overlapping_effective_windows_are_rejected(active_user: User, grant_act
 
 
 @pytest.mark.django_db(transaction=True)
-def test_arbitrary_python_or_sql_expressions_are_rejected(
-    active_user: User, grant_action
-) -> None:
+def test_arbitrary_python_or_sql_expressions_are_rejected(active_user: User, grant_action) -> None:
     grant_action(active_user, "metric_rule.configure", "metric_definition")
     ctx = CommandContext.for_actor(active_user)
 

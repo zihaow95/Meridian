@@ -177,9 +177,7 @@ class MonitoringScopeIdentityProvider:
         if scope is None:
             return ()
         if scope.owner_id == subject.user.id:
-            return (
-                ObjectIdentity(action_code="monitoring_scope.manage", resource=resource),
-            )
+            return (ObjectIdentity(action_code="monitoring_scope.manage", resource=resource),)
         return ()
 
 

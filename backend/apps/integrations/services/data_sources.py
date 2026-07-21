@@ -45,13 +45,9 @@ _FORBIDDEN_CREDENTIAL_KEYS = frozenset(
 
 def assert_active_for_ingestion(source: DataSource) -> None:
     if source.status != DataSourceStatus.ACTIVE:
-        raise ValidationFailedError(
-            message="INACTIVE data source cannot create ingestion batches."
-        )
+        raise ValidationFailedError(message="INACTIVE data source cannot create ingestion batches.")
     if source.configuration_version.status != ConfigurationStatus.PUBLISHED:
-        raise ValidationFailedError(
-            message="Data source configuration version must be published."
-        )
+        raise ValidationFailedError(message="Data source configuration version must be published.")
 
 
 def _contains_forbidden_keys(content: dict[str, Any]) -> list[str]:
@@ -72,10 +68,13 @@ def _contains_forbidden_keys(content: dict[str, Any]) -> list[str]:
     return found
 
 
-def _get_or_create_definition(*, organization_id: int, name: str) -> ConfigurationDefinition:
+def _get_or_create_definition(
+    *, organization_id: int, name: str, source_code: str
+) -> ConfigurationDefinition:
+    # One definition per source so publishing a new source does not unpublish peers.
     definition, _ = ConfigurationDefinition.objects.get_or_create(
         organization_id=organization_id,
-        definition_code=OPERATING_SOURCE_MAPPING_CODE,
+        definition_code=f"{OPERATING_SOURCE_MAPPING_CODE}.{source_code}",
         defaults={"name": name, "description": "Operating data source mapping"},
     )
     return definition
@@ -140,6 +139,7 @@ class ConfigureOperatingDataSource:
             definition = _get_or_create_definition(
                 organization_id=actor.organization_id,
                 name="Operating source mapping",
+                source_code=self.source_code,
             )
             draft = CreateDraft(
                 actor=actor,
