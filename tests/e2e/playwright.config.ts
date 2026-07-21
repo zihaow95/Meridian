@@ -7,6 +7,8 @@ const BACKEND_URL = process.env.E2E_BACKEND_URL ?? 'http://127.0.0.1:8000'
 export default defineConfig({
   testDir: './',
   fullyParallel: false,
+  // Shared MySQL E2E DB + seeded actors cannot safely run specs in parallel.
+  workers: 1,
   forbidOnly: !!process.env.CI,
   // Retries are disabled so a first-run failure cannot be masked by a re-run
   // that skips the core path (e.g. a project already advanced to OPERATING).
