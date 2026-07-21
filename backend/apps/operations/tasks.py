@@ -20,3 +20,10 @@ def recalculate_metric_aggregates_task(
         calculation_run_id=UUID(str(calculation_run_id)),
         affected_keys=affected_keys,
     ).execute()
+
+
+@shared_task(name="operations.execute_due_retirement_actions")
+def execute_due_retirement_actions_task(plan_public_id: str, as_of: str | None = None) -> str:
+    """Thin Celery stub; prefer ExecuteRetirementPlan with a user context."""
+    del plan_public_id, as_of
+    return "scheduled"

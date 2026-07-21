@@ -78,6 +78,11 @@ class SKUStatus(models.TextChoices):
     INACTIVE = "INACTIVE", "Inactive"
 
 
+class ProductionStatus(models.TextChoices):
+    IN_PRODUCTION = "IN_PRODUCTION", "In production"
+    STOPPED = "STOPPED", "Production stopped"
+
+
 class ChannelStatus(models.TextChoices):
     PLANNED = "PLANNED", "Planned"
     ON_SALE = "ON_SALE", "On sale"
@@ -365,6 +370,12 @@ class SKU(OrganizationOwnedModel):
         choices=SKUStatus.choices,
         default=SKUStatus.DRAFT,
     )
+    production_status = models.CharField(
+        max_length=24,
+        choices=ProductionStatus.choices,
+        default=ProductionStatus.IN_PRODUCTION,
+    )
+    production_stopped_at = models.DateTimeField(null=True, blank=True)
     effective_from = models.DateTimeField(null=True, blank=True)
     effective_to = models.DateTimeField(null=True, blank=True)
     supersedes_sku = models.ForeignKey(

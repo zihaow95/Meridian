@@ -1087,3 +1087,148 @@ class IssueConversion(OrganizationOwnedModel):
 
     def __str__(self) -> str:
         return f"{self.issue_id}:{self.conversion_type}"
+
+
+class RetirementPlanStatus(models.TextChoices):
+    DRAFT = "DRAFT", "Draft"
+    SUBMITTED = "SUBMITTED", "Submitted"
+    APPROVED = "APPROVED", "Approved"
+    EXECUTING = "EXECUTING", "Executing"
+    COMPLETED = "COMPLETED", "Completed"
+    PASSED = "PASSED", "Passed"
+    EXECUTION_ERROR = "EXECUTION_ERROR", "Execution error"
+
+
+class RetirementActionType(models.TextChoices):
+    STOP_PRODUCTION = "STOP_PRODUCTION", "Stop production"
+    STOP_SALE = "STOP_SALE", "Stop sale"
+    RETIRE = "RETIRE", "Retire"
+
+
+class RetirementActionStatus(models.TextChoices):
+    PENDING = "PENDING", "Pending"
+    COMPLETED = "COMPLETED", "Completed"
+    FAILED = "FAILED", "Failed"
+
+
+class RetirementPlan(OrganizationOwnedModel):
+    product = models.ForeignKey(
+        "products.ProductAsset",
+        on_delete=models.PROTECT,
+        related_name="retirement_plans",
+    )
+    issue = models.ForeignKey(
+        OperatingIssue,
+        on_delete=models.PROTECT,
+        related_name="retirement_plans",
+    )
+    project_id = models.UUIDField(null=True, blank=True)
+    scope_snapshot = models.JSONField(default=dict)
+    inventory_plan = models.JSONField(default=dict)
+    supply_contract_impact = models.JSONField(default=dict)
+    customer_market_plan = models.JSONField(default=dict)
+    replacement_plan = models.JSONField(default=dict)
+    coverage_gap_explanation = models.TextField(blank=True, default="")
+    operating_snapshot = models.ForeignKey(
+        OperatingDataSnapshot,
+        null=True,
+        blank=True,
+        on_delete=models.PROTECT,
+        related_name="retirement_plans",
+    )
+    document_version_public_id = models.UUIDField(null=True, blank=True)
+    document_version_hash = models.CharField(max_length=64, blank=True, default="")
+    stop_production_at = models.DateField(null=True, blank=True)
+    stop_sale_at = models.DateField(null=True, blank=True)
+    retire_at = models.DateField(null=True, blank=True)
+    status = models.CharField(
+        max_length=24,
+        choices=RetirementPlanStatus.choices,
+        default=RetirementPlanStatus.DRAFT,
+    )
+    stage_gate_public_id = models.UUIDField(null=True, blank=True)
+    content_hash = models.CharField(max_length=64, blank=True, default="")
+    created_by = models.ForeignKey(
+        "identity.User",
+        on_delete=models.PROTECT,
+        related_name="retirement_plans_created",
+    )
+    approved_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "operations_retirement_plan"
+        indexes = [
+            models.Index(
+                fields=["organization", "product", "status"],
+                name="ops_retire_plan_product_idx",
+            ),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.product_id}:{self.status}"
+
+    def compute_content_hash(self) -> str:
+        import hashlib
+        import json
+
+        payload = {
+            "scope_snapshot": self.scope_snapshot,
+            "inventory_plan": self.inventory_plan,
+            "supply_contract_impact": self.supply_contract_impact,
+            "customer_market_plan": self.customer_market_plan,
+            "replacement_plan": self.replacement_plan,
+            "coverage_gap_explanation": self.coverage_gap_explanation,
+            "stop_production_at": (
+                self.stop_production_at.isoformat() if self.stop_production_at else None
+            ),
+            "stop_sale_at": self.stop_sale_at.isoformat() if self.stop_sale_at else None,
+            "retire_at": self.retire_at.isoformat() if self.retire_at else None,
+            "document_version_public_id": (
+                str(self.document_version_public_id) if self.document_version_public_id else None
+            ),
+            "operating_snapshot_id": (
+                str(self.operating_snapshot.public_id) if self.operating_snapshot_id else None
+            ),
+        }
+        encoded = json.dumps(payload, sort_keys=True, separators=(",", ":"), default=str)
+        return hashlib.sha256(encoded.encode("utf-8")).hexdigest()
+
+
+class RetirementExecutionAction(OrganizationOwnedModel):
+    plan = models.ForeignKey(
+        RetirementPlan,
+        on_delete=models.PROTECT,
+        related_name="execution_actions",
+    )
+    action_type = models.CharField(max_length=32, choices=RetirementActionType.choices)
+    scheduled_for = models.DateField()
+    status = models.CharField(
+        max_length=16,
+        choices=RetirementActionStatus.choices,
+        default=RetirementActionStatus.PENDING,
+    )
+    last_error_code = models.CharField(max_length=64, blank=True, default="")
+    completed_at = models.DateTimeField(null=True, blank=True)
+    attempt_count = models.PositiveIntegerField(default=0)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "operations_retirement_execution_action"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["plan", "action_type"],
+                name="operations_retirement_action_type_uniq",
+            ),
+        ]
+        indexes = [
+            models.Index(
+                fields=["organization", "status", "scheduled_for"],
+                name="ops_retire_action_due_idx",
+            ),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.plan_id}:{self.action_type}:{self.status}"

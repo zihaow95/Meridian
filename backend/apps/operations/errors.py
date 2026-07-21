@@ -31,3 +31,15 @@ class IssueImmutableState(ApiError):
     code = "ISSUE_IMMUTABLE_STATE"
     message = "The operating issue cannot be changed in its current state."
     status_code = 409
+
+
+class RetirementSubmissionIncomplete(ApiError):
+    code = "RETIREMENT_SUBMISSION_INCOMPLETE"
+    message = "The retirement submission is missing required materials or fields."
+    status_code = 400
+
+
+class RetirementNotExecutable(ApiError):
+    code = "RETIREMENT_NOT_EXECUTABLE"
+    message = "The retirement plan cannot be executed in its current state."
+    status_code = 409

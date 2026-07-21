@@ -30,6 +30,7 @@ class SubjectType(models.TextChoices):
     OPPORTUNITY = "OPPORTUNITY", "Opportunity"
     PROJECT_CANDIDATE = "PROJECT_CANDIDATE", "Project candidate"
     PROJECT = "PROJECT", "Project"
+    RETIREMENT_PLAN = "RETIREMENT_PLAN", "Retirement plan"
 
 
 class MaterialType(models.TextChoices):
@@ -38,6 +39,8 @@ class MaterialType(models.TextChoices):
     PROJECT_STAGE = "PROJECT_STAGE", "Project stage"
     DELIVERABLE_REVISION = "DELIVERABLE_REVISION", "Deliverable revision"
     DOCUMENT_VERSION = "DOCUMENT_VERSION", "Document version"
+    OPERATING_DATA_SNAPSHOT = "OPERATING_DATA_SNAPSHOT", "Operating data snapshot"
+    RETIREMENT_PLAN = "RETIREMENT_PLAN", "Retirement plan"
 
 
 class GateStatus(models.TextChoices):
