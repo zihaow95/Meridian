@@ -83,7 +83,8 @@ def grant_action(db: None):
             role=role,
             action=action,
             defaults={
-                "max_data_level": DataSensitivityLevel.INTERNAL,
+                # Cover sensitive operating resources when an action is explicitly granted.
+                "max_data_level": DataSensitivityLevel.HIGHLY_SENSITIVE,
                 "requires_object_scope": False,
             },
         )

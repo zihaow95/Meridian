@@ -1,4 +1,4 @@
-"""Operations models: monitoring scope, assignments, metrics, and facts."""
+"""Operations models: monitoring scope, metrics, facts, aggregates, and risk."""
 
 from __future__ import annotations
 
@@ -606,3 +606,251 @@ class OperatingDataSnapshot(OrganizationOwnedModel):
         if not self.content_hash:
             self.content_hash = self.compute_content_hash()
         super().save(*args, **kwargs)
+
+
+class RiskRuleStatus(models.TextChoices):
+    DRAFT = "DRAFT", "Draft"
+    PUBLISHED = "PUBLISHED", "Published"
+    RETIRED = "RETIRED", "Retired"
+
+
+class RiskSignalStatus(models.TextChoices):
+    NEW = "NEW", "New"
+    VIEWED = "VIEWED", "Viewed"
+    CLOSED = "CLOSED", "Closed"
+    ESCALATED = "ESCALATED", "Escalated"
+
+
+class RiskCoverageStatus(models.TextChoices):
+    SUFFICIENT = "SUFFICIENT", "Sufficient"
+    INSUFFICIENT = "INSUFFICIENT", "Insufficient"
+
+
+class PublishedRiskRuleImmutable(Exception):
+    pass
+
+
+_FORBIDDEN_RISK_PARAM_KEYS = frozenset({"expression", "sql", "python", "python_code", "script"})
+
+
+class RiskRuleVersion(OrganizationOwnedModel):
+    rule_code = models.CharField(max_length=64)
+    name = models.CharField(max_length=255)
+    version_number = models.PositiveIntegerField()
+    metric_codes = models.JSONField(default=list)
+    evaluator_code = models.CharField(max_length=64)
+    parameters_json = models.JSONField(default=dict)
+    scope_type = models.CharField(max_length=16, choices=MonitoringScopeType.choices)
+    status = models.CharField(
+        max_length=16,
+        choices=RiskRuleStatus.choices,
+        default=RiskRuleStatus.DRAFT,
+    )
+    valid_from = models.DateTimeField()
+    valid_to = models.DateTimeField(null=True, blank=True)
+    created_by = models.ForeignKey(
+        "identity.User",
+        on_delete=models.PROTECT,
+        related_name="risk_rules_created",
+    )
+    published_by = models.ForeignKey(
+        "identity.User",
+        null=True,
+        blank=True,
+        on_delete=models.PROTECT,
+        related_name="risk_rules_published",
+    )
+    published_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "operations_risk_rule_version"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["organization", "rule_code", "version_number"],
+                name="operations_risk_rule_org_code_ver_uniq",
+            ),
+        ]
+        indexes = [
+            models.Index(
+                fields=["organization", "rule_code", "status"],
+                name="ops_risk_rule_code_status_idx",
+            ),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.rule_code}:v{self.version_number}"
+
+    def save(self, *args: Any, **kwargs: Any) -> None:
+        if self.status == RiskRuleStatus.PUBLISHED and self.pk:
+            previous = (
+                RiskRuleVersion.objects.filter(pk=self.pk)
+                .values(
+                    "name",
+                    "metric_codes",
+                    "evaluator_code",
+                    "parameters_json",
+                    "scope_type",
+                    "valid_from",
+                    "valid_to",
+                )
+                .first()
+            )
+            if previous is not None:
+                for field, value in previous.items():
+                    if getattr(self, field) != value:
+                        raise PublishedRiskRuleImmutable(
+                            "Published risk rule cannot be edited."
+                        )
+        super().save(*args, **kwargs)
+
+
+def validate_risk_parameters(parameters: dict[str, Any]) -> list[str]:
+    errors: list[str] = []
+
+    def _walk(node: Any, path: str) -> None:
+        if isinstance(node, dict):
+            for key, value in node.items():
+                full = f"{path}.{key}" if path else key
+                if key.lower() in _FORBIDDEN_RISK_PARAM_KEYS:
+                    errors.append(f"Forbidden risk parameter: {full}")
+                _walk(value, full)
+        elif isinstance(node, list):
+            for index, item in enumerate(node):
+                _walk(item, f"{path}[{index}]")
+
+    _walk(parameters, "")
+    return errors
+
+
+def build_risk_scope_key(
+    *,
+    scope_type: str,
+    scope_id: str,
+    channel_id: str | None = None,
+) -> str:
+    if scope_type == MonitoringScopeType.PRODUCT:
+        return f"PRODUCT:{scope_id}"
+    if scope_type == MonitoringScopeType.SKU:
+        return f"SKU:{scope_id}"
+    return f"SKU_CHANNEL:{scope_id}:{channel_id or 'NONE'}"
+
+
+class RiskSignal(OrganizationOwnedModel):
+    rule_version = models.ForeignKey(
+        RiskRuleVersion,
+        on_delete=models.PROTECT,
+        related_name="signals",
+    )
+    scope_type = models.CharField(max_length=16, choices=MonitoringScopeType.choices)
+    scope_id = models.UUIDField()
+    channel = models.ForeignKey(
+        "products.ChannelConfiguration",
+        null=True,
+        blank=True,
+        on_delete=models.PROTECT,
+        related_name="risk_signals",
+    )
+    scope_key = models.CharField(max_length=160)
+    period_granularity = models.CharField(max_length=12, default="QUARTER")
+    period_start = models.DateField()
+    period_end = models.DateField()
+    status = models.CharField(
+        max_length=16,
+        choices=RiskSignalStatus.choices,
+        default=RiskSignalStatus.NEW,
+    )
+    actual_value = models.DecimalField(max_digits=24, decimal_places=6, null=True, blank=True)
+    threshold_value = models.DecimalField(max_digits=24, decimal_places=6, null=True, blank=True)
+    formula_snapshot = models.JSONField(default=dict)
+    data_snapshot = models.ForeignKey(
+        OperatingDataSnapshot,
+        on_delete=models.PROTECT,
+        related_name="risk_signals",
+    )
+    coverage_status = models.CharField(
+        max_length=16,
+        choices=RiskCoverageStatus.choices,
+        default=RiskCoverageStatus.SUFFICIENT,
+    )
+    closed_reason = models.TextField(blank=True, default="")
+    closed_by = models.ForeignKey(
+        "identity.User",
+        null=True,
+        blank=True,
+        on_delete=models.PROTECT,
+        related_name="risk_signals_closed",
+    )
+    closed_at = models.DateTimeField(null=True, blank=True)
+    display_recalculated_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "operations_risk_signal"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["rule_version", "scope_key", "period_start", "period_end"],
+                name="operations_risk_signal_rule_scope_period_uniq",
+            ),
+        ]
+        indexes = [
+            models.Index(
+                fields=["organization", "status", "period_start"],
+                name="ops_rsig_org_status_idx",
+            ),
+            models.Index(
+                fields=["organization", "scope_key", "period_start"],
+                name="ops_rsig_scope_period_idx",
+            ),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.rule_version_id}:{self.scope_key}:{self.period_start}"
+
+
+class SignalRecalculation(OrganizationOwnedModel):
+    signal = models.ForeignKey(
+        RiskSignal,
+        on_delete=models.PROTECT,
+        related_name="recalculations",
+    )
+    reason = models.CharField(max_length=128)
+    old_actual_value = models.DecimalField(max_digits=24, decimal_places=6, null=True, blank=True)
+    new_actual_value = models.DecimalField(max_digits=24, decimal_places=6, null=True, blank=True)
+    old_threshold_value = models.DecimalField(
+        max_digits=24, decimal_places=6, null=True, blank=True
+    )
+    new_threshold_value = models.DecimalField(
+        max_digits=24, decimal_places=6, null=True, blank=True
+    )
+    impact_summary = models.TextField()
+    triggered_by_fact = models.ForeignKey(
+        OperatingFact,
+        null=True,
+        blank=True,
+        on_delete=models.PROTECT,
+        related_name="signal_recalculations",
+    )
+    triggered_by_manual = models.ForeignKey(
+        ManualEffectiveValue,
+        null=True,
+        blank=True,
+        on_delete=models.PROTECT,
+        related_name="signal_recalculations",
+    )
+    calculated_at = models.DateTimeField()
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = "operations_signal_recalculation"
+        indexes = [
+            models.Index(
+                fields=["organization", "signal", "calculated_at"],
+                name="ops_signal_recalc_signal_idx",
+            ),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.signal_id}:{self.reason}"
