@@ -1,6 +1,8 @@
-"""Operations domain errors for ingestion and effective values."""
+"""Operations domain errors for ingestion, snapshots, and issues."""
 
 from __future__ import annotations
+
+from apps.platform.api.errors import ApiError
 
 
 class UnconfirmedIngestionWarnings(Exception):
@@ -17,3 +19,15 @@ class SnapshotImmutable(Exception):
     def __init__(self, message: str = "Operating data snapshot cannot be updated.") -> None:
         super().__init__(message)
         self.message = message
+
+
+class IssueVersionConflict(ApiError):
+    code = "ISSUE_VERSION_CONFLICT"
+    message = "The operating issue was updated by another operation."
+    status_code = 409
+
+
+class IssueImmutableState(ApiError):
+    code = "ISSUE_IMMUTABLE_STATE"
+    message = "The operating issue cannot be changed in its current state."
+    status_code = 409

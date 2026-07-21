@@ -187,6 +187,44 @@ class RiskSignalIdentityProvider:
         return tuple(ObjectIdentity(action_code=action, resource=resource) for action in granted)
 
 
+class OperatingIssueIdentityProvider:
+    resource_type = "operating_issue"
+
+    def resolve_identities(
+        self,
+        *,
+        subject: AuthorizationSubject,
+        resource: ResourceDescriptor,
+        context: AuthorizationContext,
+    ) -> tuple[ObjectIdentity, ...]:
+        assignments = resolve_effective_assignments(
+            user=subject.user,
+            organization_id=resource.organization_id,
+            as_of=context.as_of,
+        )
+        if not assignments:
+            return ()
+
+        product, sku, channel = _resolve_product_sku_channel(resource)
+        granted: set[str] = set()
+        for assignment in assignments:
+            if not _assignment_covers_resource(
+                assignment, product=product, sku=sku, channel=channel
+            ):
+                continue
+            if not _level_covers(assignment.max_data_level, resource.sensitivity_level):
+                continue
+            granted.update(
+                {
+                    "operating_issue.create",
+                    "operating_issue.analyze",
+                    "operating_issue.close",
+                }
+            )
+
+        return tuple(ObjectIdentity(action_code=action, resource=resource) for action in granted)
+
+
 class MonitoringScopeIdentityProvider:
     resource_type = "monitoring_scope"
 
@@ -216,4 +254,5 @@ class MonitoringScopeIdentityProvider:
 def register_providers() -> None:
     identity_registry.register(OperatingFactIdentityProvider())
     identity_registry.register(RiskSignalIdentityProvider())
+    identity_registry.register(OperatingIssueIdentityProvider())
     identity_registry.register(MonitoringScopeIdentityProvider())

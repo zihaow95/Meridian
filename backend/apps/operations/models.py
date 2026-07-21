@@ -854,3 +854,189 @@ class SignalRecalculation(OrganizationOwnedModel):
 
     def __str__(self) -> str:
         return f"{self.signal_id}:{self.reason}"
+
+
+class OperatingIssueStatus(models.TextChoices):
+    PENDING = "PENDING", "Pending"
+    ANALYZING = "ANALYZING", "Analyzing"
+    OBSERVING = "OBSERVING", "Observing"
+    ACTIONING = "ACTIONING", "Actioning"
+    CONVERTED_TO_PROPOSAL = "CONVERTED_TO_PROPOSAL", "Converted to proposal"
+    RETIREMENT_REVIEW = "RETIREMENT_REVIEW", "Retirement review"
+    CLOSED = "CLOSED", "Closed"
+
+
+class IssueSourceType(models.TextChoices):
+    RISK_SIGNAL = "RISK_SIGNAL", "Risk signal"
+    PRODUCT_PORTFOLIO_REVIEW = "PRODUCT_PORTFOLIO_REVIEW", "Product portfolio review"
+    QUALITY_COMPLIANCE = "QUALITY_COMPLIANCE", "Quality compliance"
+    STRATEGIC = "STRATEGIC", "Strategic"
+    DIRECT = "DIRECT", "Direct"
+
+
+class RecommendationType(models.TextChoices):
+    CONTINUE_OBSERVING = "CONTINUE_OBSERVING", "Continue observing"
+    ADJUST_PRICE = "ADJUST_PRICE", "Adjust price"
+    ADJUST_CHANNEL = "ADJUST_CHANNEL", "Adjust channel"
+    ADJUST_MARKET = "ADJUST_MARKET", "Adjust market"
+    ADJUST_SUPPLY = "ADJUST_SUPPLY", "Adjust supply"
+    ITERATE = "ITERATE", "Iterate"
+    SUSPEND = "SUSPEND", "Suspend"
+    RETIRE = "RETIRE", "Retire"
+    CLOSE = "CLOSE", "Close"
+
+
+class OperatingIssue(OrganizationOwnedModel):
+    business_no = models.CharField(max_length=32)
+    title = models.CharField(max_length=255)
+    product = models.ForeignKey(
+        "products.ProductAsset",
+        on_delete=models.PROTECT,
+        related_name="operating_issues",
+    )
+    status = models.CharField(
+        max_length=32,
+        choices=OperatingIssueStatus.choices,
+        default=OperatingIssueStatus.PENDING,
+    )
+    owner = models.ForeignKey(
+        "identity.User",
+        on_delete=models.PROTECT,
+        related_name="operating_issues_owned",
+    )
+    source_type = models.CharField(max_length=32, choices=IssueSourceType.choices)
+    source_materials_json = models.JSONField(default=dict, blank=True)
+    phenomenon_summary = models.TextField()
+    recommendation_type = models.CharField(
+        max_length=32,
+        choices=RecommendationType.choices,
+        blank=True,
+        default="",
+    )
+    data_snapshot = models.ForeignKey(
+        OperatingDataSnapshot,
+        null=True,
+        blank=True,
+        on_delete=models.PROTECT,
+        related_name="operating_issues",
+    )
+    target_review_at = models.DateTimeField(null=True, blank=True)
+    linked_opportunity_id = models.UUIDField(null=True, blank=True)
+    linked_project_id = models.UUIDField(null=True, blank=True)
+    version_no = models.PositiveIntegerField(default=1)
+    created_by = models.ForeignKey(
+        "identity.User",
+        on_delete=models.PROTECT,
+        related_name="operating_issues_created",
+    )
+    closed_at = models.DateTimeField(null=True, blank=True)
+    closed_by = models.ForeignKey(
+        "identity.User",
+        null=True,
+        blank=True,
+        on_delete=models.PROTECT,
+        related_name="operating_issues_closed",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "operations_operating_issue"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["organization", "business_no"],
+                name="operations_issue_org_business_no_uniq",
+            ),
+        ]
+        indexes = [
+            models.Index(
+                fields=["organization", "status", "target_review_at"],
+                name="ops_issue_status_review_idx",
+            ),
+            models.Index(
+                fields=["organization", "product", "status"],
+                name="ops_issue_product_status_idx",
+            ),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.business_no}:{self.status}"
+
+
+class IssueSignal(OrganizationOwnedModel):
+    issue = models.ForeignKey(
+        OperatingIssue,
+        on_delete=models.PROTECT,
+        related_name="signal_links",
+    )
+    signal = models.ForeignKey(
+        RiskSignal,
+        on_delete=models.PROTECT,
+        related_name="issue_links",
+    )
+    is_primary = models.BooleanField(default=False)
+    active_primary_slot = models.PositiveSmallIntegerField(null=True, blank=True)
+    linked_at = models.DateTimeField()
+    unlinked_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "operations_issue_signal"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["signal", "active_primary_slot"],
+                name="operations_issue_signal_active_primary_uniq",
+            ),
+            models.UniqueConstraint(
+                fields=["issue", "signal"],
+                name="operations_issue_signal_pair_uniq",
+            ),
+        ]
+        indexes = [
+            models.Index(
+                fields=["organization", "issue", "is_primary"],
+                name="ops_issue_signal_issue_idx",
+            ),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.issue_id}:{self.signal_id}"
+
+
+class IssueDecision(OrganizationOwnedModel):
+    issue = models.ForeignKey(
+        OperatingIssue,
+        on_delete=models.PROTECT,
+        related_name="decisions",
+    )
+    recommendation_type = models.CharField(max_length=32, choices=RecommendationType.choices)
+    action_summary = models.TextField()
+    responsible_user = models.ForeignKey(
+        "identity.User",
+        null=True,
+        blank=True,
+        on_delete=models.PROTECT,
+        related_name="operating_issue_decisions",
+    )
+    planned_at = models.DateTimeField(null=True, blank=True)
+    materials_snapshot_json = models.JSONField(default=dict, blank=True)
+    decided_by = models.ForeignKey(
+        "identity.User",
+        on_delete=models.PROTECT,
+        related_name="operating_issue_decisions_made",
+    )
+    decided_at = models.DateTimeField()
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = "operations_issue_decision"
+        indexes = [
+            models.Index(
+                fields=["organization", "issue", "decided_at"],
+                name="ops_issue_decision_issue_idx",
+            ),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.issue_id}:{self.recommendation_type}"
