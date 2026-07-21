@@ -217,3 +217,45 @@ class ConfigureOperatingDataSource:
                 )
             )
             return source
+
+
+@dataclass
+class PublishOperatingDataSource:
+    """Ensure a data source is ACTIVE with a published configuration (idempotent)."""
+
+    context: CommandContext
+    source_public_id: UUID
+
+    def execute(self) -> DataSource:
+        actor = self.context.actor
+        with transaction.atomic():
+            decision = authorize(
+                subject_for(actor),
+                action="data_source.configure",
+                resource=ResourceDescriptor(
+                    resource_type="data_source",
+                    public_id=self.source_public_id,
+                    organization_id=actor.organization_id,
+                ),
+                context=AuthorizationContext.current(),
+            )
+            if not decision.allowed:
+                raise PermissionDeniedError()
+
+            source = (
+                DataSource.objects.select_related("configuration_version")
+                .filter(
+                    organization_id=actor.organization_id,
+                    public_id=self.source_public_id,
+                )
+                .first()
+            )
+            if source is None:
+                raise PermissionDeniedError()
+
+            if source.status != DataSourceStatus.ACTIVE:
+                source.status = DataSourceStatus.ACTIVE
+                source.save(update_fields=["status", "updated_at"])
+
+            assert_active_for_ingestion(source)
+            return source

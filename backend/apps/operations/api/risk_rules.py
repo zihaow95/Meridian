@@ -1,0 +1,138 @@
+"""Risk rule configuration APIs."""
+
+from __future__ import annotations
+
+from datetime import datetime
+from typing import Any, cast
+from uuid import UUID
+
+from django.utils.dateparse import parse_datetime
+from drf_spectacular.utils import extend_schema, inline_serializer
+from rest_framework import serializers
+from rest_framework.permissions import IsAuthenticated
+from rest_framework.request import Request
+from rest_framework.response import Response
+from rest_framework.views import APIView
+
+from apps.identity.models.user import User
+from apps.operations.queries.visible_resources import list_visible_risk_rules
+from apps.operations.services.risk_rules import CreateRiskRuleDraft, PublishRiskRule
+from apps.platform.api.errors import ValidationFailedError
+from apps.platform.application.command import CommandContext
+
+RISK_RULE_SCHEMA = inline_serializer(
+    name="RiskRuleDefinition",
+    fields={
+        "public_id": serializers.UUIDField(),
+        "rule_code": serializers.CharField(),
+        "name": serializers.CharField(),
+        "version_number": serializers.IntegerField(),
+        "status": serializers.CharField(),
+        "evaluator_code": serializers.CharField(),
+        "scope_type": serializers.CharField(),
+        "metric_codes": serializers.ListField(child=serializers.CharField()),
+    },
+)
+
+RISK_RULE_CREATE_REQUEST = inline_serializer(
+    name="RiskRuleCreateRequest",
+    fields={
+        "rule_code": serializers.CharField(),
+        "name": serializers.CharField(),
+        "metric_codes": serializers.ListField(child=serializers.CharField()),
+        "evaluator_code": serializers.CharField(),
+        "parameters_json": serializers.DictField(),
+        "scope_type": serializers.CharField(),
+        "valid_from": serializers.CharField(),
+        "valid_to": serializers.CharField(required=False, allow_null=True),
+    },
+)
+
+
+def serialize_risk_rule(rule) -> dict[str, Any]:
+    return {
+        "public_id": str(rule.public_id),
+        "rule_code": rule.rule_code,
+        "name": rule.name,
+        "version_number": rule.version_number,
+        "status": rule.status,
+        "evaluator_code": rule.evaluator_code,
+        "scope_type": rule.scope_type,
+        "metric_codes": list(rule.metric_codes or []),
+    }
+
+
+def _parse_dt(raw: Any) -> datetime:
+    if isinstance(raw, datetime):
+        return raw
+    parsed = parse_datetime(str(raw))
+    if parsed is None:
+        raise ValidationFailedError(message="Invalid datetime value.")
+    return parsed
+
+
+class RiskRuleListCreateView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    @extend_schema(
+        operation_id="risk_rules_list",
+        responses=inline_serializer(
+            name="RiskRuleListResponse",
+            fields={"items": serializers.ListField(child=RISK_RULE_SCHEMA)},
+        ),
+    )
+    def get(self, request: Request) -> Response:
+        user = cast(User, request.user)
+        items = [serialize_risk_rule(row) for row in list_visible_risk_rules(user)]
+        return Response({"items": items})
+
+    @extend_schema(
+        operation_id="risk_rules_create",
+        request=RISK_RULE_CREATE_REQUEST,
+        responses={201: RISK_RULE_SCHEMA},
+    )
+    def post(self, request: Request) -> Response:
+        user = cast(User, request.user)
+        data = request.data
+        required = (
+            "rule_code",
+            "name",
+            "metric_codes",
+            "evaluator_code",
+            "parameters_json",
+            "scope_type",
+            "valid_from",
+        )
+        missing = [key for key in required if data.get(key) in (None, "")]
+        if missing:
+            raise ValidationFailedError(message=f"Missing fields: {', '.join(missing)}")
+        valid_to_raw = data.get("valid_to")
+        rule = CreateRiskRuleDraft(
+            context=CommandContext.for_actor(user),
+            rule_code=str(data["rule_code"]),
+            name=str(data["name"]),
+            metric_codes=list(data["metric_codes"]),
+            evaluator_code=str(data["evaluator_code"]),
+            parameters_json=dict(data["parameters_json"]),
+            scope_type=str(data["scope_type"]),
+            valid_from=_parse_dt(data["valid_from"]),
+            valid_to=_parse_dt(valid_to_raw) if valid_to_raw else None,
+        ).execute()
+        return Response(serialize_risk_rule(rule), status=201)
+
+
+class RiskRulePublishView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    @extend_schema(
+        operation_id="risk_rules_publish",
+        request=None,
+        responses={200: RISK_RULE_SCHEMA},
+    )
+    def post(self, request: Request, public_id: UUID) -> Response:
+        user = cast(User, request.user)
+        rule = PublishRiskRule(
+            context=CommandContext.for_actor(user),
+            rule_public_id=public_id,
+        ).execute()
+        return Response(serialize_risk_rule(rule))

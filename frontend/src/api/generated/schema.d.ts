@@ -440,6 +440,246 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/operating-data-sources": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["operating_data_sources_list"];
+        put?: never;
+        post: operations["operating_data_sources_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/operating-data-sources/{public_id}/publish": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["operating_data_sources_publish"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/operating-data/batches": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["operating_data_batches_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/operating-data/batches/{public_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["operating_data_batches_retrieve"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/operating-data/batches/{public_id}/confirm": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["operating_data_batches_confirm"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/operating-data/batches/{public_id}/retry": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["operating_data_batches_retry"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/operating-data/exports": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["operating_data_exports_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/operating-data/unmapped": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["operating_data_unmapped_list"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/operating-issues": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["operating_issues_list"];
+        put?: never;
+        post: operations["operating_issues_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/operating-issues/{public_id}/decisions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["operating_issues_decisions_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/operating-issues/{public_id}/iteration-proposal": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["operating_issues_iteration_proposal_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/operating-metrics": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["operating_metrics_list"];
+        put?: never;
+        post: operations["operating_metrics_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/operating-metrics/{public_id}/publish": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["operating_metrics_publish"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/operating-values/overrides": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["operating_values_overrides_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/operating-values/overrides/{public_id}/revoke": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["operating_values_overrides_revoke"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/opportunities": {
         parameters: {
             query?: never;
@@ -968,6 +1208,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/products/{public_id}/operating-summary": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["products_operating_summary_retrieve"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/professional-confirmations/{public_id}/decide": {
         parameters: {
             query?: never;
@@ -1321,6 +1577,182 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/retirement-plans": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["retirement_plans_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/retirement-plans/{public_id}/execute": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["retirement_plans_execute"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/retirement-plans/{public_id}/submit": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["retirement_plans_submit"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/retirement-plans/{public_id}/validate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["retirement_plans_validate"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/risk-rules": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["risk_rules_list"];
+        put?: never;
+        post: operations["risk_rules_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/risk-rules/{public_id}/publish": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["risk_rules_publish"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/risk-signals": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["risk_signals_list"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/risk-signals/{public_id}/close": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["risk_signals_close"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/risk-signals/{public_id}/escalate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["risk_signals_escalate"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/risk-signals/{public_id}/view": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["risk_signals_view"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/skus/{public_id}/operating-summary": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["skus_operating_summary_retrieve"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/stage-gates/{public_id}/decision": {
         parameters: {
             query?: never;
@@ -1379,6 +1811,38 @@ export interface paths {
         get?: never;
         put?: never;
         post: operations["stage_gate_major_decision_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/stage-gates/{public_id}/retirement-final-decision": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["stage_gates_retirement_final_decision_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/stage-gates/{public_id}/retirement-management-conclusion": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["stage_gates_retirement_management_conclusion_create"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1834,6 +2298,220 @@ export interface components {
             due_at: string | null;
             deep_link: string;
         };
+        OperatingDataExportRequest: {
+            period_start: string;
+            period_end: string;
+            period_granularity: string;
+            metric_codes?: string[];
+        };
+        OperatingDataExportResponse: {
+            /** Format: uuid */
+            document_version_public_id: string;
+            token: string;
+            expires_at: string;
+        };
+        OperatingDataSource: {
+            /** Format: uuid */
+            public_id: string;
+            source_code: string;
+            name: string;
+            source_type: string;
+            status: string;
+            sensitivity_level: string;
+            /** Format: uuid */
+            owner_department_public_id: string;
+            /** Format: uuid */
+            configuration_version_public_id: string;
+        };
+        OperatingDataSourceCreateRequest: {
+            source_code: string;
+            name: string;
+            source_type: string;
+            /** Format: uuid */
+            owner_department_public_id: string;
+            sensitivity_level: string;
+            mapping_content: {
+                [key: string]: unknown;
+            };
+            status?: string;
+        };
+        OperatingDataSourceListResponse: {
+            items: components["schemas"]["OperatingDataSource"][];
+        };
+        OperatingIngestionBatch: {
+            /** Format: uuid */
+            public_id: string;
+            batch_key: string;
+            /** Format: uuid */
+            source_public_id: string;
+            source_type: string;
+            status: string;
+            total_count: number;
+            success_count: number;
+            warning_count: number;
+            error_count: number;
+            skipped_count: number;
+            added_count: number;
+            revision_count: number;
+            rows?: unknown[];
+        };
+        OperatingIngestionBatchConfirmRequest: {
+            idempotency_key: string;
+            confirm_warnings?: boolean;
+        };
+        OperatingIngestionBatchConfirmResponse: {
+            /** Format: uuid */
+            public_id: string;
+            added_count: number;
+            revision_count: number;
+            skipped_count: number;
+            error_count: number;
+            warning_count: number;
+        };
+        OperatingIngestionBatchCreateRequest: {
+            /** Format: uuid */
+            source_public_id: string;
+            batch_key: string;
+            source_type: string;
+            rows?: unknown[];
+            /** Format: uuid */
+            input_file_version_public_id?: string | null;
+        };
+        OperatingIssue: {
+            /** Format: uuid */
+            public_id: string;
+            business_no: string;
+            title: string;
+            status: string;
+            version_no: number;
+            /** Format: uuid */
+            product_public_id: string;
+            phenomenon_summary: string;
+        };
+        OperatingIssueCreateRequest: {
+            title: string;
+            /** Format: uuid */
+            product_public_id: string;
+            phenomenon_summary: string;
+            signal_public_ids?: string[];
+            source_type?: string;
+            source_materials_json?: {
+                [key: string]: unknown;
+            };
+            target_review_at?: string | null;
+            /** Format: uuid */
+            owner_public_id?: string | null;
+        };
+        OperatingIssueDecisionRequest: {
+            version_no: number;
+            recommendation_type: string;
+            action_summary: string;
+            /** Format: uuid */
+            responsible_user_public_id?: string | null;
+            planned_at?: string | null;
+            materials_snapshot_json?: {
+                [key: string]: unknown;
+            };
+            target_status?: string | null;
+        };
+        OperatingIssueDecisionResponse: {
+            /** Format: uuid */
+            public_id: string;
+            recommendation_type: string;
+            action_summary: string;
+            issue: {
+                [key: string]: unknown;
+            };
+        };
+        OperatingIssueIterationProposalRequest: {
+            /** Format: uuid */
+            proposal_owner_public_id: string;
+            idempotency_key: string;
+            version_no?: number | null;
+        };
+        OperatingIssueListResponse: {
+            items: components["schemas"]["OperatingIssue"][];
+        };
+        OperatingManualValue: {
+            /** Format: uuid */
+            public_id: string;
+            status: string;
+            numeric_value: string | null;
+            reason: string;
+            /** Format: uuid */
+            sku_public_id: string;
+            /** Format: uuid */
+            channel_public_id: string;
+            /** Format: uuid */
+            metric_definition_public_id: string;
+            /** Format: date */
+            period_start: string;
+            /** Format: date */
+            period_end: string;
+            period_granularity: string;
+        };
+        OperatingManualValueCreateRequest: {
+            /** Format: uuid */
+            sku_public_id: string;
+            /** Format: uuid */
+            channel_public_id: string;
+            /** Format: uuid */
+            metric_definition_public_id: string;
+            period_granularity: string;
+            period_start: string;
+            period_end: string;
+            numeric_value: string;
+            reason: string;
+            text_value?: string;
+        };
+        OperatingManualValueRevokeRequest: {
+            reason: string;
+        };
+        OperatingMetricCreateRequest: {
+            metric_code: string;
+            name: string;
+            value_type: string;
+            unit: string;
+            currency: string;
+            source_field_codes: string[];
+            calculation_type: string;
+            aggregation_rule: {
+                [key: string]: unknown;
+            };
+            window_definition: {
+                [key: string]: unknown;
+            };
+            coverage_requirement: {
+                [key: string]: unknown;
+            };
+            valid_from: string;
+            valid_to?: string | null;
+            controlled_rule_code?: string;
+            parameters_json?: {
+                [key: string]: unknown;
+            };
+        };
+        OperatingMetricDefinition: {
+            /** Format: uuid */
+            public_id: string;
+            metric_code: string;
+            name: string;
+            version_number: number;
+            status: string;
+            value_type: string;
+            unit: string;
+            currency: string;
+            calculation_type: string;
+        };
+        OperatingMetricListResponse: {
+            items: components["schemas"]["OperatingMetricDefinition"][];
+        };
+        OperatingSummaryResponse: {
+            items: unknown[];
+        };
+        OperatingUnmappedRowsResponse: {
+            items: unknown[];
+        };
         OpportunityCreateRequest: {
             title: string;
             initial_type?: string;
@@ -2139,6 +2817,139 @@ export interface components {
             original_cycle_public_id: string;
             new_cycle_public_id: string;
             target_stage_code: string;
+        };
+        RetirementFinalRequest: {
+            final_decision: string;
+            decision_summary?: string;
+            idempotency_key: string;
+        };
+        RetirementManagementRequest: {
+            management_conclusion: string;
+            decision_summary?: string;
+            idempotency_key: string;
+        };
+        RetirementPlan: {
+            /** Format: uuid */
+            public_id: string;
+            status: string;
+            /** Format: uuid */
+            product_public_id: string;
+            /** Format: uuid */
+            issue_public_id: string;
+            /** Format: uuid */
+            stage_gate_public_id: string | null;
+            content_hash: string;
+        };
+        RetirementPlanCreateRequest: {
+            /** Format: uuid */
+            product_public_id: string;
+            scope_snapshot: {
+                [key: string]: unknown;
+            };
+            inventory_plan?: {
+                [key: string]: unknown;
+            };
+            supply_contract_impact?: {
+                [key: string]: unknown;
+            };
+            customer_market_plan?: {
+                [key: string]: unknown;
+            };
+            replacement_plan?: {
+                [key: string]: unknown;
+            };
+            stop_production_at?: string | null;
+            stop_sale_at?: string | null;
+            retire_at?: string | null;
+            /** Format: uuid */
+            issue_public_id?: string | null;
+            source_type?: string;
+            source_materials_json?: {
+                [key: string]: unknown;
+            };
+            coverage_gap_explanation?: string;
+            /** Format: uuid */
+            operating_snapshot_public_id?: string | null;
+            /** Format: uuid */
+            document_version_public_id?: string | null;
+        };
+        RetirementPlanExecuteRequest: {
+            as_of?: string | null;
+        };
+        RetirementPlanSubmitRequest: {
+            idempotency_key: string;
+        };
+        RetirementPlanSubmitResponse: {
+            /** Format: uuid */
+            public_id: string;
+            submission_number: number;
+            content_hash: string;
+        };
+        RetirementPlanValidateResponse: {
+            ok: boolean;
+            missing: unknown[];
+        };
+        RiskRuleCreateRequest: {
+            rule_code: string;
+            name: string;
+            metric_codes: string[];
+            evaluator_code: string;
+            parameters_json: {
+                [key: string]: unknown;
+            };
+            scope_type: string;
+            valid_from: string;
+            valid_to?: string | null;
+        };
+        RiskRuleDefinition: {
+            /** Format: uuid */
+            public_id: string;
+            rule_code: string;
+            name: string;
+            version_number: number;
+            status: string;
+            evaluator_code: string;
+            scope_type: string;
+            metric_codes: string[];
+        };
+        RiskRuleListResponse: {
+            items: components["schemas"]["RiskRuleDefinition"][];
+        };
+        RiskSignal: {
+            /** Format: uuid */
+            public_id: string;
+            status: string;
+            scope_type: string;
+            /** Format: uuid */
+            scope_id: string;
+            scope_key: string;
+            /** Format: date */
+            period_start: string;
+            /** Format: date */
+            period_end: string;
+            period_granularity: string;
+            coverage_status: string;
+            actual_value: string | null;
+            threshold_value: string | null;
+            rule_code: string;
+            closed_reason: string;
+        };
+        RiskSignalCloseRequest: {
+            reason: string;
+        };
+        RiskSignalEscalateRequest: {
+            title: string;
+            phenomenon_summary: string;
+            target_review_at?: string | null;
+        };
+        RiskSignalEscalateResponse: {
+            /** Format: uuid */
+            issue_public_id: string;
+            title: string;
+            status: string;
+        };
+        RiskSignalListResponse: {
+            items: components["schemas"]["RiskSignal"][];
         };
         RoleCatalogItem: {
             public_id: string;
@@ -2956,6 +3767,426 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["MeResponse"];
+                };
+            };
+        };
+    };
+    operating_data_sources_list: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OperatingDataSourceListResponse"];
+                };
+            };
+        };
+    };
+    operating_data_sources_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OperatingDataSourceCreateRequest"];
+                "application/x-www-form-urlencoded": components["schemas"]["OperatingDataSourceCreateRequest"];
+                "multipart/form-data": components["schemas"]["OperatingDataSourceCreateRequest"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OperatingDataSource"];
+                };
+            };
+        };
+    };
+    operating_data_sources_publish: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                public_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OperatingDataSource"];
+                };
+            };
+        };
+    };
+    operating_data_batches_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OperatingIngestionBatchCreateRequest"];
+                "application/x-www-form-urlencoded": components["schemas"]["OperatingIngestionBatchCreateRequest"];
+                "multipart/form-data": components["schemas"]["OperatingIngestionBatchCreateRequest"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OperatingIngestionBatch"];
+                };
+            };
+        };
+    };
+    operating_data_batches_retrieve: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                public_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OperatingIngestionBatch"];
+                };
+            };
+        };
+    };
+    operating_data_batches_confirm: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                public_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OperatingIngestionBatchConfirmRequest"];
+                "application/x-www-form-urlencoded": components["schemas"]["OperatingIngestionBatchConfirmRequest"];
+                "multipart/form-data": components["schemas"]["OperatingIngestionBatchConfirmRequest"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OperatingIngestionBatchConfirmResponse"];
+                };
+            };
+        };
+    };
+    operating_data_batches_retry: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                public_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OperatingIngestionBatch"];
+                };
+            };
+        };
+    };
+    operating_data_exports_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OperatingDataExportRequest"];
+                "application/x-www-form-urlencoded": components["schemas"]["OperatingDataExportRequest"];
+                "multipart/form-data": components["schemas"]["OperatingDataExportRequest"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OperatingDataExportResponse"];
+                };
+            };
+        };
+    };
+    operating_data_unmapped_list: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OperatingUnmappedRowsResponse"];
+                };
+            };
+        };
+    };
+    operating_issues_list: {
+        parameters: {
+            query?: {
+                status?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OperatingIssueListResponse"];
+                };
+            };
+        };
+    };
+    operating_issues_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OperatingIssueCreateRequest"];
+                "application/x-www-form-urlencoded": components["schemas"]["OperatingIssueCreateRequest"];
+                "multipart/form-data": components["schemas"]["OperatingIssueCreateRequest"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OperatingIssue"];
+                };
+            };
+        };
+    };
+    operating_issues_decisions_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                public_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OperatingIssueDecisionRequest"];
+                "application/x-www-form-urlencoded": components["schemas"]["OperatingIssueDecisionRequest"];
+                "multipart/form-data": components["schemas"]["OperatingIssueDecisionRequest"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OperatingIssueDecisionResponse"];
+                };
+            };
+        };
+    };
+    operating_issues_iteration_proposal_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                public_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OperatingIssueIterationProposalRequest"];
+                "application/x-www-form-urlencoded": components["schemas"]["OperatingIssueIterationProposalRequest"];
+                "multipart/form-data": components["schemas"]["OperatingIssueIterationProposalRequest"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OperatingIssue"];
+                };
+            };
+        };
+    };
+    operating_metrics_list: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OperatingMetricListResponse"];
+                };
+            };
+        };
+    };
+    operating_metrics_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OperatingMetricCreateRequest"];
+                "application/x-www-form-urlencoded": components["schemas"]["OperatingMetricCreateRequest"];
+                "multipart/form-data": components["schemas"]["OperatingMetricCreateRequest"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OperatingMetricDefinition"];
+                };
+            };
+        };
+    };
+    operating_metrics_publish: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                public_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OperatingMetricDefinition"];
+                };
+            };
+        };
+    };
+    operating_values_overrides_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OperatingManualValueCreateRequest"];
+                "application/x-www-form-urlencoded": components["schemas"]["OperatingManualValueCreateRequest"];
+                "multipart/form-data": components["schemas"]["OperatingManualValueCreateRequest"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OperatingManualValue"];
+                };
+            };
+        };
+    };
+    operating_values_overrides_revoke: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                public_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OperatingManualValueRevokeRequest"];
+                "application/x-www-form-urlencoded": components["schemas"]["OperatingManualValueRevokeRequest"];
+                "multipart/form-data": components["schemas"]["OperatingManualValueRevokeRequest"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OperatingManualValue"];
                 };
             };
         };
@@ -3794,6 +5025,33 @@ export interface operations {
             };
         };
     };
+    products_operating_summary_retrieve: {
+        parameters: {
+            query?: {
+                include_drilldown?: boolean;
+                metric_codes?: string;
+                period_end?: string;
+                period_granularity?: string;
+                period_start?: string;
+            };
+            header?: never;
+            path: {
+                public_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OperatingSummaryResponse"];
+                };
+            };
+        };
+    };
     professional_confirmations_decide: {
         parameters: {
             query?: never;
@@ -4391,6 +5649,294 @@ export interface operations {
             };
         };
     };
+    retirement_plans_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RetirementPlanCreateRequest"];
+                "application/x-www-form-urlencoded": components["schemas"]["RetirementPlanCreateRequest"];
+                "multipart/form-data": components["schemas"]["RetirementPlanCreateRequest"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RetirementPlan"];
+                };
+            };
+        };
+    };
+    retirement_plans_execute: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                public_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["RetirementPlanExecuteRequest"];
+                "application/x-www-form-urlencoded": components["schemas"]["RetirementPlanExecuteRequest"];
+                "multipart/form-data": components["schemas"]["RetirementPlanExecuteRequest"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RetirementPlan"];
+                };
+            };
+        };
+    };
+    retirement_plans_submit: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                public_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RetirementPlanSubmitRequest"];
+                "application/x-www-form-urlencoded": components["schemas"]["RetirementPlanSubmitRequest"];
+                "multipart/form-data": components["schemas"]["RetirementPlanSubmitRequest"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RetirementPlanSubmitResponse"];
+                };
+            };
+        };
+    };
+    retirement_plans_validate: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                public_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RetirementPlanValidateResponse"];
+                };
+            };
+        };
+    };
+    risk_rules_list: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RiskRuleListResponse"];
+                };
+            };
+        };
+    };
+    risk_rules_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RiskRuleCreateRequest"];
+                "application/x-www-form-urlencoded": components["schemas"]["RiskRuleCreateRequest"];
+                "multipart/form-data": components["schemas"]["RiskRuleCreateRequest"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RiskRuleDefinition"];
+                };
+            };
+        };
+    };
+    risk_rules_publish: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                public_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RiskRuleDefinition"];
+                };
+            };
+        };
+    };
+    risk_signals_list: {
+        parameters: {
+            query?: {
+                status?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RiskSignalListResponse"];
+                };
+            };
+        };
+    };
+    risk_signals_close: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                public_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RiskSignalCloseRequest"];
+                "application/x-www-form-urlencoded": components["schemas"]["RiskSignalCloseRequest"];
+                "multipart/form-data": components["schemas"]["RiskSignalCloseRequest"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RiskSignal"];
+                };
+            };
+        };
+    };
+    risk_signals_escalate: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                public_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RiskSignalEscalateRequest"];
+                "application/x-www-form-urlencoded": components["schemas"]["RiskSignalEscalateRequest"];
+                "multipart/form-data": components["schemas"]["RiskSignalEscalateRequest"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RiskSignalEscalateResponse"];
+                };
+            };
+        };
+    };
+    risk_signals_view: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                public_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RiskSignal"];
+                };
+            };
+        };
+    };
+    skus_operating_summary_retrieve: {
+        parameters: {
+            query?: {
+                include_drilldown?: boolean;
+                metric_codes?: string;
+                period_end?: string;
+                period_granularity?: string;
+                period_start?: string;
+            };
+            header?: never;
+            path: {
+                public_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OperatingSummaryResponse"];
+                };
+            };
+        };
+    };
     stage_gates_decision_create: {
         parameters: {
             query?: never;
@@ -4495,6 +6041,60 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["MajorGateDecisionResponse"];
+                };
+            };
+        };
+    };
+    stage_gates_retirement_final_decision_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                public_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RetirementFinalRequest"];
+                "application/x-www-form-urlencoded": components["schemas"]["RetirementFinalRequest"];
+                "multipart/form-data": components["schemas"]["RetirementFinalRequest"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StageGateDecisionResponse"];
+                };
+            };
+        };
+    };
+    stage_gates_retirement_management_conclusion_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                public_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RetirementManagementRequest"];
+                "application/x-www-form-urlencoded": components["schemas"]["RetirementManagementRequest"];
+                "multipart/form-data": components["schemas"]["RetirementManagementRequest"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StageGateDecisionResponse"];
                 };
             };
         };

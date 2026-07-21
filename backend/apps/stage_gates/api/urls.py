@@ -12,6 +12,8 @@ from apps.stage_gates.api.execution import (
     StageGateFirstLaunchFinalDecisionView,
     StageGateFirstLaunchManagementConclusionView,
     StageGateNormalDecisionView,
+    StageGateRetirementFinalDecisionView,
+    StageGateRetirementManagementConclusionView,
     StageGateSubmissionsView,
     StageGateValidateView,
 )
@@ -51,5 +53,15 @@ urlpatterns = [
         "stage-gates/<uuid:public_id>/first-launch-final-decision",
         StageGateFirstLaunchFinalDecisionView.as_view(),
         name="stage-gate-first-launch-final-decision",
+    ),
+    path(
+        "stage-gates/<uuid:public_id>/retirement-management-conclusion",
+        StageGateRetirementManagementConclusionView.as_view(),
+        name="stage-gate-retirement-management-conclusion",
+    ),
+    path(
+        "stage-gates/<uuid:public_id>/retirement-final-decision",
+        StageGateRetirementFinalDecisionView.as_view(),
+        name="stage-gate-retirement-final-decision",
     ),
 ]
