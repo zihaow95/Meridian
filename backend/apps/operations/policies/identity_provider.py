@@ -28,9 +28,11 @@ SUPERVISOR_ACTIONS: frozenset[str] = frozenset(
         "operating_fact.read",
         "risk_signal.read",
         "risk_signal.close",
+        "risk_signal.escalate",
         "operating_issue.create",
         "operating_issue.analyze",
         "operating_issue.close",
+        "iteration_proposal.convert",
         "manual_effective_value.create",
         "manual_effective_value.modify",
         "manual_effective_value.revoke",
@@ -219,6 +221,7 @@ class OperatingIssueIdentityProvider:
                     "operating_issue.create",
                     "operating_issue.analyze",
                     "operating_issue.close",
+                    "iteration_proposal.convert",
                 }
             )
 

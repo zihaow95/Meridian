@@ -167,3 +167,9 @@ class CandidateSplitInvalid(ApiError):
     code = "CANDIDATE_SPLIT_INVALID"
     message = "The split request must name at least one candidate."
     status_code = 400
+
+
+class ProposalOwnerNotEligible(ApiError):
+    code = "PROPOSAL_OWNER_NOT_ELIGIBLE"
+    message = "The designated proposal owner is not eligible to own an opportunity draft."
+    status_code = 403

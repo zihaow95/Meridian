@@ -126,6 +126,18 @@ class OperatingIssueDecidedConsumer:
         ).execute()
 
 
+class ProductVersionPublishedConsumer:
+    def consume(self, event: OutboxEvent) -> None:
+        if event.event_type != "product_version.published":
+            return
+        from apps.operations.services.iteration_results import HandleProductVersionPublished
+
+        HandleProductVersionPublished(
+            event_id=event.event_id,
+            payload=event.payload_json or {},
+        ).execute()
+
+
 def local_consumer_registry() -> dict[str, tuple[str, OutboxConsumer]]:
     return {
         "risk_signal.created": ("risk_signal_todo", RiskSignalCreatedConsumer()),
@@ -134,5 +146,9 @@ def local_consumer_registry() -> dict[str, tuple[str, OutboxConsumer]]:
         "operating_issue.decided": (
             "operating_issue_decision_todo",
             OperatingIssueDecidedConsumer(),
+        ),
+        "product_version.published": (
+            "operating_issue_iteration_result",
+            ProductVersionPublishedConsumer(),
         ),
     }

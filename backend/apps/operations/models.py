@@ -923,6 +923,8 @@ class OperatingIssue(OrganizationOwnedModel):
     target_review_at = models.DateTimeField(null=True, blank=True)
     linked_opportunity_id = models.UUIDField(null=True, blank=True)
     linked_project_id = models.UUIDField(null=True, blank=True)
+    linked_product_version_id = models.UUIDField(null=True, blank=True)
+    linked_effective_from = models.DateTimeField(null=True, blank=True)
     version_no = models.PositiveIntegerField(default=1)
     created_by = models.ForeignKey(
         "identity.User",
@@ -1040,3 +1042,48 @@ class IssueDecision(OrganizationOwnedModel):
 
     def __str__(self) -> str:
         return f"{self.issue_id}:{self.recommendation_type}"
+
+
+class IssueConversionType(models.TextChoices):
+    ITERATION_PROPOSAL = "ITERATION_PROPOSAL", "Iteration proposal"
+
+
+class IssueConversion(OrganizationOwnedModel):
+    issue = models.ForeignKey(
+        OperatingIssue,
+        on_delete=models.PROTECT,
+        related_name="conversions",
+    )
+    conversion_type = models.CharField(max_length=32, choices=IssueConversionType.choices)
+    opportunity_public_id = models.UUIDField()
+    source_snapshot_json = models.JSONField(default=dict)
+    idempotency_key = models.CharField(max_length=128)
+    converted_by = models.ForeignKey(
+        "identity.User",
+        on_delete=models.PROTECT,
+        related_name="issue_conversions",
+    )
+    converted_at = models.DateTimeField()
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = "operations_issue_conversion"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["issue", "conversion_type"],
+                name="operations_issue_conversion_type_uniq",
+            ),
+            models.UniqueConstraint(
+                fields=["organization", "idempotency_key"],
+                name="operations_issue_conversion_idem_uniq",
+            ),
+        ]
+        indexes = [
+            models.Index(
+                fields=["organization", "opportunity_public_id"],
+                name="ops_issue_conv_opp_idx",
+            ),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.issue_id}:{self.conversion_type}"
