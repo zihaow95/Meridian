@@ -159,9 +159,9 @@ async function createProjectFromOpportunity(
   await submitGateDecision(page, "Approve project creation.");
 
   let created: { public_id: string; name: string } | undefined;
-  for (let page = 1; page <= 20; page += 1) {
+  for (let pageNo = 1; pageNo <= 20; pageNo += 1) {
     const projectsResponse = await page.request.get(
-      `/api/v1/projects?page=${page}&page_size=100`,
+      `/api/v1/projects?page=${pageNo}&page_size=100`,
     );
     expect(projectsResponse.ok()).toBeTruthy();
     const projects = await projectsResponse.json();
