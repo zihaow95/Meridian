@@ -341,7 +341,7 @@ docker compose -f deploy/compose/compose.dev.yml config
 
 ## 8. 阶段5：运营、迭代和退市
 
-**状态：** 执行基线已建立 / OPS 实现尚未开始（2026-07-20）；不提前关闭任何 OPS 需求。
+**状态：** 已完成（GO，2026-07-21）；见 [`phase-5-checkpoint.md`](../implementation/phase-5-checkpoint.md)；分支 tip `c1a9a6a`。
 
 **任务级计划：** [`docs/superpowers/plans/2026-07-20-phase-5-operations-iteration-retirement.md`](../superpowers/plans/2026-07-20-phase-5-operations-iteration-retirement.md)
 

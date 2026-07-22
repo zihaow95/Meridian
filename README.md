@@ -19,7 +19,7 @@ D:\Projects\Meridian
 - **阶段2（提案→立案→立项）已完成**（两个重大阶段门、原子项目/产品草稿创建、前端最小闭环与 E2E 验收已通过本地门禁）；
 - **阶段3（产品档案与存量迁移）已完成**（见 [`phase-3-checkpoint.md`](docs/implementation/phase-3-checkpoint.md)；全量门禁 `All quality gates passed.`，pytest 199、产品迁移 E2E 9）；
 - **阶段4（开发到首次上市）已完成实现与退出证据**（见 [`phase-4-checkpoint.md`](docs/implementation/phase-4-checkpoint.md)；EXE-001—014；全量门禁以阶段4 GO / 阶段5 Task 5.0 复验为准）；
-- **阶段5（运营、迭代和退市）执行基线已建立，实现尚未开始**（任务级计划与 [`phase-5-test-matrix.md`](docs/implementation/phase-5-test-matrix.md)；分支 `codex/phase-5-operations-iteration-retirement` @ `edd50ce`）。
+- **阶段5（运营、迭代和退市）已完成实现与退出证据**（见 [`phase-5-checkpoint.md`](docs/implementation/phase-5-checkpoint.md)；OPS-001—014；全量门禁 `All quality gates passed.`，pytest 405、Vitest 58、Playwright 19）。
 
 ## 文档入口
 
@@ -54,8 +54,9 @@ D:\Projects\Meridian
 - [阶段4完成检查点](docs/implementation/phase-4-checkpoint.md)
 - [阶段4测试矩阵](docs/implementation/phase-4-test-matrix.md)
 - [阶段4任务级计划](docs/superpowers/plans/2026-07-14-phase-4-development-first-launch.md)
-- [阶段5任务级计划](docs/superpowers/plans/2026-07-20-phase-5-operations-iteration-retirement.md)
+- [阶段5完成检查点](docs/implementation/phase-5-checkpoint.md)
 - [阶段5测试矩阵](docs/implementation/phase-5-test-matrix.md)
+- [阶段5任务级计划](docs/superpowers/plans/2026-07-20-phase-5-operations-iteration-retirement.md)
 
 ## 开发环境
 
@@ -198,6 +199,5 @@ Major stage gates: 4
 
 ## 下一步
 
-1. 按阶段5计划 Task 5.0 已建立执行基线；继续 Task 5.1（权限目录、监控范围、数据源和指标版本）；
-2. 依次交付 Task 5.1—5.10（建议按 PR1—PR7 拆分）：配置与监控 → 接入/事实/人工值 → 汇总与风险 → 议题与迭代 → 退市 → API/OpenAPI → 前端与 E2E 退出证据；
-3. 阶段5退出前不得宣布 OPS 完成；阶段6（钉钉与正式连接器）尚未开始。
+1. 按阶段6计划启动正式集成（钉钉与正式连接器）；
+2. 阶段6退出前不得宣布集成完成；阶段7（加固与验收）尚未开始。
