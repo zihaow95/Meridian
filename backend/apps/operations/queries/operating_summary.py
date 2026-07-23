@@ -11,10 +11,11 @@ from django.db.models import Q, QuerySet
 
 from apps.authorization.context import AuthorizationContext, ResourceDescriptor
 from apps.authorization.models.assignment import AssignmentStatus, RoleAssignment, ScopeType
-from apps.authorization.models.role import DataSensitivityLevel, RoleStatus
+from apps.authorization.models.role import LEVEL_RANK, DataSensitivityLevel, RoleStatus
 from apps.authorization.policies.engine import authorize
 from apps.authorization.services.subject import subject_for
 from apps.identity.models.user import User
+from apps.integrations.models import DataSource
 from apps.operations.models import AggregateGrainType, MetricAggregate, MonitoringScopeType
 from apps.operations.policies.identity_provider import resolve_effective_assignments
 from apps.platform.api.errors import PermissionDeniedError, ValidationFailedError
@@ -22,7 +23,6 @@ from apps.platform.application.command import CommandContext
 from apps.products.models import SKU, ProductAsset
 
 _READ_ACTION = "operating_fact.read"
-_READ_LEVEL = DataSensitivityLevel.SENSITIVE_CONTROLLED
 
 
 @dataclass
@@ -50,7 +50,37 @@ class OperatingSummaryResult:
     items: list[OperatingSummaryItem]
 
 
-def _authorize_resource(actor: User, *, public_id: UUID, metadata: dict[str, str]) -> None:
+def _sensitivity_for_row(row: MetricAggregate) -> str:
+    """Derive required sensitivity from contributor sources and manual overrides."""
+
+    levels: list[str] = []
+    for contributor in row.contributors_json or []:
+        if not isinstance(contributor, dict):
+            continue
+        level = contributor.get("sensitivity_level")
+        if isinstance(level, str) and level:
+            levels.append(level)
+        source_code = contributor.get("source_code")
+        if source_code:
+            source = DataSource.objects.filter(
+                organization_id=row.organization_id, source_code=str(source_code)
+            ).first()
+            if source is not None:
+                levels.append(source.sensitivity_level)
+    if row.has_manual_value:
+        levels.append(DataSensitivityLevel.SENSITIVE_CONTROLLED)
+    if not levels:
+        return DataSensitivityLevel.INTERNAL
+    return max(levels, key=lambda code: LEVEL_RANK.get(code, 0))
+
+
+def _authorize_resource(
+    actor: User,
+    *,
+    public_id: UUID,
+    metadata: dict[str, str],
+    sensitivity_level: str,
+) -> bool:
     decision = authorize(
         subject_for(actor),
         action=_READ_ACTION,
@@ -58,13 +88,12 @@ def _authorize_resource(actor: User, *, public_id: UUID, metadata: dict[str, str
             resource_type="operating_fact",
             public_id=public_id,
             organization_id=actor.organization_id,
-            sensitivity_level=_READ_LEVEL,
+            sensitivity_level=sensitivity_level,
             metadata=metadata,
         ),
         context=AuthorizationContext.current(),
     )
-    if not decision.allowed:
-        raise PermissionDeniedError()
+    return decision.allowed
 
 
 def _has_org_wide_read(actor: User) -> bool:
@@ -85,9 +114,7 @@ def _has_org_wide_read(actor: User) -> bool:
     )
 
 
-def _allowed_channel_ids(
-    actor: User, *, product: ProductAsset, sku: SKU | None
-) -> set[int] | None:
+def _allowed_channel_ids(actor: User, *, product: ProductAsset, sku: SKU | None) -> set[int] | None:
     """Channel ids visible via MonitoringAssignment, or None when unrestricted."""
 
     if _has_org_wide_read(actor):
@@ -114,7 +141,67 @@ def _apply_channel_scope(
         return qs
     if not allowed_channel_ids:
         return qs.none()
-    return qs.filter(channel_id__in=allowed_channel_ids)
+    return qs.filter(Q(channel_id__in=allowed_channel_ids) | Q(channel_id__isnull=True))
+
+
+def _gate_authorize_product_or_sku(
+    actor: User,
+    *,
+    product: ProductAsset,
+    sku: SKU | None,
+) -> None:
+    metadata = {"product_public_id": str(product.public_id)}
+    public_id = product.public_id
+    if sku is not None:
+        metadata["sku_public_id"] = str(sku.public_id)
+        public_id = sku.public_id
+        # SKU_CHANNEL supervisors need a channel hint for identity matching; use any
+        # assigned channel on this SKU so gate auth succeeds before per-row filter.
+        assignments = resolve_effective_assignments(
+            user=actor, organization_id=actor.organization_id
+        )
+        for assignment in assignments:
+            if (
+                assignment.product_id == product.id
+                and assignment.sku_id == sku.id
+                and assignment.channel_id
+                and assignment.channel is not None
+            ):
+                metadata["channel_public_id"] = str(assignment.channel.public_id)
+                break
+    if not _authorize_resource(
+        actor,
+        public_id=public_id,
+        metadata=metadata,
+        sensitivity_level=DataSensitivityLevel.INTERNAL,
+    ):
+        raise PermissionDeniedError()
+
+
+def _row_visible(
+    actor: User,
+    row: MetricAggregate,
+    *,
+    product: ProductAsset,
+    sku: SKU | None,
+) -> bool:
+    sensitivity = _sensitivity_for_row(row)
+    metadata: dict[str, str] = {"product_public_id": str(product.public_id)}
+    public_id = product.public_id
+    if sku is not None:
+        metadata["sku_public_id"] = str(sku.public_id)
+        public_id = sku.public_id
+    elif row.grain_type == AggregateGrainType.SKU:
+        metadata["sku_public_id"] = str(row.grain_id)
+        public_id = row.grain_id
+    if row.channel is not None:
+        metadata["channel_public_id"] = str(row.channel.public_id)
+    return _authorize_resource(
+        actor,
+        public_id=public_id,
+        metadata=metadata,
+        sensitivity_level=sensitivity,
+    )
 
 
 def _to_item(
@@ -164,14 +251,7 @@ class QuerySkuOperatingSummary:
             raise ValidationFailedError(message="SKU not found.")
         product = sku.product_version.product
 
-        _authorize_resource(
-            actor,
-            public_id=sku.public_id,
-            metadata={
-                "product_public_id": str(product.public_id),
-                "sku_public_id": str(sku.public_id),
-            },
-        )
+        _gate_authorize_product_or_sku(actor, product=product, sku=sku)
         allowed_channel_ids = _allowed_channel_ids(actor, product=product, sku=sku)
 
         qs = (
@@ -190,9 +270,12 @@ class QuerySkuOperatingSummary:
             qs = qs.filter(metric_definition__metric_code__in=self.metric_codes)
         qs = _apply_channel_scope(qs, allowed_channel_ids)
 
-        return OperatingSummaryResult(
-            items=[_to_item(row, include_drilldown=self.include_drilldown) for row in qs]
-        )
+        items = [
+            _to_item(row, include_drilldown=self.include_drilldown)
+            for row in qs
+            if _row_visible(actor, row, product=product, sku=sku)
+        ]
+        return OperatingSummaryResult(items=items)
 
 
 @dataclass
@@ -214,11 +297,7 @@ class QueryProductOperatingSummary:
         if product is None:
             raise ValidationFailedError(message="Product not found.")
 
-        _authorize_resource(
-            actor,
-            public_id=product.public_id,
-            metadata={"product_public_id": str(product.public_id)},
-        )
+        _gate_authorize_product_or_sku(actor, product=product, sku=None)
         allowed_channel_ids = _allowed_channel_ids(actor, product=product, sku=None)
 
         qs = (
@@ -252,11 +331,13 @@ class QueryProductOperatingSummary:
                 period_granularity=self.period_granularity,
                 period_start=self.period_start,
                 period_end=self.period_end,
-            ).select_related("metric_definition")
+            ).select_related("metric_definition", "channel")
             if self.metric_codes:
                 sku_qs = sku_qs.filter(metric_definition__metric_code__in=self.metric_codes)
             sku_qs = _apply_channel_scope(sku_qs, allowed_channel_ids)
             for row in sku_qs:
+                if not _row_visible(actor, row, product=product, sku=None):
+                    continue
                 key = (row.metric_definition_id, row.channel_key)
                 breakdown_map.setdefault(key, []).append(
                     {
@@ -265,6 +346,9 @@ class QueryProductOperatingSummary:
                         "status": row.status,
                         "coverage_rate": str(row.coverage_rate),
                         "has_manual_value": row.has_manual_value,
+                        "calculated_at": (
+                            None if row.calculated_at is None else row.calculated_at.isoformat()
+                        ),
                     }
                 )
 
@@ -275,5 +359,6 @@ class QueryProductOperatingSummary:
                 sku_breakdown=breakdown_map.get((row.metric_definition_id, row.channel_key)),
             )
             for row in qs
+            if _row_visible(actor, row, product=product, sku=None)
         ]
         return OperatingSummaryResult(items=items)

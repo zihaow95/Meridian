@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from decimal import Decimal, InvalidOperation
 from typing import Any
 
@@ -18,6 +18,8 @@ from apps.operations.errors import (
 from apps.operations.models import MetricDefinitionStatus, MetricDefinitionVersion
 from apps.products.models import SKU, ChannelConfiguration, SKUStatus
 
+_ALLOWED_GRANULARITIES = frozenset({"DAY", "WEEK", "MONTH", "QUARTER", "YEAR"})
+
 
 def apply_mapping(raw: dict[str, Any], mapping_rules: list[dict[str, str]]) -> dict[str, Any]:
     mapped: dict[str, Any] = dict(raw)
@@ -27,6 +29,48 @@ def apply_mapping(raw: dict[str, Any], mapping_rules: list[dict[str, str]]) -> d
         if external in raw:
             mapped[internal] = raw[external]
     return mapped
+
+
+def _period_window_error(*, granularity: str, period_start: date, period_end: date) -> str | None:
+    if granularity not in _ALLOWED_GRANULARITIES:
+        return f"Unsupported period_granularity: {granularity}"
+    if granularity == "DAY":
+        if period_start != period_end:
+            return "DAY periods require period_start == period_end."
+        return None
+    if granularity == "WEEK":
+        if period_start.weekday() != 0:
+            return "WEEK periods must start on Monday."
+        if period_end != period_start + timedelta(days=6):
+            return "WEEK periods must end on the following Sunday."
+        return None
+    if granularity == "MONTH":
+        if period_start.day != 1:
+            return "MONTH periods must start on the first day of the month."
+        next_month = (period_start.replace(day=28) + timedelta(days=4)).replace(day=1)
+        expected_end = next_month - timedelta(days=1)
+        if period_end != expected_end:
+            return "MONTH periods must end on the last day of the month."
+        return None
+    if granularity == "QUARTER":
+        if period_start.month not in (1, 4, 7, 10) or period_start.day != 1:
+            return "QUARTER periods must start on Jan/Apr/Jul/Oct 1."
+        end_month = period_start.month + 2
+        next_q = date(
+            period_start.year + (1 if end_month == 12 else 0),
+            1 if end_month == 12 else end_month + 1,
+            1,
+        )
+        expected_end = next_q - timedelta(days=1)
+        if period_end != expected_end:
+            return "QUARTER periods must end on the last day of the quarter."
+        return None
+    # YEAR
+    if period_start.month != 1 or period_start.day != 1:
+        return "YEAR periods must start on January 1."
+    if period_end != date(period_start.year, 12, 31):
+        return "YEAR periods must end on December 31."
+    return None
 
 
 def _as_date(value: Any) -> date | None:
@@ -135,6 +179,19 @@ def validate_batch_rows(batch: IngestionBatch) -> IngestionBatch:
             row.status = IngestionRowStatus.ERROR
             row.error_code = OperatingDataStructureInvalid.code
             row.error_message = "period_start must be on or before period_end."
+            error_count += 1
+            row.save()
+            continue
+
+        period_error = _period_window_error(
+            granularity=row.period_granularity,
+            period_start=row.period_start,
+            period_end=row.period_end,
+        )
+        if period_error:
+            row.status = IngestionRowStatus.ERROR
+            row.error_code = OperatingDataStructureInvalid.code
+            row.error_message = period_error
             error_count += 1
             row.save()
             continue

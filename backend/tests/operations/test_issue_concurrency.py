@@ -22,6 +22,7 @@ from apps.authorization.models.role import (
 )
 from apps.identity.models.organization import Organization
 from apps.identity.models.user import User, UserStatus
+from apps.operations.errors import OperatingIssueAlreadyLinked
 from apps.operations.models import (
     AggregateGrainType,
     AggregateStatus,
@@ -33,7 +34,6 @@ from apps.operations.services.metric_definitions import (
     CreateMetricDefinitionDraft,
     PublishMetricDefinition,
 )
-from apps.operations.errors import OperatingIssueAlreadyLinked
 from apps.operations.services.operating_issues import CreateOperatingIssue
 from apps.operations.services.risk_rules import (
     QUARTER_SHELF_LIFE_MIN_PRODUCTION,

@@ -2,7 +2,7 @@
 
 日期：2026-07-22
 
-状态：**NO-GO（复验待定）** — 初验对照 `edd50ce...5c16ff8` 为 NO-GO；本轮已落地 P1/P2 修复并待再次验收。关闭全部 P1 并复跑全量门禁前不得推进阶段六。
+状态：**NO-GO（二次复验待定）** — `5c16ff8...dc9bd30` 复审仍为 NO-GO；本轮继续关闭 P1（批次无界响应、人工值泄露、系统执行主体、提交前范围校验、汇总 ABAC、data_source.configured 消费者）并处理 P2。关闭全部 P1 且 `scripts\check.cmd` 全绿前不得推进阶段六。
 
 对应计划：`docs/superpowers/plans/2026-07-20-phase-5-operations-iteration-retirement.md`
 

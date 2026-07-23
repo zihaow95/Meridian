@@ -3,25 +3,22 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Generic, TypeVar
 
 from django.db.models import QuerySet
 
 DEFAULT_PAGE_SIZE = 20
 MAX_PAGE_SIZE = 100
 
-T = TypeVar("T")
-
 
 @dataclass(frozen=True)
-class Page(Generic[T]):
+class Page[T]:
     items: list[T]
     page: int
     page_size: int
     count: int
 
 
-def paginate_queryset(
+def paginate_queryset[T](
     queryset: QuerySet[T],
     *,
     page: int = 1,

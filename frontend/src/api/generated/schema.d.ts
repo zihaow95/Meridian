@@ -2453,7 +2453,7 @@ export interface components {
             skipped_count: number;
             added_count: number;
             revision_count: number;
-            rows?: unknown[];
+            rows_url: string;
         };
         OperatingIngestionBatchConfirmRequest: {
             idempotency_key: string;

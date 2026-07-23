@@ -18,6 +18,7 @@ from apps.authorization.models.role import LEVEL_RANK, DataSensitivityLevel
 from apps.authorization.policies.engine import authorize
 from apps.authorization.services.subject import subject_for
 from apps.identity.models.user import User
+from apps.operations.errors import RiskSignalAlreadyProcessed
 from apps.operations.models import (
     AggregateGrainType,
     AggregateStatus,
@@ -29,7 +30,6 @@ from apps.operations.models import (
     RiskSignalStatus,
     SignalRecalculation,
 )
-from apps.operations.errors import RiskSignalAlreadyProcessed
 from apps.operations.policies.identity_provider import resolve_effective_assignments
 from apps.operations.services.risk_rules import (
     QUARTER_SHELF_LIFE_MIN_PRODUCTION,

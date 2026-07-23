@@ -4576,15 +4576,15 @@ components:
           type: integer
         revision_count:
           type: integer
-        rows:
-          type: array
-          items: {}
+        rows_url:
+          type: string
       required:
       - added_count
       - batch_key
       - error_count
       - public_id
       - revision_count
+      - rows_url
       - skipped_count
       - source_public_id
       - source_type

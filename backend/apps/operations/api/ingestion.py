@@ -44,7 +44,7 @@ BATCH_SCHEMA = inline_serializer(
         "skipped_count": serializers.IntegerField(),
         "added_count": serializers.IntegerField(),
         "revision_count": serializers.IntegerField(),
-        "rows": serializers.ListField(required=False),
+        "rows_url": serializers.CharField(),
     },
 )
 
@@ -93,8 +93,10 @@ def serialize_row(row: IngestionRow) -> dict[str, Any]:
     }
 
 
-def serialize_batch(batch: IngestionBatch, *, include_rows: bool = False) -> dict[str, Any]:
-    payload: dict[str, Any] = {
+def serialize_batch(batch: IngestionBatch) -> dict[str, Any]:
+    """Return batch stats only; row detail must use the paginated rows endpoint."""
+
+    return {
         "public_id": str(batch.public_id),
         "batch_key": batch.batch_key,
         "source_public_id": str(batch.source.public_id),
@@ -107,11 +109,8 @@ def serialize_batch(batch: IngestionBatch, *, include_rows: bool = False) -> dic
         "skipped_count": batch.skipped_count,
         "added_count": batch.added_count,
         "revision_count": batch.revision_count,
+        "rows_url": f"/api/v1/operating-data/batches/{batch.public_id}/rows",
     }
-    if include_rows:
-        rows = IngestionRow.objects.filter(batch=batch).order_by("row_number", "id")
-        payload["rows"] = [serialize_row(row) for row in rows]
-    return payload
 
 
 class OperatingIngestionBatchCreateView(APIView):
@@ -141,7 +140,7 @@ class OperatingIngestionBatchCreateView(APIView):
             rows=list(data.get("rows") or []) or None,
             input_file_version_public_id=UUID(str(file_version)) if file_version else None,
         ).execute()
-        return Response(serialize_batch(batch, include_rows=True), status=201)
+        return Response(serialize_batch(batch), status=201)
 
 
 class OperatingIngestionBatchDetailView(APIView):
@@ -153,7 +152,7 @@ class OperatingIngestionBatchDetailView(APIView):
         batch = get_visible_ingestion_batch(user, public_id)
         if batch is None:
             raise PermissionDeniedError()
-        return Response(serialize_batch(batch, include_rows=False))
+        return Response(serialize_batch(batch))
 
 
 class OperatingIngestionBatchRowsView(APIView):
@@ -207,7 +206,7 @@ class OperatingIngestionBatchValidateView(APIView):
             context=CommandContext.for_actor(user),
             batch_public_id=public_id,
         ).execute()
-        return Response(serialize_batch(batch, include_rows=True))
+        return Response(serialize_batch(batch))
 
 
 class OperatingIngestionBatchConfirmView(APIView):
@@ -255,7 +254,7 @@ class OperatingIngestionBatchRetryView(APIView):
             context=CommandContext.for_actor(user),
             batch_public_id=public_id,
         ).execute()
-        return Response(serialize_batch(batch, include_rows=True))
+        return Response(serialize_batch(batch))
 
 
 class OperatingUnmappedRowsView(APIView):

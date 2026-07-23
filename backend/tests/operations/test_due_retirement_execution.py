@@ -10,6 +10,7 @@ import pytest
 from django.db import close_old_connections, connections
 from django.utils import timezone
 
+from apps.authorization.models.assignment import AssignmentStatus, RoleAssignment
 from apps.documents.models import (
     Document,
     DocumentStatus,
@@ -19,7 +20,7 @@ from apps.documents.models import (
     VersionStatus,
 )
 from apps.identity.models.organization import Organization
-from apps.identity.models.user import User
+from apps.identity.models.user import User, UserStatus
 from apps.operations.models import (
     IssueSourceType,
     OperatingDataSnapshot,
@@ -238,7 +239,13 @@ def test_task_executes_due_plans_and_is_idempotent_on_replay(
         ).count()
         == 3
     )
-    assert OutboxEvent.objects.filter(event_type="retirement.completed", aggregate_id=plan.public_id).count() == 1
+    assert (
+        OutboxEvent.objects.filter(
+            event_type="retirement.completed",
+            aggregate_id=plan.public_id,
+        ).count()
+        == 1
+    )
 
     # Replay: no PENDING actions remain due, so nothing is (re)processed and
     # nothing is double-completed.
@@ -252,7 +259,13 @@ def test_task_executes_due_plans_and_is_idempotent_on_replay(
         ).count()
         == 3
     )
-    assert OutboxEvent.objects.filter(event_type="retirement.completed", aggregate_id=plan.public_id).count() == 1
+    assert (
+        OutboxEvent.objects.filter(
+            event_type="retirement.completed",
+            aggregate_id=plan.public_id,
+        ).count()
+        == 1
+    )
 
 
 @pytest.mark.django_db(transaction=True)
@@ -277,9 +290,12 @@ def test_task_ignores_plans_not_yet_due(
     assert processed == 0
     plan.refresh_from_db()
     assert plan.status == RetirementPlanStatus.APPROVED
-    assert RetirementExecutionAction.objects.filter(
-        plan=plan, status=RetirementActionStatus.PENDING
-    ).count() == 3
+    assert (
+        RetirementExecutionAction.objects.filter(
+            plan=plan, status=RetirementActionStatus.PENDING
+        ).count()
+        == 3
+    )
 
 
 @pytest.mark.django_db(transaction=True)
@@ -341,7 +357,13 @@ def test_concurrent_task_runs_do_not_double_complete_a_due_plan(
         ).count()
         == 3
     )
-    assert OutboxEvent.objects.filter(event_type="retirement.completed", aggregate_id=plan.public_id).count() == 1
+    assert (
+        OutboxEvent.objects.filter(
+            event_type="retirement.completed",
+            aggregate_id=plan.public_id,
+        ).count()
+        == 1
+    )
 
 
 @pytest.mark.django_db(transaction=True)
@@ -384,12 +406,18 @@ def test_failed_action_retry_does_not_duplicate_completed_action(
 
     plan.refresh_from_db()
     assert plan.status == RetirementPlanStatus.EXECUTION_ERROR
-    assert RetirementExecutionAction.objects.filter(
-        plan=plan, status=RetirementActionStatus.FAILED
-    ).count() == 1
-    assert OutboxEvent.objects.filter(
-        event_type="retirement.execution_failed", aggregate_id=plan.public_id
-    ).count() == 1
+    assert (
+        RetirementExecutionAction.objects.filter(
+            plan=plan, status=RetirementActionStatus.FAILED
+        ).count()
+        == 1
+    )
+    assert (
+        OutboxEvent.objects.filter(
+            event_type="retirement.execution_failed", aggregate_id=plan.public_id
+        ).count()
+        == 1
+    )
 
     # Retry (e.g. next beat tick): the transient failure is gone, the action
     # completes, and it is not duplicated.
@@ -400,7 +428,38 @@ def test_failed_action_retry_does_not_duplicate_completed_action(
 
     plan.refresh_from_db()
     assert plan.status == RetirementPlanStatus.EXECUTING
-    assert RetirementExecutionAction.objects.filter(
-        plan=plan, status=RetirementActionStatus.COMPLETED
-    ).count() == 1
+    assert (
+        RetirementExecutionAction.objects.filter(
+            plan=plan, status=RetirementActionStatus.COMPLETED
+        ).count()
+        == 1
+    )
     assert RetirementExecutionAction.objects.filter(plan=plan).count() == 3
+
+
+@pytest.mark.django_db(transaction=True)
+def test_due_execution_succeeds_when_plan_creator_is_disabled(
+    organization, active_user, another_active_user, grant_action, catalog
+) -> None:
+    plan = _approved_plan(
+        active_user,
+        another_active_user,
+        grant_action,
+        catalog,
+        organization,
+        stop_production_at=date(2026, 1, 1),
+        stop_sale_at=date(2026, 2, 1),
+        retire_at=date(2026, 3, 1),
+        idempotency_prefix="due-disabled",
+    )
+    active_user.status = UserStatus.DISABLED
+    active_user.disabled_at = timezone.now()
+    active_user.save(update_fields=["status", "disabled_at", "updated_at"])
+    RoleAssignment.objects.filter(user=active_user).update(status=AssignmentStatus.INACTIVE)
+
+    processed = execute_due_retirement_actions_task.apply(
+        args=(), kwargs={"as_of": "2026-06-01"}
+    ).get()
+    assert processed == 1
+    plan.refresh_from_db()
+    assert plan.status == RetirementPlanStatus.COMPLETED

@@ -28,8 +28,9 @@ const overrideReason = ref('')
 const revokeReason = ref('')
 
 const batchRows = computed(() => {
-  const rows = operations.batch?.rows
-  return Array.isArray(rows) ? (rows as Array<Record<string, unknown>>) : []
+  return Array.isArray(operations.batchRows)
+    ? (operations.batchRows as Array<Record<string, unknown>>)
+    : []
 })
 
 function formatError(err: unknown, fallback: string): string {

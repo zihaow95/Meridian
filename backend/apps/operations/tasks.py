@@ -30,23 +30,12 @@ def execute_due_retirement_actions_task(as_of: str | None = None) -> int:
 
     Scans MySQL for PENDING or FAILED ``RetirementExecutionAction`` rows
     scheduled on or before ``as_of`` (default today), then runs
-    ``ExecuteRetirementPlan`` once per distinct plan found. This task never
-    decides retirement: the plan was already approved through the dual-control
-    gate; the task only carries out dates that have arrived (and retries
-    transient action failures), exactly as ``ExecuteRetirementPlan`` would if
-    triggered manually.
+    ``ExecuteRetirementPlan`` once per distinct plan found using a controlled
+    system executor principal. Plan creators remain audit provenance on the plan
+    row; their current login status or grants must not block due execution.
 
-    The plan's creator is used as the executing actor. Retirement plan
-    creation and execution are granted to the same role (OPERATING_SUPERVISOR)
-    so this stays within the existing RBAC model instead of introducing a
-    bypass; if that grant is ever missing, ExecuteRetirementPlan raises
-    PermissionDeniedError and the failure is surfaced rather than swallowed.
-
-    Idempotent and safe under concurrent/duplicate execution: actions are
-    scanned again on every call, but ``ExecuteRetirementPlan`` locks the plan
-    and its actions with ``select_for_update`` and skips already-COMPLETED
-    actions/plans, so re-running (or two workers racing on the same due plan)
-    cannot double-complete an action or reopen a completed plan.
+    Idempotent under concurrent/duplicate runs via ``select_for_update`` inside
+    ``ExecuteRetirementPlan``.
     """
     from apps.operations.models import (
         RetirementActionStatus,
@@ -54,7 +43,7 @@ def execute_due_retirement_actions_task(as_of: str | None = None) -> int:
         RetirementPlan,
     )
     from apps.operations.services.retirement_plans import ExecuteRetirementPlan
-    from apps.platform.application.command import CommandContext
+    from apps.operations.services.system_actor import retirement_system_command_context
 
     as_of_date = parse_date(as_of) if as_of else timezone.now().date()
     if as_of_date is None:
@@ -75,12 +64,12 @@ def execute_due_retirement_actions_task(as_of: str | None = None) -> int:
     processed = 0
     failures: list[str] = []
     for plan_id in plan_ids:
-        plan = RetirementPlan.objects.select_related("created_by").filter(pk=plan_id).first()
+        plan = RetirementPlan.objects.select_related("organization").filter(pk=plan_id).first()
         if plan is None:
             continue
         try:
             ExecuteRetirementPlan(
-                context=CommandContext.for_actor(plan.created_by),
+                context=retirement_system_command_context(plan.organization),
                 plan_public_id=plan.public_id,
                 as_of=as_of_date,
             ).execute()

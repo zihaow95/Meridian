@@ -20,7 +20,6 @@ from apps.authorization.services.subject import subject_for
 from apps.identity.models.user import User
 from apps.operations.errors import (
     ManualValueAlreadyActive,
-    ManualValueScopeForbidden,
     MetricDefinitionNotPublished,
 )
 from apps.operations.models import (
@@ -31,8 +30,7 @@ from apps.operations.models import (
     OperatingFact,
     OperatingFactStatus,
 )
-from apps.operations.policies.identity_provider import resolve_effective_assignments
-from apps.platform.api.errors import PermissionDeniedError, ValidationFailedError
+from apps.platform.api.errors import PermissionDeniedError
 from apps.platform.application.command import CommandContext
 from apps.platform.outbox.services import OutboxMessage, register_outbox_event
 from apps.products.models import SKU, ChannelConfiguration
@@ -58,10 +56,8 @@ def _authorize(
 ) -> None:
     """Authorize a manual-value action scoped to the SKU's product/channel.
 
-    Uses resource_type="operating_fact" so the monitoring-assignment identity
-    provider can grant scoped supervisors access; falls back to a distinct
-    MANUAL_VALUE_SCOPE_FORBIDDEN when the actor has assignments elsewhere but
-    not for this product/SKU/channel, versus a hidden 404 when they have none.
+    Failures are always PermissionDeniedError so missing objects, cross-product
+    targets, and insufficient grants are indistinguishable to the caller.
     """
     product = sku.product_version.product
     decision = authorize(
@@ -80,24 +76,28 @@ def _authorize(
         ),
         context=AuthorizationContext.current(),
     )
-    if decision.allowed:
-        return
-
-    assignments = resolve_effective_assignments(user=actor, organization_id=actor.organization_id)
-    if assignments:
-        raise ManualValueScopeForbidden()
-    raise PermissionDeniedError()
+    if not decision.allowed:
+        raise PermissionDeniedError()
 
 
 def _get_sku_channel(
-    organization_id: int, sku_public_id: UUID, channel_public_id: UUID
+    actor: User,
+    sku_public_id: UUID,
+    channel_public_id: UUID,
+    *,
+    action: str,
 ) -> tuple[SKU, ChannelConfiguration]:
-    sku = SKU.objects.filter(organization_id=organization_id, public_id=sku_public_id).first()
+    sku = (
+        SKU.objects.select_related("product_version__product")
+        .filter(organization_id=actor.organization_id, public_id=sku_public_id)
+        .first()
+    )
     channel = ChannelConfiguration.objects.filter(
-        organization_id=organization_id, public_id=channel_public_id
+        organization_id=actor.organization_id, public_id=channel_public_id
     ).first()
     if sku is None or channel is None or channel.sku_id != sku.id:
-        raise ValidationFailedError(message="SKU/channel not found.")
+        raise PermissionDeniedError()
+    _authorize(actor, action, sku=sku, channel=channel)
     return sku, channel
 
 
@@ -146,7 +146,10 @@ class ResolveEffectiveOperatingValue:
     def execute(self) -> EffectiveValueResult:
         actor = self.context.actor
         sku, channel = _get_sku_channel(
-            actor.organization_id, self.sku_public_id, self.channel_public_id
+            actor,
+            self.sku_public_id,
+            self.channel_public_id,
+            action="operating_fact.read",
         )
         metric = (
             MetricDefinitionVersion.objects.filter(
@@ -225,9 +228,11 @@ class CreateManualEffectiveValue:
         now = self.context.occurred_at or timezone.now()
         with transaction.atomic():
             sku, channel = _get_sku_channel(
-                actor.organization_id, self.sku_public_id, self.channel_public_id
+                actor,
+                self.sku_public_id,
+                self.channel_public_id,
+                action="manual_effective_value.create",
             )
-            _authorize(actor, "manual_effective_value.create", sku=sku, channel=channel)
             metric = MetricDefinitionVersion.objects.filter(
                 organization_id=actor.organization_id,
                 public_id=self.metric_definition_public_id,
@@ -317,7 +322,7 @@ class ModifyManualEffectiveValue:
                 .first()
             )
             if current is None:
-                raise ValidationFailedError(message="Active manual value not found.")
+                raise PermissionDeniedError()
             _authorize(
                 actor,
                 "manual_effective_value.modify",
@@ -395,7 +400,7 @@ class RevokeManualEffectiveValue:
                 .first()
             )
             if current is None:
-                raise ValidationFailedError(message="Active manual value not found.")
+                raise PermissionDeniedError()
             _authorize(
                 actor,
                 "manual_effective_value.revoke",

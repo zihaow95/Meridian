@@ -53,34 +53,6 @@ const stubs = {
       return () => h('div', { class: 'alert' }, props.title as string)
     },
   }),
-  'el-table': defineComponent({
-    name: 'ElTableStub',
-    props: ['data'],
-    setup(props, { slots }) {
-      const rows = (props.data as Array<Record<string, unknown>>) ?? []
-      return () =>
-        h(
-          'div',
-          { class: 'table' },
-          rows.map((row) =>
-            h('div', { class: 'summary-row', 'data-test': 'summary-row' }, [
-              String(row.coverage_rate ?? ''),
-              ' ',
-              String(row.status ?? ''),
-              ' ',
-              String(row.grain_public_id ?? ''),
-              slots.default?.({ row }),
-            ]),
-          ),
-        )
-    },
-  }),
-  'el-table-column': defineComponent({
-    name: 'ElTableColumnStub',
-    setup(_, { slots }) {
-      return () => h('div', slots.default?.({ row: {} }))
-    },
-  }),
 }
 
 const flush = () => new Promise((resolve) => setTimeout(resolve, 0))
@@ -92,7 +64,7 @@ describe('OperatingDashboardPage', () => {
     routeQuery.value = { product: 'prod-1' }
   })
 
-  it('loads product summary and drills via sku_breakdown, not product grain id', async () => {
+  it('loads product summary and drills a chosen sku_breakdown entry', async () => {
     vi.mocked(apiFetch).mockImplementation(async (url: string) => {
       if (url.startsWith('/api/v1/products/prod-1/operating-summary')) {
         return {
@@ -104,35 +76,48 @@ describe('OperatingDashboardPage', () => {
               coverage_rate: '0.42',
               status: 'INSUFFICIENT',
               value: '10',
+              has_manual_value: true,
               sku_breakdown: [
                 {
                   sku_public_id: 'sku-1',
-                  value: '10',
+                  value: '4',
                   status: 'INSUFFICIENT',
                   coverage_rate: '0.42',
                   has_manual_value: false,
+                  calculated_at: '2026-03-01T00:00:00Z',
+                },
+                {
+                  sku_public_id: 'sku-2',
+                  value: '6',
+                  status: 'OK',
+                  coverage_rate: '1.00',
+                  has_manual_value: true,
+                  calculated_at: '2026-03-02T00:00:00Z',
                 },
               ],
             },
           ],
         }
       }
-      if (url.startsWith('/api/v1/skus/sku-1/operating-summary')) {
+      if (url.startsWith('/api/v1/skus/sku-2/operating-summary')) {
         return {
           items: [
             {
               grain_type: 'SKU',
-              grain_public_id: 'sku-1',
+              grain_public_id: 'sku-2',
+              channel_public_id: 'ch-9',
               metric_code: 'SALES_QTY',
-              coverage_rate: '0.42',
-              status: 'INSUFFICIENT',
-              value: '10',
+              coverage_rate: '1.00',
+              status: 'OK',
+              value: '6',
+              has_manual_value: true,
+              calculated_at: '2026-03-02T00:00:00Z',
             },
           ],
         }
       }
-      if (url.startsWith('/api/v1/skus/prod-1/operating-summary')) {
-        throw new Error('must not drill with product grain_public_id as SKU')
+      if (url.startsWith('/api/v1/skus/sku-1/operating-summary')) {
+        throw new Error('must drill the clicked SKU, not the first one')
       }
       throw new Error(`unexpected ${url}`)
     })
@@ -140,15 +125,16 @@ describe('OperatingDashboardPage', () => {
     const wrapper = mount(OperatingDashboardPage, { global: { stubs } })
     await flush()
     expect(wrapper.text()).toContain('INSUFFICIENT')
-    expect(wrapper.text()).toContain('0.42')
-    expect(wrapper.get('[data-test="sku-breakdown-item"]').text()).toContain('sku-1')
+    expect(wrapper.text()).toContain('手工值')
 
-    await wrapper.get('[data-test="drill-sku"]').trigger('click')
+    const buttons = wrapper.findAll('[data-test="drill-sku"]')
+    expect(buttons.length).toBe(2)
+    await buttons[1].trigger('click')
     await flush()
     expect(useOperationsStore().skuSummary?.items.length).toBe(1)
-    expect(wrapper.text()).toContain('sku-1')
-    expect(vi.mocked(apiFetch).mock.calls.some(([url]) => String(url).includes('/skus/sku-1/'))).toBe(
-      true,
-    )
+    expect(wrapper.text()).toContain('ch-9')
+    expect(
+      vi.mocked(apiFetch).mock.calls.some(([url]) => String(url).includes('/skus/sku-2/')),
+    ).toBe(true)
   })
 })

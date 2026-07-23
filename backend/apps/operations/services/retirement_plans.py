@@ -58,6 +58,69 @@ def _authorize(actor: User, *, action: str, plan: RetirementPlan | None = None) 
         raise PermissionDeniedError()
 
 
+def validate_retirement_scope_membership(plan: RetirementPlan) -> dict[str, Any]:
+    """Fail closed if any scoped ID is missing or belongs to another product."""
+
+    from apps.products.errors import RetirementScopeMismatch
+    from apps.products.models import SKU, ChannelConfiguration, ProductVersion
+
+    scope = plan.scope_snapshot or {}
+    version_ids = list(
+        dict.fromkeys(UUID(str(v)) for v in (scope.get("product_version_public_ids") or []))
+    )
+    sku_ids = list(dict.fromkeys(UUID(str(v)) for v in (scope.get("sku_public_ids") or [])))
+    channel_ids = list(dict.fromkeys(UUID(str(v)) for v in (scope.get("channel_public_ids") or [])))
+    if not version_ids or not sku_ids or not channel_ids:
+        raise RetirementSubmissionIncomplete(
+            details={
+                "missing": [
+                    key
+                    for key, values in (
+                        ("scope.product_version_public_ids", version_ids),
+                        ("scope.sku_public_ids", sku_ids),
+                        ("scope.channel_public_ids", channel_ids),
+                    )
+                    if not values
+                ]
+            }
+        )
+
+    versions = list(
+        ProductVersion.objects.filter(
+            organization_id=plan.organization_id,
+            public_id__in=version_ids,
+            product_id=plan.product_id,
+        )
+    )
+    if len(versions) != len(version_ids):
+        raise RetirementScopeMismatch()
+    skus = list(
+        SKU.objects.filter(
+            organization_id=plan.organization_id,
+            public_id__in=sku_ids,
+            product_version__product_id=plan.product_id,
+        )
+    )
+    if len(skus) != len(sku_ids):
+        raise RetirementScopeMismatch()
+    channels = list(
+        ChannelConfiguration.objects.filter(
+            organization_id=plan.organization_id,
+            public_id__in=channel_ids,
+            sku__product_version__product_id=plan.product_id,
+        )
+    )
+    if len(channels) != len(channel_ids):
+        raise RetirementScopeMismatch()
+
+    locked_scope = {
+        "product_version_public_ids": [str(v) for v in version_ids],
+        "sku_public_ids": [str(v) for v in sku_ids],
+        "channel_public_ids": [str(v) for v in channel_ids],
+    }
+    return locked_scope
+
+
 def validate_retirement_plan_completeness(plan: RetirementPlan) -> dict[str, Any]:
     missing: list[str] = []
     scope = plan.scope_snapshot or {}
@@ -108,7 +171,8 @@ def validate_retirement_plan_completeness(plan: RetirementPlan) -> dict[str, Any
         missing.append("coverage_gap_explanation")
     if missing:
         raise RetirementSubmissionIncomplete(details={"missing": missing})
-    return {"ok": True, "missing": []}
+    locked_scope = validate_retirement_scope_membership(plan)
+    return {"ok": True, "missing": [], "locked_scope": locked_scope}
 
 
 @dataclass
@@ -420,9 +484,13 @@ class ApplyRetirementSubmission:
         )
         if plan is None:
             raise PermissionDeniedError()
+        completeness = validate_retirement_plan_completeness(plan)
+        locked_scope = completeness.get("locked_scope") or {}
+        if locked_scope:
+            plan.scope_snapshot = locked_scope
         plan.content_hash = plan.compute_content_hash()
         plan.status = RetirementPlanStatus.SUBMITTED
-        plan.save(update_fields=["content_hash", "status", "updated_at"])
+        plan.save(update_fields=["scope_snapshot", "content_hash", "status", "updated_at"])
         return plan
 
 

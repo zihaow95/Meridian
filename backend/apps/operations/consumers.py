@@ -9,6 +9,8 @@ from apps.identity.models.user import User
 from apps.notifications.services.todos import TodoEvent, UpsertOpenTodo
 from apps.operations.models import (
     ManualEffectiveValue,
+    MetricDefinitionStatus,
+    MetricDefinitionVersion,
     MonitoringAssignment,
     MonitoringAssignmentStatus,
     OperatingIssue,
@@ -227,55 +229,125 @@ class OperatingValueOverriddenConsumer:
         ).execute()
 
 
-class MetricDefinitionPublishedAckConsumer:
-    """No side effect yet; validates payload shape so the event reaches PUBLISHED."""
+class DataSourceConfiguredConsumer:
+    """Project configured data sources into an ACTIVE+published consistency check."""
+
+    def consume(self, event: OutboxEvent) -> None:
+        if event.event_type != "data_source.configured":
+            return
+        from apps.integrations.models import DataSource, DataSourceStatus
+        from apps.integrations.services.data_sources import assert_active_for_ingestion
+
+        payload = event.payload_json or {}
+        source = (
+            DataSource.objects.select_related("configuration_version")
+            .filter(public_id=event.aggregate_id)
+            .first()
+        )
+        if source is None:
+            raise ValueError("data_source.configured aggregate does not resolve")
+        if source.status != DataSourceStatus.ACTIVE:
+            raise ValueError("data_source.configured source is not ACTIVE")
+        assert_active_for_ingestion(source)
+        version_id = payload.get("configuration_version_public_id")
+        if version_id and source.configuration_version is not None:
+            if str(source.configuration_version.public_id) != str(version_id):
+                raise ValueError("data_source.configured configuration version mismatch")
+
+
+class MetricDefinitionPublishedConsumer:
+    """Ensure the published metric definition is addressable after publish."""
 
     def consume(self, event: OutboxEvent) -> None:
         if event.event_type != "metric_definition.published":
             return
         payload = event.payload_json or {}
-        if not payload.get("metric_code"):
+        metric_code = payload.get("metric_code")
+        if not metric_code:
             raise ValueError("metric_definition.published payload missing metric_code")
+        exists = MetricDefinitionVersion.objects.filter(
+            public_id=event.aggregate_id,
+            metric_code=str(metric_code),
+            status=MetricDefinitionStatus.PUBLISHED,
+        ).exists()
+        if not exists:
+            # Fall back to aggregate lookup by code when payload carries org context.
+            exists = MetricDefinitionVersion.objects.filter(
+                metric_code=str(metric_code),
+                status=MetricDefinitionStatus.PUBLISHED,
+            ).exists()
+        if not exists:
+            raise ValueError("metric_definition.published metric is not published")
 
 
-class MonitoringAssignmentUpdatedAckConsumer:
-    """No side effect yet; validates payload shape so the event reaches PUBLISHED."""
+class MonitoringAssignmentUpdatedConsumer:
+    """Ensure the assignment projection still resolves after updates."""
 
     def consume(self, event: OutboxEvent) -> None:
         if event.event_type != "monitoring_assignment.updated":
             return
         payload = event.payload_json or {}
-        if not payload.get("assignment_public_id"):
-            raise ValueError("monitoring_assignment.updated payload missing assignment_public_id")
+        assignment_id = payload.get("assignment_public_id") or event.aggregate_id
+        if not MonitoringAssignment.objects.filter(public_id=UUID(str(assignment_id))).exists():
+            raise ValueError("monitoring_assignment.updated assignment does not resolve")
 
 
-class OperatingIssueConvertedAckConsumer:
-    """No side effect yet; validates payload shape so the event reaches PUBLISHED."""
+class OperatingIssueConvertedConsumer:
+    """Close open review todos after an issue converts to an iteration proposal."""
 
     def consume(self, event: OutboxEvent) -> None:
         if event.event_type != "operating_issue.converted":
             return
+        from apps.notifications.models import TodoItem, TodoStatus
+
         payload = event.payload_json or {}
-        if not payload.get("issue_public_id"):
-            raise ValueError("operating_issue.converted payload missing issue_public_id")
+        issue_id = payload.get("issue_public_id") or event.aggregate_id
+        issue = OperatingIssue.objects.filter(public_id=UUID(str(issue_id))).first()
+        if issue is None:
+            raise ValueError("operating_issue.converted issue does not resolve")
+        TodoItem.objects.filter(
+            organization_id=issue.organization_id,
+            source_type="operating_issue",
+            source_id=issue.public_id,
+            status=TodoStatus.OPEN,
+        ).update(status=TodoStatus.COMPLETED)
 
 
-class RetirementApprovedAckConsumer:
-    """No side effect yet; validates payload shape so the event reaches PUBLISHED.
-
-    Execution itself is driven by the ``operations.execute_due_retirement_actions``
-    beat task scanning ``RetirementExecutionAction`` rows directly, not by this event.
-    """
+class RetirementApprovedConsumer:
+    """Idempotently seed dated execution actions after retirement approval."""
 
     def consume(self, event: OutboxEvent) -> None:
         if event.event_type != "retirement.approved":
             return
+        from apps.operations.services.retirement_plans import seed_execution_actions
+
         payload = event.payload_json or {}
-        plan_id = payload.get("plan_public_id")
-        if not plan_id:
-            raise ValueError("retirement.approved payload missing plan_public_id")
-        if not RetirementPlan.objects.filter(public_id=UUID(str(plan_id))).exists():
-            raise ValueError("retirement.approved plan_public_id does not resolve to a plan")
+        plan_id = payload.get("plan_public_id") or event.aggregate_id
+        plan = RetirementPlan.objects.filter(public_id=UUID(str(plan_id))).first()
+        if plan is None:
+            raise ValueError("retirement.approved plan does not resolve")
+        seed_execution_actions(plan=plan)
+
+
+class RetirementCompletedConsumer:
+    """Close retirement execution todos when a plan completes."""
+
+    def consume(self, event: OutboxEvent) -> None:
+        if event.event_type != "retirement.completed":
+            return
+        from apps.notifications.models import TodoItem, TodoStatus
+
+        payload = event.payload_json or {}
+        plan_id = payload.get("plan_public_id") or event.aggregate_id
+        plan = RetirementPlan.objects.filter(public_id=UUID(str(plan_id))).first()
+        if plan is None:
+            raise ValueError("retirement.completed plan does not resolve")
+        TodoItem.objects.filter(
+            organization_id=plan.organization_id,
+            source_type="retirement_plan",
+            source_id=plan.public_id,
+            status=TodoStatus.OPEN,
+        ).update(status=TodoStatus.COMPLETED)
 
 
 class RetirementExecutionFailedConsumer:
@@ -319,17 +391,6 @@ class RetirementExecutionFailedConsumer:
             ).execute()
 
 
-class RetirementCompletedAckConsumer:
-    """No side effect yet; validates payload shape so the event reaches PUBLISHED."""
-
-    def consume(self, event: OutboxEvent) -> None:
-        if event.event_type != "retirement.completed":
-            return
-        payload = event.payload_json or {}
-        if not payload.get("plan_public_id"):
-            raise ValueError("retirement.completed payload missing plan_public_id")
-
-
 def local_consumer_registry() -> dict[str, list[tuple[str, OutboxConsumer]]]:
     return {
         "risk_signal.created": [("risk_signal_todo", RiskSignalCreatedConsumer())],
@@ -347,22 +408,25 @@ def local_consumer_registry() -> dict[str, list[tuple[str, OutboxConsumer]]]:
         "operating_value.overridden": [
             ("operating_value_recalc", OperatingValueOverriddenConsumer()),
         ],
+        "data_source.configured": [
+            ("data_source_configured", DataSourceConfiguredConsumer()),
+        ],
         "metric_definition.published": [
-            ("metric_definition_published_ack", MetricDefinitionPublishedAckConsumer()),
+            ("metric_definition_published", MetricDefinitionPublishedConsumer()),
         ],
         "monitoring_assignment.updated": [
-            ("monitoring_assignment_updated_ack", MonitoringAssignmentUpdatedAckConsumer()),
+            ("monitoring_assignment_updated", MonitoringAssignmentUpdatedConsumer()),
         ],
         "operating_issue.converted": [
-            ("operating_issue_converted_ack", OperatingIssueConvertedAckConsumer()),
+            ("operating_issue_converted", OperatingIssueConvertedConsumer()),
         ],
         "retirement.approved": [
-            ("retirement_approved_ack", RetirementApprovedAckConsumer()),
+            ("retirement_approved_seed", RetirementApprovedConsumer()),
         ],
         "retirement.execution_failed": [
             ("retirement_execution_failed_todo", RetirementExecutionFailedConsumer()),
         ],
         "retirement.completed": [
-            ("retirement_completed_ack", RetirementCompletedAckConsumer()),
+            ("retirement_completed", RetirementCompletedConsumer()),
         ],
     }

@@ -47,6 +47,7 @@ export type SkuBreakdownItem = {
   status?: string
   coverage_rate?: string
   has_manual_value?: boolean
+  calculated_at?: string | null
 }
 
 export type OperatingSummaryItem = {
@@ -99,6 +100,7 @@ export const useOperationsStore = defineStore('operations', {
     loading: false,
     conflictHint: '',
     batch: null as OperatingIngestionBatch | null,
+    batchRows: [] as unknown[],
     confirmResult: null as OperatingIngestionBatchConfirmResponse | null,
     unmappedRows: [] as unknown[],
     manualValue: null as OperatingManualValue | null,
@@ -140,6 +142,7 @@ export const useOperationsStore = defineStore('operations', {
           method: 'POST',
           json: payload,
         })
+        await this.fetchBatchRows(this.batch.public_id)
         return this.batch
       } finally {
         this.loading = false
@@ -153,9 +156,21 @@ export const useOperationsStore = defineStore('operations', {
         this.batch = await apiFetch<OperatingIngestionBatch>(
           `/api/v1/operating-data/batches/${publicId}`,
         )
+        await this.fetchBatchRows(publicId)
       } finally {
         this.loading = false
       }
+    },
+
+    async fetchBatchRows(publicId: string, page = 1, pageSize = 100): Promise<void> {
+      const params = new URLSearchParams({
+        page: String(page),
+        page_size: String(pageSize),
+      })
+      const result = await apiFetch<{ items?: unknown[] }>(
+        `/api/v1/operating-data/batches/${publicId}/rows?${params.toString()}`,
+      )
+      this.batchRows = result.items ?? []
     },
 
     async confirmBatch(
@@ -204,6 +219,7 @@ export const useOperationsStore = defineStore('operations', {
           `/api/v1/operating-data/batches/${publicId}/retry`,
           { method: 'POST' },
         )
+        await this.fetchBatchRows(publicId)
         return this.batch
       } finally {
         this.loading = false

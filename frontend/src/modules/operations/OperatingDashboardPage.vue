@@ -3,7 +3,11 @@ import { onMounted, ref } from 'vue'
 import { useRoute } from 'vue-router'
 
 import { ApiError } from '@/api/client'
-import { useOperationsStore, type OperatingSummaryItem } from '@/modules/operations/store'
+import {
+  useOperationsStore,
+  type OperatingSummaryItem,
+  type SkuBreakdownItem,
+} from '@/modules/operations/store'
 
 const route = useRoute()
 const operations = useOperationsStore()
@@ -16,6 +20,7 @@ const periodStart = ref('2026-01-01')
 const periodEnd = ref('2026-03-31')
 const periodGranularity = ref('QUARTER')
 const selectedSkuId = ref('')
+const selectedChannelId = ref('')
 
 function formatError(err: unknown, fallback: string): string {
   if (err instanceof ApiError) return `${err.code}: ${err.message}`
@@ -41,16 +46,10 @@ async function loadProductSummary(): Promise<void> {
   }
 }
 
-function firstSkuPublicId(row: OperatingSummaryItem): string {
-  const fromBreakdown = row.sku_breakdown?.find((item) => item.sku_public_id)?.sku_public_id
-  return String(fromBreakdown ?? '')
-}
-
-async function drillSku(row: OperatingSummaryItem): Promise<void> {
-  // Product-grain rows use product public_id as grain_public_id; SKU ids live in sku_breakdown.
-  const skuId = firstSkuPublicId(row)
+async function drillSku(skuId: string): Promise<void> {
   if (!skuId || busy.value) return
   selectedSkuId.value = skuId
+  selectedChannelId.value = ''
   busy.value = true
   errorText.value = ''
   try {
@@ -65,6 +64,10 @@ async function drillSku(row: OperatingSummaryItem): Promise<void> {
   } finally {
     busy.value = false
   }
+}
+
+function selectChannel(channelPublicId: string | null | undefined): void {
+  selectedChannelId.value = String(channelPublicId ?? '')
 }
 
 async function exportData(): Promise<void> {
@@ -85,6 +88,13 @@ async function exportData(): Promise<void> {
   } finally {
     busy.value = false
   }
+}
+
+function formatSku(sku: SkuBreakdownItem): string {
+  const value = sku.value ?? '—'
+  const manual = sku.has_manual_value ? '手工值' : '来源值'
+  const updated = sku.calculated_at ?? '—'
+  return `SKU ${sku.sku_public_id} / 值 ${value} / ${sku.status} / ${manual} / 更新 ${updated}`
 }
 
 onMounted(() => {
@@ -151,30 +161,25 @@ onMounted(() => {
         :key="`${row.grain_public_id}-${row.metric_code}-${index}`"
         data-test="summary-row"
       >
-        {{ row.metric_code }} / {{ row.grain_public_id }} / 覆盖率 {{ row.coverage_rate }} /
-        {{ row.status }}
+        {{ row.metric_code }} / 值 {{ row.value ?? '—' }} / 覆盖率 {{ row.coverage_rate }} /
+        {{ row.status }} / 人工值 {{ row.has_manual_value ? '是' : '否' }}
         <div
           v-if="row.sku_breakdown?.length"
           class="ops-dashboard__sku-breakdown"
           data-test="sku-breakdown"
         >
-          <span
+          <button
             v-for="sku in row.sku_breakdown"
             :key="sku.sku_public_id"
-            data-test="sku-breakdown-item"
+            type="button"
+            class="ops-dashboard__sku-link"
+            data-test="drill-sku"
+            :disabled="busy"
+            @click="drillSku(sku.sku_public_id)"
           >
-            SKU {{ sku.sku_public_id }} / {{ sku.status }}
-          </span>
+            {{ formatSku(sku) }}
+          </button>
         </div>
-        <el-button
-          v-if="firstSkuPublicId(row)"
-          link
-          type="primary"
-          data-test="drill-sku"
-          @click="drillSku(row)"
-        >
-          下钻 SKU
-        </el-button>
       </li>
     </ul>
 
@@ -186,10 +191,22 @@ onMounted(() => {
           :key="`${row.grain_public_id}-${row.metric_code}-${index}`"
           data-test="sku-summary-row"
         >
-          {{ row.metric_code }} / {{ row.grain_public_id }} / 覆盖率 {{ row.coverage_rate }} /
-          {{ row.status }}
+          {{ row.metric_code }} / 渠道 {{ row.channel_public_id ?? 'ALL' }} / 值
+          {{ row.value ?? '—' }} / 覆盖率 {{ row.coverage_rate }} / {{ row.status }} / 人工值
+          {{ row.has_manual_value ? '是' : '否' }} / 更新
+          {{ row.calculated_at ?? '—' }}
+          <el-button
+            v-if="row.channel_public_id"
+            link
+            type="primary"
+            data-test="select-channel"
+            @click="selectChannel(row.channel_public_id)"
+          >
+            选择渠道
+          </el-button>
         </li>
       </ul>
+      <p v-if="selectedChannelId" data-test="selected-channel">已选渠道：{{ selectedChannelId }}</p>
     </template>
   </div>
 </template>
@@ -211,5 +228,21 @@ onMounted(() => {
   display: flex;
   flex-wrap: wrap;
   gap: 0.75rem;
+}
+
+.ops-dashboard__sku-breakdown {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  margin-top: 0.5rem;
+}
+
+.ops-dashboard__sku-link {
+  text-align: left;
+  background: transparent;
+  border: 0;
+  color: #1d4ed8;
+  cursor: pointer;
+  padding: 0;
 }
 </style>

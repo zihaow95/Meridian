@@ -18,6 +18,9 @@ from apps.integrations.services.data_sources import (
 )
 from apps.platform.api.errors import ValidationFailedError
 from apps.platform.application.command import CommandContext
+from apps.platform.outbox.dispatcher import dispatch_pending_events
+from apps.platform.outbox.models import OutboxEvent, OutboxStatus
+from apps.platform.outbox.tasks import LocalOutboxPublisher
 
 
 @pytest.fixture
@@ -163,3 +166,25 @@ def test_operating_source_mapping_schema_rejects_script_fields() -> None:
         _mapping_content(expression="import os"),
     )
     assert errors
+
+
+@pytest.mark.django_db
+def test_configure_data_source_outbox_publishes(active_user, ops_department, grant_action) -> None:
+    grant_action(active_user, "data_source.configure", "data_source")
+    grant_action(active_user, "configuration.version.publish", "configuration.version")
+    source = ConfigureOperatingDataSource(
+        context=CommandContext.for_actor(active_user),
+        source_code="API_SRC_OUTBOX",
+        name="API",
+        source_type=DataSourceType.API,
+        owner_department_public_id=ops_department.public_id,
+        sensitivity_level="INTERNAL",
+        mapping_content=_mapping_content(source_priority=1),
+    ).execute()
+    event = OutboxEvent.objects.filter(
+        event_type="data_source.configured", aggregate_id=source.public_id
+    ).get()
+    assert event.status == OutboxStatus.PENDING
+    dispatch_pending_events(publisher=LocalOutboxPublisher(), limit=20)
+    event.refresh_from_db()
+    assert event.status == OutboxStatus.PUBLISHED

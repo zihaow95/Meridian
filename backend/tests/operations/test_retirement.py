@@ -480,3 +480,43 @@ def test_execute_completion_emits_audit_and_outbox_exactly_once(
         == 1
     )
     assert OutboxEvent.objects.filter(event_type="retirement.completed").count() == 1
+
+
+@pytest.mark.django_db(transaction=True)
+def test_submit_rejects_cross_product_scope_ids(
+    organization, active_user, grant_action, catalog
+) -> None:
+    other = ProductAsset.objects.create(
+        organization=organization,
+        business_no=f"PRD-OTHER-{uuid4().hex[:8].upper()}",
+        name="Other",
+        category_code="YOGURT",
+        source_type=ProductSourceType.NEW_PROJECT,
+        lifecycle_status=ProductLifecycleStatus.ACTIVE,
+        product_owner=active_user,
+    )
+    other_version = ProductVersion.objects.create(
+        organization=organization,
+        product=other,
+        version_code="VX",
+        version_name="Other",
+        status=ProductVersionStatus.EFFECTIVE,
+        published_at=timezone.now(),
+        published_by=active_user,
+        effective_from=timezone.now() - timedelta(days=10),
+    )
+    plan = _complete_plan(active_user, grant_action, catalog, organization)
+    scope = dict(plan.scope_snapshot)
+    scope["product_version_public_ids"] = [str(other_version.public_id)]
+    plan.scope_snapshot = scope
+    plan.save(update_fields=["scope_snapshot", "updated_at"])
+    from apps.products.errors import RetirementScopeMismatch
+
+    with pytest.raises(RetirementScopeMismatch):
+        SubmitRetirementGate(
+            context=CommandContext.for_actor(active_user),
+            plan_public_id=plan.public_id,
+            idempotency_key="retire-cross-product",
+        ).execute()
+    plan.refresh_from_db()
+    assert plan.status == RetirementPlanStatus.DRAFT

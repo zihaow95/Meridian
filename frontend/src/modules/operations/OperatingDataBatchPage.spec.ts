@@ -128,10 +128,17 @@ const batchPayload = {
   skipped_count: 0,
   added_count: 0,
   revision_count: 0,
-  rows: [
+  rows_url: '/api/v1/operating-data/batches/batch-1/rows',
+}
+
+const batchRowsPayload = {
+  items: [
     { row_number: 1, status: 'OK' },
     { row_number: 2, status: 'ERROR', error_code: 'UNMAPPED_SKU' },
   ],
+  page: 1,
+  page_size: 100,
+  count: 2,
 }
 
 describe('OperatingDataBatchPage', () => {
@@ -145,6 +152,9 @@ describe('OperatingDataBatchPage', () => {
       if (url === '/api/v1/operating-data/batches' && init?.method === 'POST') {
         return batchPayload
       }
+      if (url.startsWith('/api/v1/operating-data/batches/batch-1/rows')) {
+        return batchRowsPayload
+      }
       throw new Error(`unexpected ${url}`)
     })
 
@@ -154,10 +164,14 @@ describe('OperatingDataBatchPage', () => {
     await wrapper.get('[data-test="rows-json"]').setValue('[{"sku_code":"S1"}]')
     await wrapper.get('[data-test="create-batch"]').trigger('click')
     await flush()
+    await flush()
 
     expect(useOperationsStore().batch?.public_id).toBe('batch-1')
+    expect(useOperationsStore().batchRows.map((row) => (row as { status?: string }).status)).toEqual(
+      ['OK', 'ERROR'],
+    )
     expect(wrapper.text()).toContain('VALIDATED')
-    expect(wrapper.text()).toContain('ERROR')
+    expect(wrapper.text()).toContain('错误行：1')
   })
 
   it('confirms a batch with confirm_warnings and lists unmapped rows', async () => {
