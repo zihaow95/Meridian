@@ -262,7 +262,7 @@ def test_product_version_published_writes_back_once(
         next_attempt_at=timezone.now(),
     )
     registry = local_consumer_registry()
-    code, handler = registry["product_version.published"]
+    code, handler = registry["product_version.published"][0]
     assert consume_once(event=event, consumer_code=code, handler=handler) is True
     assert consume_once(event=event, consumer_code=code, handler=handler) is False
     assert "product_version.published" in merged_consumer_registry()

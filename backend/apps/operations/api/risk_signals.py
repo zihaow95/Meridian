@@ -14,7 +14,9 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from apps.identity.models.user import User
+from apps.operations.api.pagination import PAGE_QUERY_PARAMETERS, page_params
 from apps.operations.models import RiskSignal
+from apps.operations.queries.pagination import paginate_queryset
 from apps.operations.queries.visible_resources import list_visible_risk_signals
 from apps.operations.services.operating_issues import EscalateRiskSignal
 from apps.operations.services.risk_signals import CloseRiskSignal, MarkRiskSignalViewed
@@ -68,20 +70,35 @@ class RiskSignalListView(APIView):
         operation_id="risk_signals_list",
         parameters=[
             OpenApiParameter(name="status", type=str, location=OpenApiParameter.QUERY),
+            *PAGE_QUERY_PARAMETERS,
         ],
         responses=inline_serializer(
             name="RiskSignalListResponse",
-            fields={"items": serializers.ListField(child=SIGNAL_SCHEMA)},
+            fields={
+                "items": serializers.ListField(child=SIGNAL_SCHEMA),
+                "page": serializers.IntegerField(),
+                "page_size": serializers.IntegerField(),
+                "count": serializers.IntegerField(),
+            },
         ),
     )
     def get(self, request: Request) -> Response:
         user = cast(User, request.user)
         status = request.query_params.get("status") or None
-        items = [
-            serialize_signal(row)
-            for row in list_visible_risk_signals(user, status=status).select_related("rule_version")
-        ]
-        return Response({"items": items})
+        page, page_size = page_params(request)
+        result = paginate_queryset(
+            list_visible_risk_signals(user, status=status).select_related("rule_version"),
+            page=page,
+            page_size=page_size,
+        )
+        return Response(
+            {
+                "items": [serialize_signal(row) for row in result.items],
+                "page": result.page,
+                "page_size": result.page_size,
+                "count": result.count,
+            }
+        )
 
 
 class RiskSignalViewView(APIView):

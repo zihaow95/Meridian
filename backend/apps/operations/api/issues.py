@@ -14,8 +14,10 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from apps.identity.models.user import User
+from apps.operations.api.pagination import PAGE_QUERY_PARAMETERS, page_params
 from apps.operations.models import OperatingIssue
 from apps.operations.queries.operating_issues import get_operating_issue
+from apps.operations.queries.pagination import paginate_queryset
 from apps.operations.queries.visible_resources import list_visible_operating_issues
 from apps.operations.services.iteration_proposals import ConvertIssueToIterationProposal
 from apps.operations.services.operating_issues import (
@@ -58,19 +60,33 @@ class OperatingIssueListCreateView(APIView):
         operation_id="operating_issues_list",
         parameters=[
             OpenApiParameter(name="status", type=str, location=OpenApiParameter.QUERY),
+            *PAGE_QUERY_PARAMETERS,
         ],
         responses=inline_serializer(
             name="OperatingIssueListResponse",
-            fields={"items": serializers.ListField(child=ISSUE_SCHEMA)},
+            fields={
+                "items": serializers.ListField(child=ISSUE_SCHEMA),
+                "page": serializers.IntegerField(),
+                "page_size": serializers.IntegerField(),
+                "count": serializers.IntegerField(),
+            },
         ),
     )
     def get(self, request: Request) -> Response:
         user = cast(User, request.user)
         status = request.query_params.get("status") or None
-        items = [
-            serialize_issue_brief(row) for row in list_visible_operating_issues(user, status=status)
-        ]
-        return Response({"items": items})
+        page, page_size = page_params(request)
+        result = paginate_queryset(
+            list_visible_operating_issues(user, status=status), page=page, page_size=page_size
+        )
+        return Response(
+            {
+                "items": [serialize_issue_brief(row) for row in result.items],
+                "page": result.page,
+                "page_size": result.page_size,
+                "count": result.count,
+            }
+        )
 
     @extend_schema(
         operation_id="operating_issues_create",

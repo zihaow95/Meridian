@@ -536,6 +536,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/operating-data/batches/{public_id}/rows": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["operating_data_batches_rows_list"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/operating-data/batches/{public_id}/validate": {
         parameters: {
             query?: never;
@@ -2418,6 +2434,9 @@ export interface components {
         };
         OperatingDataSourceListResponse: {
             items: components["schemas"]["OperatingDataSource"][];
+            page: number;
+            page_size: number;
+            count: number;
         };
         OperatingIngestionBatch: {
             /** Format: uuid */
@@ -2457,6 +2476,12 @@ export interface components {
             rows?: unknown[];
             /** Format: uuid */
             input_file_version_public_id?: string | null;
+        };
+        OperatingIngestionBatchRowsResponse: {
+            items: unknown[];
+            page: number;
+            page_size: number;
+            count: number;
         };
         OperatingIssue: {
             /** Format: uuid */
@@ -2512,6 +2537,9 @@ export interface components {
         };
         OperatingIssueListResponse: {
             items: components["schemas"]["OperatingIssue"][];
+            page: number;
+            page_size: number;
+            count: number;
         };
         OperatingManualValue: {
             /** Format: uuid */
@@ -2586,6 +2614,9 @@ export interface components {
         };
         OperatingMetricListResponse: {
             items: components["schemas"]["OperatingMetricDefinition"][];
+            page: number;
+            page_size: number;
+            count: number;
         };
         OperatingMetricRecalculateRequest: {
             affected_keys: {
@@ -2604,6 +2635,9 @@ export interface components {
         };
         OperatingUnmappedRowsResponse: {
             items: unknown[];
+            page: number;
+            page_size: number;
+            count: number;
         };
         OpportunityCreateRequest: {
             title: string;
@@ -3016,6 +3050,9 @@ export interface components {
         };
         RiskRuleListResponse: {
             items: components["schemas"]["RiskRuleDefinition"][];
+            page: number;
+            page_size: number;
+            count: number;
         };
         RiskSignal: {
             /** Format: uuid */
@@ -3052,6 +3089,9 @@ export interface components {
         };
         RiskSignalListResponse: {
             items: components["schemas"]["RiskSignal"][];
+            page: number;
+            page_size: number;
+            count: number;
         };
         RoleCatalogItem: {
             public_id: string;
@@ -3875,7 +3915,10 @@ export interface operations {
     };
     operating_data_sources_list: {
         parameters: {
-            query?: never;
+            query?: {
+                page?: number;
+                page_size?: number;
+            };
             header?: never;
             path?: never;
             cookie?: never;
@@ -4032,6 +4075,30 @@ export interface operations {
             };
         };
     };
+    operating_data_batches_rows_list: {
+        parameters: {
+            query?: {
+                page?: number;
+                page_size?: number;
+            };
+            header?: never;
+            path: {
+                public_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OperatingIngestionBatchRowsResponse"];
+                };
+            };
+        };
+    };
     operating_data_batches_validate: {
         parameters: {
             query?: never;
@@ -4105,7 +4172,10 @@ export interface operations {
     };
     operating_data_unmapped_list: {
         parameters: {
-            query?: never;
+            query?: {
+                page?: number;
+                page_size?: number;
+            };
             header?: never;
             path?: never;
             cookie?: never;
@@ -4125,6 +4195,8 @@ export interface operations {
     operating_issues_list: {
         parameters: {
             query?: {
+                page?: number;
+                page_size?: number;
                 status?: string;
             };
             header?: never;
@@ -4224,7 +4296,10 @@ export interface operations {
     };
     operating_metrics_list: {
         parameters: {
-            query?: never;
+            query?: {
+                page?: number;
+                page_size?: number;
+            };
             header?: never;
             path?: never;
             cookie?: never;
@@ -5924,7 +5999,10 @@ export interface operations {
     };
     risk_rules_list: {
         parameters: {
-            query?: never;
+            query?: {
+                page?: number;
+                page_size?: number;
+            };
             header?: never;
             path?: never;
             cookie?: never;
@@ -6017,6 +6095,8 @@ export interface operations {
     risk_signals_list: {
         parameters: {
             query?: {
+                page?: number;
+                page_size?: number;
                 status?: string;
             };
             header?: never;

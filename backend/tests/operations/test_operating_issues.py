@@ -11,7 +11,11 @@ from django.utils import timezone
 
 from apps.identity.models.organization import Organization
 from apps.identity.models.user import User
-from apps.operations.errors import IssueImmutableState, IssueVersionConflict
+from apps.operations.errors import (
+    IssueImmutableState,
+    IssueVersionConflict,
+    OperatingIssueAlreadyLinked,
+)
 from apps.operations.models import (
     AggregateGrainType,
     AggregateStatus,
@@ -218,7 +222,7 @@ def test_signal_cannot_have_two_active_primary_issues(
         phenomenon_summary="First issue",
         signal_public_ids=[signals[0].public_id],
     ).execute()
-    with pytest.raises(ValidationFailedError):
+    with pytest.raises(OperatingIssueAlreadyLinked):
         CreateOperatingIssue(
             context=ctx,
             title="Second",

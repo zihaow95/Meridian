@@ -10,6 +10,11 @@ from django.utils import timezone
 from django.utils.dateparse import parse_date, parse_datetime
 
 from apps.integrations.models import IngestionBatch, IngestionRowStatus
+from apps.operations.errors import (
+    OperatingDataMappingRequired,
+    OperatingDataStructureInvalid,
+    OperatingUnitMismatch,
+)
 from apps.operations.models import MetricDefinitionStatus, MetricDefinitionVersion
 from apps.products.models import SKU, ChannelConfiguration, SKUStatus
 
@@ -98,7 +103,7 @@ def validate_batch_rows(batch: IngestionBatch) -> IngestionBatch:
 
         if row.external_record_key and key_counts.get(row.external_record_key, 0) > 1:
             row.status = IngestionRowStatus.ERROR
-            row.error_code = "DUPLICATE_KEY"
+            row.error_code = OperatingDataStructureInvalid.code
             row.error_message = "Duplicate external_record_key within batch."
             error_count += 1
             row.save()
@@ -106,7 +111,7 @@ def validate_batch_rows(batch: IngestionBatch) -> IngestionBatch:
 
         if not row.unit or not row.currency:
             row.status = IngestionRowStatus.ERROR
-            row.error_code = "STRUCTURE"
+            row.error_code = OperatingDataStructureInvalid.code
             row.error_message = "unit and currency are required."
             error_count += 1
             row.save()
@@ -120,8 +125,16 @@ def validate_batch_rows(batch: IngestionBatch) -> IngestionBatch:
             or row.numeric_value is None
         ):
             row.status = IngestionRowStatus.ERROR
-            row.error_code = "STRUCTURE"
+            row.error_code = OperatingDataStructureInvalid.code
             row.error_message = "Required period/value/timestamp fields are missing."
+            error_count += 1
+            row.save()
+            continue
+
+        if row.period_start > row.period_end:
+            row.status = IngestionRowStatus.ERROR
+            row.error_code = OperatingDataStructureInvalid.code
+            row.error_message = "period_start must be on or before period_end."
             error_count += 1
             row.save()
             continue
@@ -133,7 +146,7 @@ def validate_batch_rows(batch: IngestionBatch) -> IngestionBatch:
         ).first()
         if sku is None:
             row.status = IngestionRowStatus.UNMAPPED
-            row.error_code = "UNMAPPED_SKU"
+            row.error_code = OperatingDataMappingRequired.code
             row.error_message = f"SKU not found: {row.sku_code}"
             error_count += 1
             row.save()
@@ -146,7 +159,7 @@ def validate_batch_rows(batch: IngestionBatch) -> IngestionBatch:
         ).first()
         if channel is None:
             row.status = IngestionRowStatus.UNMAPPED
-            row.error_code = "UNMAPPED_CHANNEL"
+            row.error_code = OperatingDataMappingRequired.code
             row.error_message = f"Channel not found: {row.channel_code}"
             error_count += 1
             row.save()
@@ -166,6 +179,20 @@ def validate_batch_rows(batch: IngestionBatch) -> IngestionBatch:
         row.channel = channel
         row.metric_definition = metric
         # Missing published metric is resolved at confirm; validate still marks mapped rows.
+
+        if metric is not None and (
+            (metric.unit and row.unit and metric.unit != row.unit)
+            or (metric.currency and row.currency and metric.currency != row.currency)
+        ):
+            row.status = IngestionRowStatus.ERROR
+            row.error_code = OperatingUnitMismatch.code
+            row.error_message = (
+                f"Row unit/currency ({row.unit}/{row.currency}) does not match "
+                f"published metric definition ({metric.unit}/{metric.currency})."
+            )
+            error_count += 1
+            row.save()
+            continue
 
         if min_sales is not None and row.numeric_value < min_sales:
             row.status = IngestionRowStatus.WARNING

@@ -18,7 +18,12 @@ from apps.authorization.models.role import LEVEL_RANK, DataSensitivityLevel
 from apps.authorization.policies.engine import authorize
 from apps.authorization.services.subject import subject_for
 from apps.identity.models.user import User
-from apps.operations.errors import IssueImmutableState, IssueVersionConflict
+from apps.operations.errors import (
+    IssueImmutableState,
+    IssueVersionConflict,
+    OperatingIssueAlreadyLinked,
+    RiskSignalAlreadyProcessed,
+)
 from apps.operations.models import (
     IssueDecision,
     IssueSignal,
@@ -199,9 +204,7 @@ def _link_signals(
                 linked_at=now,
             )
         except IntegrityError as exc:
-            raise ValidationFailedError(
-                message="Signal already has an active primary operating issue."
-            ) from exc
+            raise OperatingIssueAlreadyLinked() from exc
         if signal.status in {RiskSignalStatus.NEW, RiskSignalStatus.VIEWED}:
             signal.status = RiskSignalStatus.ESCALATED
             signal.save(update_fields=["status", "updated_at"])
@@ -354,6 +357,11 @@ class EscalateRiskSignal:
             )
             if signal is None:
                 raise _not_found()
+            if signal.status not in {RiskSignalStatus.NEW, RiskSignalStatus.VIEWED}:
+                raise RiskSignalAlreadyProcessed(
+                    message="Signal cannot be escalated from current status.",
+                    details={"status": signal.status},
+                )
             sku = (
                 SKU.objects.filter(public_id=signal.scope_id)
                 .select_related("product_version__product")

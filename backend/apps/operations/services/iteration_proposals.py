@@ -16,7 +16,11 @@ from apps.authorization.models.role import LEVEL_RANK, DataSensitivityLevel
 from apps.authorization.policies.engine import authorize
 from apps.authorization.services.subject import subject_for
 from apps.identity.models.user import User
-from apps.operations.errors import IssueImmutableState, IssueVersionConflict
+from apps.operations.errors import (
+    IssueImmutableState,
+    IssueVersionConflict,
+    IterationProposalAlreadyCreated,
+)
 from apps.operations.models import (
     IssueConversion,
     IssueConversionType,
@@ -136,7 +140,7 @@ class ConvertIssueToIterationProposal:
                 raise IssueVersionConflict()
 
             if issue.status == OperatingIssueStatus.CONVERTED_TO_PROPOSAL:
-                raise IssueImmutableState(message="Issue already converted to a proposal.")
+                raise IterationProposalAlreadyCreated()
             if issue.status in {
                 OperatingIssueStatus.CLOSED,
                 OperatingIssueStatus.RETIREMENT_REVIEW,
@@ -145,7 +149,7 @@ class ConvertIssueToIterationProposal:
             if IssueConversion.objects.filter(
                 issue=issue, conversion_type=IssueConversionType.ITERATION_PROPOSAL
             ).exists():
-                raise IssueImmutableState(message="Issue already converted to a proposal.")
+                raise IterationProposalAlreadyCreated()
 
             source_snapshot = _build_source_snapshot(issue)
             opportunity = CreateIterationOpportunityDraftFromSource(

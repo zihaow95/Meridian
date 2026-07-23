@@ -29,6 +29,7 @@ from apps.operations.models import (
     RiskSignalStatus,
     SignalRecalculation,
 )
+from apps.operations.errors import RiskSignalAlreadyProcessed
 from apps.operations.policies.identity_provider import resolve_effective_assignments
 from apps.operations.services.risk_rules import (
     QUARTER_SHELF_LIFE_MIN_PRODUCTION,
@@ -112,14 +113,30 @@ class MarkRiskSignalViewed:
 
     def execute(self) -> RiskSignal:
         actor = self.context.actor
+        now = self.context.occurred_at or timezone.now()
         with transaction.atomic():
             signal = _signal_or_deny(
                 organization_id=actor.organization_id, signal_public_id=self.signal_public_id
             )
             _authorize_signal_action(actor=actor, action="risk_signal.read", signal=signal)
+            before_status = signal.status
             if signal.status == RiskSignalStatus.NEW:
                 signal.status = RiskSignalStatus.VIEWED
                 signal.save(update_fields=["status", "updated_at"])
+            append_event(
+                AuditRecord(
+                    actor=actor,
+                    action_code="risk_signal.view",
+                    resource_type="risk_signal",
+                    resource_public_id=signal.public_id,
+                    result=AuditResult.SUCCESS,
+                    trace_id=self.context.trace_id,
+                    occurred_at=now,
+                    before_summary={"status": before_status},
+                    after_summary={"status": signal.status},
+                    acting_roles_snapshot=acting_roles_snapshot(actor),
+                )
+            )
             return signal
 
 
@@ -143,7 +160,10 @@ class CloseRiskSignal:
             if signal.status == RiskSignalStatus.CLOSED:
                 return signal
             if signal.status not in {RiskSignalStatus.NEW, RiskSignalStatus.VIEWED}:
-                raise ValidationFailedError(message="Signal cannot be closed from current status.")
+                raise RiskSignalAlreadyProcessed(
+                    message="Signal cannot be closed from current status.",
+                    details={"status": signal.status},
+                )
             signal.status = RiskSignalStatus.CLOSED
             signal.closed_reason = reason
             signal.closed_by = actor

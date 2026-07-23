@@ -17,8 +17,11 @@ from apps.audit.services.snapshots import acting_roles_snapshot
 from apps.authorization.context import AuthorizationContext, ResourceDescriptor
 from apps.authorization.policies.engine import authorize
 from apps.authorization.services.subject import subject_for
-from apps.operations.models import RetirementPlan, RetirementPlanStatus
-from apps.operations.services.retirement_plans import validate_retirement_plan_completeness
+from apps.operations.models import RetirementPlan
+from apps.operations.services.retirement_plans import (
+    ApplyRetirementSubmission,
+    validate_retirement_plan_completeness,
+)
 from apps.platform.api.errors import PermissionDeniedError, ValidationFailedError
 from apps.platform.application.command import CommandContext
 from apps.stage_gates.models import (
@@ -85,8 +88,11 @@ class SubmitRetirementGate:
                 return existing
 
             validate_retirement_plan_completeness(plan)
-            plan.content_hash = plan.compute_content_hash()
-            plan.save(update_fields=["content_hash", "updated_at"])
+            plan = ApplyRetirementSubmission(
+                context=self.context,
+                plan_public_id=plan.public_id,
+                organization_id=actor.organization_id,
+            ).execute()
 
             assert plan.stop_production_at is not None
             assert plan.stop_sale_at is not None
@@ -170,9 +176,6 @@ class SubmitRetirementGate:
                     "updated_at",
                 ]
             )
-            plan.status = RetirementPlanStatus.SUBMITTED
-            plan.save(update_fields=["status", "updated_at"])
-
             append_event(
                 AuditRecord(
                     actor=actor,

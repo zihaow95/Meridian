@@ -15,7 +15,8 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from apps.identity.models.user import User
-from apps.operations.models import RetirementPlan
+from apps.operations.errors import RetirementExecutionFailed
+from apps.operations.models import RetirementPlan, RetirementPlanStatus
 from apps.operations.services.retirement_plans import (
     CreateRetirementPlan,
     ExecuteRetirementPlan,
@@ -204,4 +205,14 @@ class RetirementPlanExecuteView(APIView):
             plan_public_id=public_id,
             as_of=_parse_optional_date(request.data.get("as_of")),
         ).execute()
+        if plan.status == RetirementPlanStatus.EXECUTION_ERROR:
+            failed_action = (
+                plan.execution_actions.filter(status="FAILED").order_by("-updated_at").first()
+            )
+            raise RetirementExecutionFailed(
+                details={
+                    "plan_public_id": str(plan.public_id),
+                    "action_type": failed_action.action_type if failed_action else None,
+                }
+            )
         return Response(serialize_plan(plan))

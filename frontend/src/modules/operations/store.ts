@@ -41,6 +41,14 @@ export type RetirementPlanExecuteRequest = components['schemas']['RetirementPlan
 export type RetirementManagementRequest = components['schemas']['RetirementManagementRequest']
 export type RetirementFinalRequest = components['schemas']['RetirementFinalRequest']
 
+export type SkuBreakdownItem = {
+  sku_public_id: string
+  value?: string | null
+  status?: string
+  coverage_rate?: string
+  has_manual_value?: boolean
+}
+
 export type OperatingSummaryItem = {
   grain_type?: string
   grain_public_id?: string
@@ -51,6 +59,7 @@ export type OperatingSummaryItem = {
   value?: string | null
   has_manual_value?: boolean
   contributors?: unknown[]
+  sku_breakdown?: SkuBreakdownItem[]
   [key: string]: unknown
 }
 

@@ -614,6 +614,15 @@ paths:
   /api/v1/operating-data-sources:
     get:
       operationId: operating_data_sources_list
+      parameters:
+      - in: query
+        name: page
+        schema:
+          type: integer
+      - in: query
+        name: page_size
+        schema:
+          type: integer
       tags:
       - operating-data-sources
       security:
@@ -772,6 +781,35 @@ paths:
               schema:
                 $ref: '#/components/schemas/OperatingIngestionBatch'
           description: ''
+  /api/v1/operating-data/batches/{public_id}/rows:
+    get:
+      operationId: operating_data_batches_rows_list
+      parameters:
+      - in: query
+        name: page
+        schema:
+          type: integer
+      - in: query
+        name: page_size
+        schema:
+          type: integer
+      - in: path
+        name: public_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - operating-data
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OperatingIngestionBatchRowsResponse'
+          description: ''
   /api/v1/operating-data/batches/{public_id}/validate:
     post:
       operationId: operating_data_batches_validate
@@ -848,6 +886,15 @@ paths:
   /api/v1/operating-data/unmapped:
     get:
       operationId: operating_data_unmapped_list
+      parameters:
+      - in: query
+        name: page
+        schema:
+          type: integer
+      - in: query
+        name: page_size
+        schema:
+          type: integer
       tags:
       - operating-data
       security:
@@ -863,6 +910,14 @@ paths:
     get:
       operationId: operating_issues_list
       parameters:
+      - in: query
+        name: page
+        schema:
+          type: integer
+      - in: query
+        name: page_size
+        schema:
+          type: integer
       - in: query
         name: status
         schema:
@@ -972,6 +1027,15 @@ paths:
   /api/v1/operating-metrics:
     get:
       operationId: operating_metrics_list
+      parameters:
+      - in: query
+        name: page
+        schema:
+          type: integer
+      - in: query
+        name: page_size
+        schema:
+          type: integer
       tags:
       - operating-metrics
       security:
@@ -2874,6 +2938,15 @@ paths:
   /api/v1/risk-rules:
     get:
       operationId: risk_rules_list
+      parameters:
+      - in: query
+        name: page
+        schema:
+          type: integer
+      - in: query
+        name: page_size
+        schema:
+          type: integer
       tags:
       - risk-rules
       security:
@@ -2970,6 +3043,14 @@ paths:
     get:
       operationId: risk_signals_list
       parameters:
+      - in: query
+        name: page
+        schema:
+          type: integer
+      - in: query
+        name: page_size
+        schema:
+          type: integer
       - in: query
         name: status
         schema:
@@ -4455,8 +4536,17 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/OperatingDataSource'
+        page:
+          type: integer
+        page_size:
+          type: integer
+        count:
+          type: integer
       required:
+      - count
       - items
+      - page
+      - page_size
     OperatingIngestionBatch:
       type: object
       properties:
@@ -4555,6 +4645,23 @@ components:
       - batch_key
       - source_public_id
       - source_type
+    OperatingIngestionBatchRowsResponse:
+      type: object
+      properties:
+        items:
+          type: array
+          items: {}
+        page:
+          type: integer
+        page_size:
+          type: integer
+        count:
+          type: integer
+      required:
+      - count
+      - items
+      - page
+      - page_size
     OperatingIssue:
       type: object
       properties:
@@ -4678,8 +4785,17 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/OperatingIssue'
+        page:
+          type: integer
+        page_size:
+          type: integer
+        count:
+          type: integer
       required:
+      - count
       - items
+      - page
+      - page_size
     OperatingManualValue:
       type: object
       properties:
@@ -4850,8 +4966,17 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/OperatingMetricDefinition'
+        page:
+          type: integer
+        page_size:
+          type: integer
+        count:
+          type: integer
       required:
+      - count
       - items
+      - page
+      - page_size
     OperatingMetricRecalculateRequest:
       type: object
       properties:
@@ -4890,8 +5015,17 @@ components:
         items:
           type: array
           items: {}
+        page:
+          type: integer
+        page_size:
+          type: integer
+        count:
+          type: integer
       required:
+      - count
       - items
+      - page
+      - page_size
     OpportunityCreateRequest:
       type: object
       properties:
@@ -5918,8 +6052,17 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/RiskRuleDefinition'
+        page:
+          type: integer
+        page_size:
+          type: integer
+        count:
+          type: integer
       required:
+      - count
       - items
+      - page
+      - page_size
     RiskSignal:
       type: object
       properties:
@@ -6010,8 +6153,17 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/RiskSignal'
+        page:
+          type: integer
+        page_size:
+          type: integer
+        count:
+          type: integer
       required:
+      - count
       - items
+      - page
+      - page_size
     RoleCatalogItem:
       type: object
       properties:

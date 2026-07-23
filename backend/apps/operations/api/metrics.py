@@ -18,7 +18,9 @@ from apps.authorization.context import AuthorizationContext, ResourceDescriptor
 from apps.authorization.policies.engine import authorize
 from apps.authorization.services.subject import subject_for
 from apps.identity.models.user import User
+from apps.operations.api.pagination import PAGE_QUERY_PARAMETERS, page_params
 from apps.operations.models import MetricDefinitionVersion
+from apps.operations.queries.pagination import paginate_queryset
 from apps.operations.queries.visible_resources import list_visible_metric_definitions
 from apps.operations.services.aggregations import RecalculateMetricAggregates
 from apps.operations.services.metric_definitions import (
@@ -92,15 +94,31 @@ class OperatingMetricListCreateView(APIView):
 
     @extend_schema(
         operation_id="operating_metrics_list",
+        parameters=PAGE_QUERY_PARAMETERS,
         responses=inline_serializer(
             name="OperatingMetricListResponse",
-            fields={"items": serializers.ListField(child=METRIC_SCHEMA)},
+            fields={
+                "items": serializers.ListField(child=METRIC_SCHEMA),
+                "page": serializers.IntegerField(),
+                "page_size": serializers.IntegerField(),
+                "count": serializers.IntegerField(),
+            },
         ),
     )
     def get(self, request: Request) -> Response:
         user = cast(User, request.user)
-        items = [serialize_metric(row) for row in list_visible_metric_definitions(user)]
-        return Response({"items": items})
+        page, page_size = page_params(request)
+        result = paginate_queryset(
+            list_visible_metric_definitions(user), page=page, page_size=page_size
+        )
+        return Response(
+            {
+                "items": [serialize_metric(row) for row in result.items],
+                "page": result.page,
+                "page_size": result.page_size,
+                "count": result.count,
+            }
+        )
 
     @extend_schema(
         operation_id="operating_metrics_create",

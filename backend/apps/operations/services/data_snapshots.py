@@ -14,6 +14,7 @@ from apps.authorization.context import AuthorizationContext, ResourceDescriptor
 from apps.authorization.policies.engine import authorize
 from apps.authorization.services.subject import subject_for
 from apps.identity.models.user import User
+from apps.operations.errors import MetricDataInsufficient, MetricDefinitionNotPublished
 from apps.operations.models import (
     AggregateGrainType,
     MetricAggregate,
@@ -100,8 +101,9 @@ class CreateOperatingDataSnapshot:
                         .first()
                     )
                     if metric is None:
-                        raise ValidationFailedError(
-                            message=f"Metric definition not published: {metric_code}"
+                        raise MetricDefinitionNotPublished(
+                            message=f"Metric definition not published: {metric_code}",
+                            details={"metric_code": metric_code},
                         )
 
                     grain_filters: list[tuple[str, UUID]] = [
@@ -174,6 +176,14 @@ class CreateOperatingDataSnapshot:
                                 "fact_summaries": fact_summaries,
                             }
                         )
+
+            if self.metric_codes and self.periods and not metrics_payload:
+                raise MetricDataInsufficient(
+                    details={
+                        "metric_codes": list(self.metric_codes),
+                        "periods": list(self.periods),
+                    }
+                )
 
             scope_json = {
                 "product_public_ids": [str(p.public_id) for p in products],

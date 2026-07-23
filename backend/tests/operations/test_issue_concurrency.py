@@ -33,6 +33,7 @@ from apps.operations.services.metric_definitions import (
     CreateMetricDefinitionDraft,
     PublishMetricDefinition,
 )
+from apps.operations.errors import OperatingIssueAlreadyLinked
 from apps.operations.services.operating_issues import CreateOperatingIssue
 from apps.operations.services.risk_rules import (
     QUARTER_SHELF_LIFE_MIN_PRODUCTION,
@@ -40,7 +41,6 @@ from apps.operations.services.risk_rules import (
     EvaluateRiskRules,
     PublishRiskRule,
 )
-from apps.platform.api.errors import ValidationFailedError
 from apps.platform.application.command import CommandContext
 from apps.products.models import (
     SKU,
@@ -233,6 +233,6 @@ def test_concurrent_primary_link_only_one_wins() -> None:
 
     assert len(created) == 1, (created, errors)
     assert len(errors) == 1, errors
-    assert isinstance(errors[0], ValidationFailedError)
+    assert isinstance(errors[0], OperatingIssueAlreadyLinked)
     assert IssueSignal.objects.filter(signal=signal, active_primary_slot=1).count() == 1
     assert OperatingIssue.objects.filter(organization=organization).count() == 1

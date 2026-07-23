@@ -135,3 +135,13 @@ CELERY_BROKER_URL = env("CELERY_BROKER_URL", "redis://127.0.0.1:6379/0")
 CELERY_RESULT_BACKEND = env("CELERY_RESULT_BACKEND", CELERY_BROKER_URL)
 CELERY_TASK_ALWAYS_EAGER = False
 CELERY_TASK_EAGER_PROPAGATES = True
+CELERY_BEAT_SCHEDULE: dict[str, Any] = {
+    "platform.dispatch_outbox": {
+        "task": "platform.dispatch_outbox",
+        "schedule": 60.0,
+    },
+    "operations.execute_due_retirement_actions": {
+        "task": "operations.execute_due_retirement_actions",
+        "schedule": 3600.0,
+    },
+}

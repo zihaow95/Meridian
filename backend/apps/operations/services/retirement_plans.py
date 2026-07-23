@@ -36,13 +36,8 @@ from apps.platform.application.command import CommandContext
 from apps.platform.outbox.services import OutboxMessage, register_outbox_event
 from apps.products.models import ProductAsset
 from apps.products.services.retirement import ApplyApprovedRetirementAction
-from apps.stage_gates.models import (
-    GateStatus,
-    GateType,
-    MaterialType,
-    StageGateInstance,
-    SubjectType,
-)
+from apps.stage_gates.models import GateResult
+from apps.stage_gates.services.create_retirement_gate import CreateRetirementGate
 
 
 def _authorize(actor: User, *, action: str, plan: RetirementPlan | None = None) -> None:
@@ -207,18 +202,11 @@ class CreateRetirementPlan:
             plan.content_hash = plan.compute_content_hash()
             plan.save()
 
-            gate = StageGateInstance.objects.create(
+            gate = CreateRetirementGate(
+                context=self.context,
+                plan_public_id=plan.public_id,
                 organization_id=actor.organization_id,
-                subject_type=SubjectType.RETIREMENT_PLAN,
-                subject_public_id=plan.public_id,
-                stage_code="PRODUCT_RETIREMENT",
-                cycle_number=1,
-                status=GateStatus.OPEN,
-                gate_type=GateType.MAJOR,
-                primary_material_type=MaterialType.RETIREMENT_PLAN,
-                primary_material_public_id=plan.public_id,
-                open_material_key=f"RETIREMENT_PLAN:{plan.public_id}:PRODUCT_RETIREMENT:1",
-            )
+            ).execute()
             plan.stage_gate_public_id = gate.public_id
             plan.save(update_fields=["stage_gate_public_id", "updated_at"])
 
@@ -345,6 +333,7 @@ class ExecuteRetirementPlan:
                     return plan
 
             if actions and all(a.status == RetirementActionStatus.COMPLETED for a in actions):
+                before_status = plan.status
                 plan.status = RetirementPlanStatus.COMPLETED
                 plan.save(update_fields=["status", "updated_at"])
                 if plan.issue.status != OperatingIssueStatus.CLOSED:
@@ -361,6 +350,29 @@ class ExecuteRetirementPlan:
                             "updated_at",
                         ]
                     )
+                append_event(
+                    AuditRecord(
+                        actor=actor,
+                        action_code="retirement_plan.complete",
+                        resource_type="retirement_plan",
+                        resource_public_id=plan.public_id,
+                        result=AuditResult.SUCCESS,
+                        trace_id=self.context.trace_id,
+                        occurred_at=now,
+                        acting_roles_snapshot=acting_roles_snapshot(actor),
+                        before_summary={"status": before_status},
+                        after_summary={"status": plan.status},
+                    )
+                )
+                register_outbox_event(
+                    OutboxMessage(
+                        event_type="retirement.completed",
+                        aggregate_type="retirement_plan",
+                        aggregate_id=plan.public_id,
+                        payload={"plan_public_id": str(plan.public_id)},
+                        occurred_at=now,
+                    )
+                )
             return plan
 
 
@@ -382,3 +394,89 @@ def seed_execution_actions(*, plan: RetirementPlan) -> None:
                 "status": RetirementActionStatus.PENDING,
             },
         )
+
+
+_APPROVING_RESULTS = frozenset({GateResult.APPROVED, GateResult.APPROVED_WITH_EXCEPTION})
+
+
+@dataclass
+class ApplyRetirementSubmission:
+    """Own the RetirementPlan writes for a gate submission.
+
+    Called by ``SubmitRetirementGate`` so the stage_gates domain never writes
+    RetirementPlan fields directly.
+    """
+
+    context: CommandContext
+    plan_public_id: UUID
+    organization_id: int
+
+    def execute(self) -> RetirementPlan:
+        plan = (
+            RetirementPlan.objects.select_for_update()
+            .select_related("operating_snapshot", "product")
+            .filter(organization_id=self.organization_id, public_id=self.plan_public_id)
+            .first()
+        )
+        if plan is None:
+            raise PermissionDeniedError()
+        plan.content_hash = plan.compute_content_hash()
+        plan.status = RetirementPlanStatus.SUBMITTED
+        plan.save(update_fields=["content_hash", "status", "updated_at"])
+        return plan
+
+
+@dataclass
+class ApplyRetirementDecision:
+    """Own the RetirementPlan writes for a PRODUCT_RETIREMENT final decision.
+
+    Called by ``RecordRetirementFinalDecision`` so the stage_gates domain
+    never writes RetirementPlan fields directly. Gate-level state (the
+    MajorGateDecision record and StageGateInstance status) remains owned by
+    stage_gates.
+    """
+
+    context: CommandContext
+    plan_public_id: UUID
+    organization_id: int
+    stage_gate_public_id: UUID
+    final_decision: str
+
+    def execute(self) -> RetirementPlan:
+        now = self.context.occurred_at or timezone.now()
+        plan = (
+            RetirementPlan.objects.select_for_update()
+            .filter(organization_id=self.organization_id, public_id=self.plan_public_id)
+            .first()
+        )
+        if plan is None:
+            raise PermissionDeniedError()
+
+        if self.final_decision in _APPROVING_RESULTS:
+            plan.status = RetirementPlanStatus.APPROVED
+            plan.approved_at = now
+            plan.save(update_fields=["status", "approved_at", "updated_at"])
+            seed_execution_actions(plan=plan)
+            register_outbox_event(
+                OutboxMessage(
+                    event_type="retirement.approved",
+                    aggregate_type="retirement_plan",
+                    aggregate_id=plan.public_id,
+                    payload={
+                        "plan_public_id": str(plan.public_id),
+                        "stage_gate_public_id": str(self.stage_gate_public_id),
+                        "final_decision": self.final_decision,
+                    },
+                    occurred_at=now,
+                )
+            )
+        elif self.final_decision == GateResult.PASSED:
+            plan.status = RetirementPlanStatus.PASSED
+            plan.save(update_fields=["status", "updated_at"])
+        elif self.final_decision == GateResult.NEEDS_INFO:
+            plan.status = RetirementPlanStatus.DRAFT
+            plan.save(update_fields=["status", "updated_at"])
+        elif self.final_decision == GateResult.DEFERRED:
+            plan.status = RetirementPlanStatus.PASSED
+            plan.save(update_fields=["status", "updated_at"])
+        return plan

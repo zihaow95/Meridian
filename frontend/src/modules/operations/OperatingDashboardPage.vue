@@ -41,8 +41,14 @@ async function loadProductSummary(): Promise<void> {
   }
 }
 
+function firstSkuPublicId(row: OperatingSummaryItem): string {
+  const fromBreakdown = row.sku_breakdown?.find((item) => item.sku_public_id)?.sku_public_id
+  return String(fromBreakdown ?? '')
+}
+
 async function drillSku(row: OperatingSummaryItem): Promise<void> {
-  const skuId = String(row.grain_public_id ?? '')
+  // Product-grain rows use product public_id as grain_public_id; SKU ids live in sku_breakdown.
+  const skuId = firstSkuPublicId(row)
   if (!skuId || busy.value) return
   selectedSkuId.value = skuId
   busy.value = true
@@ -147,8 +153,21 @@ onMounted(() => {
       >
         {{ row.metric_code }} / {{ row.grain_public_id }} / 覆盖率 {{ row.coverage_rate }} /
         {{ row.status }}
+        <div
+          v-if="row.sku_breakdown?.length"
+          class="ops-dashboard__sku-breakdown"
+          data-test="sku-breakdown"
+        >
+          <span
+            v-for="sku in row.sku_breakdown"
+            :key="sku.sku_public_id"
+            data-test="sku-breakdown-item"
+          >
+            SKU {{ sku.sku_public_id }} / {{ sku.status }}
+          </span>
+        </div>
         <el-button
-          v-if="row.grain_public_id"
+          v-if="firstSkuPublicId(row)"
           link
           type="primary"
           data-test="drill-sku"

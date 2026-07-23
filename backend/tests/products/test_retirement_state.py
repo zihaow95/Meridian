@@ -10,6 +10,7 @@ from django.utils import timezone
 from apps.identity.models.organization import Organization
 from apps.identity.models.user import User
 from apps.platform.application.command import CommandContext
+from apps.products.errors import RetirementScopeMismatch
 from apps.products.models import (
     SKU,
     ChannelConfiguration,
@@ -108,3 +109,62 @@ def test_apply_actions_mutate_only_scoped_fields(catalog, active_user, grant_act
     assert catalog["version"].status == ProductVersionStatus.INACTIVE
     assert catalog["product"].lifecycle_status == ProductLifecycleStatus.RETIRED
     assert catalog["product"].retired_at is not None
+
+
+@pytest.mark.django_db(transaction=True)
+def test_retire_rejects_scope_containing_foreign_product_sku(
+    catalog, organization, active_user, grant_action
+) -> None:
+    """A SKU from a different product smuggled into scope must reject, not silently filter."""
+    grant_action(active_user, "retirement_plan.execute", "retirement_plan")
+    other_product = ProductAsset.objects.create(
+        organization=organization,
+        business_no="PRD-RET-STATE-OTHER",
+        name="Other yogurt",
+        category_code="YOGURT",
+        source_type=ProductSourceType.NEW_PROJECT,
+        lifecycle_status=ProductLifecycleStatus.ACTIVE,
+        product_owner=active_user,
+    )
+    other_version = ProductVersion.objects.create(
+        organization=organization,
+        product=other_product,
+        version_code="V1",
+        version_name="Launch",
+        status=ProductVersionStatus.EFFECTIVE,
+        published_at=timezone.now(),
+        published_by=active_user,
+    )
+    other_sku = SKU.objects.create(
+        organization=organization,
+        product_version=other_version,
+        sku_code="SKU-RET-STATE-OTHER",
+        name="Other cup",
+        specification="120g",
+        status=SKUStatus.ACTIVE,
+        production_status=ProductionStatus.IN_PRODUCTION,
+    )
+
+    scope = {
+        "product_version_public_ids": [str(catalog["version"].public_id)],
+        "sku_public_ids": [str(catalog["sku"].public_id), str(other_sku.public_id)],
+        "channel_public_ids": [str(catalog["channel"].public_id)],
+    }
+    ctx = CommandContext.for_actor(active_user)
+    with pytest.raises(RetirementScopeMismatch):
+        ApplyApprovedRetirementAction(
+            context=ctx,
+            action_type="RETIRE",
+            product_public_id=catalog["product"].public_id,
+            scope_snapshot=scope,
+            as_of=date(2026, 3, 1),
+        ).execute()
+
+    catalog["sku"].refresh_from_db()
+    catalog["version"].refresh_from_db()
+    catalog["product"].refresh_from_db()
+    other_sku.refresh_from_db()
+    assert catalog["sku"].status == SKUStatus.ACTIVE
+    assert catalog["version"].status == ProductVersionStatus.EFFECTIVE
+    assert catalog["product"].lifecycle_status == ProductLifecycleStatus.ACTIVE
+    assert other_sku.status == SKUStatus.ACTIVE

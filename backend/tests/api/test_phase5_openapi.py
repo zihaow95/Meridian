@@ -17,6 +17,7 @@ REQUIRED_PATH_METHODS: dict[str, set[str]] = {
     "/api/v1/operating-data/batches/{public_id}": {"get"},
     "/api/v1/operating-data/batches/{public_id}/confirm": {"post"},
     "/api/v1/operating-data/batches/{public_id}/retry": {"post"},
+    "/api/v1/operating-data/batches/{public_id}/rows": {"get"},
     "/api/v1/operating-data/batches/{public_id}/validate": {"post"},
     "/api/v1/operating-data/unmapped": {"get"},
     "/api/v1/operating-data/snapshots": {"post"},

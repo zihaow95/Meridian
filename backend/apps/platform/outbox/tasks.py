@@ -11,17 +11,21 @@ from apps.platform.outbox.dispatcher import UnregisteredEventType, dispatch_pend
 from apps.platform.outbox.models import OutboxEvent
 
 
-def merged_consumer_registry() -> dict[str, tuple[str, OutboxConsumer]]:
-    return {**notifications_registry(), **operations_registry()}
+def merged_consumer_registry() -> dict[str, list[tuple[str, OutboxConsumer]]]:
+    merged: dict[str, list[tuple[str, OutboxConsumer]]] = {}
+    for registry in (notifications_registry(), operations_registry()):
+        for event_type, consumers in registry.items():
+            merged.setdefault(event_type, []).extend(consumers)
+    return merged
 
 
 class LocalOutboxPublisher:
     def publish(self, event: OutboxEvent) -> None:
-        entry = merged_consumer_registry().get(event.event_type)
-        if entry is None:
+        consumers = merged_consumer_registry().get(event.event_type)
+        if not consumers:
             raise UnregisteredEventType()
-        consumer_code, handler = entry
-        consume_once(event=event, consumer_code=consumer_code, handler=handler)
+        for consumer_code, handler in consumers:
+            consume_once(event=event, consumer_code=consumer_code, handler=handler)
 
 
 @shared_task(name="platform.dispatch_outbox")

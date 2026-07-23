@@ -12,7 +12,7 @@ from apps.authorization.models.role import LEVEL_RANK, DataSensitivityLevel
 from apps.authorization.policies.engine import authorize
 from apps.authorization.services.subject import subject_for
 from apps.identity.models.user import User
-from apps.integrations.models import DataSource, IngestionRow, IngestionRowStatus
+from apps.integrations.models import DataSource, IngestionBatch, IngestionRow, IngestionRowStatus
 from apps.operations.models import (
     MetricDefinitionVersion,
     OperatingIssue,
@@ -21,6 +21,13 @@ from apps.operations.models import (
 )
 from apps.operations.policies.identity_provider import resolve_effective_assignments
 from apps.products.models import SKU, ProductAsset
+
+_INGESTION_BATCH_READ_LIKE_ACTIONS: tuple[str, ...] = (
+    "ingestion_batch.create",
+    "ingestion_batch.confirm",
+    "ingestion_batch.retry",
+    "mapping.resolve",
+)
 
 
 def _org_action_allowed(
@@ -147,6 +154,32 @@ def list_visible_operating_issues(user: User, **filters: Any) -> QuerySet[Operat
     if not product_ids:
         return qs.none()
     return qs.filter(product_id__in=product_ids)
+
+
+def get_visible_ingestion_batch(user: User, public_id: UUID) -> IngestionBatch | None:
+    """Return the batch if the user holds any read-like ingestion action for its source."""
+
+    batch = (
+        IngestionBatch.objects.select_related("source")
+        .filter(organization_id=user.organization_id, public_id=public_id)
+        .first()
+    )
+    if batch is None:
+        return None
+
+    resource = ResourceDescriptor(
+        resource_type="ingestion_batch",
+        public_id=batch.public_id,
+        organization_id=user.organization_id,
+        sensitivity_level=batch.source.sensitivity_level or DataSensitivityLevel.INTERNAL,
+        metadata={"source_public_id": str(batch.source.public_id)},
+    )
+    context = AuthorizationContext.current()
+    subject = subject_for(user)
+    for action in _INGESTION_BATCH_READ_LIKE_ACTIONS:
+        if authorize(subject, action=action, resource=resource, context=context).allowed:
+            return batch
+    return None
 
 
 def list_unmapped_ingestion_rows(user: User) -> QuerySet[IngestionRow]:

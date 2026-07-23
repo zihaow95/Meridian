@@ -18,7 +18,9 @@ from apps.authorization.context import AuthorizationContext, ResourceDescriptor
 from apps.authorization.policies.engine import authorize
 from apps.authorization.services.subject import subject_for
 from apps.identity.models.user import User
+from apps.operations.api.pagination import PAGE_QUERY_PARAMETERS, page_params
 from apps.operations.models import RiskRuleVersion
+from apps.operations.queries.pagination import paginate_queryset
 from apps.operations.queries.visible_resources import list_visible_risk_rules
 from apps.operations.services.risk_rules import (
     CreateRiskRuleDraft,
@@ -84,15 +86,29 @@ class RiskRuleListCreateView(APIView):
 
     @extend_schema(
         operation_id="risk_rules_list",
+        parameters=PAGE_QUERY_PARAMETERS,
         responses=inline_serializer(
             name="RiskRuleListResponse",
-            fields={"items": serializers.ListField(child=RISK_RULE_SCHEMA)},
+            fields={
+                "items": serializers.ListField(child=RISK_RULE_SCHEMA),
+                "page": serializers.IntegerField(),
+                "page_size": serializers.IntegerField(),
+                "count": serializers.IntegerField(),
+            },
         ),
     )
     def get(self, request: Request) -> Response:
         user = cast(User, request.user)
-        items = [serialize_risk_rule(row) for row in list_visible_risk_rules(user)]
-        return Response({"items": items})
+        page, page_size = page_params(request)
+        result = paginate_queryset(list_visible_risk_rules(user), page=page, page_size=page_size)
+        return Response(
+            {
+                "items": [serialize_risk_rule(row) for row in result.items],
+                "page": result.page,
+                "page_size": result.page_size,
+                "count": result.count,
+            }
+        )
 
     @extend_schema(
         operation_id="risk_rules_create",

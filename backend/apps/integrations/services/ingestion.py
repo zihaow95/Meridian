@@ -30,6 +30,12 @@ from apps.integrations.services.parsers import (
     parse_rows_from_document_version,
 )
 from apps.integrations.services.validation import apply_mapping, validate_batch_rows
+from apps.operations.errors import (
+    IngestionBatchDuplicate,
+    OperatingDataMappingRequired,
+    OperatingDataStructureInvalid,
+    OperatingUnitMismatch,
+)
 from apps.platform.api.errors import PermissionDeniedError, ValidationFailedError
 from apps.platform.application.command import CommandContext
 
@@ -85,6 +91,15 @@ class CreateIngestionBatch:
                 source=source, batch_key=self.batch_key
             ).first()
             if existing is not None:
+                if existing.status in {
+                    IngestionBatchStatus.SUCCESS,
+                    IngestionBatchStatus.PARTIAL_SUCCESS,
+                }:
+                    # Idempotent retries reuse the batch key before completion; resubmitting
+                    # a batch key that already finished is a genuine duplicate submission.
+                    raise IngestionBatchDuplicate(
+                        details={"batch_public_id": str(existing.public_id)}
+                    )
                 return existing
 
             file_version = None
@@ -105,7 +120,9 @@ class CreateIngestionBatch:
             else:
                 row_payloads = list(self.rows or [])
                 if not row_payloads:
-                    raise ValidationFailedError(message="rows or input_file_version is required.")
+                    raise OperatingDataStructureInvalid(
+                        message="rows or input_file_version is required."
+                    )
 
             batch = IngestionBatch.objects.create(
                 organization_id=actor.organization_id,
@@ -251,6 +268,7 @@ class ResolveIngestionMapping:
             )
             if row is None:
                 raise ValidationFailedError(message="Ingestion row not found.")
+            from apps.operations.models import MetricDefinitionStatus, MetricDefinitionVersion
             from apps.products.models import SKU, ChannelConfiguration
 
             sku = SKU.objects.filter(
@@ -260,11 +278,35 @@ class ResolveIngestionMapping:
                 organization_id=actor.organization_id, public_id=self.channel_public_id
             ).first()
             if sku is None or channel is None or channel.sku_id != sku.id:
-                raise ValidationFailedError(message="Invalid SKU/channel mapping.")
+                raise OperatingDataMappingRequired(message="Invalid SKU/channel mapping.")
+
+            metric = (
+                MetricDefinitionVersion.objects.filter(
+                    organization_id=actor.organization_id,
+                    metric_code=row.metric_code,
+                    status=MetricDefinitionStatus.PUBLISHED,
+                )
+                .order_by("-version_number")
+                .first()
+                if row.metric_code
+                else None
+            )
+            if metric is not None and (
+                (metric.unit and row.unit and metric.unit != row.unit)
+                or (metric.currency and row.currency and metric.currency != row.currency)
+            ):
+                raise OperatingUnitMismatch(
+                    message=(
+                        f"Row unit/currency ({row.unit}/{row.currency}) does not match "
+                        f"published metric definition ({metric.unit}/{metric.currency})."
+                    )
+                )
+
             row.sku = sku
             row.channel = channel
             row.sku_code = sku.sku_code
             row.channel_code = channel.channel_code
+            row.metric_definition = metric
             row.status = IngestionRowStatus.VALID
             row.error_code = ""
             row.error_message = ""

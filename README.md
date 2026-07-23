@@ -19,7 +19,7 @@ D:\Projects\Meridian
 - **阶段2（提案→立案→立项）已完成**（两个重大阶段门、原子项目/产品草稿创建、前端最小闭环与 E2E 验收已通过本地门禁）；
 - **阶段3（产品档案与存量迁移）已完成**（见 [`phase-3-checkpoint.md`](docs/implementation/phase-3-checkpoint.md)；全量门禁 `All quality gates passed.`，pytest 199、产品迁移 E2E 9）；
 - **阶段4（开发到首次上市）已完成实现与退出证据**（见 [`phase-4-checkpoint.md`](docs/implementation/phase-4-checkpoint.md)；EXE-001—014；全量门禁以阶段4 GO / 阶段5 Task 5.0 复验为准）；
-- **阶段5（运营、迭代和退市）已完成实现与退出证据**（见 [`phase-5-checkpoint.md`](docs/implementation/phase-5-checkpoint.md)；OPS-001—014；全量门禁 `All quality gates passed.`，pytest 405、Vitest 58、Playwright 19）。
+- **阶段5（运营、迭代和退市）实现已交付，初验 NO-GO，remediation 待复验**（见 [`phase-5-checkpoint.md`](docs/implementation/phase-5-checkpoint.md)；关闭全部 P1 并全量门禁复验通过前不得推进阶段六）。
 
 ## 文档入口
 
@@ -199,5 +199,5 @@ Major stage gates: 4
 
 ## 下一步
 
-1. 按阶段6计划启动正式集成（钉钉与正式连接器）；
-2. 阶段6退出前不得宣布集成完成；阶段7（加固与验收）尚未开始。
+1. 完成阶段5 NO-GO remediation 复验（全量门禁 + 严格复审）；
+2. 复验 GO 前不得宣布 OPS 完成，也不得启动阶段6（钉钉与正式连接器）。

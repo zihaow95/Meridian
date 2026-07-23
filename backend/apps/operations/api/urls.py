@@ -14,6 +14,7 @@ from apps.operations.api.ingestion import (
     OperatingIngestionBatchCreateView,
     OperatingIngestionBatchDetailView,
     OperatingIngestionBatchRetryView,
+    OperatingIngestionBatchRowsView,
     OperatingIngestionBatchValidateView,
     OperatingUnmappedRowsView,
 )
@@ -115,6 +116,11 @@ urlpatterns = [
         "operating-data/batches/<uuid:public_id>/retry",
         OperatingIngestionBatchRetryView.as_view(),
         name="operating-data-batches-retry",
+    ),
+    path(
+        "operating-data/batches/<uuid:public_id>/rows",
+        OperatingIngestionBatchRowsView.as_view(),
+        name="operating-data-batches-rows",
     ),
     path(
         "operating-data/unmapped",

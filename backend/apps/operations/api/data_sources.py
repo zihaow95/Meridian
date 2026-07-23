@@ -18,6 +18,8 @@ from apps.integrations.services.data_sources import (
     ConfigureOperatingDataSource,
     PublishOperatingDataSource,
 )
+from apps.operations.api.pagination import PAGE_QUERY_PARAMETERS, page_params
+from apps.operations.queries.pagination import paginate_queryset
 from apps.operations.queries.visible_resources import list_visible_data_sources
 from apps.platform.api.errors import ValidationFailedError
 from apps.platform.application.command import CommandContext
@@ -68,20 +70,35 @@ class OperatingDataSourceListCreateView(APIView):
 
     @extend_schema(
         operation_id="operating_data_sources_list",
+        parameters=PAGE_QUERY_PARAMETERS,
         responses=inline_serializer(
             name="OperatingDataSourceListResponse",
-            fields={"items": serializers.ListField(child=DATA_SOURCE_SCHEMA)},
+            fields={
+                "items": serializers.ListField(child=DATA_SOURCE_SCHEMA),
+                "page": serializers.IntegerField(),
+                "page_size": serializers.IntegerField(),
+                "count": serializers.IntegerField(),
+            },
         ),
     )
     def get(self, request: Request) -> Response:
         user = cast(User, request.user)
-        items = [
-            serialize_data_source(row)
-            for row in list_visible_data_sources(user).select_related(
+        page, page_size = page_params(request)
+        result = paginate_queryset(
+            list_visible_data_sources(user).select_related(
                 "owner_department", "configuration_version"
-            )
-        ]
-        return Response({"items": items})
+            ),
+            page=page,
+            page_size=page_size,
+        )
+        return Response(
+            {
+                "items": [serialize_data_source(row) for row in result.items],
+                "page": result.page,
+                "page_size": result.page_size,
+                "count": result.count,
+            }
+        )
 
     @extend_schema(
         operation_id="operating_data_sources_create",

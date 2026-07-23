@@ -341,7 +341,7 @@ docker compose -f deploy/compose/compose.dev.yml config
 
 ## 8. 阶段5：运营、迭代和退市
 
-**状态：** 已完成（GO，2026-07-21）；见 [`phase-5-checkpoint.md`](../implementation/phase-5-checkpoint.md)；分支 tip `c1a9a6a`。
+**状态：** 实现已交付；初验 NO-GO（2026-07-22）；见 [`phase-5-checkpoint.md`](../implementation/phase-5-checkpoint.md)。关闭全部 P1 并复验通过前维持 NO-GO。
 
 **任务级计划：** [`docs/superpowers/plans/2026-07-20-phase-5-operations-iteration-retirement.md`](../superpowers/plans/2026-07-20-phase-5-operations-iteration-retirement.md)
 

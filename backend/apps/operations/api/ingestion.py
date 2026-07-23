@@ -19,7 +19,12 @@ from apps.integrations.services.ingestion import (
     RetryIngestionBatch,
     ValidateIngestionBatch,
 )
-from apps.operations.queries.visible_resources import list_unmapped_ingestion_rows
+from apps.operations.api.pagination import PAGE_QUERY_PARAMETERS, page_params
+from apps.operations.queries.pagination import paginate_queryset
+from apps.operations.queries.visible_resources import (
+    get_visible_ingestion_batch,
+    list_unmapped_ingestion_rows,
+)
 from apps.operations.services.ingestion import ConfirmOperatingIngestionBatch
 from apps.platform.api.errors import PermissionDeniedError, ValidationFailedError
 from apps.platform.application.command import CommandContext
@@ -145,14 +150,47 @@ class OperatingIngestionBatchDetailView(APIView):
     @extend_schema(operation_id="operating_data_batches_retrieve", responses=BATCH_SCHEMA)
     def get(self, request: Request, public_id: UUID) -> Response:
         user = cast(User, request.user)
-        batch = (
-            IngestionBatch.objects.select_related("source")
-            .filter(organization_id=user.organization_id, public_id=public_id)
-            .first()
-        )
+        batch = get_visible_ingestion_batch(user, public_id)
         if batch is None:
             raise PermissionDeniedError()
-        return Response(serialize_batch(batch, include_rows=True))
+        return Response(serialize_batch(batch, include_rows=False))
+
+
+class OperatingIngestionBatchRowsView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    @extend_schema(
+        operation_id="operating_data_batches_rows_list",
+        parameters=PAGE_QUERY_PARAMETERS,
+        responses=inline_serializer(
+            name="OperatingIngestionBatchRowsResponse",
+            fields={
+                "items": serializers.ListField(),
+                "page": serializers.IntegerField(),
+                "page_size": serializers.IntegerField(),
+                "count": serializers.IntegerField(),
+            },
+        ),
+    )
+    def get(self, request: Request, public_id: UUID) -> Response:
+        user = cast(User, request.user)
+        batch = get_visible_ingestion_batch(user, public_id)
+        if batch is None:
+            raise PermissionDeniedError()
+        page, page_size = page_params(request)
+        result = paginate_queryset(
+            IngestionRow.objects.filter(batch=batch).order_by("row_number", "id"),
+            page=page,
+            page_size=page_size,
+        )
+        return Response(
+            {
+                "items": [serialize_row(row) for row in result.items],
+                "page": result.page,
+                "page_size": result.page_size,
+                "count": result.count,
+            }
+        )
 
 
 class OperatingIngestionBatchValidateView(APIView):
@@ -225,19 +263,36 @@ class OperatingUnmappedRowsView(APIView):
 
     @extend_schema(
         operation_id="operating_data_unmapped_list",
+        parameters=PAGE_QUERY_PARAMETERS,
         responses=inline_serializer(
             name="OperatingUnmappedRowsResponse",
-            fields={"items": serializers.ListField()},
+            fields={
+                "items": serializers.ListField(),
+                "page": serializers.IntegerField(),
+                "page_size": serializers.IntegerField(),
+                "count": serializers.IntegerField(),
+            },
         ),
     )
     def get(self, request: Request) -> Response:
         user = cast(User, request.user)
+        page, page_size = page_params(request)
+        result = paginate_queryset(
+            list_unmapped_ingestion_rows(user), page=page, page_size=page_size
+        )
         items = [
             {
                 **serialize_row(row),
                 "batch_public_id": str(row.batch.public_id),
                 "source_public_id": str(row.batch.source.public_id),
             }
-            for row in list_unmapped_ingestion_rows(user)
+            for row in result.items
         ]
-        return Response({"items": items})
+        return Response(
+            {
+                "items": items,
+                "page": result.page,
+                "page_size": result.page_size,
+                "count": result.count,
+            }
+        )

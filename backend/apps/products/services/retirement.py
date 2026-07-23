@@ -17,6 +17,7 @@ from apps.authorization.policies.engine import authorize
 from apps.authorization.services.subject import subject_for
 from apps.platform.api.errors import PermissionDeniedError, ValidationFailedError
 from apps.platform.application.command import CommandContext
+from apps.products.errors import RetirementScopeMismatch
 from apps.products.models import (
     SKU,
     ChannelConfiguration,
@@ -76,24 +77,60 @@ class ApplyApprovedRetirementAction:
                 if not decision.allowed:
                     raise PermissionDeniedError()
 
-            version_ids = [
-                UUID(str(v)) for v in (self.scope_snapshot.get("product_version_public_ids") or [])
-            ]
-            sku_ids = [UUID(str(v)) for v in (self.scope_snapshot.get("sku_public_ids") or [])]
-            channel_ids = [
-                UUID(str(v)) for v in (self.scope_snapshot.get("channel_public_ids") or [])
-            ]
+            version_ids = list(
+                dict.fromkeys(
+                    UUID(str(v))
+                    for v in (self.scope_snapshot.get("product_version_public_ids") or [])
+                )
+            )
+            sku_ids = list(
+                dict.fromkeys(
+                    UUID(str(v)) for v in (self.scope_snapshot.get("sku_public_ids") or [])
+                )
+            )
+            channel_ids = list(
+                dict.fromkeys(
+                    UUID(str(v)) for v in (self.scope_snapshot.get("channel_public_ids") or [])
+                )
+            )
             if not version_ids or not sku_ids:
                 raise ValidationFailedError(message="Retirement scope requires versions and SKUs.")
+            if self.action_type == "STOP_SALE" and not channel_ids:
+                raise ValidationFailedError(message="STOP_SALE requires channel_public_ids.")
 
-            if self.action_type == "STOP_PRODUCTION":
-                skus = list(
-                    SKU.objects.select_for_update().filter(
+            # Fail closed: every scoped ID must resolve under this org + product hierarchy
+            # before any mutation (no silent drop of foreign product objects).
+            versions = list(
+                ProductVersion.objects.select_for_update().filter(
+                    organization_id=actor.organization_id,
+                    public_id__in=version_ids,
+                    product=product,
+                )
+            )
+            if len(versions) != len(version_ids):
+                raise RetirementScopeMismatch()
+            skus = list(
+                SKU.objects.select_for_update().filter(
+                    organization_id=actor.organization_id,
+                    public_id__in=sku_ids,
+                    product_version__product=product,
+                )
+            )
+            if len(skus) != len(sku_ids):
+                raise RetirementScopeMismatch()
+            channels: list[ChannelConfiguration] = []
+            if channel_ids:
+                channels = list(
+                    ChannelConfiguration.objects.select_for_update().filter(
                         organization_id=actor.organization_id,
-                        public_id__in=sku_ids,
-                        product_version__product=product,
+                        public_id__in=channel_ids,
+                        sku__product_version__product=product,
                     )
                 )
+                if len(channels) != len(channel_ids):
+                    raise RetirementScopeMismatch()
+
+            if self.action_type == "STOP_PRODUCTION":
                 for sku in skus:
                     if sku.production_status == ProductionStatus.STOPPED:
                         continue
@@ -107,13 +144,6 @@ class ApplyApprovedRetirementAction:
                         ]
                     )
             elif self.action_type == "STOP_SALE":
-                channels = list(
-                    ChannelConfiguration.objects.select_for_update().filter(
-                        organization_id=actor.organization_id,
-                        public_id__in=channel_ids,
-                        sku__product_version__product=product,
-                    )
-                )
                 for channel in channels:
                     if channel.channel_status == ChannelStatus.OFF_SALE:
                         continue
@@ -121,13 +151,6 @@ class ApplyApprovedRetirementAction:
                     channel.valid_to = now
                     channel.save(update_fields=["channel_status", "valid_to", "updated_at"])
             elif self.action_type == "RETIRE":
-                skus = list(
-                    SKU.objects.select_for_update().filter(
-                        organization_id=actor.organization_id,
-                        public_id__in=sku_ids,
-                        product_version__product=product,
-                    )
-                )
                 for sku in skus:
                     sku.status = SKUStatus.INACTIVE
                     sku.effective_to = now
@@ -143,13 +166,6 @@ class ApplyApprovedRetirementAction:
                             "updated_at",
                         ]
                     )
-                versions = list(
-                    ProductVersion.objects.select_for_update().filter(
-                        organization_id=actor.organization_id,
-                        public_id__in=version_ids,
-                        product=product,
-                    )
-                )
                 for version in versions:
                     version.status = ProductVersionStatus.INACTIVE
                     version.effective_to = now

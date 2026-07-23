@@ -2,12 +2,14 @@
 
 from __future__ import annotations
 
+import inspect
 from datetime import date, timedelta
 from uuid import uuid4
 
 import pytest
 from django.utils import timezone
 
+from apps.audit.models import AuditEvent
 from apps.documents.models import (
     Document,
     DocumentStatus,
@@ -26,9 +28,14 @@ from apps.operations.models import (
     RetirementActionStatus,
     RetirementActionType,
     RetirementExecutionAction,
+    RetirementPlan,
     RetirementPlanStatus,
 )
-from apps.operations.services.retirement_plans import CreateRetirementPlan, ExecuteRetirementPlan
+from apps.operations.services import retirement_plans as retirement_plans_module
+from apps.operations.services.retirement_plans import (
+    CreateRetirementPlan,
+    ExecuteRetirementPlan,
+)
 from apps.platform.application.command import CommandContext
 from apps.platform.outbox.models import OutboxEvent
 from apps.products.models import (
@@ -46,9 +53,11 @@ from apps.products.models import (
 from apps.stage_gates.errors import DualControlSeparationRequired
 from apps.stage_gates.models import (
     GateResult,
+    GateSubmission,
     GateSubmissionMaterialReference,
     MaterialType,
 )
+from apps.stage_gates.services import submit_retirement_gate as submit_retirement_gate_module
 from apps.stage_gates.services.record_retirement_decision import (
     RecordRetirementFinalDecision,
     RecordRetirementManagementConclusion,
@@ -363,3 +372,111 @@ def test_execute_due_actions_and_complete(
         ).count()
         == 1
     )
+
+
+def test_create_retirement_plan_does_not_write_stage_gate_instance_directly() -> None:
+    source = inspect.getsource(CreateRetirementPlan.execute)
+    assert "StageGateInstance.objects.create" not in source
+
+
+@pytest.mark.django_db(transaction=True)
+def test_create_retirement_plan_rolls_back_when_gate_creation_fails(
+    organization, active_user, grant_action, catalog, monkeypatch
+) -> None:
+    """A failure while opening the PRODUCT_RETIREMENT gate must not leave an orphan plan."""
+    _grants(active_user, grant_action)
+
+    def _boom(self) -> None:
+        raise RuntimeError("boom")
+
+    monkeypatch.setattr(retirement_plans_module.CreateRetirementGate, "execute", _boom)
+    with pytest.raises(RuntimeError):
+        CreateRetirementPlan(
+            context=CommandContext.for_actor(active_user),
+            product_public_id=catalog["product"].public_id,
+            scope_snapshot={},
+            source_materials_json={"memo": "x"},
+        ).execute()
+    assert not RetirementPlan.objects.filter(
+        organization=organization, product=catalog["product"]
+    ).exists()
+
+
+@pytest.mark.django_db(transaction=True)
+def test_submit_retirement_gate_rolls_back_when_apply_submission_fails(
+    organization, active_user, grant_action, catalog, monkeypatch
+) -> None:
+    """A failure inside ApplyRetirementSubmission must roll back the whole submit txn."""
+    plan = _complete_plan(active_user, grant_action, catalog, organization)
+
+    def _boom(self) -> None:
+        raise RuntimeError("boom")
+
+    monkeypatch.setattr(submit_retirement_gate_module.ApplyRetirementSubmission, "execute", _boom)
+    with pytest.raises(RuntimeError):
+        SubmitRetirementGate(
+            context=CommandContext.for_actor(active_user),
+            plan_public_id=plan.public_id,
+            idempotency_key="retire-submit-fail",
+        ).execute()
+    plan.refresh_from_db()
+    assert plan.status == RetirementPlanStatus.DRAFT
+    assert not GateSubmission.objects.filter(
+        stage_gate__public_id=plan.stage_gate_public_id
+    ).exists()
+
+
+@pytest.mark.django_db(transaction=True)
+def test_execute_completion_emits_audit_and_outbox_exactly_once(
+    organization, active_user, another_active_user, grant_action, catalog
+) -> None:
+    plan = _complete_plan(active_user, grant_action, catalog, organization)
+    _grants(another_active_user, grant_action)
+    SubmitRetirementGate(
+        context=CommandContext.for_actor(active_user),
+        plan_public_id=plan.public_id,
+        idempotency_key="retire-submit-complete",
+    ).execute()
+    RecordRetirementManagementConclusion(
+        context=CommandContext.for_actor(active_user),
+        stage_gate_public_id=plan.stage_gate_public_id,
+        management_conclusion=GateResult.APPROVED,
+        decision_summary="Mgmt ok",
+        idempotency_key="mgmt-complete",
+    ).execute()
+    RecordRetirementFinalDecision(
+        context=CommandContext.for_actor(another_active_user),
+        stage_gate_public_id=plan.stage_gate_public_id,
+        final_decision=GateResult.APPROVED,
+        decision_summary="Boss ok",
+        idempotency_key="final-complete",
+    ).execute()
+
+    ExecuteRetirementPlan(
+        context=CommandContext.for_actor(active_user),
+        plan_public_id=plan.public_id,
+        as_of=date(2026, 3, 1),
+    ).execute()
+    plan.refresh_from_db()
+    assert plan.status == RetirementPlanStatus.COMPLETED
+    assert (
+        AuditEvent.objects.filter(
+            action_code="retirement_plan.complete", resource_public_id=plan.public_id
+        ).count()
+        == 1
+    )
+    assert OutboxEvent.objects.filter(event_type="retirement.completed").count() == 1
+
+    # Replaying an already-completed plan must not re-emit audit/outbox facts.
+    ExecuteRetirementPlan(
+        context=CommandContext.for_actor(active_user),
+        plan_public_id=plan.public_id,
+        as_of=date(2026, 3, 1),
+    ).execute()
+    assert (
+        AuditEvent.objects.filter(
+            action_code="retirement_plan.complete", resource_public_id=plan.public_id
+        ).count()
+        == 1
+    )
+    assert OutboxEvent.objects.filter(event_type="retirement.completed").count() == 1

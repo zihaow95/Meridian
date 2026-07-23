@@ -60,6 +60,7 @@ def serialize_summary_result(result: OperatingSummaryResult) -> dict[str, Any]:
                 "has_manual_value": item.has_manual_value,
                 "calculated_at": (item.calculated_at.isoformat() if item.calculated_at else None),
                 "contributors": item.contributors,
+                "sku_breakdown": item.sku_breakdown,
             }
         )
     return {"items": items}

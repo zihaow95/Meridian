@@ -180,7 +180,7 @@ def test_issue_created_and_decided_todos_are_idempotent(
         event_type="operating_issue.created", aggregate_id=issue.public_id
     )
     registry = local_consumer_registry()
-    code, handler = registry["operating_issue.created"]
+    code, handler = registry["operating_issue.created"][0]
     assert consume_once(event=created_event, consumer_code=code, handler=handler) is True
     assert consume_once(event=created_event, consumer_code=code, handler=handler) is False
     assert Todo.objects.filter(source_id=issue.public_id, assignee=active_user).count() == 1
@@ -203,7 +203,7 @@ def test_issue_created_and_decided_todos_are_idempotent(
     decided_event = OutboxEvent.objects.filter(event_type="operating_issue.decided").latest(
         "created_at"
     )
-    d_code, d_handler = registry["operating_issue.decided"]
+    d_code, d_handler = registry["operating_issue.decided"][0]
     assert consume_once(event=decided_event, consumer_code=d_code, handler=d_handler) is True
     assert consume_once(event=decided_event, consumer_code=d_code, handler=d_handler) is False
     assert Todo.objects.filter(source_id=issue.public_id, assignee=another_active_user).count() == 1

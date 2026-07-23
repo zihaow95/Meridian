@@ -1,6 +1,6 @@
 # 阶段5 运营、迭代和退市 —— 测试矩阵
 
-状态：**实现已完成 / 退出证据见检查点** — 分支 `codex/phase-5-operations-iteration-retirement`。
+状态：**NO-GO / remediation 待复验** — 分支 `codex/phase-5-operations-iteration-retirement`。
 
 对应计划：`docs/superpowers/plans/2026-07-20-phase-5-operations-iteration-retirement.md`
 
@@ -86,4 +86,4 @@
 | Playwright `operations-iteration-retirement.spec.ts` | **3 passed**（单独复验） | 2026-07-21 |
 | Playwright 全量（`workers: 1`） | **19 passed** | 2026-07-21 |
 | `scripts\verify-trd.ps1` | pass（92 requirements / 4 gates） | 2026-07-21 |
-| `scripts\check.ps1` 全量 | **All quality gates passed.**（pytest 405 / Vitest 58 / Playwright 19 / Docker images） | 2026-07-21 |
+| `scripts\check.ps1` 全量 | 初验 tip `5c16ff8` 曾通过，但 Spec/Standards P1 未覆盖 → **NO-GO**；remediation 后待复验 | 2026-07-22 |

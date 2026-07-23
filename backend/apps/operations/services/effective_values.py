@@ -14,9 +14,15 @@ from apps.audit.models import AuditResult
 from apps.audit.services.append_event import AuditRecord, append_event
 from apps.audit.services.snapshots import acting_roles_snapshot
 from apps.authorization.context import AuthorizationContext, ResourceDescriptor
+from apps.authorization.models.role import DataSensitivityLevel
 from apps.authorization.policies.engine import authorize
 from apps.authorization.services.subject import subject_for
 from apps.identity.models.user import User
+from apps.operations.errors import (
+    ManualValueAlreadyActive,
+    ManualValueScopeForbidden,
+    MetricDefinitionNotPublished,
+)
 from apps.operations.models import (
     ManualEffectiveValue,
     ManualEffectiveValueStatus,
@@ -25,6 +31,7 @@ from apps.operations.models import (
     OperatingFact,
     OperatingFactStatus,
 )
+from apps.operations.policies.identity_provider import resolve_effective_assignments
 from apps.platform.api.errors import PermissionDeniedError, ValidationFailedError
 from apps.platform.application.command import CommandContext
 from apps.platform.outbox.services import OutboxMessage, register_outbox_event
@@ -41,19 +48,45 @@ class EffectiveValueResult:
     fact_public_id: UUID | None = None
 
 
-def _authorize(actor: User, action: str, *, public_id: UUID | None = None) -> None:
+def _authorize(
+    actor: User,
+    action: str,
+    *,
+    sku: SKU,
+    channel: ChannelConfiguration,
+    public_id: UUID | None = None,
+) -> None:
+    """Authorize a manual-value action scoped to the SKU's product/channel.
+
+    Uses resource_type="operating_fact" so the monitoring-assignment identity
+    provider can grant scoped supervisors access; falls back to a distinct
+    MANUAL_VALUE_SCOPE_FORBIDDEN when the actor has assignments elsewhere but
+    not for this product/SKU/channel, versus a hidden 404 when they have none.
+    """
+    product = sku.product_version.product
     decision = authorize(
         subject_for(actor),
         action=action,
         resource=ResourceDescriptor(
-            resource_type="operating_value",
+            resource_type="operating_fact",
             public_id=public_id,
             organization_id=actor.organization_id,
+            sensitivity_level=DataSensitivityLevel.SENSITIVE_CONTROLLED,
+            metadata={
+                "product_public_id": str(product.public_id),
+                "sku_public_id": str(sku.public_id),
+                "channel_public_id": str(channel.public_id),
+            },
         ),
         context=AuthorizationContext.current(),
     )
-    if not decision.allowed:
-        raise PermissionDeniedError()
+    if decision.allowed:
+        return
+
+    assignments = resolve_effective_assignments(user=actor, organization_id=actor.organization_id)
+    if assignments:
+        raise ManualValueScopeForbidden()
+    raise PermissionDeniedError()
 
 
 def _get_sku_channel(
@@ -191,17 +224,19 @@ class CreateManualEffectiveValue:
         actor = self.context.actor
         now = self.context.occurred_at or timezone.now()
         with transaction.atomic():
-            _authorize(actor, "manual_effective_value.create")
             sku, channel = _get_sku_channel(
                 actor.organization_id, self.sku_public_id, self.channel_public_id
             )
+            _authorize(actor, "manual_effective_value.create", sku=sku, channel=channel)
             metric = MetricDefinitionVersion.objects.filter(
                 organization_id=actor.organization_id,
                 public_id=self.metric_definition_public_id,
                 status=MetricDefinitionStatus.PUBLISHED,
             ).first()
             if metric is None:
-                raise ValidationFailedError(message="Metric definition not found.")
+                raise MetricDefinitionNotPublished(
+                    details={"metric_definition_public_id": str(self.metric_definition_public_id)}
+                )
             original = _current_source_fact(
                 organization_id=actor.organization_id,
                 sku_id=sku.id,
@@ -231,9 +266,7 @@ class CreateManualEffectiveValue:
                     confirmed_at=now,
                 )
             except IntegrityError as exc:
-                raise ValidationFailedError(
-                    message="An ACTIVE manual effective value already exists for this key."
-                ) from exc
+                raise ManualValueAlreadyActive() from exc
             append_event(
                 AuditRecord(
                     actor=actor,
@@ -272,13 +305,9 @@ class ModifyManualEffectiveValue:
         actor = self.context.actor
         now = self.context.occurred_at or timezone.now()
         with transaction.atomic():
-            _authorize(
-                actor,
-                "manual_effective_value.modify",
-                public_id=self.manual_value_public_id,
-            )
             current = (
                 ManualEffectiveValue.objects.select_for_update()
+                .select_related("sku__product_version__product", "channel")
                 .filter(
                     organization_id=actor.organization_id,
                     public_id=self.manual_value_public_id,
@@ -289,6 +318,13 @@ class ModifyManualEffectiveValue:
             )
             if current is None:
                 raise ValidationFailedError(message="Active manual value not found.")
+            _authorize(
+                actor,
+                "manual_effective_value.modify",
+                sku=current.sku,
+                channel=current.channel,
+                public_id=self.manual_value_public_id,
+            )
             current.status = ManualEffectiveValueStatus.SUPERSEDED
             current.active_slot = None
             current.valid_to = now
@@ -347,13 +383,9 @@ class RevokeManualEffectiveValue:
         actor = self.context.actor
         now = self.context.occurred_at or timezone.now()
         with transaction.atomic():
-            _authorize(
-                actor,
-                "manual_effective_value.revoke",
-                public_id=self.manual_value_public_id,
-            )
             current = (
                 ManualEffectiveValue.objects.select_for_update()
+                .select_related("sku__product_version__product", "channel")
                 .filter(
                     organization_id=actor.organization_id,
                     public_id=self.manual_value_public_id,
@@ -364,6 +396,13 @@ class RevokeManualEffectiveValue:
             )
             if current is None:
                 raise ValidationFailedError(message="Active manual value not found.")
+            _authorize(
+                actor,
+                "manual_effective_value.revoke",
+                sku=current.sku,
+                channel=current.channel,
+                public_id=self.manual_value_public_id,
+            )
             current.status = ManualEffectiveValueStatus.REVOKED
             current.active_slot = None
             current.valid_to = now
@@ -383,6 +422,17 @@ class RevokeManualEffectiveValue:
                     before_summary={},
                     after_summary={"reason": self.reason},
                     acting_roles_snapshot=acting_roles_snapshot(actor),
+                )
+            )
+            # Revoking restores the source fact as the effective value; recalc must run
+            # the same way it does for create/modify so aggregates don't go stale.
+            register_outbox_event(
+                OutboxMessage(
+                    event_type="operating_value.overridden",
+                    aggregate_type="manual_effective_value",
+                    aggregate_id=current.public_id,
+                    payload={"manual_value_public_id": str(current.public_id)},
+                    occurred_at=now,
                 )
             )
             return current

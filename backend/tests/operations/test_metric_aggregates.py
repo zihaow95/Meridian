@@ -256,6 +256,8 @@ def test_sum_average_last_and_ratio_recompute_from_parts(
         grant_action,
         metric_code="UNITS_SOLD",
         calculation_type=CalculationType.AVERAGE,
+        unit="EA",
+        currency="EA",
     )
     _publish_metric(
         active_user, grant_action, metric_code="LAST_PRICE", calculation_type=CalculationType.LAST
@@ -436,6 +438,8 @@ def test_not_comparable_insufficient_and_manual_flag(
         active_user,
         grant_action,
         coverage_minimum="0.9",
+        unit="",
+        currency="",
     )
     _import_rows(
         user=active_user,

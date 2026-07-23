@@ -8,11 +8,11 @@
 
 **Tech Stack:** Python 3.13、Django 5.2、DRF 3.16、MySQL 8.0、Redis、Celery 5.6、Vue 3、TypeScript、Pinia、Element Plus、Vitest、Playwright、OpenAPI 3、Docker Compose。
 
-**Status:** 执行基线已建立（Task 5.0 完成；`scripts\check.cmd` 通过）；OPS 实现未开始
+**Status:** 实现已完成；初验 `5c16ff8` **NO-GO**；P1/P2 remediation 进行中，复验通过前不得宣布阶段完成 / 不得推进阶段六。
 
-**Date:** 2026-07-20
+**Date:** 2026-07-20（计划） / 2026-07-22（NO-GO remediation）
 
-**Branch / worktree:** `codex/phase-5-operations-iteration-retirement` @ `.worktrees/phase-5-operations-iteration-retirement`（自 `edd50ce`）
+**Branch / worktree:** `codex/phase-5-operations-iteration-retirement` @ `D:\Projects\Meridian`（自 `edd50ce`）
 
 ## Global Constraints
 

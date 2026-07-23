@@ -222,7 +222,7 @@ def test_risk_signal_outbox_consumers_are_idempotent_by_event_id(
         event_type="risk_signal.created", aggregate_id=signal.public_id
     ).get()
     registry = operations_registry()
-    consumer_code, handler = registry["risk_signal.created"]
+    consumer_code, handler = registry["risk_signal.created"][0]
     assert consume_once(event=event, consumer_code=consumer_code, handler=handler) is True
     assert consume_once(event=event, consumer_code=consumer_code, handler=handler) is False
     assert ConsumerReceipt.objects.filter(event=event, consumer_code=consumer_code).count() == 1
@@ -255,14 +255,14 @@ def test_notification_failure_keeps_signal_and_recalc_replay_without_duplicates(
             calls["n"] += 1
             if calls["n"] == 1:
                 raise RuntimeError("redis unavailable")
-            real_registry[event.event_type][1].consume(event)
+            real_registry[event.event_type][0][1].consume(event)
 
     def _failing_merged():
         from apps.notifications.consumers import local_consumer_registry as notifications_registry
 
         base = {**notifications_registry(), **real_registry}
-        code, _ = real_registry["risk_signal.created"]
-        base["risk_signal.created"] = (code, BoomHandler())
+        code, _ = real_registry["risk_signal.created"][0]
+        base["risk_signal.created"] = [(code, BoomHandler())]
         return base
 
     monkeypatch.setattr(
