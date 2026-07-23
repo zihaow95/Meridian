@@ -188,3 +188,30 @@ def test_configure_data_source_outbox_publishes(active_user, ops_department, gra
     dispatch_pending_events(publisher=LocalOutboxPublisher(), limit=20)
     event.refresh_from_db()
     assert event.status == OutboxStatus.PUBLISHED
+
+
+@pytest.mark.django_db
+def test_inactive_data_source_configured_event_publishes(
+    active_user, ops_department, grant_action
+) -> None:
+    from apps.integrations.models import DataSourceStatus
+
+    grant_action(active_user, "data_source.configure", "data_source")
+    grant_action(active_user, "configuration.version.publish", "configuration.version")
+    source = ConfigureOperatingDataSource(
+        context=CommandContext.for_actor(active_user),
+        source_code="API_SRC_INACTIVE",
+        name="API inactive",
+        source_type=DataSourceType.API,
+        owner_department_public_id=ops_department.public_id,
+        sensitivity_level="INTERNAL",
+        mapping_content=_mapping_content(source_priority=1),
+        status=DataSourceStatus.INACTIVE,
+    ).execute()
+    assert source.status == DataSourceStatus.INACTIVE
+    event = OutboxEvent.objects.filter(
+        event_type="data_source.configured", aggregate_id=source.public_id
+    ).get()
+    dispatch_pending_events(publisher=LocalOutboxPublisher(), limit=20)
+    event.refresh_from_db()
+    assert event.status == OutboxStatus.PUBLISHED

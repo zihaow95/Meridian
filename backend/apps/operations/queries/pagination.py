@@ -4,21 +4,21 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from django.db.models import QuerySet
+from django.db.models import Model, QuerySet
 
 DEFAULT_PAGE_SIZE = 20
 MAX_PAGE_SIZE = 100
 
 
 @dataclass(frozen=True)
-class Page[T]:
+class Page[T: Model]:
     items: list[T]
     page: int
     page_size: int
     count: int
 
 
-def paginate_queryset[T](
+def paginate_queryset[T: Model](
     queryset: QuerySet[T],
     *,
     page: int = 1,

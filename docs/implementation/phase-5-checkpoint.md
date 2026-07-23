@@ -1,37 +1,30 @@
 # 阶段5 运营、迭代和退市 —— 完成检查点
 
-日期：2026-07-22
+日期：2026-07-23
 
-状态：**NO-GO（二次复验待定）** — `5c16ff8...dc9bd30` 复审仍为 NO-GO；本轮继续关闭 P1（批次无界响应、人工值泄露、系统执行主体、提交前范围校验、汇总 ABAC、data_source.configured 消费者）并处理 P2。关闭全部 P1 且 `scripts\check.cmd` 全绿前不得推进阶段六。
+状态：**NO-GO（三次复验待定）** — `dc9bd30...6a5864c` 复审仍为 NO-GO。本轮关闭：运行时自我提权、SKU_CHANNEL 跨渠道 ALL 泄露、敏感级回落、TodoItem 跨域写、INACTIVE configured 失败、YEAR 合同外粒度、门禁 format/mypy/有效值读权。关闭全部 P1 且 `scripts\check.cmd` 全绿前不得推进阶段六。
 
 对应计划：`docs/superpowers/plans/2026-07-20-phase-5-operations-iteration-retirement.md`
 
 对应测试矩阵：`docs/implementation/phase-5-test-matrix.md`
 
-基准：`edd50ce` → 初验 tip `5c16ff8` → 本轮 remediation（未合入 tip 前以工作区为准）
+基准：`edd50ce` → `5c16ff8` → `dc9bd30` → `696d36a`/`6a5864c` → 本轮 remediation
 
-## 初验结论（相对 `edd50ce...5c16ff8`）
+## 本轮 remediation（相对三次复审）
 
-Standards / Spec 多处 P1：跨域直接写模型、列表无分页、退市完成缺审计/outbox、到期退市空任务、汇总权限过粗、退市范围静默过滤、outbox 未注册消费者、看板错误下钻、批次详情缺权限、TRD 错误码缺失等。当时全量门禁通过但不能作为阶段完成证据。
+- 系统主体：仅 `resolve_retirement_system_actor`；`provision_retirement_system_actor` 预配置且拒绝自愈 DISABLED
+- SKU_CHANNEL：缺 channel 不再授权；渠道监督人不可见 `channel_id IS NULL` ALL 汇总
+- 聚合 contributors 写入 `source_code` / `sensitivity_level`
+- Todo 完成：`CompleteOpenTodosForSource`（notifications）；消费者不再导入 TodoItem
+- data_source/metric/monitoring：声明 `NO_LOCAL_SUBSCRIBER_EVENT_TYPES`，INACTIVE configured 可 PUBLISHED
+- 删除 YEAR；看板渠道下钻展示 contributors
+- 有效值成功路径补 `operating_fact.read`；增加拒绝测试
 
-## 本轮 remediation 关闭项
-
-- 跨域：`CreateRetirementGate` + `ApplyRetirementSubmission` / `ApplyRetirementDecision`；完成态审计 + `retirement.completed` 幂等 outbox
-- 列表/批次行：统一 `items/page/page_size/count`；批次行独立分页端点
-- 到期执行：真实 Celery 扫描 + Beat；双 worker / 幂等测试
-- 汇总 ABAC：对象级 ResourceDescriptor + MonitoringAssignment 裁剪；产品汇总 `sku_breakdown`
-- 退市范围：去重后数量必须完全命中，否则 `RETIREMENT_SCOPE_INVALID`
-- Outbox：多订阅者注册表；补齐经营/退市事件消费者；撤销人工值触发重算事件
-- 批次详情：可见性查询服务；未授权 404 风格；详情默认不含全量行
-- TRD 稳定错误码：ApiError 子类 + 失败路径接线 + 契约测试
-- P2：单位/币种/期间校验、信号已查看审计、退出文档去矛盾
-- 前端：看板从 `sku_breakdown.sku_public_id` 下钻
-
-## 复验门禁证据（本轮提交后由验收环境重跑）
+## 复验门禁证据
 
 ```text
-Reviewed range: 5c16ff8...HEAD (remediation)
-scripts\check.ps1 / check.cmd: 待复验
+Reviewed range: 6a5864c...HEAD (third remediation)
+scripts\check.ps1: All quality gates passed. (2026-07-23 local)
 ```
 
-合并或推进阶段六前必须：关闭全部 P1、全量门禁通过、严格复审 GO。
+合并或推进阶段六前必须：严格复审 GO（本检查点仍标 NO-GO 直至验收方确认）。

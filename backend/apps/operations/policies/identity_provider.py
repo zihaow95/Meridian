@@ -80,12 +80,12 @@ def _assignment_covers_resource(
     if assignment.scope_type == MonitoringScopeType.SKU:
         return sku is not None and assignment.sku_id == sku.id
     if assignment.scope_type == MonitoringScopeType.SKU_CHANNEL:
-        if sku is None or assignment.sku_id != sku.id:
-            return False
-        # Gate-level checks may omit channel; later row filters enforce channel match.
-        if channel is None:
-            return True
-        return assignment.channel_id == channel.id
+        return (
+            sku is not None
+            and channel is not None
+            and assignment.sku_id == sku.id
+            and assignment.channel_id == channel.id
+        )
     return False
 
 

@@ -123,3 +123,22 @@ def test_unregistered_event_type_still_fails_closed() -> None:
     )
     with pytest.raises(UnregisteredEventType):
         LocalOutboxPublisher().publish(event)
+
+
+@pytest.mark.django_db(transaction=True)
+def test_no_local_subscriber_event_types_publish_without_consumers() -> None:
+    from apps.operations.consumers import no_local_subscriber_event_types
+
+    for event_type in sorted(no_local_subscriber_event_types()):
+        event = OutboxEvent.objects.create(
+            event_type=event_type,
+            aggregate_type="test",
+            aggregate_id="00000000-0000-0000-0000-000000000099",
+            payload_json={},
+            occurred_at=timezone.now(),
+            next_attempt_at=timezone.now() - timedelta(seconds=1),
+        )
+        dispatch_pending_events(publisher=LocalOutboxPublisher(), limit=10)
+        event.refresh_from_db()
+        assert event.status == OutboxStatus.PUBLISHED
+        assert ConsumerReceipt.objects.filter(event=event).count() == 0

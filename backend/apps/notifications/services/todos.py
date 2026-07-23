@@ -69,3 +69,20 @@ def build_todo_event_from_outbox(payload: dict[str, Any]) -> TodoEvent:
         title=str(payload["title"]),
         due_at=None,
     )
+
+
+@dataclass(frozen=True)
+class CompleteOpenTodosForSource:
+    """Idempotently complete open todos that point at a domain source."""
+
+    organization_id: int
+    source_type: str
+    source_id: UUID
+
+    def execute(self) -> int:
+        return Todo.objects.filter(
+            organization_id=self.organization_id,
+            source_type=self.source_type,
+            source_id=self.source_id,
+            status=TodoStatus.OPEN,
+        ).update(status=TodoStatus.COMPLETED)

@@ -141,7 +141,9 @@ def _apply_channel_scope(
         return qs
     if not allowed_channel_ids:
         return qs.none()
-    return qs.filter(Q(channel_id__in=allowed_channel_ids) | Q(channel_id__isnull=True))
+    # Channel-scoped supervisors must not see ALL (channel IS NULL) rollups that
+    # mixed other channels into the total.
+    return qs.filter(channel_id__in=allowed_channel_ids)
 
 
 def _gate_authorize_product_or_sku(

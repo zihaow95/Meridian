@@ -167,9 +167,9 @@ describe('OperatingDataBatchPage', () => {
     await flush()
 
     expect(useOperationsStore().batch?.public_id).toBe('batch-1')
-    expect(useOperationsStore().batchRows.map((row) => (row as { status?: string }).status)).toEqual(
-      ['OK', 'ERROR'],
-    )
+    expect(
+      useOperationsStore().batchRows.map((row) => (row as { status?: string }).status),
+    ).toEqual(['OK', 'ERROR'])
     expect(wrapper.text()).toContain('VALIDATED')
     expect(wrapper.text()).toContain('错误行：1')
   })

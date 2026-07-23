@@ -7,6 +7,7 @@ from datetime import date, timedelta
 from uuid import uuid4
 
 import pytest
+from django.core.management import call_command
 from django.db import close_old_connections, connections
 from django.utils import timezone
 
@@ -30,6 +31,7 @@ from apps.operations.models import (
     RetirementPlanStatus,
 )
 from apps.operations.services.retirement_plans import CreateRetirementPlan
+from apps.operations.services.system_actor import SYSTEM_EMPLOYEE_NO
 from apps.operations.tasks import execute_due_retirement_actions_task
 from apps.platform.application.command import CommandContext
 from apps.platform.outbox.models import OutboxEvent
@@ -100,6 +102,14 @@ def _grants(user, grant_action) -> None:
     grant_action(user, "operating_issue.create", "operating_issue")
     grant_action(user, "retirement.management_conclusion.record", "stage_gate")
     grant_action(user, "retirement.final_decision.record", "stage_gate")
+
+
+@pytest.fixture(autouse=True)
+def provision_retirement_system_executor(organization) -> None:
+    call_command(
+        "provision_retirement_system_actor",
+        organization_id=organization.id,
+    )
 
 
 def _controlled_doc(organization, active_user) -> DocumentVersion:
@@ -463,3 +473,56 @@ def test_due_execution_succeeds_when_plan_creator_is_disabled(
     assert processed == 1
     plan.refresh_from_db()
     assert plan.status == RetirementPlanStatus.COMPLETED
+
+
+@pytest.mark.django_db(transaction=True)
+def test_task_fails_closed_when_system_executor_missing(
+    organization, active_user, another_active_user, grant_action, catalog
+) -> None:
+    plan = _approved_plan(
+        active_user,
+        another_active_user,
+        grant_action,
+        catalog,
+        organization,
+        stop_production_at=date(2026, 1, 1),
+        stop_sale_at=date(2026, 1, 1),
+        retire_at=date(2026, 1, 1),
+        idempotency_prefix="due-no-executor",
+    )
+    User.objects.filter(organization=organization, employee_no=SYSTEM_EMPLOYEE_NO).update(
+        employee_no=f"RETIRED-{SYSTEM_EMPLOYEE_NO}"
+    )
+
+    with pytest.raises(RuntimeError, match="system executor"):
+        execute_due_retirement_actions_task.apply(args=(), kwargs={"as_of": "2026-06-01"}).get()
+    plan.refresh_from_db()
+    assert plan.status == RetirementPlanStatus.APPROVED
+
+
+@pytest.mark.django_db(transaction=True)
+def test_task_does_not_reactivate_disabled_system_executor(
+    organization, active_user, another_active_user, grant_action, catalog
+) -> None:
+    plan = _approved_plan(
+        active_user,
+        another_active_user,
+        grant_action,
+        catalog,
+        organization,
+        stop_production_at=date(2026, 1, 1),
+        stop_sale_at=date(2026, 1, 1),
+        retire_at=date(2026, 1, 1),
+        idempotency_prefix="due-disabled-executor",
+    )
+    executor = User.objects.get(organization=organization, employee_no=SYSTEM_EMPLOYEE_NO)
+    executor.status = UserStatus.DISABLED
+    executor.disabled_at = timezone.now()
+    executor.save(update_fields=["status", "disabled_at", "updated_at"])
+
+    with pytest.raises(RuntimeError):
+        execute_due_retirement_actions_task.apply(args=(), kwargs={"as_of": "2026-06-01"}).get()
+    executor.refresh_from_db()
+    assert executor.status == UserStatus.DISABLED
+    plan.refresh_from_db()
+    assert plan.status == RetirementPlanStatus.APPROVED

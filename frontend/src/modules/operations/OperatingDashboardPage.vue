@@ -1,13 +1,9 @@
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useRoute } from 'vue-router'
 
 import { ApiError } from '@/api/client'
-import {
-  useOperationsStore,
-  type OperatingSummaryItem,
-  type SkuBreakdownItem,
-} from '@/modules/operations/store'
+import { useOperationsStore, type SkuBreakdownItem } from '@/modules/operations/store'
 
 const route = useRoute()
 const operations = useOperationsStore()
@@ -21,6 +17,19 @@ const periodEnd = ref('2026-03-31')
 const periodGranularity = ref('QUARTER')
 const selectedSkuId = ref('')
 const selectedChannelId = ref('')
+
+const selectedChannelRow = computed(() => {
+  if (!selectedChannelId.value) return null
+  return (
+    operations.skuSummaryItems.find((row) => row.channel_public_id === selectedChannelId.value) ??
+    null
+  )
+})
+
+const selectedChannelContributors = computed(() => {
+  const contributors = selectedChannelRow.value?.contributors
+  return Array.isArray(contributors) ? contributors : []
+})
 
 function formatError(err: unknown, fallback: string): string {
   if (err instanceof ApiError) return `${err.code}: ${err.message}`
@@ -95,6 +104,16 @@ function formatSku(sku: SkuBreakdownItem): string {
   const manual = sku.has_manual_value ? '手工值' : '来源值'
   const updated = sku.calculated_at ?? '—'
   return `SKU ${sku.sku_public_id} / 值 ${value} / ${sku.status} / ${manual} / 更新 ${updated}`
+}
+
+function formatContributor(contributor: unknown): string {
+  if (!contributor || typeof contributor !== 'object') return String(contributor)
+  const row = contributor as Record<string, unknown>
+  const type = String(row.type ?? 'UNKNOWN')
+  const value = row.numeric_value == null ? '—' : String(row.numeric_value)
+  const source = row.source_code == null ? '手工' : String(row.source_code)
+  const sensitivity = row.sensitivity_level == null ? '—' : String(row.sensitivity_level)
+  return `${type} / 来源 ${source} / 值 ${value} / 敏感级 ${sensitivity}`
 }
 
 onMounted(() => {
@@ -202,11 +221,32 @@ onMounted(() => {
             data-test="select-channel"
             @click="selectChannel(row.channel_public_id)"
           >
-            选择渠道
+            查看渠道事实
           </el-button>
         </li>
       </ul>
-      <p v-if="selectedChannelId" data-test="selected-channel">已选渠道：{{ selectedChannelId }}</p>
+      <section
+        v-if="selectedChannelId && selectedChannelRow"
+        class="ops-dashboard__channel-facts"
+        data-test="selected-channel"
+      >
+        <h4>渠道事实（{{ selectedChannelId }}）</h4>
+        <p>
+          指标 {{ selectedChannelRow.metric_code }} / 值 {{ selectedChannelRow.value ?? '—' }} /
+          {{ selectedChannelRow.status }} / 覆盖率
+          {{ selectedChannelRow.coverage_rate }}
+        </p>
+        <ul data-test="channel-contributors">
+          <li
+            v-for="(contributor, index) in selectedChannelContributors"
+            :key="index"
+            data-test="channel-contributor"
+          >
+            {{ formatContributor(contributor) }}
+          </li>
+        </ul>
+        <p v-if="!selectedChannelContributors.length">暂无贡献明细</p>
+      </section>
     </template>
   </div>
 </template>
@@ -220,7 +260,8 @@ onMounted(() => {
 }
 
 .ops-dashboard__alert,
-.ops-dashboard__filters {
+.ops-dashboard__filters,
+.ops-dashboard__channel-facts {
   margin-bottom: 1rem;
 }
 

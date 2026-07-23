@@ -12,6 +12,7 @@ from django.db import transaction
 from django.utils import timezone
 from django.utils.dateparse import parse_date
 
+from apps.authorization.models.role import DataSensitivityLevel
 from apps.operations.models import (
     AggregateGrainType,
     AggregateStatus,
@@ -166,6 +167,8 @@ def _load_effective_cells(
                 "numeric_value": str(value) if value is not None else None,
                 "is_manual": True,
                 "fact_public_id": str(fact.public_id),
+                "source_code": None,
+                "sensitivity_level": DataSensitivityLevel.SENSITIVE_CONTROLLED,
             }
             ts = manual.confirmed_at
         else:
@@ -178,6 +181,8 @@ def _load_effective_cells(
                 "channel_public_id": str(fact.channel.public_id),
                 "numeric_value": str(value) if value is not None else None,
                 "is_manual": False,
+                "source_code": fact.source.source_code,
+                "sensitivity_level": fact.source.sensitivity_level,
             }
             ts = fact.source_timestamp
         if value is None:

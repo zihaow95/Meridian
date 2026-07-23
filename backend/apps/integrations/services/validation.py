@@ -18,7 +18,7 @@ from apps.operations.errors import (
 from apps.operations.models import MetricDefinitionStatus, MetricDefinitionVersion
 from apps.products.models import SKU, ChannelConfiguration, SKUStatus
 
-_ALLOWED_GRANULARITIES = frozenset({"DAY", "WEEK", "MONTH", "QUARTER", "YEAR"})
+_ALLOWED_GRANULARITIES = frozenset({"DAY", "WEEK", "MONTH", "QUARTER"})
 
 
 def apply_mapping(raw: dict[str, Any], mapping_rules: list[dict[str, str]]) -> dict[str, Any]:
@@ -65,12 +65,7 @@ def _period_window_error(*, granularity: str, period_start: date, period_end: da
         if period_end != expected_end:
             return "QUARTER periods must end on the last day of the quarter."
         return None
-    # YEAR
-    if period_start.month != 1 or period_start.day != 1:
-        return "YEAR periods must start on January 1."
-    if period_end != date(period_start.year, 12, 31):
-        return "YEAR periods must end on December 31."
-    return None
+    return f"Unsupported period_granularity: {granularity}"
 
 
 def _as_date(value: Any) -> date | None:

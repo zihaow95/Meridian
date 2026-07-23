@@ -6,6 +6,7 @@ from celery import shared_task  # type: ignore[import-untyped]
 
 from apps.notifications.consumers import local_consumer_registry as notifications_registry
 from apps.operations.consumers import local_consumer_registry as operations_registry
+from apps.operations.consumers import no_local_subscriber_event_types
 from apps.platform.outbox.consumer import OutboxConsumer, consume_once
 from apps.platform.outbox.dispatcher import UnregisteredEventType, dispatch_pending_events
 from apps.platform.outbox.models import OutboxEvent
@@ -21,6 +22,8 @@ def merged_consumer_registry() -> dict[str, list[tuple[str, OutboxConsumer]]]:
 
 class LocalOutboxPublisher:
     def publish(self, event: OutboxEvent) -> None:
+        if event.event_type in no_local_subscriber_event_types():
+            return
         consumers = merged_consumer_registry().get(event.event_type)
         if not consumers:
             raise UnregisteredEventType()

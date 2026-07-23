@@ -209,6 +209,7 @@ def test_resolve_prefers_active_manual_then_source_priority_and_timestamp(
     grant_action,
 ) -> None:
     sku, channel = sku_channel
+    grant_action(active_user, "operating_fact.read", "operating_fact")
     metric = _publish_metric(active_user, grant_action)
     _import_fact(
         user=active_user,
@@ -288,6 +289,7 @@ def test_modify_appends_version_and_revoke_restores_source_fact(
     grant_action,
 ) -> None:
     sku, channel = sku_channel
+    grant_action(active_user, "operating_fact.read", "operating_fact")
     metric = _publish_metric(active_user, grant_action)
     _import_fact(
         user=active_user,
@@ -368,6 +370,7 @@ def test_resolve_returns_insufficient_when_no_fact_or_manual(
     grant_action,
 ) -> None:
     sku, channel = sku_channel
+    grant_action(active_user, "operating_fact.read", "operating_fact")
     _publish_metric(active_user, grant_action)
     resolved = ResolveEffectiveOperatingValue(
         context=CommandContext.for_actor(active_user),
@@ -380,3 +383,25 @@ def test_resolve_returns_insufficient_when_no_fact_or_manual(
     ).execute()
     assert resolved.coverage_status == "INSUFFICIENT"
     assert resolved.numeric_value is None
+
+
+@pytest.mark.django_db(transaction=True)
+def test_resolve_denies_without_operating_fact_read(
+    active_user: User,
+    sku_channel,
+    grant_action,
+) -> None:
+    from apps.platform.api.errors import PermissionDeniedError
+
+    sku, channel = sku_channel
+    _publish_metric(active_user, grant_action)
+    with pytest.raises(PermissionDeniedError):
+        ResolveEffectiveOperatingValue(
+            context=CommandContext.for_actor(active_user),
+            sku_public_id=sku.public_id,
+            channel_public_id=channel.public_id,
+            metric_code="GROSS_SALES",
+            period_start=date(2026, 1, 1),
+            period_end=date(2026, 1, 31),
+            period_granularity="MONTH",
+        ).execute()
