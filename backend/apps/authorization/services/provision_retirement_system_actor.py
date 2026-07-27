@@ -5,13 +5,18 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import datetime
 
-from django.db import IntegrityError, transaction
+from django.db import transaction
 
 from apps.audit.models import AuditResult
 from apps.audit.services.append_event import AuditRecord, append_event
 from apps.audit.services.snapshots import acting_roles_snapshot
 from apps.authorization.context import AuthorizationContext, ResourceDescriptor
-from apps.authorization.models.assignment import AssignmentStatus, RoleAssignment, ScopeType
+from apps.authorization.models.assignment import (
+    AssignmentStatus,
+    RoleAssignment,
+    ScopeType,
+    build_scope_key,
+)
 from apps.authorization.models.role import (
     ActionCategory,
     DataSensitivityLevel,
@@ -25,6 +30,7 @@ from apps.authorization.policies.engine import authorize
 from apps.authorization.services.subject import subject_for
 from apps.identity.models.organization import Organization
 from apps.identity.models.user import User, UserStatus
+from apps.identity.services.ensure_system_executor import EnsureRetirementSystemExecutor
 from apps.operations.services.system_actor import SYSTEM_EMPLOYEE_NO, SYSTEM_ROLE_CODE
 from apps.platform.api.errors import PermissionDeniedError, ValidationFailedError
 from apps.platform.application.command import CommandContext
@@ -67,10 +73,13 @@ class ProvisionRetirementSystemActor:
 
         try:
             with transaction.atomic():
-                # Serialize provision per organization (MySQL lacks conditional
-                # unique indexes used elsewhere for employee_no).
+                # Serialize provision per organization.
                 Organization.objects.select_for_update().get(pk=self.organization.pk)
-                user = self._ensure_executor(actor=actor, now=now)
+                user = EnsureRetirementSystemExecutor(
+                    context=self.context,
+                    organization=self.organization,
+                    employee_no=SYSTEM_EMPLOYEE_NO,
+                ).execute()
                 role = self._ensure_role_and_permission()
                 self._ensure_assignment(user=user, role=role, actor=actor, now=now)
                 append_event(
@@ -91,16 +100,20 @@ class ProvisionRetirementSystemActor:
                     )
                 )
                 return user
-        except IntegrityError:
-            # Concurrent provision: return the winner's row if still active.
-            existing = User.objects.filter(
-                organization=self.organization,
-                employee_no=SYSTEM_EMPLOYEE_NO,
-                status=UserStatus.ACTIVE,
-            ).first()
-            if existing is None:
-                raise
-            return existing
+        except ValidationFailedError as exc:
+            reason = self._reason_from_validation(exc)
+            self._audit_failure(actor=actor, reason=reason, now=now)
+            raise
+
+    def _reason_from_validation(self, exc: ValidationFailedError) -> str:
+        message = (exc.message or "").lower()
+        if "not active" in message and "executor exists" in message:
+            return "executor_inactive"
+        if "role is not active" in message:
+            return "role_inactive"
+        if "assignment is inactive" in message:
+            return "assignment_inactive"
+        return "validation_failed"
 
     def _allowed(self, actor: User) -> bool:
         subject = subject_for(actor)
@@ -146,34 +159,6 @@ class ProvisionRetirementSystemActor:
             )
         )
 
-    def _ensure_executor(self, *, actor: User, now: datetime) -> User:
-        existing = (
-            User.objects.select_for_update()
-            .filter(organization=self.organization, employee_no=SYSTEM_EMPLOYEE_NO)
-            .first()
-        )
-        if existing is not None and existing.status != UserStatus.ACTIVE:
-            raise ValidationFailedError(
-                message=(
-                    "Retirement system executor exists but is not ACTIVE; "
-                    "refusing to reactivate via provision."
-                )
-            )
-        if existing is None:
-            user = User.objects.create_user(
-                organization=self.organization,
-                display_name="System Retirement Executor",
-                employee_no=SYSTEM_EMPLOYEE_NO,
-                status=UserStatus.ACTIVE,
-            )
-            user.set_unusable_password()
-            user.save(update_fields=["password", "updated_at"])
-            return user
-        if existing.has_usable_password():
-            existing.set_unusable_password()
-            existing.save(update_fields=["password", "updated_at"])
-        return existing
-
     def _ensure_role_and_permission(self) -> Role:
         role, _ = Role.objects.get_or_create(
             role_code=SYSTEM_ROLE_CODE,
@@ -206,13 +191,16 @@ class ProvisionRetirementSystemActor:
     def _ensure_assignment(
         self, *, user: User, role: Role, actor: User, now: datetime
     ) -> RoleAssignment:
+        scope_key = build_scope_key(
+            scope_type=ScopeType.ORGANIZATION, scope_id=self.organization.id
+        )
         assignment = (
             RoleAssignment.objects.select_for_update()
             .filter(
                 user=user,
                 role=role,
                 scope_type=ScopeType.ORGANIZATION,
-                scope_id=self.organization.id,
+                scope_key=scope_key,
             )
             .order_by("id")
             .first()
@@ -223,6 +211,7 @@ class ProvisionRetirementSystemActor:
                 role=role,
                 scope_type=ScopeType.ORGANIZATION,
                 scope_id=self.organization.id,
+                scope_key=scope_key,
                 effective_from=user.created_at or now,
                 effective_to=None,
                 configured_by=actor,

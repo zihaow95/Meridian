@@ -12,7 +12,7 @@ from apps.authorization.context import (
     AuthorizationSubject,
     ResourceDescriptor,
 )
-from apps.authorization.models.assignment import RoleAssignment, ScopeType
+from apps.authorization.models.assignment import RoleAssignment, ScopeType, build_scope_key
 from apps.authorization.models.role import (
     DataSensitivityLevel,
     PermissionAction,
@@ -78,8 +78,12 @@ def test_business_role_can_read_when_permission_and_level_match(
         user=active_user,
         role=role,
         scope_type=ScopeType.ORGANIZATION,
+        scope_id=organization.id,
+        scope_key=build_scope_key(scope_type=ScopeType.ORGANIZATION, scope_id=organization.id),
         effective_from=timezone.now(),
         configured_by=active_user,
+        status="ACTIVE",
+        active_slot=1,
     )
     subject = AuthorizationSubject(user=active_user, role_codes=frozenset({"PRODUCT_MANAGER"}))
     resource = ResourceDescriptor(

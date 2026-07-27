@@ -2,8 +2,12 @@
 
 from __future__ import annotations
 
-from django.db import models
+from datetime import datetime
 
+from django.db import models
+from django.utils import timezone
+
+from apps.platform.api.errors import ValidationFailedError
 from apps.platform.models.base import PublicIdModel
 
 
@@ -18,6 +22,25 @@ class AssignmentStatus(models.TextChoices):
     INACTIVE = "INACTIVE", "Inactive"
 
 
+def resolve_scope_id(
+    *,
+    scope_type: str,
+    scope_id: int | None,
+    organization_id: int,
+) -> int:
+    """Normalize scope identifiers so MySQL unique indexes never see NULL."""
+
+    if scope_type == ScopeType.ORGANIZATION:
+        return organization_id if scope_id is None else scope_id
+    if scope_id is None:
+        raise ValidationFailedError(message=f"scope_id is required for scope_type={scope_type}.")
+    return scope_id
+
+
+def build_scope_key(*, scope_type: str, scope_id: int) -> str:
+    return f"{scope_type}:{scope_id}"
+
+
 class RoleAssignment(PublicIdModel):
     user = models.ForeignKey(
         "identity.User",
@@ -30,7 +53,8 @@ class RoleAssignment(PublicIdModel):
         related_name="assignments",
     )
     scope_type = models.CharField(max_length=32, choices=ScopeType.choices)
-    scope_id = models.BigIntegerField(null=True, blank=True)
+    scope_id = models.BigIntegerField()
+    scope_key = models.CharField(max_length=64)
     effective_from = models.DateTimeField()
     effective_to = models.DateTimeField(null=True, blank=True)
     configured_by = models.ForeignKey(
@@ -54,7 +78,23 @@ class RoleAssignment(PublicIdModel):
         db_table = "authorization_role_assignment"
         constraints = [
             models.UniqueConstraint(
-                fields=["user", "role", "scope_type", "scope_id", "active_slot"],
-                name="authorization_role_assignment_active_slot_uniq",
+                fields=["user", "role", "scope_type", "scope_key", "active_slot"],
+                name="authorization_role_assignment_scope_key_slot_uniq",
             ),
         ]
+
+
+def deactivate_role_assignment(
+    assignment: RoleAssignment,
+    *,
+    at: datetime | None = None,
+) -> RoleAssignment:
+    """Close an assignment and clear active_slot so a new ACTIVE row may be created."""
+
+    now = at or timezone.now()
+    assignment.status = AssignmentStatus.INACTIVE
+    assignment.active_slot = None
+    if assignment.effective_to is None:
+        assignment.effective_to = now
+    assignment.save(update_fields=["status", "active_slot", "effective_to", "updated_at"])
+    return assignment

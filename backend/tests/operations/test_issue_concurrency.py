@@ -75,10 +75,14 @@ def _grant(user: User, action_code: str, resource_type: str) -> None:
     RoleAssignment.objects.get_or_create(
         user=user,
         role=role,
+        scope_type=ScopeType.ORGANIZATION,
+        scope_key=f"{ScopeType.ORGANIZATION}:{user.organization_id}",
         defaults={
-            "scope_type": ScopeType.ORGANIZATION,
+            "scope_id": user.organization_id,
             "effective_from": timezone.now(),
             "configured_by": user,
+            "status": "ACTIVE",
+            "active_slot": 1,
         },
     )
 

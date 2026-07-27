@@ -17,7 +17,12 @@ from apps.authorization.context import (
     AuthorizationSubject,
     ResourceDescriptor,
 )
-from apps.authorization.models.assignment import RoleAssignment, ScopeType
+from apps.authorization.models.assignment import (
+    RoleAssignment,
+    ScopeType,
+    build_scope_key,
+    resolve_scope_id,
+)
 from apps.authorization.models.role import Role
 from apps.authorization.policies.engine import authorize
 from apps.identity.models.user import User
@@ -59,12 +64,20 @@ class AssignRole:
         if self.role.is_critical and not self.approval_reference:
             raise ValueError("Critical roles require an approval reference.")
 
+        resolved_scope_id = resolve_scope_id(
+            scope_type=self.scope_type,
+            scope_id=self.scope_id,
+            organization_id=self.target.organization_id,
+        )
+        scope_key = build_scope_key(scope_type=self.scope_type, scope_id=resolved_scope_id)
+
         with transaction.atomic():
             assignment = RoleAssignment.objects.create(
                 user=self.target,
                 role=self.role,
                 scope_type=self.scope_type,
-                scope_id=self.scope_id,
+                scope_id=resolved_scope_id,
+                scope_key=scope_key,
                 effective_from=self.effective_from or timezone.now(),
                 configured_by=self.actor,
                 approval_reference=self.approval_reference,
@@ -84,6 +97,7 @@ class AssignRole:
                     after_summary={
                         "role_code": self.role.role_code,
                         "target_user_id": str(self.target.public_id),
+                        "scope_key": scope_key,
                     },
                     reason=self.approval_reference,
                 )

@@ -468,7 +468,9 @@ def test_due_execution_succeeds_when_plan_creator_is_disabled(
     active_user.status = UserStatus.DISABLED
     active_user.disabled_at = timezone.now()
     active_user.save(update_fields=["status", "disabled_at", "updated_at"])
-    RoleAssignment.objects.filter(user=active_user).update(status=AssignmentStatus.INACTIVE)
+    RoleAssignment.objects.filter(user=active_user).update(
+        status=AssignmentStatus.INACTIVE, active_slot=None
+    )
 
     processed = execute_due_retirement_actions_task.apply(
         args=(), kwargs={"as_of": "2026-06-01"}

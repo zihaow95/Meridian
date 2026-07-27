@@ -18,7 +18,11 @@ from django.utils import timezone
 from rest_framework.test import APIClient
 
 from apps.authorization.context import AuthorizationSubject, ResourceDescriptor
-from apps.authorization.models.assignment import RoleAssignment, ScopeType
+from apps.authorization.models.assignment import (
+    RoleAssignment,
+    ScopeType,
+    build_scope_key,
+)
 from apps.authorization.models.role import (
     ActionCategory,
     DataSensitivityLevel,
@@ -88,13 +92,19 @@ def grant_action(db: None):
                 "requires_object_scope": False,
             },
         )
+        scope_id = user.organization_id
+        scope_key = build_scope_key(scope_type=ScopeType.ORGANIZATION, scope_id=scope_id)
         RoleAssignment.objects.get_or_create(
             user=user,
             role=role,
+            scope_type=ScopeType.ORGANIZATION,
+            scope_key=scope_key,
             defaults={
-                "scope_type": ScopeType.ORGANIZATION,
+                "scope_id": scope_id,
                 "effective_from": timezone.now(),
                 "configured_by": user,
+                "status": "ACTIVE",
+                "active_slot": 1,
             },
         )
 
@@ -178,12 +188,17 @@ def platform_admin_user(
         max_data_level=DataSensitivityLevel.INTERNAL,
         requires_object_scope=False,
     )
+    scope_id = admin.organization_id
     RoleAssignment.objects.create(
         user=admin,
         role=platform_admin_role,
         scope_type=ScopeType.ORGANIZATION,
+        scope_id=scope_id,
+        scope_key=build_scope_key(scope_type=ScopeType.ORGANIZATION, scope_id=scope_id),
         effective_from=timezone.now(),
         configured_by=admin,
+        status="ACTIVE",
+        active_slot=1,
     )
     return admin
 

@@ -2,27 +2,29 @@
 
 日期：2026-07-27
 
-状态：**NO-GO（四次复验待定）** — `d2b9a32` 复审仍为 NO-GO（P1：Provision 无授权无审计提权）。本轮将 Provision 迁入 authorization 受控服务，强制组织+执行人、双动作授权、成败审计、`active_slot` 唯一约束与并发锁；并修复看板同渠道多指标下钻与批次行 query service。关闭全部 P1 且验收 GO 前不得推进阶段六。
+状态：**NO-GO（五次复验待定）** — 四次复验仍为 NO-GO（P1：`active_slot` 在 NULL `scope_id` 下失效；宽泛 `IntegrityError` 假成功；失败审计不完整）。本轮以非空 `scope_key` 重建唯一约束、删除假成功兜底、业务拒绝失败审计、并将系统主体创建下沉到 identity 受控服务。关闭全部 P1 且验收 GO 前不得推进阶段六。
 
 对应计划：`docs/superpowers/plans/2026-07-20-phase-5-operations-iteration-retirement.md`
 
-## 四次 remediation 要点
+## 五次 remediation 要点
 
-- `ProvisionRetirementSystemActor`：同组织 + `system_actor.retirement.provision` + `authorization.role.assign`；失败/成功均审计；`configured_by` 必为执行人
-- 管理命令强制 `--organization-id` + `--actor-login-key`，仅委托服务
-- `RoleAssignment.active_slot` + MySQL 可用唯一约束；组织行 `select_for_update` 串行化
-- 批次行：`list_visible_ingestion_batch_rows`；看板保存点击的完整汇总行
+- `RoleAssignment.scope_id` 非空；新增规范化 `scope_key`；唯一键为 `user+role+scope_type+scope_key+active_slot`；失效时清空 `active_slot`
+- `AssignRole` 组织级将 `scope_id=None` 规范为 `target.organization_id`
+- `ProvisionRetirementSystemActor`：删除宽泛 `IntegrityError` 假成功；事务外捕获 `ValidationFailedError` 写 FAILURE 审计（含 executor/role/assignment 拒绝）
+- 系统主体创建改为 `EnsureRetirementSystemExecutor`（identity 域）；authorization 仅编排权限、角色与审计
 
 ## 本轮本地验证
 
 ```text
-Reviewed range: d2b9a32...HEAD (fourth remediation)
+Reviewed range: b52840c...HEAD (fifth remediation)
 Backend ruff/format/mypy/django check/migrate drift: OK
-MySQL pytest: 467 passed
-OpenAPI snapshot: OK (prior slice)
-Frontend lint/format/typecheck/build/unit: OK (59 passed, prior slice)
+MySQL pytest: 474 passed
+OpenAPI snapshot: OK
+Frontend lint/format/typecheck/build/unit: OK (59 passed)
 Playwright E2E: 19 passed
 Docker images backend+frontend: OK
+Legacy scan: OK
+All quality gates passed
 ```
 
 合并或推进阶段六前必须：严格复审 GO。

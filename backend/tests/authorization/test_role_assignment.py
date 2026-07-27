@@ -2,9 +2,19 @@
 
 from __future__ import annotations
 
-import pytest
+import threading
 
-from apps.authorization.models.assignment import RoleAssignment, ScopeType
+import pytest
+from django.db import IntegrityError, close_old_connections, connections
+from django.utils import timezone
+
+from apps.authorization.models.assignment import (
+    AssignmentStatus,
+    RoleAssignment,
+    ScopeType,
+    build_scope_key,
+    deactivate_role_assignment,
+)
 from apps.authorization.models.role import Role, RolePermission, RoleType
 from apps.authorization.services.assign_role import AssignRole, RoleAssignmentDenied
 
@@ -85,3 +95,138 @@ def test_assign_role_creates_assignment_when_authorized(
     assert isinstance(assignment, RoleAssignment)
     assert assignment.user_id == active_user.id
     assert assignment.role_id == target_role.id
+    assert assignment.scope_id == active_user.organization_id
+    assert assignment.scope_key == build_scope_key(
+        scope_type=ScopeType.ORGANIZATION, scope_id=active_user.organization_id
+    )
+    assert assignment.active_slot == 1
+
+
+@pytest.mark.django_db
+def test_org_scope_null_scope_id_normalizes_and_blocks_duplicate_active(
+    platform_admin_user,
+    active_user,
+) -> None:
+    target_role = Role.objects.create(
+        role_code="VIEWER_DUP",
+        name="Viewer Dup",
+        role_type=RoleType.BUSINESS,
+    )
+    first = AssignRole(
+        actor=platform_admin_user,
+        target=active_user,
+        role=target_role,
+        scope_type=ScopeType.ORGANIZATION,
+        scope_id=None,
+        approval_reference="AP-NULL-1",
+    ).execute()
+    assert first.scope_id == active_user.organization_id
+
+    with pytest.raises(IntegrityError):
+        AssignRole(
+            actor=platform_admin_user,
+            target=active_user,
+            role=target_role,
+            scope_type=ScopeType.ORGANIZATION,
+            scope_id=None,
+            approval_reference="AP-NULL-2",
+        ).execute()
+
+    assert (
+        RoleAssignment.objects.filter(
+            user=active_user,
+            role=target_role,
+            status=AssignmentStatus.ACTIVE,
+            active_slot=1,
+        ).count()
+        == 1
+    )
+
+
+@pytest.mark.django_db(transaction=True)
+def test_concurrent_org_assign_keeps_single_active_slot(
+    platform_admin_user,
+    active_user,
+) -> None:
+    target_role = Role.objects.create(
+        role_code="VIEWER_CONCURRENT",
+        name="Viewer Concurrent",
+        role_type=RoleType.BUSINESS,
+    )
+    barrier = threading.Barrier(2)
+    results: list[str] = []
+    lock = threading.Lock()
+
+    def _run() -> None:
+        close_old_connections()
+        try:
+            barrier.wait(timeout=10)
+            AssignRole(
+                actor=platform_admin_user,
+                target=active_user,
+                role=target_role,
+                scope_type=ScopeType.ORGANIZATION,
+                scope_id=None,
+                approval_reference="AP-CONCURRENT",
+            ).execute()
+            with lock:
+                results.append("ok")
+        except Exception as exc:  # noqa: BLE001
+            with lock:
+                results.append(f"err:{type(exc).__name__}")
+        finally:
+            connections.close_all()
+
+    t1 = threading.Thread(target=_run)
+    t2 = threading.Thread(target=_run)
+    t1.start()
+    t2.start()
+    t1.join(timeout=30)
+    t2.join(timeout=30)
+
+    assert len(results) == 2
+    assert results.count("ok") == 1
+    assert any(item.startswith("err:") for item in results)
+    assert (
+        RoleAssignment.objects.filter(
+            user=active_user,
+            role=target_role,
+            status=AssignmentStatus.ACTIVE,
+            active_slot=1,
+        ).count()
+        == 1
+    )
+
+
+@pytest.mark.django_db
+def test_deactivate_clears_active_slot_and_allows_reassign(
+    platform_admin_user,
+    active_user,
+) -> None:
+    target_role = Role.objects.create(
+        role_code="VIEWER_REASSIGN",
+        name="Viewer Reassign",
+        role_type=RoleType.BUSINESS,
+    )
+    first = AssignRole(
+        actor=platform_admin_user,
+        target=active_user,
+        role=target_role,
+        scope_type=ScopeType.ORGANIZATION,
+        approval_reference="AP-RE-1",
+    ).execute()
+    deactivate_role_assignment(first, at=timezone.now())
+    first.refresh_from_db()
+    assert first.status == AssignmentStatus.INACTIVE
+    assert first.active_slot is None
+
+    second = AssignRole(
+        actor=platform_admin_user,
+        target=active_user,
+        role=target_role,
+        scope_type=ScopeType.ORGANIZATION,
+        approval_reference="AP-RE-2",
+    ).execute()
+    assert second.id != first.id
+    assert second.status == AssignmentStatus.ACTIVE
+    assert second.active_slot == 1

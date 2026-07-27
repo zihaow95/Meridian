@@ -5,7 +5,7 @@ from __future__ import annotations
 import pytest
 from django.utils import timezone
 
-from apps.authorization.models.assignment import RoleAssignment, ScopeType
+from apps.authorization.models.assignment import RoleAssignment, ScopeType, build_scope_key
 from apps.authorization.models.role import (
     ActionCategory,
     DataSensitivityLevel,
@@ -55,8 +55,12 @@ def test_visible_filter_allows_organization_scope(organization, active_user) -> 
         user=active_user,
         role=role,
         scope_type=ScopeType.ORGANIZATION,
+        scope_id=organization.id,
+        scope_key=build_scope_key(scope_type=ScopeType.ORGANIZATION, scope_id=organization.id),
         effective_from=timezone.now(),
         configured_by=active_user,
+        status="ACTIVE",
+        active_slot=1,
     )
     resource_filter = VisibleResourceFilter(
         user=active_user,

@@ -162,12 +162,14 @@ def test_active_assignment_unique_per_user_role_scope(organization, platform_adm
         organization=organization,
     ).execute()
     role = Role.objects.get(role_code=SYSTEM_ROLE_CODE)
+    scope_key = f"{ScopeType.ORGANIZATION}:{organization.id}"
     with pytest.raises(IntegrityError):
         RoleAssignment.objects.create(
             user=executor,
             role=role,
             scope_type=ScopeType.ORGANIZATION,
             scope_id=organization.id,
+            scope_key=scope_key,
             effective_from=timezone.now(),
             effective_to=None,
             configured_by=platform_admin_user,
@@ -209,5 +211,104 @@ def test_concurrent_provision_does_not_duplicate_executor(
 
     assert _executor_count(organization) == 1
     assert _assignment_count(organization) == 1
-    assert results.count("ok") >= 1
+    assert results.count("ok") == 2
     assert len(results) == 2
+    assert (
+        AuditEvent.objects.filter(
+            action_code="system_actor.retirement.provision",
+            actor_user=platform_admin_user,
+            result=AuditResult.SUCCESS,
+        ).count()
+        == 2
+    )
+
+
+@pytest.mark.django_db(transaction=True)
+def test_disabled_executor_is_failure_audited(organization, platform_admin_user) -> None:
+    User.objects.create_user(
+        organization=organization,
+        display_name="Disabled Executor",
+        employee_no=SYSTEM_EMPLOYEE_NO,
+        status=UserStatus.DISABLED,
+        activated_at=timezone.now(),
+    )
+    with pytest.raises(ValidationFailedError):
+        ProvisionRetirementSystemActor(
+            context=CommandContext.for_actor(platform_admin_user),
+            organization=organization,
+        ).execute()
+    failure = AuditEvent.objects.get(
+        action_code="system_actor.retirement.provision",
+        actor_user=platform_admin_user,
+        result=AuditResult.FAILURE,
+    )
+    assert failure.reason == "executor_inactive"
+    assert _assignment_count(organization) == 0
+
+
+@pytest.mark.django_db(transaction=True)
+def test_inactive_system_role_is_failure_audited(organization, platform_admin_user) -> None:
+    from apps.authorization.models.role import RoleStatus, RoleType
+
+    Role.objects.create(
+        role_code=SYSTEM_ROLE_CODE,
+        name="System Retirement Executor",
+        role_type=RoleType.BUSINESS,
+        status=RoleStatus.INACTIVE,
+    )
+    with pytest.raises(ValidationFailedError):
+        ProvisionRetirementSystemActor(
+            context=CommandContext.for_actor(platform_admin_user),
+            organization=organization,
+        ).execute()
+    failure = AuditEvent.objects.get(
+        action_code="system_actor.retirement.provision",
+        actor_user=platform_admin_user,
+        result=AuditResult.FAILURE,
+    )
+    assert failure.reason == "role_inactive"
+
+
+@pytest.mark.django_db(transaction=True)
+def test_inactive_assignment_is_failure_audited(organization, platform_admin_user) -> None:
+    from apps.authorization.models.assignment import build_scope_key
+    from apps.authorization.models.role import RoleStatus, RoleType
+
+    executor = User.objects.create_user(
+        organization=organization,
+        display_name="System Retirement Executor",
+        employee_no=SYSTEM_EMPLOYEE_NO,
+        status=UserStatus.ACTIVE,
+        activated_at=timezone.now(),
+    )
+    executor.set_unusable_password()
+    executor.save(update_fields=["password", "updated_at"])
+    role = Role.objects.create(
+        role_code=SYSTEM_ROLE_CODE,
+        name="System Retirement Executor",
+        role_type=RoleType.BUSINESS,
+        status=RoleStatus.ACTIVE,
+    )
+    RoleAssignment.objects.create(
+        user=executor,
+        role=role,
+        scope_type=ScopeType.ORGANIZATION,
+        scope_id=organization.id,
+        scope_key=build_scope_key(scope_type=ScopeType.ORGANIZATION, scope_id=organization.id),
+        effective_from=timezone.now(),
+        effective_to=timezone.now(),
+        configured_by=platform_admin_user,
+        status=AssignmentStatus.INACTIVE,
+        active_slot=None,
+    )
+    with pytest.raises(ValidationFailedError):
+        ProvisionRetirementSystemActor(
+            context=CommandContext.for_actor(platform_admin_user),
+            organization=organization,
+        ).execute()
+    failure = AuditEvent.objects.get(
+        action_code="system_actor.retirement.provision",
+        actor_user=platform_admin_user,
+        result=AuditResult.FAILURE,
+    )
+    assert failure.reason == "assignment_inactive"
