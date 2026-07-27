@@ -105,10 +105,13 @@ def _grants(user, grant_action) -> None:
 
 
 @pytest.fixture(autouse=True)
-def provision_retirement_system_executor(organization) -> None:
+def provision_retirement_system_executor(organization, active_user, grant_action) -> None:
+    grant_action(active_user, "authorization.role.assign", "authorization.role")
+    grant_action(active_user, "system_actor.retirement.provision", "system_actor")
     call_command(
         "provision_retirement_system_actor",
         organization_id=organization.id,
+        actor_login_key=active_user.login_key,
     )
 
 

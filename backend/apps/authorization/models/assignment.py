@@ -44,8 +44,17 @@ class RoleAssignment(PublicIdModel):
         choices=AssignmentStatus.choices,
         default=AssignmentStatus.ACTIVE,
     )
+    # MySQL-compatible uniqueness for the single ACTIVE open assignment per scope.
+    # Null when inactive/closed so historical rows do not collide.
+    active_slot = models.PositiveSmallIntegerField(null=True, blank=True, default=1)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
         db_table = "authorization_role_assignment"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["user", "role", "scope_type", "scope_id", "active_slot"],
+                name="authorization_role_assignment_active_slot_uniq",
+            ),
+        ]

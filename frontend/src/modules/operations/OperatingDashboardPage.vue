@@ -3,7 +3,11 @@ import { computed, onMounted, ref } from 'vue'
 import { useRoute } from 'vue-router'
 
 import { ApiError } from '@/api/client'
-import { useOperationsStore, type SkuBreakdownItem } from '@/modules/operations/store'
+import {
+  useOperationsStore,
+  type OperatingSummaryItem,
+  type SkuBreakdownItem,
+} from '@/modules/operations/store'
 
 const route = useRoute()
 const operations = useOperationsStore()
@@ -16,15 +20,9 @@ const periodStart = ref('2026-01-01')
 const periodEnd = ref('2026-03-31')
 const periodGranularity = ref('QUARTER')
 const selectedSkuId = ref('')
-const selectedChannelId = ref('')
+const selectedChannelRow = ref<OperatingSummaryItem | null>(null)
 
-const selectedChannelRow = computed(() => {
-  if (!selectedChannelId.value) return null
-  return (
-    operations.skuSummaryItems.find((row) => row.channel_public_id === selectedChannelId.value) ??
-    null
-  )
-})
+const selectedChannelId = computed(() => String(selectedChannelRow.value?.channel_public_id ?? ''))
 
 const selectedChannelContributors = computed(() => {
   const contributors = selectedChannelRow.value?.contributors
@@ -58,7 +56,7 @@ async function loadProductSummary(): Promise<void> {
 async function drillSku(skuId: string): Promise<void> {
   if (!skuId || busy.value) return
   selectedSkuId.value = skuId
-  selectedChannelId.value = ''
+  selectedChannelRow.value = null
   busy.value = true
   errorText.value = ''
   try {
@@ -75,8 +73,8 @@ async function drillSku(skuId: string): Promise<void> {
   }
 }
 
-function selectChannel(channelPublicId: string | null | undefined): void {
-  selectedChannelId.value = String(channelPublicId ?? '')
+function selectChannel(row: OperatingSummaryItem): void {
+  selectedChannelRow.value = row
 }
 
 async function exportData(): Promise<void> {
@@ -219,19 +217,19 @@ onMounted(() => {
             link
             type="primary"
             data-test="select-channel"
-            @click="selectChannel(row.channel_public_id)"
+            @click="selectChannel(row)"
           >
             查看渠道事实
           </el-button>
         </li>
       </ul>
       <section
-        v-if="selectedChannelId && selectedChannelRow"
+        v-if="selectedChannelRow"
         class="ops-dashboard__channel-facts"
         data-test="selected-channel"
       >
-        <h4>渠道事实（{{ selectedChannelId }}）</h4>
-        <p>
+        <h4>渠道事实（{{ selectedChannelId }} / {{ selectedChannelRow.metric_code }}）</h4>
+        <p data-test="selected-channel-metric">
           指标 {{ selectedChannelRow.metric_code }} / 值 {{ selectedChannelRow.value ?? '—' }} /
           {{ selectedChannelRow.status }} / 覆盖率
           {{ selectedChannelRow.coverage_rate }}

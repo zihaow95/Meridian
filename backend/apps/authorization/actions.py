@@ -9,6 +9,11 @@ PLATFORM_ACTIONS: tuple[tuple[str, str, str], ...] = (
     ("authorization.role.read", "authorization.role", ActionCategory.READ),
     ("authorization.role.assign", "authorization.role", ActionCategory.ADMIN),
     (
+        "system_actor.retirement.provision",
+        "system_actor",
+        ActionCategory.ADMIN,
+    ),
+    (
         "authorization.admin_change.request",
         "authorization.admin_change_request",
         ActionCategory.ADMIN,

@@ -68,6 +68,8 @@ class AssignRole:
                 effective_from=self.effective_from or timezone.now(),
                 configured_by=self.actor,
                 approval_reference=self.approval_reference,
+                status="ACTIVE",
+                active_slot=1,
             )
             append_event(
                 AuditRecord(

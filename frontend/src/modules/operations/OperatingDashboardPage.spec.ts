@@ -137,4 +137,78 @@ describe('OperatingDashboardPage', () => {
       vi.mocked(apiFetch).mock.calls.some(([url]) => String(url).includes('/skus/sku-2/')),
     ).toBe(true)
   })
+
+  it('keeps the clicked metric when the same channel has multiple metrics', async () => {
+    vi.mocked(apiFetch).mockImplementation(async (url: string) => {
+      if (url.startsWith('/api/v1/products/prod-1/operating-summary')) {
+        return {
+          items: [
+            {
+              grain_type: 'PRODUCT',
+              grain_public_id: 'prod-1',
+              metric_code: 'SALES_QTY',
+              coverage_rate: '1.00',
+              status: 'OK',
+              value: '10',
+              has_manual_value: false,
+              sku_breakdown: [
+                {
+                  sku_public_id: 'sku-1',
+                  value: '10',
+                  status: 'OK',
+                  coverage_rate: '1.00',
+                  has_manual_value: false,
+                  calculated_at: '2026-03-01T00:00:00Z',
+                },
+              ],
+            },
+          ],
+        }
+      }
+      if (url.startsWith('/api/v1/skus/sku-1/operating-summary')) {
+        return {
+          items: [
+            {
+              grain_type: 'SKU',
+              grain_public_id: 'sku-1',
+              channel_public_id: 'ch-1',
+              metric_code: 'SALES_QTY',
+              coverage_rate: '1.00',
+              status: 'OK',
+              value: '10',
+              has_manual_value: false,
+              contributors: [{ type: 'FACT', source_code: 'ERP', numeric_value: '10' }],
+            },
+            {
+              grain_type: 'SKU',
+              grain_public_id: 'sku-1',
+              channel_public_id: 'ch-1',
+              metric_code: 'GROSS_MARGIN',
+              coverage_rate: '1.00',
+              status: 'OK',
+              value: '0.32',
+              has_manual_value: false,
+              contributors: [{ type: 'FACT', source_code: 'BI', numeric_value: '0.32' }],
+            },
+          ],
+        }
+      }
+      throw new Error(`unexpected ${url}`)
+    })
+
+    const wrapper = mount(OperatingDashboardPage, { global: { stubs } })
+    await flush()
+    await wrapper.find('[data-test="drill-sku"]').trigger('click')
+    await flush()
+
+    const channelButtons = wrapper.findAll('[data-test="select-channel"]')
+    expect(channelButtons.length).toBe(2)
+    await channelButtons[1].trigger('click')
+    await flush()
+
+    expect(wrapper.find('[data-test="selected-channel-metric"]').text()).toContain('GROSS_MARGIN')
+    expect(wrapper.find('[data-test="selected-channel-metric"]').text()).toContain('0.32')
+    expect(wrapper.find('[data-test="channel-contributor"]').text()).toContain('BI')
+    expect(wrapper.find('[data-test="channel-contributor"]').text()).not.toContain('ERP')
+  })
 })

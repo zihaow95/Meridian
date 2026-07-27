@@ -24,6 +24,7 @@ from apps.operations.queries.pagination import paginate_queryset
 from apps.operations.queries.visible_resources import (
     get_visible_ingestion_batch,
     list_unmapped_ingestion_rows,
+    list_visible_ingestion_batch_rows,
 )
 from apps.operations.services.ingestion import ConfirmOperatingIngestionBatch
 from apps.platform.api.errors import PermissionDeniedError, ValidationFailedError
@@ -173,15 +174,11 @@ class OperatingIngestionBatchRowsView(APIView):
     )
     def get(self, request: Request, public_id: UUID) -> Response:
         user = cast(User, request.user)
-        batch = get_visible_ingestion_batch(user, public_id)
-        if batch is None:
+        rows = list_visible_ingestion_batch_rows(user, public_id)
+        if rows is None:
             raise PermissionDeniedError()
         page, page_size = page_params(request)
-        result = paginate_queryset(
-            IngestionRow.objects.filter(batch=batch).order_by("row_number", "id"),
-            page=page,
-            page_size=page_size,
-        )
+        result = paginate_queryset(rows, page=page, page_size=page_size)
         return Response(
             {
                 "items": [serialize_row(row) for row in result.items],

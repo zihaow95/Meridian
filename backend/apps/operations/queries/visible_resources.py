@@ -182,6 +182,15 @@ def get_visible_ingestion_batch(user: User, public_id: UUID) -> IngestionBatch |
     return None
 
 
+def list_visible_ingestion_batch_rows(user: User, public_id: UUID) -> QuerySet[IngestionRow] | None:
+    """Return ordered batch rows when the batch is visible; otherwise None."""
+
+    batch = get_visible_ingestion_batch(user, public_id)
+    if batch is None:
+        return None
+    return IngestionRow.objects.filter(batch=batch).order_by("row_number", "id")
+
+
 def list_unmapped_ingestion_rows(user: User) -> QuerySet[IngestionRow]:
     qs = (
         IngestionRow.objects.filter(

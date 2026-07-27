@@ -76,6 +76,21 @@ def platform_admin_user(
         max_data_level=DataSensitivityLevel.INTERNAL,
         requires_object_scope=False,
     )
+    provision_action, _ = PermissionAction.objects.get_or_create(
+        action_code="system_actor.retirement.provision",
+        defaults={
+            "resource_type": "system_actor",
+            "action_category": ActionCategory.ADMIN,
+        },
+    )
+    RolePermission.objects.get_or_create(
+        role=platform_admin_role,
+        action=provision_action,
+        defaults={
+            "max_data_level": DataSensitivityLevel.INTERNAL,
+            "requires_object_scope": False,
+        },
+    )
     RoleAssignment.objects.create(
         user=admin,
         role=platform_admin_role,
