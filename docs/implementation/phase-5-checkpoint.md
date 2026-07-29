@@ -16,15 +16,17 @@
 - 八次 Standards 初审发现 `CREATE DATABASE` 失败后可能误删同名既有库；现仅在创建成功后删除，并用失败路径测试证明未获所有权时不会执行 `DROP`，清理失败也不覆盖原始异常。
 - 八次 Spec 初审发现只比较角色分配数量不能证明幂等；现逐行比较用户、角色分配、Todo、运营产品目录、数据源、指标/规则、监控范围 7 组稳定资产，并直接校验 `scope_key = scope_type:scope_id`。
 - E2E Todo 的 `source_id` 改为用户 `public_id`；监控范围复用已有来源决策，冷库首次使用稳定决策标识，避免重复 seed 产生漂移记录。
+- 八次再复审补充覆盖所有清理动作：DROP、cursor close、connection close 均独立尝试；有主异常时只附加报告清理错误，不再覆盖 migrate/seed 原始失败。
+- 三名 E2E 用户只有首次创建、缺少激活时间或从非 ACTIVE 恢复时才写 `activated_at`；用户快照现包含该字段并证明重复 seed 不漂移。
 
 ## 本轮本地验证
 
 ```text
 Reviewed range: 785f521...HEAD (eighth acceptance evidence remediation)
-Focused MySQL pytest: 30 passed in 43.41s
+Focused MySQL pytest: 31 passed in 57.66s
 Clean E2E seed: 11 normalized role assignments; 7 fixture groups stable; temporary database removed
 Full scripts\check.cmd: All quality gates passed
-Backend MySQL pytest: 487 passed in 137.91s
+Backend MySQL pytest: 488 passed in 158.12s
 Frontend Vitest: 22 files / 59 tests passed
 Playwright E2E: 19 passed
 OpenAPI drift: passed

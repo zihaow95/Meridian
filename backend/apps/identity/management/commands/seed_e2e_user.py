@@ -141,11 +141,15 @@ class Command(BaseCommand):
             },
         )
         if not created:
+            was_active = user.status == UserStatus.ACTIVE
             user.organization = organization
             user.display_name = "E2E Active User"
             user.status = UserStatus.ACTIVE
-            user.activated_at = timezone.now()
-            user.save(update_fields=["organization", "display_name", "status", "activated_at"])
+            update_fields = ["organization", "display_name", "status"]
+            if not was_active or user.activated_at is None:
+                user.activated_at = timezone.now()
+                update_fields.append("activated_at")
+            user.save(update_fields=update_fields)
 
         self._grant_action(user, "notification.todo.read", "notification.todo")
         self._grant_action(user, "configuration.version.read", "configuration.version")
@@ -199,11 +203,15 @@ class Command(BaseCommand):
             },
         )
         if not created:
+            was_active = limited.status == UserStatus.ACTIVE
             limited.organization = organization
             limited.display_name = "E2E Limited User"
             limited.status = UserStatus.ACTIVE
-            limited.activated_at = timezone.now()
-            limited.save(update_fields=["organization", "display_name", "status", "activated_at"])
+            update_fields = ["organization", "display_name", "status"]
+            if not was_active or limited.activated_at is None:
+                limited.activated_at = timezone.now()
+                update_fields.append("activated_at")
+            limited.save(update_fields=update_fields)
         self._grant_action(limited, "notification.todo.read", "notification.todo")
 
     def _ensure_approver(self, organization: Organization) -> None:
@@ -217,11 +225,15 @@ class Command(BaseCommand):
             },
         )
         if not created:
+            was_active = approver.status == UserStatus.ACTIVE
             approver.organization = organization
             approver.display_name = "E2E Approver"
             approver.status = UserStatus.ACTIVE
-            approver.activated_at = timezone.now()
-            approver.save(update_fields=["organization", "display_name", "status", "activated_at"])
+            update_fields = ["organization", "display_name", "status"]
+            if not was_active or approver.activated_at is None:
+                approver.activated_at = timezone.now()
+                update_fields.append("activated_at")
+            approver.save(update_fields=update_fields)
         for action_code, resource_type, role_code in (
             ("product.read_basic", "product", "PRODUCT_DIRECTOR"),
             ("product_change_set.approve", "product_change_set", "PRODUCT_DIRECTOR"),

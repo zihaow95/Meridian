@@ -8,6 +8,8 @@ from django.utils import timezone
 
 from apps.authorization.models.assignment import RoleAssignment, ScopeType, build_scope_key
 from apps.identity.management.commands.seed_e2e_user import (
+    E2E_APPROVER_LOGIN_KEY,
+    E2E_LIMITED_LOGIN_KEY,
     E2E_LOGIN_KEY,
     E2E_ORG_NAME,
     Command,
@@ -62,6 +64,15 @@ def test_seed_e2e_user_command_runs_twice_successfully() -> None:
         )
     )
     first_todo = Todo.objects.get(assignee=user, dedup_key="e2e:todo")
+    first_activated_at = dict(
+        User.objects.filter(
+            login_key__in=(
+                E2E_LOGIN_KEY,
+                E2E_APPROVER_LOGIN_KEY,
+                E2E_LIMITED_LOGIN_KEY,
+            )
+        ).values_list("login_key", "activated_at")
+    )
 
     call_command("seed_e2e_user")
 
@@ -80,8 +91,18 @@ def test_seed_e2e_user_command_runs_twice_successfully() -> None:
         )
     )
     second_todo = Todo.objects.get(assignee=user, dedup_key="e2e:todo")
+    second_activated_at = dict(
+        User.objects.filter(
+            login_key__in=(
+                E2E_LOGIN_KEY,
+                E2E_APPROVER_LOGIN_KEY,
+                E2E_LIMITED_LOGIN_KEY,
+            )
+        ).values_list("login_key", "activated_at")
+    )
 
     assert user.organization_id == organization.id
+    assert second_activated_at == first_activated_at
     assert second_assignments == first_assignments
     assert all(
         scope_key == build_scope_key(scope_type=scope_type, scope_id=scope_id)

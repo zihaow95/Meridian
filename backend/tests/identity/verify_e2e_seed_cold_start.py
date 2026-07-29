@@ -15,7 +15,7 @@ BACKEND_ROOT = Path(__file__).resolve().parents[2]
 DATABASE_NAME_PATTERN = re.compile(r"^[A-Za-z0-9_]+$")
 SNAPSHOT_QUERIES = {
     "users": """
-        SELECT id, public_id, login_key, organization_id, status
+        SELECT id, public_id, login_key, organization_id, status, activated_at
         FROM {database}.identity_user
         WHERE login_key IN ('e2e-active-user', 'e2e-approver-user', 'e2e-limited-user')
         ORDER BY login_key
@@ -190,19 +190,28 @@ def main() -> int:
         primary_error = error
         raise
     finally:
-        try:
-            if database_created:
+        cleanup_errors: list[tuple[str, BaseException]] = []
+        if database_created:
+            try:
                 cursor.execute(f"DROP DATABASE `{database_name}`")
-        except BaseException as cleanup_error:
-            if primary_error is None:
-                raise
+            except BaseException as cleanup_error:
+                cleanup_errors.append(("drop database", cleanup_error))
+        for cleanup_name, cleanup in (
+            ("close cursor", cursor.close),
+            ("close connection", connection.close),
+        ):
+            try:
+                cleanup()
+            except BaseException as cleanup_error:
+                cleanup_errors.append((cleanup_name, cleanup_error))
+        if cleanup_errors and primary_error is None:
+            raise cleanup_errors[0][1]
+        for cleanup_name, cleanup_error in cleanup_errors:
             print(
-                f"Clean seed verification cleanup also failed: {cleanup_error}",
+                "Clean seed verification cleanup also failed "
+                f"while attempting to {cleanup_name}: {cleanup_error}",
                 file=sys.stderr,
             )
-        finally:
-            cursor.close()
-            connection.close()
 
 
 if __name__ == "__main__":

@@ -91,6 +91,8 @@
 | 角色撤销后下一次授权立即拒绝 | **passed**：`test_deactivated_role_is_denied_on_next_authorization_request`，纳入 focused / 全量 MySQL pytest | 2026-07-29 |
 | 空库 migrate + `seed_e2e_user` 重复执行 | **passed**：隔离临时 MySQL 数据库；11 条规范化角色分配，7 组关键资产逐行不变，范围键严格匹配，结束后删除临时库 | 2026-07-29 |
 | 临时库所有权与失败清理 | **passed**：`test_create_failure_never_drops_database_not_owned_by_verifier` 证明 CREATE 失败不执行 DROP | 2026-07-29 |
-| Focused MySQL pytest | **30 passed in 43.41s**（本轮实际执行） | 2026-07-29 |
-| `scripts\check.cmd` 全量 | **All quality gates passed**；MySQL **487**、Vitest **59**、Playwright **19**、OpenAPI / Docker / legacy 均通过 | 2026-07-29 |
+| 原始失败与资源关闭 | **passed**：`test_close_failures_do_not_mask_primary_migration_error` 证明 cursor / connection 关闭失败不覆盖 migrate 原始异常 | 2026-07-29 |
+| 用户激活时间稳定性 | **passed**：三名 E2E 用户第二次 seed 后 `activated_at` 逐项不变，并纳入冷库用户快照 | 2026-07-29 |
+| Focused MySQL pytest | **31 passed in 57.66s**（本轮实际执行） | 2026-07-29 |
+| `scripts\check.cmd` 全量 | **All quality gates passed**；MySQL **488**、Vitest **59**、Playwright **19**、OpenAPI / Docker / legacy 均通过 | 2026-07-29 |
 | `scripts\verify-trd.ps1` | pass（92 requirements / 4 gates，本轮实际执行） | 2026-07-29 |
