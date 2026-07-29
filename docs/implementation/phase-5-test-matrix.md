@@ -1,6 +1,6 @@
 # 阶段5 运营、迭代和退市 —— 测试矩阵
 
-状态：**NO-GO / 八次双轴再复审待定** — 分支 `codex/phase-5-operations-iteration-retirement`；七次复验遗留证据及八次初审新增的冷库所有权保护、seed 稳定快照证据均已补齐。
+状态：**GO / 阶段5验收通过** — 分支 `codex/phase-5-operations-iteration-retirement`；最终 Standards / Spec 双轴 P0=0、P1=0、P2=0，阶段6尚未开始。
 
 对应计划：`docs/superpowers/plans/2026-07-20-phase-5-operations-iteration-retirement.md`
 
@@ -96,3 +96,4 @@
 | Focused MySQL pytest | **31 passed in 57.66s**（本轮实际执行） | 2026-07-29 |
 | `scripts\check.cmd` 全量 | **All quality gates passed**；MySQL **488**、Vitest **59**、Playwright **19**、OpenAPI / Docker / legacy 均通过 | 2026-07-29 |
 | `scripts\verify-trd.ps1` | pass（92 requirements / 4 gates，本轮实际执行） | 2026-07-29 |
+| Standards / Spec 双轴终审 | **GO / GO**；两轴均为 P0=0、P1=0、P2=0；审阅范围 `785f521...9402baa` | 2026-07-29 |

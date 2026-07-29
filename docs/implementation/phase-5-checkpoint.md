@@ -2,7 +2,7 @@
 
 日期：2026-07-29
 
-状态：**NO-GO（八次双轴再复审待定）** — 七次复验遗留的 3 个 Spec P2 / 2 个 Standards P2 已补证；八次初审进一步发现的冷库所有权保护和 seed 稳定快照两个 P2 也已修复并重跑全量门禁。双轴再复审 GO 前不得推进阶段六。
+状态：**GO（阶段5验收通过；阶段6尚未开始）** — 七次复验遗留的 3 个 Spec P2 / 2 个 Standards P2，以及八次复审新增的冷库所有权、seed 稳定快照、资源关闭保真和用户激活时间漂移问题均已关闭。最终 Standards / Spec 双轴均为 P0=0、P1=0、P2=0。
 
 对应计划：`docs/superpowers/plans/2026-07-20-phase-5-operations-iteration-retirement.md`
 
@@ -22,7 +22,7 @@
 ## 本轮本地验证
 
 ```text
-Reviewed range: 785f521...HEAD (eighth acceptance evidence remediation)
+Code review range: 785f521...9402baa (eighth acceptance evidence remediation)
 Focused MySQL pytest: 31 passed in 57.66s
 Clean E2E seed: 11 normalized role assignments; 7 fixture groups stable; temporary database removed
 Full scripts\check.cmd: All quality gates passed
@@ -37,4 +37,4 @@ TRD verification: 92 requirements / 4 major stage gates passed
 
 本轮门禁另报告既有非阻塞告警：npm audit 4 个 high severity、MySQL `W036` 条件唯一约束警告及前端构建体积/插件告警；本次未修改依赖锁文件或扩大整改范围。
 
-合并或推进阶段六前必须：Standards / Spec 双轴严格复审 GO，且 P0 / P1 / P2 均为 0。
+验收结论：Standards GO；Spec GO；P0 / P1 / P2 均为 0。阶段5可以结束，阶段6仍需单独批准和规划后方可开始。
