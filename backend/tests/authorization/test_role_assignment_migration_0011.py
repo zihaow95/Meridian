@@ -108,9 +108,7 @@ def test_0011_backfill_dedupes_null_and_explicit_org_scope_collision() -> None:
 
         backfill_scope_key(django_apps, None)
 
-        active = RoleAssignment.objects.filter(
-            user=user, role=role, status="ACTIVE", active_slot=1
-        )
+        active = RoleAssignment.objects.filter(user=user, role=role, status="ACTIVE", active_slot=1)
         assert active.count() == 1
         assert active.get().id == keep.id
         assert active.get().scope_key == f"ORGANIZATION:{org.id}"
