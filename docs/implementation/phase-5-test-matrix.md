@@ -1,6 +1,6 @@
 # 阶段5 运营、迭代和退市 —— 测试矩阵
 
-状态：**NO-GO / 八次双轴复审待定** — 分支 `codex/phase-5-operations-iteration-retirement`；七次复验遗留的 3 个 Spec P2 / 2 个 Standards P2 已补齐本轮自动化证据。
+状态：**NO-GO / 八次双轴再复审待定** — 分支 `codex/phase-5-operations-iteration-retirement`；七次复验遗留证据及八次初审新增的冷库所有权保护、seed 稳定快照证据均已补齐。
 
 对应计划：`docs/superpowers/plans/2026-07-20-phase-5-operations-iteration-retirement.md`
 
@@ -89,7 +89,8 @@
 | `scripts\check.ps1` 全量 | 初验 tip `5c16ff8` 曾通过，但 Spec/Standards P1 未覆盖 → **NO-GO**；remediation 后待复验 | 2026-07-22 |
 | 0010 → 0011 真实升级 + 唯一约束拒绝重复 ACTIVE | **passed**：`test_role_assignment_migration_0011.py`，纳入 focused / 全量 MySQL pytest | 2026-07-29 |
 | 角色撤销后下一次授权立即拒绝 | **passed**：`test_deactivated_role_is_denied_on_next_authorization_request`，纳入 focused / 全量 MySQL pytest | 2026-07-29 |
-| 空库 migrate + `seed_e2e_user` 重复执行 | **passed**：隔离临时 MySQL 数据库；11 条规范化角色分配，第二次执行数量不变，结束后删除临时库 | 2026-07-29 |
-| Focused MySQL pytest | **29 passed in 43.71s**（本轮实际执行） | 2026-07-29 |
-| `scripts\check.cmd` 全量 | **All quality gates passed**；MySQL **486**、Vitest **59**、Playwright **19**、OpenAPI / Docker / legacy 均通过 | 2026-07-29 |
+| 空库 migrate + `seed_e2e_user` 重复执行 | **passed**：隔离临时 MySQL 数据库；11 条规范化角色分配，7 组关键资产逐行不变，范围键严格匹配，结束后删除临时库 | 2026-07-29 |
+| 临时库所有权与失败清理 | **passed**：`test_create_failure_never_drops_database_not_owned_by_verifier` 证明 CREATE 失败不执行 DROP | 2026-07-29 |
+| Focused MySQL pytest | **30 passed in 43.41s**（本轮实际执行） | 2026-07-29 |
+| `scripts\check.cmd` 全量 | **All quality gates passed**；MySQL **487**、Vitest **59**、Playwright **19**、OpenAPI / Docker / legacy 均通过 | 2026-07-29 |
 | `scripts\verify-trd.ps1` | pass（92 requirements / 4 gates，本轮实际执行） | 2026-07-29 |

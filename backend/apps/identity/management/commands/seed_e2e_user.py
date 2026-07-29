@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from typing import TYPE_CHECKING
-from uuid import uuid4
+from uuid import UUID
 
 from django.core.management.base import BaseCommand, CommandError
 from django.utils import timezone
@@ -123,6 +123,7 @@ E2E_OPS_SOURCE_CODE = "E2E_OPS_SRC"
 E2E_OPS_METRIC_CODE = "PRODUCTION_QTY"
 E2E_OPS_SALES_METRIC_CODE = "GROSS_SALES"
 E2E_OPS_RULE_CODE = "E2E_QUARTER_SHELF_MIN_PROD"
+E2E_OPS_MONITORING_DECISION_ID = UUID("1a09db77-b7f2-5c7a-8c59-fd509f67bbfb")
 
 
 class Command(BaseCommand):
@@ -164,7 +165,6 @@ class Command(BaseCommand):
         self._ensure_phase4_projects(organization, user)
         self._ensure_phase5_operating_fixtures(organization, user)
 
-        source_id = uuid4()
         Todo.objects.update_or_create(
             assignee=user,
             dedup_key="e2e:todo",
@@ -172,7 +172,7 @@ class Command(BaseCommand):
                 "organization": organization,
                 "todo_type": "review",
                 "source_type": "identity.user",
-                "source_id": source_id,
+                "source_id": user.public_id,
                 "action_code": "identity.user.review",
                 "status": TodoStatus.OPEN,
                 "deep_link": "/admin/audit",
@@ -614,11 +614,18 @@ class Command(BaseCommand):
                 product_asset=product,
                 idempotency_key="e2e-seed-ops-monitoring",
             )
+        existing_scope = (
+            project.monitoring_scopes.filter(product_version=version).order_by("id").first()
+        )
         scope = InitializeMonitoringScope(
             project=project,
             product_version=version,
             owner=supervisor,
-            source_decision_public_id=uuid4(),
+            source_decision_public_id=(
+                existing_scope.source_decision_public_id
+                if existing_scope is not None
+                else E2E_OPS_MONITORING_DECISION_ID
+            ),
             effective_at=now,
         ).execute()
         AssignMonitoringSupervisor(

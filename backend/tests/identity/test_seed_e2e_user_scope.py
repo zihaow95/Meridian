@@ -14,6 +14,7 @@ from apps.identity.management.commands.seed_e2e_user import (
 )
 from apps.identity.models.organization import Organization
 from apps.identity.models.user import User, UserStatus
+from apps.notifications.models import Todo
 
 
 @pytest.mark.django_db
@@ -43,15 +44,49 @@ def test_seed_e2e_grant_writes_scope_fields_and_is_idempotent() -> None:
 @pytest.mark.django_db
 def test_seed_e2e_user_command_runs_twice_successfully() -> None:
     call_command("seed_e2e_user")
-    call_command("seed_e2e_user")
 
     organization = Organization.objects.get(name=E2E_ORG_NAME)
     user = User.objects.get(login_key=E2E_LOGIN_KEY)
-    assert user.organization_id == organization.id
-    assert (
+    first_assignments = list(
         RoleAssignment.objects.filter(user=user)
-        .exclude(scope_key="")
-        .exclude(scope_id__isnull=True)
-        .exists()
+        .order_by("id")
+        .values_list(
+            "id",
+            "public_id",
+            "role_id",
+            "scope_type",
+            "scope_id",
+            "scope_key",
+            "status",
+            "active_slot",
+        )
     )
-    assert not RoleAssignment.objects.filter(user=user, scope_key="").exists()
+    first_todo = Todo.objects.get(assignee=user, dedup_key="e2e:todo")
+
+    call_command("seed_e2e_user")
+
+    second_assignments = list(
+        RoleAssignment.objects.filter(user=user)
+        .order_by("id")
+        .values_list(
+            "id",
+            "public_id",
+            "role_id",
+            "scope_type",
+            "scope_id",
+            "scope_key",
+            "status",
+            "active_slot",
+        )
+    )
+    second_todo = Todo.objects.get(assignee=user, dedup_key="e2e:todo")
+
+    assert user.organization_id == organization.id
+    assert second_assignments == first_assignments
+    assert all(
+        scope_key == build_scope_key(scope_type=scope_type, scope_id=scope_id)
+        for _, _, _, scope_type, scope_id, scope_key, _, _ in second_assignments
+    )
+    assert second_todo.id == first_todo.id
+    assert second_todo.public_id == first_todo.public_id
+    assert second_todo.source_id == first_todo.source_id == user.public_id
