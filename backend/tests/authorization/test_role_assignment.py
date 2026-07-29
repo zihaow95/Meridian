@@ -296,6 +296,61 @@ def test_deactivate_service_clears_active_slot_audits_and_allows_reassign(
 
 
 @pytest.mark.django_db
+def test_deactivated_role_is_denied_on_next_authorization_request(
+    platform_admin_user,
+    active_user,
+    role_assign_action,
+) -> None:
+    from apps.authorization.context import AuthorizationContext, ResourceDescriptor
+    from apps.authorization.services.subject import subject_for
+
+    target_role = Role.objects.create(
+        role_code="VIEWER_IMMEDIATE_REVOKE",
+        name="Viewer Immediate Revoke",
+        role_type=RoleType.BUSINESS,
+    )
+    RolePermission.objects.create(
+        role=target_role,
+        action=role_assign_action,
+        max_data_level="INTERNAL",
+        requires_object_scope=False,
+    )
+    assignment = AssignRole(
+        actor=platform_admin_user,
+        target=active_user,
+        role=target_role,
+        approval_reference="AP-IMMEDIATE-REVOKE",
+    ).execute()
+    resource = ResourceDescriptor(
+        resource_type="authorization.role",
+        public_id=target_role.public_id,
+        organization_id=active_user.organization_id,
+    )
+
+    assert auth_engine.authorize(
+        subject_for(active_user),
+        action="authorization.role.assign",
+        resource=resource,
+        context=AuthorizationContext.current(),
+    ).allowed
+
+    DeactivateRoleAssignment(
+        actor=platform_admin_user,
+        assignment_public_id=assignment.public_id,
+        context=CommandContext.for_actor(platform_admin_user),
+    ).execute()
+
+    decision = auth_engine.authorize(
+        subject_for(active_user),
+        action="authorization.role.assign",
+        resource=resource,
+        context=AuthorizationContext.current(),
+    )
+    assert decision.allowed is False
+    assert decision.reason_code == "NO_ALLOWING_POLICY"
+
+
+@pytest.mark.django_db
 def test_deactivate_denied_without_permission(active_user, platform_admin_user) -> None:
     target_role = Role.objects.create(
         role_code="VIEWER_DENY_DEACT",

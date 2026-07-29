@@ -18,15 +18,6 @@ $EnvFile = Join-Path $RepoRoot '.env'
 $uvBin = Join-Path $env:USERPROFILE '.local\bin'
 if (Test-Path $uvBin) { $env:Path = "$uvBin;$env:Path" }
 
-# Cursor/agent shells sometimes inject npm_config_* into a sandbox cache path.
-# Clear those for gate runs.
-foreach ($name in @(
-        'npm_config_devdir', 'NPM_CONFIG_DEVDIR',
-        'npm_config_cache', 'NPM_CONFIG_CACHE'
-    )) {
-    Remove-Item "Env:$name" -ErrorAction SilentlyContinue
-}
-
 # Load .env so backend steps reach MySQL.
 if (Test-Path $EnvFile) {
     foreach ($line in Get-Content $EnvFile) {
@@ -130,6 +121,9 @@ try {
     } $backend
     Invoke-Native 'Backend: migration drift' {
         uv run python manage.py makemigrations --check --dry-run --settings=config.settings.test
+    } $backend
+    Invoke-Native 'Backend: clean E2E seed' {
+        uv run python 'tests\identity\verify_e2e_seed_cold_start.py'
     } $backend
     Invoke-Native 'Backend: pytest (MySQL)' { uv run pytest -q } $backend
     Invoke-Native 'Backend: OpenAPI drift' {

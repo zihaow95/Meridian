@@ -5,7 +5,7 @@ from __future__ import annotations
 import uuid
 
 import pytest
-from django.db import connection
+from django.db import IntegrityError, connection
 from django.db.migrations.executor import MigrationExecutor
 from django.utils import timezone
 
@@ -111,6 +111,19 @@ def test_0011_migration_executor_upgrades_null_and_explicit_org_scope_collision(
         )
         assert inactive.count() == 1
         assert inactive.get().active_slot is None
+
+        with pytest.raises(IntegrityError):
+            CurrentRA.objects.create(
+                user_id=user.id,
+                role_id=role.id,
+                scope_type="ORGANIZATION",
+                scope_id=org.id,
+                scope_key=f"ORGANIZATION:{org.id}",
+                effective_from=now,
+                configured_by_id=user.id,
+                status="ACTIVE",
+                active_slot=1,
+            )
     finally:
         restore = MigrationExecutor(connection)
         restore.migrate(auth_leaf or [app_0011])
