@@ -25,6 +25,8 @@ from apps.identity.models.user import User
 from apps.platform.api.errors import ResourceNotFoundError
 from apps.platform.application.command import CommandContext
 
+_REVOKE_ACTION = "authorization.role.revoke"
+
 
 class RoleAssignmentDeactivateDenied(Exception):
     def __init__(self, decision: AuthorizationDecision) -> None:
@@ -56,10 +58,11 @@ class DeactivateRoleAssignment:
             if assignment.user.organization_id != self.actor.organization_id:
                 raise ResourceNotFoundError()
 
-            lock_organization_and_users(
+            _, locked_users = lock_organization_and_users(
                 organization_id=assignment.user.organization_id,
                 user_ids=(self.actor.id, assignment.user_id),
             )
+            locked_actor = locked_users[self.actor.id]
             assignment = (
                 RoleAssignment.objects.select_for_update()
                 .select_related("user", "role")
@@ -67,8 +70,8 @@ class DeactivateRoleAssignment:
             )
 
             decision = authorize(
-                subject_for(self.actor),
-                action="authorization.role.assign",
+                subject_for(locked_actor),
+                action=_REVOKE_ACTION,
                 resource=ResourceDescriptor(
                     resource_type="authorization.role",
                     public_id=assignment.role.public_id,
@@ -82,6 +85,12 @@ class DeactivateRoleAssignment:
             if assignment.status == AssignmentStatus.INACTIVE and assignment.active_slot is None:
                 return assignment
 
+            before_summary = {
+                "role_code": assignment.role.role_code,
+                "target_user_id": str(assignment.user.public_id),
+                "scope_key": assignment.scope_key,
+                "status": assignment.status,
+            }
             assignment.status = AssignmentStatus.INACTIVE
             assignment.active_slot = None
             if assignment.effective_to is None:
@@ -89,14 +98,15 @@ class DeactivateRoleAssignment:
             assignment.save(update_fields=["status", "active_slot", "effective_to", "updated_at"])
             append_event(
                 AuditRecord(
-                    actor=command_context.actor,
-                    action_code="authorization.role.assign",
+                    actor=locked_actor,
+                    action_code=_REVOKE_ACTION,
                     resource_type="authorization.role_assignment",
                     resource_public_id=assignment.public_id,
                     result=AuditResult.SUCCESS,
                     trace_id=command_context.trace_id,
                     occurred_at=command_context.occurred_at,
-                    acting_roles_snapshot=acting_roles_snapshot(command_context.actor),
+                    acting_roles_snapshot=acting_roles_snapshot(locked_actor),
+                    before_summary=before_summary,
                     after_summary={
                         "role_code": assignment.role.role_code,
                         "target_user_id": str(assignment.user.public_id),

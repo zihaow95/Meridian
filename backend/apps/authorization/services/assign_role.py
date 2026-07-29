@@ -61,17 +61,19 @@ class AssignRole:
         scope_key = build_scope_key(scope_type=self.scope_type, scope_id=resolved_scope_id)
 
         with transaction.atomic():
-            lock_organization_and_users(
+            _, locked_users = lock_organization_and_users(
                 organization_id=self.target.organization_id,
                 user_ids=(self.actor.id, self.target.id),
             )
+            locked_actor = locked_users[self.actor.id]
+            locked_target = locked_users[self.target.id]
             decision = authorize(
-                subject_for(self.actor),
+                subject_for(locked_actor),
                 action="authorization.role.assign",
                 resource=ResourceDescriptor(
                     resource_type="authorization.role",
                     public_id=self.role.public_id,
-                    organization_id=self.target.organization_id,
+                    organization_id=locked_target.organization_id,
                 ),
                 context=AuthorizationContext.current(),
             )
@@ -79,30 +81,30 @@ class AssignRole:
                 raise RoleAssignmentDenied(decision)
 
             assignment = RoleAssignment.objects.create(
-                user=self.target,
+                user=locked_target,
                 role=self.role,
                 scope_type=self.scope_type,
                 scope_id=resolved_scope_id,
                 scope_key=scope_key,
                 effective_from=self.effective_from or timezone.now(),
-                configured_by=self.actor,
+                configured_by=locked_actor,
                 approval_reference=self.approval_reference,
                 status="ACTIVE",
                 active_slot=1,
             )
             append_event(
                 AuditRecord(
-                    actor=command_context.actor,
+                    actor=locked_actor,
                     action_code="authorization.role.assign",
                     resource_type="authorization.role_assignment",
                     resource_public_id=assignment.public_id,
                     result=AuditResult.SUCCESS,
                     trace_id=command_context.trace_id,
                     occurred_at=command_context.occurred_at,
-                    acting_roles_snapshot=acting_roles_snapshot(command_context.actor),
+                    acting_roles_snapshot=acting_roles_snapshot(locked_actor),
                     after_summary={
                         "role_code": self.role.role_code,
-                        "target_user_id": str(self.target.public_id),
+                        "target_user_id": str(locked_target.public_id),
                         "scope_key": scope_key,
                     },
                     reason=self.approval_reference,

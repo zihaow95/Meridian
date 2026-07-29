@@ -194,6 +194,21 @@ def platform_admin_user(
         max_data_level=DataSensitivityLevel.INTERNAL,
         requires_object_scope=False,
     )
+    role_revoke_action, _ = PermissionAction.objects.get_or_create(
+        action_code="authorization.role.revoke",
+        defaults={
+            "resource_type": "authorization.role",
+            "action_category": ActionCategory.ADMIN,
+        },
+    )
+    RolePermission.objects.get_or_create(
+        role=platform_admin_role,
+        action=role_revoke_action,
+        defaults={
+            "max_data_level": DataSensitivityLevel.INTERNAL,
+            "requires_object_scope": False,
+        },
+    )
     scope_id = admin.organization_id
     RoleAssignment.objects.create(
         user=admin,

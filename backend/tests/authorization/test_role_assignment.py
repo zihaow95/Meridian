@@ -23,6 +23,7 @@ from apps.authorization.services.deactivate_role_assignment import (
     DeactivateRoleAssignment,
     RoleAssignmentDeactivateDenied,
 )
+from apps.identity.models.user import User
 from apps.platform.application.command import CommandContext
 
 
@@ -267,13 +268,20 @@ def test_deactivate_service_clears_active_slot_audits_and_allows_reassign(
     assert deactivated.active_slot is None
     assert (
         AuditEvent.objects.filter(
-            action_code="authorization.role.assign",
+            action_code="authorization.role.revoke",
             resource_public_id=first.public_id,
             result=AuditResult.SUCCESS,
             reason="deactivate",
         ).count()
         == 1
     )
+    revoke_audit = AuditEvent.objects.get(
+        action_code="authorization.role.revoke",
+        resource_public_id=first.public_id,
+        result=AuditResult.SUCCESS,
+    )
+    assert revoke_audit.before_summary["status"] == AssignmentStatus.ACTIVE
+    assert revoke_audit.after_summary["status"] == AssignmentStatus.INACTIVE
 
     second = AssignRole(
         actor=platform_admin_user,
@@ -306,3 +314,185 @@ def test_deactivate_denied_without_permission(active_user, platform_admin_user) 
             assignment_public_id=assignment.public_id,
             context=CommandContext.for_actor(active_user),
         ).execute()
+
+
+@pytest.mark.django_db(transaction=True)
+def test_assign_denied_when_actor_disabled_before_lock(
+    platform_admin_user,
+    active_user,
+) -> None:
+    """Disable commits on a separate connection before Assign takes locks."""
+
+    from apps.identity.models.user import UserStatus
+
+    target_role = Role.objects.create(
+        role_code="VIEWER_STALE_ACTOR",
+        name="Viewer Stale Actor",
+        role_type=RoleType.BUSINESS,
+    )
+    assert platform_admin_user.status == UserStatus.ACTIVE
+
+    disabled = threading.Event()
+
+    def _disable_actor() -> None:
+        close_old_connections()
+        try:
+            User.objects.filter(pk=platform_admin_user.pk).update(
+                status=UserStatus.DISABLED,
+                disabled_at=timezone.now(),
+            )
+        finally:
+            disabled.set()
+            connections.close_all()
+
+    worker = threading.Thread(target=_disable_actor)
+    worker.start()
+    assert disabled.wait(timeout=10)
+    worker.join(timeout=10)
+
+    # In-memory actor is still ACTIVE; DB row is DISABLED.
+    assert platform_admin_user.status == UserStatus.ACTIVE
+
+    with pytest.raises(RoleAssignmentDenied) as exc_info:
+        AssignRole(
+            actor=platform_admin_user,
+            target=active_user,
+            role=target_role,
+            approval_reference="AP-STALE",
+        ).execute()
+    assert exc_info.value.decision.reason_code == "USER_NOT_ACTIVE"
+    assert RoleAssignment.objects.filter(user=active_user, role=target_role).count() == 0
+    assert (
+        AuditEvent.objects.filter(
+            action_code="authorization.role.assign",
+            result=AuditResult.SUCCESS,
+        ).count()
+        == 0
+    )
+
+
+@pytest.mark.django_db(transaction=True)
+def test_deactivate_denied_when_actor_disabled_before_lock(
+    platform_admin_user,
+    active_user,
+) -> None:
+    from apps.identity.models.user import UserStatus
+
+    target_role = Role.objects.create(
+        role_code="VIEWER_STALE_REVOKE",
+        name="Viewer Stale Revoke",
+        role_type=RoleType.BUSINESS,
+    )
+    assignment = AssignRole(
+        actor=platform_admin_user,
+        target=active_user,
+        role=target_role,
+        approval_reference="AP-STALE-REV-1",
+    ).execute()
+
+    disabled = threading.Event()
+
+    def _disable_actor() -> None:
+        close_old_connections()
+        try:
+            User.objects.filter(pk=platform_admin_user.pk).update(
+                status=UserStatus.DISABLED,
+                disabled_at=timezone.now(),
+            )
+        finally:
+            disabled.set()
+            connections.close_all()
+
+    worker = threading.Thread(target=_disable_actor)
+    worker.start()
+    assert disabled.wait(timeout=10)
+    worker.join(timeout=10)
+    assert platform_admin_user.status == UserStatus.ACTIVE
+
+    with pytest.raises(RoleAssignmentDeactivateDenied) as exc_info:
+        DeactivateRoleAssignment(
+            actor=platform_admin_user,
+            assignment_public_id=assignment.public_id,
+            context=CommandContext.for_actor(platform_admin_user),
+        ).execute()
+    assert exc_info.value.decision.reason_code == "USER_NOT_ACTIVE"
+    assignment.refresh_from_db()
+    assert assignment.status == AssignmentStatus.ACTIVE
+    assert assignment.active_slot == 1
+    assert (
+        AuditEvent.objects.filter(
+            action_code="authorization.role.revoke",
+            result=AuditResult.SUCCESS,
+        ).count()
+        == 0
+    )
+
+
+@pytest.mark.django_db
+def test_deactivate_denied_when_actor_has_assign_but_not_revoke(
+    platform_admin_user,
+    active_user,
+    platform_admin_role,
+) -> None:
+    from apps.authorization.models.role import PermissionAction, RolePermission
+
+    target_role = Role.objects.create(
+        role_code="VIEWER_ASSIGN_ONLY",
+        name="Viewer Assign Only",
+        role_type=RoleType.BUSINESS,
+    )
+    assignment = AssignRole(
+        actor=platform_admin_user,
+        target=active_user,
+        role=target_role,
+        approval_reference="AP-ASSIGN-ONLY",
+    ).execute()
+    revoke_action = PermissionAction.objects.get(action_code="authorization.role.revoke")
+    RolePermission.objects.filter(role=platform_admin_role, action=revoke_action).delete()
+
+    with pytest.raises(RoleAssignmentDeactivateDenied):
+        DeactivateRoleAssignment(
+            actor=platform_admin_user,
+            assignment_public_id=assignment.public_id,
+            context=CommandContext.for_actor(platform_admin_user),
+        ).execute()
+    assignment.refresh_from_db()
+    assert assignment.status == AssignmentStatus.ACTIVE
+
+
+@pytest.mark.django_db(transaction=True)
+def test_deactivate_rolls_back_when_audit_write_fails(
+    platform_admin_user,
+    active_user,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from apps.audit.services.append_event import AuditWriteFailed
+
+    target_role = Role.objects.create(
+        role_code="VIEWER_AUDIT_FAIL",
+        name="Viewer Audit Fail",
+        role_type=RoleType.BUSINESS,
+    )
+    assignment = AssignRole(
+        actor=platform_admin_user,
+        target=active_user,
+        role=target_role,
+        approval_reference="AP-AUDIT-FAIL",
+    ).execute()
+
+    def _raise(*args: object, **kwargs: object) -> None:
+        raise AuditWriteFailed("audit insert failed")
+
+    monkeypatch.setattr(
+        "apps.authorization.services.deactivate_role_assignment.append_event",
+        _raise,
+    )
+    with pytest.raises(AuditWriteFailed):
+        DeactivateRoleAssignment(
+            actor=platform_admin_user,
+            assignment_public_id=assignment.public_id,
+            context=CommandContext.for_actor(platform_admin_user),
+        ).execute()
+    assignment.refresh_from_db()
+    assert assignment.status == AssignmentStatus.ACTIVE
+    assert assignment.active_slot == 1

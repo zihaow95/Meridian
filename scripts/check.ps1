@@ -19,19 +19,13 @@ $uvBin = Join-Path $env:USERPROFILE '.local\bin'
 if (Test-Path $uvBin) { $env:Path = "$uvBin;$env:Path" }
 
 # Cursor/agent shells sometimes inject npm_config_* into a sandbox cache path.
-# Clear those, and force a user-writable npm cache. A common local misconfig
-# points cache at Program Files (read-only for normal users) which yields
-# Windows EPERM / exit -4048 on npm ci.
+# Clear those for gate runs.
 foreach ($name in @(
         'npm_config_devdir', 'NPM_CONFIG_DEVDIR',
         'npm_config_cache', 'NPM_CONFIG_CACHE'
     )) {
     Remove-Item "Env:$name" -ErrorAction SilentlyContinue
 }
-$writableNpmCache = Join-Path $env:LOCALAPPDATA 'npm-cache'
-New-Item -ItemType Directory -Force -Path $writableNpmCache | Out-Null
-$env:npm_config_cache = $writableNpmCache
-
 
 # Load .env so backend steps reach MySQL.
 if (Test-Path $EnvFile) {
@@ -41,6 +35,18 @@ if (Test-Path $EnvFile) {
         }
     }
 }
+
+# Force a user-writable npm cache AFTER .env load so a misconfigured
+# Program Files / sandbox cache path cannot override it (Windows EPERM -4048).
+foreach ($name in @(
+        'npm_config_devdir', 'NPM_CONFIG_DEVDIR',
+        'npm_config_cache', 'NPM_CONFIG_CACHE'
+    )) {
+    Remove-Item "Env:$name" -ErrorAction SilentlyContinue
+}
+$writableNpmCache = Join-Path $env:LOCALAPPDATA 'npm-cache'
+New-Item -ItemType Directory -Force -Path $writableNpmCache | Out-Null
+$env:npm_config_cache = $writableNpmCache
 
 $script:StepNo = 0
 

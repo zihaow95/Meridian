@@ -8,6 +8,7 @@ PLATFORM_ACTIONS: tuple[tuple[str, str, str], ...] = (
     ("identity.user.status_change", "identity.user", ActionCategory.ADMIN),
     ("authorization.role.read", "authorization.role", ActionCategory.READ),
     ("authorization.role.assign", "authorization.role", ActionCategory.ADMIN),
+    ("authorization.role.revoke", "authorization.role", ActionCategory.ADMIN),
     (
         "system_actor.retirement.provision",
         "system_actor",

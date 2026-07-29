@@ -2,24 +2,23 @@
 
 日期：2026-07-29
 
-状态：**NO-GO（六次复验待定）** — 五次复验仍为 NO-GO（P1：0011 存量碰撞、事务外判权、无控停用）。本轮补齐规范化后 ACTIVE 去重；Assign/Deactivate/Provision 统一组织+用户锁并在事务内复核；新增受控 `DeactivateRoleAssignment`；修复 Provision ACTIVE 优先与 E2E seed scope 字段。另修复本机只读 Program Files npm cache 导致的 Windows `npm ci` EPERM。关闭全部 P1 且验收 GO 前不得推进阶段六。
+状态：**NO-GO（七次复验待定）** — 六次复验仍为 NO-GO（P1：锁后仍用陈旧 actor；撤销复用 assign 权限/审计）。本轮锁函数返回重读 User；Assign/Deactivate/Provision 统一使用 locked_actor；注册 `authorization.role.revoke`；补独立连接停用竞态、revoke 允许/拒绝/审计回滚与 MigrationExecutor 0010→0011 证据；`.env` 加载后强制可写 npm cache。关闭全部 P1 且验收 GO 前不得推进阶段六。
 
 对应计划：`docs/superpowers/plans/2026-07-20-phase-5-operations-iteration-retirement.md`
 
-## 六次 remediation 要点
+## 七次 remediation 要点
 
-- `0011`：规范化后按 `scope_key` 去重 ACTIVE，再加唯一约束；碰撞回填测试覆盖 NULL+显式 org 归一化冲突
-- `AssignRole` / `DeactivateRoleAssignment` / `ProvisionRetirementSystemActor`：组织→用户锁顺序，事务内 `subject_for`+`authorize`
-- 停用改为受控应用服务（权限复核 + 审计 + 清空 `active_slot`）
-- Provision 优先返回当前 ACTIVE/open/`active_slot=1`；仅历史失效行时拒绝自愈
-- `seed_e2e_user` 写入规范化 `scope_id`/`scope_key`；空库/双次 seed 测试
-- `check.ps1`：清除 Cursor 注入 npm 配置，强制可写 LocalAppData cache，并对 `-4048` 重试
+- `lock_organization_and_users` 返回 `dict[id, User]`；三服务用 locked_actor 判权/写入/审计
+- 新增 `authorization.role.revoke`（迁移 0012）；Deactivate 仅检查 revoke，审计含 ACTIVE→INACTIVE
+- MigrationExecutor 真实执行 0010→0011 碰撞去重并校验非空字段与唯一约束
+- `check.ps1` 在加载 `.env` 之后再次清理并强制 LocalAppData npm cache
 
 ## 本轮本地验证
 
 ```text
-Reviewed range: 5dd25d5...HEAD (sixth remediation + npm ci Windows harden)
-scripts\check.cmd: All quality gates passed
+Reviewed range: a5139ca...HEAD (seventh remediation)
+Focused MySQL pytest: pending in this turn
+Full scripts/check.cmd: run by human after local commit
 ```
 
 合并或推进阶段六前必须：严格复审 GO。

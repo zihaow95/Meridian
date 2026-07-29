@@ -70,11 +70,14 @@ class ProvisionRetirementSystemActor:
 
         try:
             with transaction.atomic():
-                lock_organization_and_users(
+                _, locked_users = lock_organization_and_users(
                     organization_id=self.organization.id,
                     user_ids=(actor.id,),
                 )
-                if not self._allowed(actor):
+                locked_actor = locked_users[actor.id]
+                if locked_actor.status != UserStatus.ACTIVE:
+                    raise ProvisionRetirementSystemActorDenied()
+                if not self._allowed(locked_actor):
                     raise ProvisionRetirementSystemActorDenied()
                 user = EnsureRetirementSystemExecutor(
                     context=self.context,
@@ -82,17 +85,17 @@ class ProvisionRetirementSystemActor:
                     employee_no=SYSTEM_EMPLOYEE_NO,
                 ).execute()
                 role = self._ensure_role_and_permission()
-                self._ensure_assignment(user=user, role=role, actor=actor, now=now)
+                self._ensure_assignment(user=user, role=role, actor=locked_actor, now=now)
                 append_event(
                     AuditRecord(
-                        actor=actor,
+                        actor=locked_actor,
                         action_code=_ACTION,
                         resource_type="user",
                         resource_public_id=user.public_id,
                         result=AuditResult.SUCCESS,
                         trace_id=self.context.trace_id,
                         occurred_at=now,
-                        acting_roles_snapshot=acting_roles_snapshot(actor),
+                        acting_roles_snapshot=acting_roles_snapshot(locked_actor),
                         after_summary={
                             "organization_id": self.organization.id,
                             "employee_no": SYSTEM_EMPLOYEE_NO,

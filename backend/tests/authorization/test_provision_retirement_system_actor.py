@@ -404,3 +404,51 @@ def test_provision_reauthorizes_inside_transaction(organization, platform_admin_
 
     assert seen_atomic
     assert all(seen_atomic)
+
+
+@pytest.mark.django_db(transaction=True)
+def test_provision_denied_when_actor_disabled_before_lock(
+    organization, platform_admin_user
+) -> None:
+    import threading
+
+    from django.db import close_old_connections, connections
+
+    from apps.operations.services.system_actor import SYSTEM_EMPLOYEE_NO
+
+    assert platform_admin_user.status == UserStatus.ACTIVE
+    disabled = threading.Event()
+
+    def _disable_actor() -> None:
+        close_old_connections()
+        try:
+            User.objects.filter(pk=platform_admin_user.pk).update(
+                status=UserStatus.DISABLED,
+                disabled_at=timezone.now(),
+            )
+        finally:
+            disabled.set()
+            connections.close_all()
+
+    worker = threading.Thread(target=_disable_actor)
+    worker.start()
+    assert disabled.wait(timeout=10)
+    worker.join(timeout=10)
+    assert platform_admin_user.status == UserStatus.ACTIVE
+
+    with pytest.raises((ProvisionRetirementSystemActorDenied, PermissionDeniedError)):
+        ProvisionRetirementSystemActor(
+            context=CommandContext.for_actor(platform_admin_user),
+            organization=organization,
+        ).execute()
+
+    assert (
+        User.objects.filter(organization=organization, employee_no=SYSTEM_EMPLOYEE_NO).count() == 0
+    )
+    assert (
+        AuditEvent.objects.filter(
+            action_code="system_actor.retirement.provision",
+            result=AuditResult.SUCCESS,
+        ).count()
+        == 0
+    )
