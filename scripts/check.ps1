@@ -18,6 +18,14 @@ $EnvFile = Join-Path $RepoRoot '.env'
 $uvBin = Join-Path $env:USERPROFILE '.local\bin'
 if (Test-Path $uvBin) { $env:Path = "$uvBin;$env:Path" }
 
+# Cursor/agent shells sometimes inject npm_config_devdir into a sandbox cache
+# path. That is not a valid npmrc key on npm 11 and can destabilize npm ci on
+# Windows (EPERM / exit -4048). Clear it for gate runs.
+if ($env:npm_config_devdir -or $env:NPM_CONFIG_DEVDIR) {
+    Remove-Item Env:npm_config_devdir -ErrorAction SilentlyContinue
+    Remove-Item Env:NPM_CONFIG_DEVDIR -ErrorAction SilentlyContinue
+}
+
 # Load .env so backend steps reach MySQL.
 if (Test-Path $EnvFile) {
     foreach ($line in Get-Content $EnvFile) {
@@ -43,6 +51,42 @@ function Invoke-Native {
         & $Action
         if ($LASTEXITCODE -ne $null -and $LASTEXITCODE -ne 0) {
             throw ("step failed (exit {0}): {1}" -f $LASTEXITCODE, $Title)
+        }
+    }
+    finally {
+        Pop-Location
+    }
+}
+
+function Invoke-NpmCi {
+    param(
+        [Parameter(Mandatory)][string]$Title,
+        [Parameter(Mandatory)][string]$WorkDir,
+        [int]$MaxAttempts = 3
+    )
+    # Windows often returns -4048 (EPERM) when node_modules is locked mid-replace.
+    $script:StepNo++
+    Write-Host ""
+    Write-Host ("=== [{0}] {1} ===" -f $script:StepNo, $Title) -ForegroundColor Cyan
+    Push-Location $WorkDir
+    try {
+        $attempt = 1
+        while ($true) {
+            if (Test-Path 'node_modules') {
+                cmd /c "rmdir /s /q node_modules" | Out-Null
+            }
+            npm.cmd ci
+            if ($LASTEXITCODE -eq $null -or $LASTEXITCODE -eq 0) {
+                return
+            }
+            $code = $LASTEXITCODE
+            $isEperm = ($code -eq -4048) -or ($code -eq 4294963248)
+            if (-not $isEperm -or $attempt -ge $MaxAttempts) {
+                throw ("step failed (exit {0}): {1}" -f $code, $Title)
+            }
+            Write-Host ("Retrying {0} after Windows EPERM ({1}/{2})..." -f $Title, $attempt, $MaxAttempts) -ForegroundColor Yellow
+            Start-Sleep -Seconds (2 * $attempt)
+            $attempt++
         }
     }
     finally {
@@ -86,7 +130,7 @@ try {
 
     # 4. Frontend gates.
     $frontend = Join-Path $RepoRoot 'frontend'
-    Invoke-Native 'Frontend: npm ci' { npm.cmd ci } $frontend
+    Invoke-NpmCi 'Frontend: npm ci' $frontend
     Invoke-Native 'Frontend: lint' { npm.cmd run lint } $frontend
     Invoke-Native 'Frontend: format check' { npm.cmd run format:check } $frontend
     Invoke-Native 'Frontend: typecheck' { npm.cmd run typecheck } $frontend
@@ -99,7 +143,7 @@ try {
 
     # 5. E2E: platform kernel + phase 2 opportunity-to-project (backend + frontend dev servers).
     $e2e = Join-Path $RepoRoot 'tests/e2e'
-    Invoke-Native 'E2E: install deps' { npm.cmd ci } $e2e
+    Invoke-NpmCi 'E2E: install deps' $e2e
     Invoke-Native 'E2E: Playwright browser' { npx playwright install chromium } $e2e
     Invoke-Native 'E2E: platform kernel, phase 2, and phase 3 product profile' {
         $env:CI = 'true'
