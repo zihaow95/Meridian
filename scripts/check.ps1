@@ -18,13 +18,20 @@ $EnvFile = Join-Path $RepoRoot '.env'
 $uvBin = Join-Path $env:USERPROFILE '.local\bin'
 if (Test-Path $uvBin) { $env:Path = "$uvBin;$env:Path" }
 
-# Cursor/agent shells sometimes inject npm_config_devdir into a sandbox cache
-# path. That is not a valid npmrc key on npm 11 and can destabilize npm ci on
-# Windows (EPERM / exit -4048). Clear it for gate runs.
-if ($env:npm_config_devdir -or $env:NPM_CONFIG_DEVDIR) {
-    Remove-Item Env:npm_config_devdir -ErrorAction SilentlyContinue
-    Remove-Item Env:NPM_CONFIG_DEVDIR -ErrorAction SilentlyContinue
+# Cursor/agent shells sometimes inject npm_config_* into a sandbox cache path.
+# Clear those, and force a user-writable npm cache. A common local misconfig
+# points cache at Program Files (read-only for normal users) which yields
+# Windows EPERM / exit -4048 on npm ci.
+foreach ($name in @(
+        'npm_config_devdir', 'NPM_CONFIG_DEVDIR',
+        'npm_config_cache', 'NPM_CONFIG_CACHE'
+    )) {
+    Remove-Item "Env:$name" -ErrorAction SilentlyContinue
 }
+$writableNpmCache = Join-Path $env:LOCALAPPDATA 'npm-cache'
+New-Item -ItemType Directory -Force -Path $writableNpmCache | Out-Null
+$env:npm_config_cache = $writableNpmCache
+
 
 # Load .env so backend steps reach MySQL.
 if (Test-Path $EnvFile) {
