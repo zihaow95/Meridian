@@ -312,3 +312,95 @@ def test_inactive_assignment_is_failure_audited(organization, platform_admin_use
         result=AuditResult.FAILURE,
     )
     assert failure.reason == "assignment_inactive"
+
+
+@pytest.mark.django_db(transaction=True)
+def test_provision_prefers_active_assignment_over_historical_inactive(
+    organization, platform_admin_user
+) -> None:
+    from apps.authorization.models.assignment import build_scope_key
+    from apps.authorization.models.role import RoleStatus, RoleType
+
+    executor = User.objects.create_user(
+        organization=organization,
+        display_name="System Retirement Executor",
+        employee_no=SYSTEM_EMPLOYEE_NO,
+        status=UserStatus.ACTIVE,
+        activated_at=timezone.now(),
+    )
+    executor.set_unusable_password()
+    executor.save(update_fields=["password", "updated_at"])
+    role = Role.objects.create(
+        role_code=SYSTEM_ROLE_CODE,
+        name="System Retirement Executor",
+        role_type=RoleType.BUSINESS,
+        status=RoleStatus.ACTIVE,
+    )
+    scope_key = build_scope_key(scope_type=ScopeType.ORGANIZATION, scope_id=organization.id)
+    RoleAssignment.objects.create(
+        user=executor,
+        role=role,
+        scope_type=ScopeType.ORGANIZATION,
+        scope_id=organization.id,
+        scope_key=scope_key,
+        effective_from=timezone.now(),
+        effective_to=timezone.now(),
+        configured_by=platform_admin_user,
+        status=AssignmentStatus.INACTIVE,
+        active_slot=None,
+    )
+    active = RoleAssignment.objects.create(
+        user=executor,
+        role=role,
+        scope_type=ScopeType.ORGANIZATION,
+        scope_id=organization.id,
+        scope_key=scope_key,
+        effective_from=timezone.now(),
+        effective_to=None,
+        configured_by=platform_admin_user,
+        status=AssignmentStatus.ACTIVE,
+        active_slot=1,
+    )
+    result = ProvisionRetirementSystemActor(
+        context=CommandContext.for_actor(platform_admin_user),
+        organization=organization,
+    ).execute()
+    assert result.id == executor.id
+    assert (
+        RoleAssignment.objects.filter(
+            user=executor,
+            role=role,
+            status=AssignmentStatus.ACTIVE,
+            active_slot=1,
+        )
+        .get()
+        .id
+        == active.id
+    )
+
+
+@pytest.mark.django_db(transaction=True)
+def test_provision_reauthorizes_inside_transaction(organization, platform_admin_user) -> None:
+    from unittest.mock import patch
+
+    from django.db import connection
+
+    seen_atomic: list[bool] = []
+
+    def _authorize(*args, **kwargs):
+        from apps.authorization.policies.engine import authorize as real
+
+        seen_atomic.append(connection.in_atomic_block)
+        return real(*args, **kwargs)
+
+    with patch(
+        "apps.authorization.services.provision_retirement_system_actor.authorize",
+        side_effect=_authorize,
+    ):
+        ProvisionRetirementSystemActor(
+            context=CommandContext.for_actor(platform_admin_user),
+            organization=organization,
+        ).execute()
+
+    assert seen_atomic
+    assert all(seen_atomic)

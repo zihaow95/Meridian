@@ -12,7 +12,7 @@ if TYPE_CHECKING:
     from apps.projects.models import Project
     from apps.stage_gates.models import StageGateInstance
 
-from apps.authorization.models.assignment import RoleAssignment, ScopeType
+from apps.authorization.models.assignment import RoleAssignment, ScopeType, build_scope_key
 from apps.authorization.models.role import (
     ActionCategory,
     DataSensitivityLevel,
@@ -268,13 +268,19 @@ class Command(BaseCommand):
                 "requires_object_scope": False,
             },
         )
+        scope_id = user.organization_id
+        scope_key = build_scope_key(scope_type=ScopeType.ORGANIZATION, scope_id=scope_id)
         RoleAssignment.objects.get_or_create(
             user=user,
             role=role,
+            scope_type=ScopeType.ORGANIZATION,
+            scope_key=scope_key,
             defaults={
-                "scope_type": ScopeType.ORGANIZATION,
+                "scope_id": scope_id,
                 "effective_from": timezone.now(),
                 "configured_by": user,
+                "status": "ACTIVE",
+                "active_slot": 1,
             },
         )
 

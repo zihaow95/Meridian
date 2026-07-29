@@ -27,6 +27,7 @@ from apps.authorization.models.role import (
     RoleType,
 )
 from apps.authorization.policies.engine import authorize
+from apps.authorization.services.role_assignment_locks import lock_organization_and_users
 from apps.authorization.services.subject import subject_for
 from apps.identity.models.organization import Organization
 from apps.identity.models.user import User, UserStatus
@@ -67,14 +68,14 @@ class ProvisionRetirementSystemActor:
             self._audit_failure(actor=actor, reason="organization_mismatch", now=now)
             raise ProvisionRetirementSystemActorDenied()
 
-        if not self._allowed(actor):
-            self._audit_failure(actor=actor, reason="authorization_denied", now=now)
-            raise ProvisionRetirementSystemActorDenied()
-
         try:
             with transaction.atomic():
-                # Serialize provision per organization.
-                Organization.objects.select_for_update().get(pk=self.organization.pk)
+                lock_organization_and_users(
+                    organization_id=self.organization.id,
+                    user_ids=(actor.id,),
+                )
+                if not self._allowed(actor):
+                    raise ProvisionRetirementSystemActorDenied()
                 user = EnsureRetirementSystemExecutor(
                     context=self.context,
                     organization=self.organization,
@@ -100,6 +101,9 @@ class ProvisionRetirementSystemActor:
                     )
                 )
                 return user
+        except ProvisionRetirementSystemActorDenied:
+            self._audit_failure(actor=actor, reason="authorization_denied", now=now)
+            raise
         except ValidationFailedError as exc:
             reason = self._reason_from_validation(exc)
             self._audit_failure(actor=actor, reason=reason, now=now)
@@ -194,39 +198,39 @@ class ProvisionRetirementSystemActor:
         scope_key = build_scope_key(
             scope_type=ScopeType.ORGANIZATION, scope_id=self.organization.id
         )
-        assignment = (
-            RoleAssignment.objects.select_for_update()
-            .filter(
-                user=user,
-                role=role,
-                scope_type=ScopeType.ORGANIZATION,
-                scope_key=scope_key,
+        base = RoleAssignment.objects.select_for_update().filter(
+            user=user,
+            role=role,
+            scope_type=ScopeType.ORGANIZATION,
+            scope_key=scope_key,
+        )
+        active = (
+            base.filter(
+                status=AssignmentStatus.ACTIVE,
+                effective_to__isnull=True,
+                active_slot=1,
             )
             .order_by("id")
             .first()
         )
-        if assignment is None:
-            return RoleAssignment.objects.create(
-                user=user,
-                role=role,
-                scope_type=ScopeType.ORGANIZATION,
-                scope_id=self.organization.id,
-                scope_key=scope_key,
-                effective_from=user.created_at or now,
-                effective_to=None,
-                configured_by=actor,
-                status=AssignmentStatus.ACTIVE,
-                active_slot=1,
-            )
-        if (
-            assignment.status != AssignmentStatus.ACTIVE
-            or assignment.effective_to is not None
-            or assignment.active_slot != 1
-        ):
+        if active is not None:
+            return active
+        if base.exists():
             raise ValidationFailedError(
                 message=(
                     "Retirement system executor assignment is inactive; "
                     "refusing to self-heal via provision."
                 )
             )
-        return assignment
+        return RoleAssignment.objects.create(
+            user=user,
+            role=role,
+            scope_type=ScopeType.ORGANIZATION,
+            scope_id=self.organization.id,
+            scope_key=scope_key,
+            effective_from=user.created_at or now,
+            effective_to=None,
+            configured_by=actor,
+            status=AssignmentStatus.ACTIVE,
+            active_slot=1,
+        )

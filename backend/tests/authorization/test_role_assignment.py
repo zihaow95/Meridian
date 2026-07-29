@@ -3,20 +3,27 @@
 from __future__ import annotations
 
 import threading
+from unittest.mock import patch
 
 import pytest
-from django.db import IntegrityError, close_old_connections, connections
+from django.db import IntegrityError, close_old_connections, connection, connections
 from django.utils import timezone
 
+from apps.audit.models import AuditEvent, AuditResult
 from apps.authorization.models.assignment import (
     AssignmentStatus,
     RoleAssignment,
     ScopeType,
     build_scope_key,
-    deactivate_role_assignment,
 )
 from apps.authorization.models.role import Role, RolePermission, RoleType
+from apps.authorization.policies import engine as auth_engine
 from apps.authorization.services.assign_role import AssignRole, RoleAssignmentDenied
+from apps.authorization.services.deactivate_role_assignment import (
+    DeactivateRoleAssignment,
+    RoleAssignmentDeactivateDenied,
+)
+from apps.platform.application.command import CommandContext
 
 
 @pytest.mark.django_db
@@ -100,6 +107,41 @@ def test_assign_role_creates_assignment_when_authorized(
         scope_type=ScopeType.ORGANIZATION, scope_id=active_user.organization_id
     )
     assert assignment.active_slot == 1
+
+
+@pytest.mark.django_db
+def test_assign_role_reauthorizes_inside_transaction(
+    platform_admin_user,
+    active_user,
+) -> None:
+    target_role = Role.objects.create(
+        role_code="VIEWER_TX_AUTH",
+        name="Viewer Tx Auth",
+        role_type=RoleType.BUSINESS,
+    )
+    seen_atomic = []
+
+    real_authorize = auth_engine.authorize
+
+    def _authorize(*args, **kwargs):
+        seen_atomic.append(connection.in_atomic_block)
+        return real_authorize(*args, **kwargs)
+
+    with patch.object(auth_engine, "authorize", side_effect=_authorize):
+        # Patch the symbol used by AssignRole module.
+        with patch(
+            "apps.authorization.services.assign_role.authorize",
+            side_effect=_authorize,
+        ):
+            AssignRole(
+                actor=platform_admin_user,
+                target=active_user,
+                role=target_role,
+                approval_reference="AP-TX",
+            ).execute()
+
+    assert seen_atomic
+    assert all(seen_atomic)
 
 
 @pytest.mark.django_db
@@ -199,7 +241,7 @@ def test_concurrent_org_assign_keeps_single_active_slot(
 
 
 @pytest.mark.django_db
-def test_deactivate_clears_active_slot_and_allows_reassign(
+def test_deactivate_service_clears_active_slot_audits_and_allows_reassign(
     platform_admin_user,
     active_user,
 ) -> None:
@@ -215,10 +257,23 @@ def test_deactivate_clears_active_slot_and_allows_reassign(
         scope_type=ScopeType.ORGANIZATION,
         approval_reference="AP-RE-1",
     ).execute()
-    deactivate_role_assignment(first, at=timezone.now())
-    first.refresh_from_db()
-    assert first.status == AssignmentStatus.INACTIVE
-    assert first.active_slot is None
+    deactivated = DeactivateRoleAssignment(
+        actor=platform_admin_user,
+        assignment_public_id=first.public_id,
+        context=CommandContext.for_actor(platform_admin_user),
+        at=timezone.now(),
+    ).execute()
+    assert deactivated.status == AssignmentStatus.INACTIVE
+    assert deactivated.active_slot is None
+    assert (
+        AuditEvent.objects.filter(
+            action_code="authorization.role.assign",
+            resource_public_id=first.public_id,
+            result=AuditResult.SUCCESS,
+            reason="deactivate",
+        ).count()
+        == 1
+    )
 
     second = AssignRole(
         actor=platform_admin_user,
@@ -230,3 +285,24 @@ def test_deactivate_clears_active_slot_and_allows_reassign(
     assert second.id != first.id
     assert second.status == AssignmentStatus.ACTIVE
     assert second.active_slot == 1
+
+
+@pytest.mark.django_db
+def test_deactivate_denied_without_permission(active_user, platform_admin_user) -> None:
+    target_role = Role.objects.create(
+        role_code="VIEWER_DENY_DEACT",
+        name="Viewer Deny Deact",
+        role_type=RoleType.BUSINESS,
+    )
+    assignment = AssignRole(
+        actor=platform_admin_user,
+        target=active_user,
+        role=target_role,
+        approval_reference="AP-DENY",
+    ).execute()
+    with pytest.raises(RoleAssignmentDeactivateDenied):
+        DeactivateRoleAssignment(
+            actor=active_user,
+            assignment_public_id=assignment.public_id,
+            context=CommandContext.for_actor(active_user),
+        ).execute()

@@ -30,22 +30,28 @@ from apps.identity.models.user import User, UserStatus
 
 @pytest.fixture
 def platform_admin_role(db: None) -> Role:
-    role = Role.objects.create(
+    role, _ = Role.objects.get_or_create(
         role_code="SYSTEM_ADMIN",
-        name="System Administrator",
-        role_type=RoleType.PLATFORM,
-        is_critical=True,
+        defaults={
+            "name": "System Administrator",
+            "role_type": RoleType.PLATFORM,
+            "is_critical": True,
+        },
     )
-    action = PermissionAction.objects.create(
+    action, _ = PermissionAction.objects.get_or_create(
         action_code="platform.settings.read",
-        resource_type="platform",
-        action_category=ActionCategory.READ,
+        defaults={
+            "resource_type": "platform",
+            "action_category": ActionCategory.READ,
+        },
     )
-    RolePermission.objects.create(
+    RolePermission.objects.get_or_create(
         role=role,
         action=action,
-        max_data_level=DataSensitivityLevel.INTERNAL,
-        requires_object_scope=False,
+        defaults={
+            "max_data_level": DataSensitivityLevel.INTERNAL,
+            "requires_object_scope": False,
+        },
     )
     return role
 
@@ -74,11 +80,13 @@ def platform_admin_user(
         status=UserStatus.ACTIVE,
         activated_at=timezone.now(),
     )
-    RolePermission.objects.create(
+    RolePermission.objects.get_or_create(
         role=platform_admin_role,
         action=role_assign_action,
-        max_data_level=DataSensitivityLevel.INTERNAL,
-        requires_object_scope=False,
+        defaults={
+            "max_data_level": DataSensitivityLevel.INTERNAL,
+            "requires_object_scope": False,
+        },
     )
     provision_action, _ = PermissionAction.objects.get_or_create(
         action_code="system_actor.retirement.provision",
@@ -96,16 +104,18 @@ def platform_admin_user(
         },
     )
     scope_id = admin.organization_id
-    RoleAssignment.objects.create(
+    RoleAssignment.objects.get_or_create(
         user=admin,
         role=platform_admin_role,
         scope_type=ScopeType.ORGANIZATION,
-        scope_id=scope_id,
         scope_key=build_scope_key(scope_type=ScopeType.ORGANIZATION, scope_id=scope_id),
-        effective_from=timezone.now(),
-        configured_by=admin,
-        status="ACTIVE",
-        active_slot=1,
+        defaults={
+            "scope_id": scope_id,
+            "effective_from": timezone.now(),
+            "configured_by": admin,
+            "status": "ACTIVE",
+            "active_slot": 1,
+        },
     )
     return admin
 
@@ -130,8 +140,11 @@ def highly_sensitive_resource(organization: Organization) -> ResourceDescriptor:
 
 @pytest.fixture
 def product_read_action(db: None) -> PermissionAction:
-    return PermissionAction.objects.create(
+    action, _ = PermissionAction.objects.get_or_create(
         action_code="product.formula.read",
-        resource_type="product.formula",
-        action_category=ActionCategory.READ,
+        defaults={
+            "resource_type": "product.formula",
+            "action_category": ActionCategory.READ,
+        },
     )
+    return action

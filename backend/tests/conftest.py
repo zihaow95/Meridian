@@ -138,22 +138,28 @@ def another_active_user(organization: Organization, db: None) -> User:
 
 @pytest.fixture
 def platform_admin_role(db: None) -> Role:
-    role = Role.objects.create(
+    role, _ = Role.objects.get_or_create(
         role_code="SYSTEM_ADMIN",
-        name="System Administrator",
-        role_type=RoleType.PLATFORM,
-        is_critical=True,
+        defaults={
+            "name": "System Administrator",
+            "role_type": RoleType.PLATFORM,
+            "is_critical": True,
+        },
     )
-    action = PermissionAction.objects.create(
+    action, _ = PermissionAction.objects.get_or_create(
         action_code="platform.settings.read",
-        resource_type="platform",
-        action_category=ActionCategory.READ,
+        defaults={
+            "resource_type": "platform",
+            "action_category": ActionCategory.READ,
+        },
     )
-    RolePermission.objects.create(
+    RolePermission.objects.get_or_create(
         role=role,
         action=action,
-        max_data_level=DataSensitivityLevel.INTERNAL,
-        requires_object_scope=False,
+        defaults={
+            "max_data_level": DataSensitivityLevel.INTERNAL,
+            "requires_object_scope": False,
+        },
     )
     return role
 

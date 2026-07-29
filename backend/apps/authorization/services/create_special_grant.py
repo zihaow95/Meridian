@@ -15,7 +15,7 @@ from apps.authorization.context import AuthorizationContext, ResourceDescriptor
 from apps.authorization.models.role import DataSensitivityLevel
 from apps.authorization.models.special_grant import SpecialGrant, SpecialGrantStatus
 from apps.authorization.policies.engine import authorize
-from apps.authorization.services.assign_role import _subject_for
+from apps.authorization.services.subject import subject_for
 from apps.identity.models.user import User
 from apps.platform.application.command import CommandContext
 
@@ -38,7 +38,7 @@ class CreateSpecialGrant:
     def execute(self) -> SpecialGrant:
         for action in self.actions:
             decision = authorize(
-                _subject_for(self.context.actor),
+                subject_for(self.context.actor),
                 action=action,
                 resource=ResourceDescriptor(
                     resource_type=self.resource_type,

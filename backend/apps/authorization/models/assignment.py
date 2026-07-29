@@ -2,10 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime
-
 from django.db import models
-from django.utils import timezone
 
 from apps.platform.api.errors import ValidationFailedError
 from apps.platform.models.base import PublicIdModel
@@ -82,19 +79,3 @@ class RoleAssignment(PublicIdModel):
                 name="authorization_role_assignment_scope_key_slot_uniq",
             ),
         ]
-
-
-def deactivate_role_assignment(
-    assignment: RoleAssignment,
-    *,
-    at: datetime | None = None,
-) -> RoleAssignment:
-    """Close an assignment and clear active_slot so a new ACTIVE row may be created."""
-
-    now = at or timezone.now()
-    assignment.status = AssignmentStatus.INACTIVE
-    assignment.active_slot = None
-    if assignment.effective_to is None:
-        assignment.effective_to = now
-    assignment.save(update_fields=["status", "active_slot", "effective_to", "updated_at"])
-    return assignment

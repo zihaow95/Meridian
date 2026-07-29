@@ -2,6 +2,8 @@
 
 from django.conf import settings
 from django.db import migrations, models
+from django.db.models import Count, Min
+from django.utils import timezone
 
 
 def backfill_scope_key(apps, schema_editor) -> None:
@@ -26,6 +28,27 @@ def backfill_scope_key(apps, schema_editor) -> None:
         elif assignment.active_slot is None:
             assignment.active_slot = 1
         assignment.save(update_fields=["scope_id", "scope_key", "active_slot"])
+
+    # After normalization, NULL and explicit org scopes can collide on scope_key.
+    now = timezone.now()
+    duplicates = (
+        RoleAssignment.objects.filter(active_slot=1)
+        .values("user_id", "role_id", "scope_type", "scope_key")
+        .annotate(n=Count("id"), keep_id=Min("id"))
+        .filter(n__gt=1)
+    )
+    for row in duplicates:
+        RoleAssignment.objects.filter(
+            user_id=row["user_id"],
+            role_id=row["role_id"],
+            scope_type=row["scope_type"],
+            scope_key=row["scope_key"],
+            active_slot=1,
+        ).exclude(id=row["keep_id"]).update(
+            active_slot=None,
+            status="INACTIVE",
+            effective_to=now,
+        )
 
 
 class Migration(migrations.Migration):
