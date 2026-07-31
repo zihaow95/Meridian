@@ -173,7 +173,7 @@ notifications.Todo: (models.W036) MySQL does not support unique constraints with
 - [x] 增加草稿详情、创建、发布申请和复核API；敏感正文按权限过滤（无`configuration.content.read_sensitive`者只拿到摘要与状态，`content_json`为`null`）。
 - [x] 前端完成定义、版本、差异、校验错误、申请和复核最小闭环（`ConfigurationListView.spec.ts`，12例）。
 - [x] 运行配置/授权目标测试、mypy、OpenAPI与前端Vitest：`ruff check`/`ruff format --check`、`mypy config apps`（318文件0错）、`makemigrations --check`（无漂移）、`pytest -q`（550通过）、`spectacular --validate`、前端`lint`/`typecheck`/`vitest`（23文件71例）。本轮未运行：Playwright E2E、Docker镜像构建（属完整`scripts/check.ps1`范围）。
-- [ ] 提交：`feat: govern phase 6 configuration`。
+- [x] 提交：`feat: govern phase 6 configuration`（`7c11cff`）。
 
 ## 9. Task 6.2：目录化文件上传与待整理资料
 
