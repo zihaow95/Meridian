@@ -672,6 +672,38 @@ paths:
                     service: meridian-api
                   summary: ok
           description: ''
+  /api/v1/legacy-baselines:
+    post:
+      operationId: legacy_baselines_create
+      tags:
+      - legacy-baselines
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LegacyBaselineDraftCreateRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/LegacyBaselineDraftCreateRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/LegacyBaselineDraftCreateRequest'
+        required: true
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LegacyBaselineDraft'
+          description: ''
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LegacyBaselineDraft'
+          description: ''
   /api/v1/legacy-baselines/{public_id}/publish:
     post:
       operationId: legacy_baselines_publish
@@ -4585,6 +4617,42 @@ components:
       - success_count
       - template_version
       - total_count
+    LegacyBaselineDraft:
+      type: object
+      properties:
+        change_set_public_id:
+          type: string
+          format: uuid
+        product_public_id:
+          type: string
+          format: uuid
+        created:
+          type: boolean
+        duplicate_candidates:
+          type: array
+          items: {}
+      required:
+      - change_set_public_id
+      - created
+      - duplicate_candidates
+      - product_public_id
+    LegacyBaselineDraftCreateRequest:
+      type: object
+      properties:
+        payload:
+          type: object
+          additionalProperties: {}
+        idempotency_key:
+          type: string
+        decision:
+          type: string
+        target_product_public_id:
+          type: string
+          format: uuid
+          nullable: true
+      required:
+      - idempotency_key
+      - payload
     LegacyMaterialSubmission:
       type: object
       properties:
@@ -5925,7 +5993,9 @@ components:
         original_filename:
           type: string
         confirmation:
-          $ref: '#/components/schemas/MaterialConfirmation'
+          allOf:
+          - $ref: '#/components/schemas/MaterialConfirmation'
+          nullable: true
       required:
       - confirmation
       - document_version_public_id
@@ -6007,7 +6077,9 @@ components:
         material_type_code:
           type: string
         current:
-          $ref: '#/components/schemas/ProductMaterial'
+          allOf:
+          - $ref: '#/components/schemas/ProductMaterial'
+          nullable: true
         history:
           type: array
           items:

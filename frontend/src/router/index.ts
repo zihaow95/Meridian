@@ -20,6 +20,7 @@ import ProductListView from '@/modules/products/ProductListView.vue'
 import ProductDetailView from '@/modules/products/ProductDetailView.vue'
 import ProductChangeSetView from '@/modules/products/ProductChangeSetView.vue'
 import ProductImportPage from '@/modules/products/ProductImportPage.vue'
+import LegacyProductCreateView from '@/modules/products/LegacyProductCreateView.vue'
 import ProjectLifecycleBoardView from '@/modules/projects/LifecycleBoardView.vue'
 import ProjectWorkbenchView from '@/modules/projects/ProjectWorkbenchView.vue'
 import OperatingDashboardPage from '@/modules/operations/OperatingDashboardPage.vue'
@@ -57,6 +58,11 @@ const routes: RouteRecordRaw[] = [
   },
   { path: '/products', component: ProductListView, meta: { requiresAuth: true } },
   { path: '/products/import', component: ProductImportPage, meta: { requiresAuth: true } },
+  {
+    path: '/products/legacy-new',
+    component: LegacyProductCreateView,
+    meta: { requiresAuth: true },
+  },
   {
     path: '/products/:publicId',
     component: ProductDetailView,

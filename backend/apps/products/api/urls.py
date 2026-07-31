@@ -29,6 +29,7 @@ from apps.products.api.imports import (
     ProductImportTemplateDownloadView,
     PublishLegacyBaselineView,
 )
+from apps.products.api.legacy_baselines import LegacyBaselineDraftCreateView
 from apps.products.api.materials import (
     LegacyMaterialVerifyView,
     MaterialConfirmationDecideView,
@@ -183,6 +184,11 @@ urlpatterns = [
         "material-confirmations/<uuid:public_id>/decide",
         MaterialConfirmationDecideView.as_view(),
         name="material-confirmation-decide",
+    ),
+    path(
+        "legacy-baselines",
+        LegacyBaselineDraftCreateView.as_view(),
+        name="legacy-baseline-create",
     ),
     path(
         "legacy-baselines/<uuid:public_id>/publish",

@@ -226,6 +226,12 @@ class ProductChangeSet(OrganizationOwnedModel):
         related_name="approved_product_change_sets",
     )
     publish_idempotency_key = models.CharField(max_length=128, blank=True, default="")
+    # Set only by the item-by-item legacy form, where a double submit would
+    # otherwise create a second product. NULL for every other origin, and MySQL
+    # treats NULLs as distinct, so the unique index applies to keyed rows alone.
+    draft_idempotency_key = models.CharField(  # noqa: DJ001
+        max_length=128, null=True, blank=True
+    )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -235,6 +241,10 @@ class ProductChangeSet(OrganizationOwnedModel):
             models.UniqueConstraint(
                 fields=["project_candidate"],
                 name="products_draft_candidate_uniq",
+            ),
+            models.UniqueConstraint(
+                fields=["organization", "draft_idempotency_key"],
+                name="products_draft_idempotency_uniq",
             ),
         ]
         indexes = [

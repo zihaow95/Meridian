@@ -2,19 +2,19 @@
 
 from __future__ import annotations
 
-from copy import deepcopy
-
 from drf_spectacular.utils import inline_serializer
 from rest_framework import serializers
 
 
-def _nested(schema: serializers.Serializer) -> serializers.Serializer:
+def _nested(schema: serializers.Serializer, *, allow_null: bool = False) -> serializers.Serializer:
     """Reuse a schema inside another one.
 
     DRF binds a field to the serializer that declares it, so the same instance
-    cannot appear in two places.
+    cannot appear in two places. Options must be passed to the constructor:
+    ``Field.__deepcopy__`` rebuilds from the original arguments and drops
+    anything assigned afterwards.
     """
-    return deepcopy(schema)
+    return type(schema)(allow_null=allow_null)
 
 
 PRODUCT_SUMMARY_SCHEMA = inline_serializer(
@@ -313,7 +313,7 @@ PRODUCT_MATERIAL_SCHEMA = inline_serializer(
         "is_current": serializers.BooleanField(),
         "document_version_public_id": serializers.UUIDField(),
         "original_filename": serializers.CharField(),
-        "confirmation": _nested(MATERIAL_CONFIRMATION_SCHEMA),
+        "confirmation": _nested(MATERIAL_CONFIRMATION_SCHEMA, allow_null=True),
     },
 )
 
@@ -339,7 +339,7 @@ MATERIAL_GROUP_PAGE_SCHEMA = inline_serializer(
                 name="ProductMaterialGroup",
                 fields={
                     "material_type_code": serializers.CharField(),
-                    "current": _nested(PRODUCT_MATERIAL_SCHEMA),
+                    "current": _nested(PRODUCT_MATERIAL_SCHEMA, allow_null=True),
                     "history": serializers.ListField(child=_nested(PRODUCT_MATERIAL_SCHEMA)),
                 },
             )
@@ -373,6 +373,26 @@ MATERIAL_CONFIRMATION_REQUEST_SCHEMA = inline_serializer(
     fields={
         "confirmer_public_id": serializers.UUIDField(),
         "comment": serializers.CharField(required=False, allow_blank=True),
+    },
+)
+
+LEGACY_BASELINE_CREATE_REQUEST_SCHEMA = inline_serializer(
+    name="LegacyBaselineDraftCreateRequest",
+    fields={
+        "payload": serializers.DictField(),
+        "idempotency_key": serializers.CharField(),
+        "decision": serializers.CharField(required=False, allow_blank=True),
+        "target_product_public_id": serializers.UUIDField(required=False, allow_null=True),
+    },
+)
+
+LEGACY_BASELINE_DRAFT_SCHEMA = inline_serializer(
+    name="LegacyBaselineDraft",
+    fields={
+        "change_set_public_id": serializers.UUIDField(),
+        "product_public_id": serializers.UUIDField(),
+        "created": serializers.BooleanField(),
+        "duplicate_candidates": serializers.ListField(),
     },
 )
 

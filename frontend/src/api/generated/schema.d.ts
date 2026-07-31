@@ -471,6 +471,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/legacy-baselines": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["legacy_baselines_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/legacy-baselines/{public_id}/publish": {
         parameters: {
             query?: never;
@@ -2515,6 +2531,23 @@ export interface components {
             failure_count: number;
             items: unknown[];
         };
+        LegacyBaselineDraft: {
+            /** Format: uuid */
+            change_set_public_id: string;
+            /** Format: uuid */
+            product_public_id: string;
+            created: boolean;
+            duplicate_candidates: unknown[];
+        };
+        LegacyBaselineDraftCreateRequest: {
+            payload: {
+                [key: string]: unknown;
+            };
+            idempotency_key: string;
+            decision?: string;
+            /** Format: uuid */
+            target_product_public_id?: string | null;
+        };
         LegacyMaterialSubmission: {
             /** Format: uuid */
             public_id: string;
@@ -3065,7 +3098,7 @@ export interface components {
             /** Format: uuid */
             document_version_public_id: string;
             original_filename: string;
-            confirmation: components["schemas"]["MaterialConfirmation"];
+            confirmation: components["schemas"]["MaterialConfirmation"] | null;
         };
         ProductMaterialChain: {
             items: components["schemas"]["ProductMaterial"][];
@@ -3092,7 +3125,7 @@ export interface components {
         };
         ProductMaterialGroup: {
             material_type_code: string;
-            current: components["schemas"]["ProductMaterial"];
+            current: components["schemas"]["ProductMaterial"] | null;
             history: components["schemas"]["ProductMaterial"][];
         };
         ProductMaterialGroupPage: {
@@ -4311,6 +4344,39 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HealthResponse"];
+                };
+            };
+        };
+    };
+    legacy_baselines_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LegacyBaselineDraftCreateRequest"];
+                "application/x-www-form-urlencoded": components["schemas"]["LegacyBaselineDraftCreateRequest"];
+                "multipart/form-data": components["schemas"]["LegacyBaselineDraftCreateRequest"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LegacyBaselineDraft"];
+                };
+            };
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LegacyBaselineDraft"];
                 };
             };
         };

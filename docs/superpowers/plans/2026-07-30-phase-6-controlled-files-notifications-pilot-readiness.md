@@ -202,16 +202,16 @@ notifications.Todo: (models.W036) MySQL does not support unique constraints with
 
 **Interfaces:** `VerifyLegacyMaterialSubmission(...)`, `CreateLegacyMaterialVersionChain(context, ordered_submission_ids, current_submission_id, owner, material_type_code)`, `SubmitMaterialConfirmation(...)`, `DecideMaterialConfirmation(...)`, `EvaluateProductMaterialCompleteness(...)`。
 
-- [ ] 将固定`MaterialType`迁移为配置驱动`material_type_code`；数据迁移保留现有包装/标签代码，未知旧值停线报告。
-- [ ] 新建`MaterialConfirmation`绑定产品材料、具体`DocumentVersion`、内容哈希、确认人、决定、意见和时间。
-- [ ] 审计既有`ProductMaterial.confirmation`：可证明的映射迁入新表，无法证明的保持未确认，不补造批准。
-- [ ] 可信历史资料先完成来源、顺序和效力验证，再按指定顺序生成`supersedes_version`链；当前有效版本只能有一个。
-- [ ] 待整理资料转正必须走验证服务，拒绝直接改状态或跳过专业确认。
-- [ ] 新文件版本使旧确认失效但保留历史；确认人只能确认获授权材料类型/对象。
-- [ ] 完整性解析锁定材料要求版本，返回缺失、待确认、待整理和不适用清单；`OPTIONAL`缺失不阻塞。
-- [ ] MySQL约束覆盖同对象/材料类型唯一当前材料、版本号递增和活动确认竞争；唯一性一律按第5.1节哨兵列模式实现，并用直接插入冲突行的测试证明数据库拒绝。
-- [ ] 增加材料列表、待整理队列、排序组链、提交确认、确认/退回和完整性预检API。
-- [ ] 提交：`feat: govern product material history`。
+- [x] 将固定`MaterialType`迁移为配置驱动`material_type_code`；数据迁移保留现有包装/标签代码，未知旧值停线报告（`migrations/0013`的`reject_unmappable_material_types`在DDL前运行，`tests/products/test_material_type_codes.py`证明顺序）。
+- [x] 新建`MaterialConfirmation`绑定产品材料、具体`DocumentVersion`、内容哈希、确认人、决定、意见和时间。
+- [x] 审计既有`ProductMaterial.confirmation`：可证明的映射迁入新表，无法证明的保持未确认，不补造批准（`assert_legacy_material_confirmations_are_absent`：存在旧确认行即停线，不猜测批准）。
+- [x] 可信历史资料先完成来源、顺序和效力验证，再按指定顺序生成`supersedes_material`链；当前有效版本只能有一个（`services/material_chains.py`）。
+- [x] 待整理资料转正必须走验证服务，拒绝直接改状态或跳过专业确认（`VerifyLegacyMaterialSubmission`；手工改状态的提交被链构建拒绝）。
+- [x] 新文件版本使旧确认失效但保留历史；确认人只能确认获授权材料类型/对象（`make_material_current`失效旧确认，`_may_confirm`逐条判权）。
+- [x] 完整性解析锁定材料要求版本，返回缺失、待确认、待整理和不适用清单；`OPTIONAL`缺失不阻塞（`services/material_requirements.py`）。
+- [x] MySQL约束覆盖同对象/材料类型唯一当前材料、版本号递增和活动确认竞争；唯一性一律按第5.1节哨兵列模式实现（`current_slot`/`live_slot`），并用直接插入冲突行的测试证明数据库拒绝。
+- [x] 增加材料列表、待整理队列、排序组链、提交确认、确认/退回和完整性预检API（`api/materials.py`）。
+- [x] 提交：`feat: govern product material history`（含`feat: expose material workbench APIs`）。
 
 ## 11. Task 6.4：存量产品逐一录入与老品基线发布
 
@@ -219,15 +219,15 @@ notifications.Todo: (models.W036) MySQL does not support unique constraints with
 
 **Interfaces:** `CreateLegacyBaselineDraft(context, payload, idempotency_key)`；existing`ConfirmProductImportBatch`改为调用同一单条服务；existing`PublishLegacyBaseline`保持唯一发布入口。
 
-- [ ] 先写契约测试证明表单和既有批次最终调用同一老品基线创建服务，不存在两套产品、版本、SKU或渠道写逻辑。抽取点是`ConfirmProductImportBatch._confirm_item`（产品+变更集），版本/SKU/渠道仍由`PublishLegacyBaseline`创建。
-- [ ] 材料完整性与专业确认门禁接入既有`ValidateProductPublication`：`PublishLegacyBaseline`目前完全绕过它且只校验`name`，必须改为复用同一校验器扩展`_material_blocks`，不得另写第二套发布校验。
-- [ ] 表单覆盖上市产品必填核心字段、至少一个SKU和渠道；材料通过材料工作台关联，不把文件塞进JSON。
-- [ ] 重复候选按名称/规格、条码、外部编码提示；用户只能明确创建、关联或取消，系统不得自动合并。
-- [ ] 发布前锁定change set，运行字段、SKU/渠道、材料完整性和专业确认预检；失败时不创建部分版本。
-- [ ] 发布原子创建产品版本、SKU、渠道和配置快照；相同幂等键重试返回同一结果，不同键不得二次发布。
-- [ ] 产品详情显示材料完整性、当前材料、历史链、待整理资料和确认状态；无权限时不泄露文件名或存在性。
-- [ ] “不超过20个”只作为阶段6验收数据，不写成永久产品数量上限。
-- [ ] 覆盖允许/拒绝、并发、审计回滚、发布失败重试和阶段3产品查询回归。
+- [x] 先写契约测试证明表单和既有批次最终调用同一老品基线创建服务，不存在两套产品、版本、SKU或渠道写逻辑（`tests/products/test_manual_legacy_baseline.py`对`CreateLegacyBaselineDraft`打桩，两条路径都必须命中）。抽取点是`ConfirmProductImportBatch._confirm_item`（产品+变更集），版本/SKU/渠道仍由`PublishLegacyBaseline`创建。
+- [x] 材料完整性与专业确认门禁接入既有`ValidateProductPublication`：`PublishLegacyBaseline`改为复用同一校验器（老品基线跳过审批/属性schema/生效窗口，仍跑核心字段、`_legacy_payload_blocks`、`_material_blocks`和`_material_completeness_blocks`），未另写第二套发布校验。
+- [x] 表单覆盖上市产品必填核心字段、至少一个SKU和渠道；材料通过材料工作台关联，不把文件塞进JSON（`LegacyProductCreateView.vue`只提交业务字段）。
+- [x] 重复候选按名称/规格、条码、外部编码提示；用户只能明确创建、关联或取消，系统不得自动合并（`DUPLICATE_REQUIRES_DECISION`必须由`decision=CREATE|LINK`解除）。
+- [x] 发布前锁定change set，运行字段、SKU/渠道、材料完整性和专业确认预检；失败时不创建部分版本（`select_for_update`后校验，失败抛`ValidationFailedError`，变更集保持`DRAFT`）。
+- [x] 发布原子创建产品版本、SKU、渠道和配置快照；相同幂等键重试返回同一结果，不同键不得二次发布（沿用既有`publish_idempotency_key`语义）。
+- [x] 产品详情显示材料完整性、当前材料、历史链、待整理资料和确认状态；无权限时不泄露文件名或存在性（读取被拒时整个面板不渲染，见`ProductDetailView.spec.ts`）。
+- [x] “不超过20个”只作为阶段6验收数据，不写成永久产品数量上限（代码中无产品数量上限）。
+- [x] 覆盖允许/拒绝、并发、审计回滚、发布失败重试和阶段3产品查询回归（`tests/products`全套187项通过）。
 - [ ] 提交：`feat: publish governed legacy baselines`。
 
 ## 12. Task 6.5：站内通知分类、等级和权威生命周期
@@ -367,7 +367,8 @@ notifications.Todo: (models.W036) MySQL does not support unique constraints with
 | D-1 | `DocumentLink`模型自`documents/0001_initial`起存在，但全仓库没有任何写入方，文档版本与业务对象之间缺少显式关联事实 | Task 6.2 | 保留该表不动，不新增写入方也不删除。文档版本的可见性改由逐条`authorize()`判定，不依赖该表 | `apps/documents/models.py`的`DocumentLink`；全仓检索仅命中模型定义与初始迁移 | 阶段6开发完成后，与D-2一并裁决 |
 | D-2 | Task 6.2要求为`documents`注册`ObjectIdentityProvider`，但按原文不可执行 | Task 6.2 | 未注册provider。documents自身唯一能确立的对象身份是"上传者"，授予其下载权属于放宽访问，与既有已测规则直接冲突；原始需求"查询按对象范围收窄"已用版本列表逐条`authorize()`（含真实敏感等级）满足 | `tests/projects/test_inflight_migration.py:248`断言迁移人未获授权时`can_download`为假；`apps/documents/api/documents.py`的`_may_read` | 阶段6开发完成后，需先确定文档与业务对象的关联模型（依赖D-1）再决定是否引入provider |
 | D-3 | 配置并发直发的落败方语义（拒绝还是串行覆盖）未裁决 | Task 6.1 | 双人复核落地后不存在绕过复核的并发直发路径，`configuration_version_published_slot_uniq`唯一约束继续作为兜底 | 第8节对应条目 | 阶段6开发完成后，若仍存在直发入口再裁决 |
-| D-4 | 待整理资料不得成为发布材料这一约束，只验证了"录入不写`ProductMaterial`"，尚未验证发布门禁本身 | Task 6.2 | 录入完全不创建`ProductMaterial`，状态停在`PENDING_TRIAGE` | `tests/products/test_legacy_material_intake.py` | Task 6.3随`validate_publication`补齐断言，不延期到阶段末 |
+| D-4 | 待整理资料不得成为发布材料这一约束，只验证了"录入不写`ProductMaterial`"，尚未验证发布门禁本身 | Task 6.2 | **已处置（Task 6.4）**：`ValidateProductPublication._material_completeness_blocks`把`PENDING_TRIAGE`要求项判为`PRODUCT_MATERIAL_PENDING_TRIAGE`阻塞项，发布被拒且变更集保持`DRAFT` | `tests/products/test_legacy_baseline_material_gate.py` | 已关闭 |
+| D-5 | 组织尚未发布`PRODUCT_MATERIAL_REQUIREMENTS`时，材料门禁是否应直接拒绝发布 | Task 6.4 | 无已发布材料要求时`_material_completeness_blocks`返回空阻塞项，即不阻塞发布；理由是"未声明材料义务"不等于"缺材料"，且试用组织首次发布前必然无配置 | `apps/products/services/validate_publication.py`的`_material_completeness_blocks`；`tests/products/test_legacy_baseline_material_gate.py::test_no_blocks_without_requirements_config` | 阶段6开发完成后裁决；若改为拒绝，需同时给出试用组织的初始化配置路径 |
 
 ## 20. 阶段6退出证据
 

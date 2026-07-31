@@ -13,11 +13,13 @@ from apps.products.models import (
     SKU,
     AttributeConfirmation,
     AttributeGroupValue,
+    AttributeOwnerType,
     ChangeSetStatus,
     ChangeSetType,
     ConfirmationDecision,
     NutritionTable,
     ProductChangeSet,
+    ProductLifecycleStatus,
     ProductMaterial,
 )
 from apps.products.services.attribute_schema import (
@@ -25,6 +27,11 @@ from apps.products.services.attribute_schema import (
     validate_group_values,
 )
 from apps.products.services.create_change_set import current_baseline_fingerprint
+from apps.products.services.material_requirements import (
+    MaterialCompletenessState,
+    MaterialRequirementsUnavailable,
+    evaluate_material_completeness,
+)
 from apps.products.services.materials import validate_material_for_publication
 
 
@@ -62,17 +69,26 @@ class ValidateProductPublication:
             raise PermissionDeniedError()
 
         blocks: list[PublicationBlock] = []
-        blocks.extend(_status_blocks(change_set))
-        blocks.extend(_core_field_blocks(change_set))
-        blocks.extend(_schema_required_blocks(change_set))
-        blocks.extend(_sku_blocks(change_set))
-        blocks.extend(_channel_blocks(change_set))
-        blocks.extend(_baseline_blocks(change_set))
-        blocks.extend(_approval_basis_blocks(change_set))
-        blocks.extend(_effective_time_blocks(change_set))
-        blocks.extend(_confirmation_blocks(change_set))
-        blocks.extend(_nutrition_blocks(change_set))
+        if change_set.change_type == ChangeSetType.LEGACY_BASELINE:
+            # A legacy baseline records what a product has always been, so the
+            # change-set workflow checks (approval, attribute schema, effective
+            # window) do not apply. The material gate does, and it is the same
+            # code the ordinary flow runs.
+            blocks.extend(_core_field_blocks(change_set))
+            blocks.extend(_legacy_payload_blocks(change_set))
+        else:
+            blocks.extend(_status_blocks(change_set))
+            blocks.extend(_core_field_blocks(change_set))
+            blocks.extend(_schema_required_blocks(change_set))
+            blocks.extend(_sku_blocks(change_set))
+            blocks.extend(_channel_blocks(change_set))
+            blocks.extend(_baseline_blocks(change_set))
+            blocks.extend(_approval_basis_blocks(change_set))
+            blocks.extend(_effective_time_blocks(change_set))
+            blocks.extend(_confirmation_blocks(change_set))
+            blocks.extend(_nutrition_blocks(change_set))
         blocks.extend(_material_blocks(change_set))
+        blocks.extend(_material_completeness_blocks(change_set))
         return PublicationValidationResult(blocks=tuple(blocks))
 
 
@@ -434,6 +450,63 @@ def _nutrition_blocks(change_set: ProductChangeSet) -> list[PublicationBlock]:
                     details={"nutrition_table_public_id": str(table.public_id)},
                 )
             )
+    return blocks
+
+
+def _legacy_payload_blocks(change_set: ProductChangeSet) -> list[PublicationBlock]:
+    payload = change_set.change_scope.get("payload", {})
+    if not str(payload.get("sku_code") or "").strip():
+        return [
+            PublicationBlock(
+                code="PRODUCT_SKU_MISSING",
+                message="A legacy baseline needs at least one SKU.",
+                details={},
+            )
+        ]
+    return []
+
+
+_COMPLETENESS_BLOCK_CODES: dict[str, str] = {
+    MaterialCompletenessState.MISSING: "PRODUCT_MATERIAL_INCOMPLETE",
+    MaterialCompletenessState.PENDING_CONFIRMATION: "PRODUCT_MATERIAL_NOT_CONFIRMED",
+    MaterialCompletenessState.PENDING_TRIAGE: "PRODUCT_MATERIAL_PENDING_TRIAGE",
+}
+
+
+def _material_completeness_blocks(change_set: ProductChangeSet) -> list[PublicationBlock]:
+    """Block on the requirements configuration, evaluated for the state we publish into.
+
+    An organization with no published requirements has declared no material
+    obligation, so there is nothing to block on. Whether that should instead
+    refuse publication outright is registered as D-5 in the phase 6 plan.
+    """
+
+    try:
+        result = evaluate_material_completeness(
+            organization=change_set.organization,
+            owner_type=AttributeOwnerType.PRODUCT,
+            owner_id=change_set.product_id,
+            product_category_code=change_set.product.category_code,
+            lifecycle_state=ProductLifecycleStatus.ACTIVE,
+        )
+    except MaterialRequirementsUnavailable:
+        return []
+
+    blocks: list[PublicationBlock] = []
+    for item in result.items:
+        if item.material_type_code not in result.blocking_material_type_codes:
+            continue
+        blocks.append(
+            PublicationBlock(
+                code=_COMPLETENESS_BLOCK_CODES.get(item.state, "PRODUCT_MATERIAL_INCOMPLETE"),
+                message="A required product material is not ready for publication.",
+                details={
+                    "material_type_code": item.material_type_code,
+                    "state": item.state,
+                    "requirement_version_public_id": str(result.requirement_version_public_id),
+                },
+            )
+        )
     return blocks
 
 
