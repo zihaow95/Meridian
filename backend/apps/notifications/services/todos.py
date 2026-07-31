@@ -47,6 +47,7 @@ class UpsertOpenTodo:
                     dedup_key=self.event.dedup_key,
                     deep_link=self.event.deep_link,
                     title=self.event.title,
+                    open_slot=1,
                 )
         except IntegrityError:
             return Todo.objects.get(
@@ -72,6 +73,46 @@ def build_todo_event_from_outbox(payload: dict[str, Any]) -> TodoEvent:
 
 
 @dataclass(frozen=True)
+class SettleOpenTodosForSource:
+    """Idempotently settle open todos and close their linked notifications.
+
+    Completing, cancelling and expiring all release the open-dedup sentinel and
+    close related notifications. A repeated settle must not reopen a closed
+    notification or invent a new unread one.
+    """
+
+    organization_id: int
+    source_type: str
+    source_id: UUID
+    status: str
+    close_reason: str
+
+    def execute(self) -> int:
+        from apps.notifications.services.lifecycle import SynchronizeNotificationForSource
+
+        if self.status not in {
+            TodoStatus.COMPLETED,
+            TodoStatus.CANCELLED,
+            TodoStatus.EXPIRED,
+        }:
+            raise ValueError(f"Cannot settle open todos into {self.status}.")
+
+        updated = Todo.objects.filter(
+            organization_id=self.organization_id,
+            source_type=self.source_type,
+            source_id=self.source_id,
+            status=TodoStatus.OPEN,
+        ).update(status=self.status, open_slot=None)
+        SynchronizeNotificationForSource(
+            organization_id=self.organization_id,
+            source_type=self.source_type,
+            source_id=self.source_id,
+            close_reason=self.close_reason,
+        ).execute()
+        return updated
+
+
+@dataclass(frozen=True)
 class CompleteOpenTodosForSource:
     """Idempotently complete open todos that point at a domain source."""
 
@@ -80,9 +121,10 @@ class CompleteOpenTodosForSource:
     source_id: UUID
 
     def execute(self) -> int:
-        return Todo.objects.filter(
+        return SettleOpenTodosForSource(
             organization_id=self.organization_id,
             source_type=self.source_type,
             source_id=self.source_id,
-            status=TodoStatus.OPEN,
-        ).update(status=TodoStatus.COMPLETED)
+            status=TodoStatus.COMPLETED,
+            close_reason="SOURCE_COMPLETED",
+        ).execute()

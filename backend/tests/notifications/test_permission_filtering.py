@@ -23,7 +23,7 @@ def test_unauthorized_recipient_does_not_receive_notification(
     result = CreateInAppNotification(
         recipient=active_user,
         template_code="secret",
-        summary="Should not persist",
+        variables={"title": "Should not persist"},
         object_type="identity.user",
         object_id=uuid4(),
         dedup_key="secret:1",

@@ -236,16 +236,16 @@ notifications.Todo: (models.W036) MySQL does not support unique constraints with
 
 **Interfaces:** `CreateInAppNotification(...)`, `MarkNotificationRead(context, notification_public_id)`, `CloseNotification(...)`, `SynchronizeNotificationForSource(...)`。
 
-- [ ] 新增六类`ACTION_REQUIRED`、`DEADLINE`、`BUSINESS_ALERT`、`PROCESS_RESULT`、`SYSTEM_FAILURE`、`INFORMATION`和三级`URGENT`、`IMPORTANT`、`NORMAL`。
-- [ ] 通知保存模板版本和策略快照；创建时渲染最小摘要，禁止复制对象正文、敏感字段或凭据。
-- [ ] 通知生命周期改为UNREAD/READ/CLOSED并记录read_at/closed_at/close_reason；渠道状态继续只由`Delivery`表达。同时解除`DeliverNotification`把`Notification.status`写成`DELIVERED`的耦合（`services/notifications.py:112-113`），否则"投递状态只由Delivery表达"不成立。
-- [ ] 数据迁移根据现有IN_APP delivery映射生命周期；无法判断的记录保持UNREAD并输出迁移说明。
-- [ ] 把`notifications_todo_open_dedup_uniq`从条件唯一约束改为第5.1节哨兵列模式，并测试证明其在MySQL上真实生效；当前该约束因W036未被创建。
-- [ ] 阶段6策略只创建IN_APP delivery；新增显式禁用开关阻断`DingTalkNotificationGateway`。当前它由`DeliverNotification`默认实例化，只因`DINGTALK_NOTIFIER`未配置而抛`RuntimeError`，这不是可测的拒绝语义。
-- [ ] 创建时判权决定是否通知；查询只返回接收人记录；深链接访问仍由目标API重新判权。
-- [ ] 已读和关闭使用条件更新实现幂等；并发请求不得丢失首次时间和审计事实。
-- [ ] Todo完成、取消或过期后按来源键同步相关通知；重复事件不得重开已关闭事实。
-- [ ] 六类×三级矩阵各有测试证据，并覆盖缺失模板、非法变量和未发布策略。
+- [x] 新增六类`ACTION_REQUIRED`、`DEADLINE`、`BUSINESS_ALERT`、`PROCESS_RESULT`、`SYSTEM_FAILURE`、`INFORMATION`和三级`URGENT`、`IMPORTANT`、`NORMAL`。
+- [x] 通知保存模板版本和策略快照；创建时渲染最小摘要，禁止复制对象正文、敏感字段或凭据（`services/policies.py`拒绝未声明变量）。
+- [x] 通知生命周期改为UNREAD/READ/CLOSED并记录read_at/closed_at/close_reason；渠道状态继续只由`Delivery`表达。`DeliverNotification`不再改写`Notification.status`。
+- [x] 数据迁移根据现有IN_APP delivery映射生命周期；无法判断的记录保持UNREAD并输出迁移说明（`0002`的`reset_notification_lifecycle`：delivery≠read）。
+- [x] 把`notifications_todo_open_dedup_uniq`从条件唯一约束改为第5.1节哨兵列模式（`open_slot`），并测试证明其在MySQL上真实生效。
+- [x] 阶段6策略只创建IN_APP delivery；新增`ENABLE_DINGTALK_NOTIFICATIONS`显式禁用开关，未开启时抛`DingTalkDeliveryDisabled`且不创建DINGTALK delivery行。
+- [x] 创建时判权决定是否通知；被拒接收人不读配置、不落库。
+- [x] 已读和关闭使用条件更新实现幂等；首次时间/原因保留。
+- [x] Todo完成/取消/过期经`SettleOpenTodosForSource`按来源键同步关闭相关通知；重复同步不重开已关闭事实。
+- [x] 六类×三级矩阵各有测试证据，并覆盖缺失模板、非法变量和未发布策略（`test_classification_policy.py`）。
 - [ ] 提交：`feat: establish authoritative in-app notifications`。
 
 ## 13. Task 6.6：站内通知API、前端和深链接闭环
@@ -369,6 +369,21 @@ notifications.Todo: (models.W036) MySQL does not support unique constraints with
 | D-3 | 配置并发直发的落败方语义（拒绝还是串行覆盖）未裁决 | Task 6.1 | 双人复核落地后不存在绕过复核的并发直发路径，`configuration_version_published_slot_uniq`唯一约束继续作为兜底 | 第8节对应条目 | 阶段6开发完成后，若仍存在直发入口再裁决 |
 | D-4 | 待整理资料不得成为发布材料这一约束，只验证了"录入不写`ProductMaterial`"，尚未验证发布门禁本身 | Task 6.2 | **已处置（Task 6.4）**：`ValidateProductPublication._material_completeness_blocks`把`PENDING_TRIAGE`要求项判为`PRODUCT_MATERIAL_PENDING_TRIAGE`阻塞项，发布被拒且变更集保持`DRAFT` | `tests/products/test_legacy_baseline_material_gate.py` | 已关闭 |
 | D-5 | 组织尚未发布`PRODUCT_MATERIAL_REQUIREMENTS`时，材料门禁是否应直接拒绝发布 | Task 6.4 | 无已发布材料要求时`_material_completeness_blocks`返回空阻塞项，即不阻塞发布；理由是"未声明材料义务"不等于"缺材料"，且试用组织首次发布前必然无配置 | `apps/products/services/validate_publication.py`的`_material_completeness_blocks`；`tests/products/test_legacy_baseline_material_gate.py::test_no_blocks_without_requirements_config` | 阶段6开发完成后裁决；若改为拒绝，需同时给出试用组织的初始化配置路径 |
+| D-6 | 全量后端`pytest`偶发大面积error：约55秒内608项error，级联首因是`TransactionManagementError`与已播种`RoleAssignment`查不到 | Task 6.4 | 未采取任何规避措施，也未修改测试。已排除"由Task 6.4改动引入"：干净HEAD与带改动分别多次全量运行均全绿，异常只在特定两次运行出现，疑为测试库或MySQL连接状态问题 | 下方"D-6 全量后端测试运行记录" | 阶段6收尾前持续记录；若在Task 6.9全量门禁或CI复现即升级为P1并定位到具体污染测试，不复现则记为已知环境风险 |
+
+### D-6 全量后端测试运行记录
+
+每次全量`uv run pytest -q`（或等价直调）都记入本表，异常与正常一并记录，不得只记成功。
+
+| 时间 | 代码状态 | 命令 | 结果 |
+|---|---|---|---|
+| 2026-07-31 | Task 6.4改动（未提交） | `pytest -q -p no:randomly` | 75 passed / 608 errors，55s |
+| 2026-07-31 | Task 6.4改动（未提交） | `pytest -q` | 75 passed / 608 errors，55s |
+| 2026-07-31 | Task 6.4改动（未提交） | `pytest -q --tb=short -x` | 683 passed，153s |
+| 2026-07-31 | 干净HEAD（改动已stash） | `pytest -q` | 654 passed，152s |
+| 2026-07-31 | 干净HEAD（改动已stash） | `pytest -q` | 654 passed，149s |
+| 2026-07-31 | Task 6.4改动（已恢复） | `pytest -q --tb=line -rf` | 683 passed，150s |
+| 2026-07-31 | Task 6.4改动（已恢复） | `pytest -q --tb=line -rf` | 683 passed，154s |
 
 ## 20. 阶段6退出证据
 

@@ -3,9 +3,10 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Protocol
+from typing import Any, Protocol
 from uuid import UUID
 
+from django.conf import settings
 from django.utils import timezone
 
 from apps.authorization.context import (
@@ -24,6 +25,11 @@ from apps.notifications.models import (
     NotificationStatus,
     Todo,
 )
+from apps.notifications.services.policies import resolve_notification
+
+
+class DingTalkDeliveryDisabled(Exception):
+    """Phase 6 keeps DingTalk off; delivery must refuse before a gateway is touched."""
 
 
 class NotificationGateway(Protocol):
@@ -34,13 +40,18 @@ class NotificationGateway(Protocol):
 class CreateInAppNotification:
     recipient: User
     template_code: str
-    summary: str
     object_type: str
     object_id: UUID
     dedup_key: str
     deep_link: str
+    variables: dict[str, Any] | None = None
+    # Kept only so older call sites that still pass a pre-rendered summary fail
+    # closed: a summary that never went through a template is how object bodies
+    # leak. Prefer `variables`.
+    summary: str | None = None
     todo: Todo | None = None
     action_code: str = "notification.read"
+    level: str | None = None
 
     def execute(self) -> Notification | None:
         decision = authorize(
@@ -56,25 +67,46 @@ class CreateInAppNotification:
         if not decision.allowed:
             return None
 
+        if self.variables is None:
+            raise ValueError(
+                "CreateInAppNotification requires template variables; a raw "
+                "summary is no longer accepted."
+            )
+
+        resolved = resolve_notification(
+            organization=self.recipient.organization,
+            template_code=self.template_code,
+            variables=self.variables,
+            level=self.level,
+        )
+
         notification, _ = Notification.objects.get_or_create(
             recipient=self.recipient,
             dedup_key=self.dedup_key,
             defaults={
                 "organization": self.recipient.organization,
-                "template_code": self.template_code,
-                "summary": summary_for(decision, self.summary),
+                "template_code": resolved.template_code,
+                "category": resolved.category,
+                "level": resolved.level,
+                "summary": resolved.summary,
                 "object_type": self.object_type,
                 "object_id": self.object_id,
+                "status": NotificationStatus.UNREAD,
+                "template_version_id": resolved.template_version_id,
+                "policy_version_id": resolved.policy_version_id,
+                "policy_snapshot": resolved.policy_snapshot,
                 "deep_link": self.deep_link,
                 "todo": self.todo,
-                "status": NotificationStatus.PENDING,
             },
         )
-        Delivery.objects.get_or_create(
-            notification=notification,
-            channel=DeliveryChannel.IN_APP,
-            defaults={"status": DeliveryStatus.SENT},
-        )
+        # Phase 6 only opens the in-app channel, even when a policy lists more.
+        # DingTalk stays behind ENABLE_DINGTALK_NOTIFICATIONS and DeliverNotification.
+        if DeliveryChannel.IN_APP in resolved.channels:
+            Delivery.objects.get_or_create(
+                notification=notification,
+                channel=DeliveryChannel.IN_APP,
+                defaults={"status": DeliveryStatus.SENT},
+            )
         return notification
 
 
@@ -84,6 +116,11 @@ class DeliverNotification:
     gateway: NotificationGateway | None = None
 
     def execute(self) -> Delivery:
+        if not getattr(settings, "ENABLE_DINGTALK_NOTIFICATIONS", False):
+            raise DingTalkDeliveryDisabled(
+                "DingTalk notification delivery is disabled for this environment."
+            )
+
         gateway = self.gateway or DingTalkNotificationGateway()
         notification = Notification.objects.select_related("recipient").get(pk=self.notification_id)
         delivery, _ = Delivery.objects.get_or_create(
@@ -109,8 +146,8 @@ class DeliverNotification:
         delivery.save(
             update_fields=["attempt_count", "status", "external_message_id", "updated_at"]
         )
-        notification.status = NotificationStatus.DELIVERED
-        notification.save(update_fields=["status"])
+        # A successful send says nothing about whether the recipient read it, so
+        # the notification's own lifecycle is left alone.
         return delivery
 
 
@@ -120,10 +157,6 @@ def deliver_notification(
     gateway: NotificationGateway | None = None,
 ) -> Delivery:
     return DeliverNotification(notification_id=notification_id, gateway=gateway).execute()
-
-
-def summary_for(decision: object, summary: str) -> str:
-    return summary
 
 
 def _subject_for(user: User) -> AuthorizationSubject:

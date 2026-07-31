@@ -36,6 +36,8 @@ ENABLE_PROJECTS_API = True
 ENABLE_WORK_ITEMS_API = True
 ENABLE_PRODUCTS_API = True
 ENABLE_OPERATIONS_API = True
+# Phase 6: in-app only. An unset DINGTALK_NOTIFIER is not a decision; this is.
+ENABLE_DINGTALK_NOTIFICATIONS = False
 
 FILE_STORAGE_ROOT = BASE_DIR / "var" / "files"  # noqa: F405
 

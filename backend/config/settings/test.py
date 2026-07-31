@@ -46,6 +46,8 @@ ENABLE_WORK_ITEMS_API = True
 ENABLE_PRODUCTS_API = True
 ENABLE_OPERATIONS_API = True
 ENABLE_TEST_API = True
+# Phase 6: in-app only. Tests that exercise DingTalk turn this on explicitly.
+ENABLE_DINGTALK_NOTIFICATIONS = False
 
 CELERY_TASK_ALWAYS_EAGER = True
 
