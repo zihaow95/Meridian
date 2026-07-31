@@ -13,7 +13,7 @@ from rest_framework.views import APIView
 
 from apps.identity.models.user import User
 from apps.notifications.models import TodoStatus
-from apps.notifications.queries.todos import list_my_todos
+from apps.notifications.queries.todos import linked_notification, list_my_todos
 from apps.platform.api.errors import ValidationFailedError
 from apps.platform.api.permissions import requires_action
 
@@ -34,6 +34,8 @@ class MyTodosView(APIView):
                 "public_id": serializers.CharField(),
                 "title": serializers.CharField(),
                 "status": serializers.CharField(),
+                "category": serializers.CharField(allow_blank=True, allow_null=True),
+                "level": serializers.CharField(allow_blank=True, allow_null=True),
                 "due_at": serializers.CharField(allow_null=True),
                 "deep_link": serializers.CharField(),
             },
@@ -47,15 +49,18 @@ class MyTodosView(APIView):
             raise ValidationFailedError(details={"status": ["Invalid status filter."]})
 
         todos = list_my_todos(user=user, status=status or None)
-        return Response(
-            [
+        rows = []
+        for todo in todos:
+            notice = linked_notification(todo)
+            rows.append(
                 {
                     "public_id": str(todo.public_id),
                     "title": todo.title,
                     "status": todo.status,
+                    "category": notice.category if notice is not None else None,
+                    "level": notice.level if notice is not None else None,
                     "due_at": todo.due_at.isoformat() if todo.due_at else None,
                     "deep_link": todo.deep_link,
                 }
-                for todo in todos
-            ]
-        )
+            )
+        return Response(rows)

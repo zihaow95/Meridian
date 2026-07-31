@@ -131,6 +131,10 @@ SPECTACULAR_SETTINGS: dict[str, Any] = {
     "SCHEMA_PATH_PREFIX": "/api/v1",
 }
 
+# Feature flags default closed; environment modules must set them explicitly.
+ENABLE_NOTIFICATIONS_API = False
+ENABLE_DINGTALK_NOTIFICATIONS = False
+
 CELERY_BROKER_URL = env("CELERY_BROKER_URL", "redis://127.0.0.1:6379/0")
 CELERY_RESULT_BACKEND = env("CELERY_RESULT_BACKEND", CELERY_BROKER_URL)
 CELERY_TASK_ALWAYS_EAGER = False

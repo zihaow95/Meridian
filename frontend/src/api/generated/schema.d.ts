@@ -568,6 +568,54 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/notifications/{public_id}/close": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["notifications_close"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/notifications/{public_id}/read": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["notifications_mark_read"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/notifications/my": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["notifications_my_list"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/operating-data-sources": {
         parameters: {
             query?: never;
@@ -2713,12 +2761,72 @@ export interface components {
             staging_relpath: string;
             expires_at: string;
         };
+        MyNotificationItem: {
+            /** Format: uuid */
+            public_id: string;
+            summary: string;
+            category: string;
+            level: string;
+            status: string;
+            deep_link: string;
+            /** Format: date-time */
+            created_at: string;
+            /** Format: date-time */
+            read_at: string | null;
+            /** Format: date-time */
+            closed_at: string | null;
+            close_reason: string;
+        };
+        MyNotificationPage: {
+            items: components["schemas"]["MyNotificationItem"][];
+            page: number;
+            page_size: number;
+            count: number;
+            unread_count: number;
+        };
         MyTodoListItem: {
             public_id: string;
             title: string;
             status: string;
+            category: string | null;
+            level: string | null;
             due_at: string | null;
             deep_link: string;
+        };
+        NotificationCloseRequest: {
+            close_reason?: string;
+        };
+        NotificationCloseResult: {
+            /** Format: uuid */
+            public_id: string;
+            summary: string;
+            category: string;
+            level: string;
+            status: string;
+            deep_link: string;
+            /** Format: date-time */
+            created_at: string;
+            /** Format: date-time */
+            read_at: string | null;
+            /** Format: date-time */
+            closed_at: string | null;
+            close_reason: string;
+        };
+        NotificationReadResult: {
+            /** Format: uuid */
+            public_id: string;
+            summary: string;
+            category: string;
+            level: string;
+            status: string;
+            deep_link: string;
+            /** Format: date-time */
+            created_at: string;
+            /** Format: date-time */
+            read_at: string | null;
+            /** Format: date-time */
+            closed_at: string | null;
+            close_reason: string;
         };
         OperatingDataExportRequest: {
             period_start: string;
@@ -4496,6 +4604,79 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["MeResponse"];
+                };
+            };
+        };
+    };
+    notifications_close: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                public_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["NotificationCloseRequest"];
+                "application/x-www-form-urlencoded": components["schemas"]["NotificationCloseRequest"];
+                "multipart/form-data": components["schemas"]["NotificationCloseRequest"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotificationCloseResult"];
+                };
+            };
+        };
+    };
+    notifications_mark_read: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                public_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotificationReadResult"];
+                };
+            };
+        };
+    };
+    notifications_my_list: {
+        parameters: {
+            query?: {
+                category?: string;
+                level?: string;
+                page?: number;
+                page_size?: number;
+                status?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MyNotificationPage"];
                 };
             };
         };

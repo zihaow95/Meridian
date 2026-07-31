@@ -10,6 +10,7 @@ import AuditListView from '@/modules/admin/AuditListView.vue'
 import DocumentWorkbenchView from '@/modules/admin/DocumentWorkbenchView.vue'
 import UserAccessView from '@/modules/admin/UserAccessView.vue'
 import TodoListView from '@/modules/todos/TodoListView.vue'
+import NotificationCenterView from '@/modules/todos/NotificationCenterView.vue'
 import OpportunityListView from '@/modules/opportunities/OpportunityListView.vue'
 import OpportunityCreateView from '@/modules/opportunities/OpportunityCreateView.vue'
 import OpportunityWorkbenchView from '@/modules/opportunities/OpportunityWorkbenchView.vue'
@@ -34,6 +35,11 @@ const routes: RouteRecordRaw[] = [
   { path: '/login', component: LoginView },
   { path: '/access-denied', component: AccessDeniedView },
   { path: '/todos', component: TodoListView, meta: { requiresAuth: true } },
+  {
+    path: '/notifications',
+    component: NotificationCenterView,
+    meta: { requiresAuth: true },
+  },
   { path: '/opportunities', component: OpportunityListView, meta: { requiresAuth: true } },
   { path: '/opportunities/new', component: OpportunityCreateView, meta: { requiresAuth: true } },
   {

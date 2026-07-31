@@ -50,6 +50,8 @@ X_FRAME_OPTIONS = "DENY"
 if (env("ENABLE_DEV_LOGIN") or "false").lower() in {"1", "true", "yes"}:
     raise ImproperlyConfigured("ENABLE_DEV_LOGIN must not be enabled in production.")
 
+ENABLE_NOTIFICATIONS_API = True
+
 # Phase 6 keeps DingTalk off. Production refuses an accidental enable so a
 # mis-set environment variable cannot reopen an untested channel.
 ENABLE_DINGTALK_NOTIFICATIONS = False

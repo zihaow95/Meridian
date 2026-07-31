@@ -832,6 +832,94 @@ paths:
               schema:
                 $ref: '#/components/schemas/MeResponse'
           description: ''
+  /api/v1/notifications/{public_id}/close:
+    post:
+      operationId: notifications_close
+      parameters:
+      - in: path
+        name: public_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - notifications
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/NotificationCloseRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/NotificationCloseRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/NotificationCloseRequest'
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NotificationCloseResult'
+          description: ''
+  /api/v1/notifications/{public_id}/read:
+    post:
+      operationId: notifications_mark_read
+      parameters:
+      - in: path
+        name: public_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - notifications
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NotificationReadResult'
+          description: ''
+  /api/v1/notifications/my:
+    get:
+      operationId: notifications_my_list
+      parameters:
+      - in: query
+        name: category
+        schema:
+          type: string
+      - in: query
+        name: level
+        schema:
+          type: string
+      - in: query
+        name: page
+        schema:
+          type: integer
+      - in: query
+        name: page_size
+        schema:
+          type: integer
+      - in: query
+        name: status
+        schema:
+          type: string
+      tags:
+      - notifications
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MyNotificationPage'
+          description: ''
   /api/v1/operating-data-sources:
     get:
       operationId: operating_data_sources_list
@@ -5056,6 +5144,67 @@ components:
       - sha256
       - size_bytes
       - staging_relpath
+    MyNotificationItem:
+      type: object
+      properties:
+        public_id:
+          type: string
+          format: uuid
+        summary:
+          type: string
+        category:
+          type: string
+        level:
+          type: string
+        status:
+          type: string
+        deep_link:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+        read_at:
+          type: string
+          format: date-time
+          nullable: true
+        closed_at:
+          type: string
+          format: date-time
+          nullable: true
+        close_reason:
+          type: string
+      required:
+      - category
+      - close_reason
+      - closed_at
+      - created_at
+      - deep_link
+      - level
+      - public_id
+      - read_at
+      - status
+      - summary
+    MyNotificationPage:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/MyNotificationItem'
+        page:
+          type: integer
+        page_size:
+          type: integer
+        count:
+          type: integer
+        unread_count:
+          type: integer
+      required:
+      - count
+      - items
+      - page
+      - page_size
+      - unread_count
     MyTodoListItem:
       type: object
       properties:
@@ -5065,17 +5214,110 @@ components:
           type: string
         status:
           type: string
+        category:
+          type: string
+          nullable: true
+        level:
+          type: string
+          nullable: true
         due_at:
           type: string
           nullable: true
         deep_link:
           type: string
       required:
+      - category
       - deep_link
       - due_at
+      - level
       - public_id
       - status
       - title
+    NotificationCloseRequest:
+      type: object
+      properties:
+        close_reason:
+          type: string
+    NotificationCloseResult:
+      type: object
+      properties:
+        public_id:
+          type: string
+          format: uuid
+        summary:
+          type: string
+        category:
+          type: string
+        level:
+          type: string
+        status:
+          type: string
+        deep_link:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+        read_at:
+          type: string
+          format: date-time
+          nullable: true
+        closed_at:
+          type: string
+          format: date-time
+          nullable: true
+        close_reason:
+          type: string
+      required:
+      - category
+      - close_reason
+      - closed_at
+      - created_at
+      - deep_link
+      - level
+      - public_id
+      - read_at
+      - status
+      - summary
+    NotificationReadResult:
+      type: object
+      properties:
+        public_id:
+          type: string
+          format: uuid
+        summary:
+          type: string
+        category:
+          type: string
+        level:
+          type: string
+        status:
+          type: string
+        deep_link:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+        read_at:
+          type: string
+          format: date-time
+          nullable: true
+        closed_at:
+          type: string
+          format: date-time
+          nullable: true
+        close_reason:
+          type: string
+      required:
+      - category
+      - close_reason
+      - closed_at
+      - created_at
+      - deep_link
+      - level
+      - public_id
+      - read_at
+      - status
+      - summary
     OperatingDataExportRequest:
       type: object
       properties:

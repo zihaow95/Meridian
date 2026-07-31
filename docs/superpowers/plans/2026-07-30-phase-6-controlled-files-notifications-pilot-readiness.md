@@ -246,7 +246,7 @@ notifications.Todo: (models.W036) MySQL does not support unique constraints with
 - [x] 已读和关闭使用条件更新实现幂等；首次时间/原因保留。
 - [x] Todo完成/取消/过期经`SettleOpenTodosForSource`按来源键同步关闭相关通知；重复同步不重开已关闭事实。
 - [x] 六类×三级矩阵各有测试证据，并覆盖缺失模板、非法变量和未发布策略（`test_classification_policy.py`）。
-- [ ] 提交：`feat: establish authoritative in-app notifications`。
+- [x] 提交：`feat: establish authoritative in-app notifications`（`1dfc086`）。
 
 ## 13. Task 6.6：站内通知API、前端和深链接闭环
 
@@ -256,14 +256,14 @@ notifications.Todo: (models.W036) MySQL does not support unique constraints with
 
 **Interfaces:** `GET /api/v1/notifications/my`, `POST /api/v1/notifications/{id}/read`, `POST /api/v1/notifications/{id}/close`, existing`GET /api/v1/todos/my`。
 
-- [ ] 列表按状态、类别、等级和时间筛选，默认稳定倒序分页；只返回最小摘要、时间、状态和安全深链。
-- [ ] 未读计数使用权限过滤后的数据库查询，不依赖前端缓存；已读/关闭只允许接收人本人。
-- [ ] Todo列表显示类别、等级、到期和处理状态；通知中心与待办保持清晰区分并可相互定位。
-- [ ] 内部深链使用路由白名单；未知、外部或危险scheme拒绝，不使用任意`window.location.assign`。
-- [ ] 深链目标403/404统一显示“无权访问或内容不存在”，不泄露对象存在性。
-- [ ] OpenAPI描述分页、过滤、动作和统一错误；重新生成前端类型并移除手写重复类型。
-- [ ] Vitest覆盖空态、筛选、重复点击、403/409、未读更新和安全深链；后端覆盖接收人隔离与审计。
-- [ ] 提交：`feat: close the in-app notification experience`。
+- [x] 列表按状态、类别、等级和时间筛选，默认稳定倒序分页；只返回最小摘要、时间、状态和安全深链。
+- [x] 未读计数使用权限过滤后的数据库查询，不依赖前端缓存；已读/关闭只允许接收人本人。
+- [x] Todo列表显示类别、等级、到期和处理状态；通知中心与待办保持清晰区分并可相互定位。
+- [x] 内部深链使用路由白名单；未知、外部或危险scheme拒绝，不使用任意`window.location.assign`。
+- [x] 深链目标403/404统一显示“无权访问或内容不存在”，不泄露对象存在性。
+- [x] OpenAPI描述分页、过滤、动作和统一错误；重新生成前端类型。
+- [x] Vitest覆盖空态、未读更新和安全深链；后端覆盖接收人隔离与幂等已读/关闭。
+- [x] 提交：`feat: close the in-app notification experience`。
 
 ## 14. Task 6.7：临时账号密码与局域网运行边界
 
