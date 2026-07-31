@@ -193,8 +193,8 @@ notifications.Todo: (models.W036) MySQL does not support unique constraints with
 - [x] 上传、重复判断、状态变化和失败写审计，审计不保存文件正文（审计摘要只含标识、SHA-256和声称值）。
 - [ ] 为`documents`注册`ObjectIdentityProvider`：**本轮判定为不可按原文执行**。唯一能由documents自身确立的对象身份是"上传者"，而授予上传者下载权会放宽访问，与既有已测规则冲突（`tests/projects/test_inflight_migration.py:248`断言迁移人未获授权时`can_download`为假）。原始需求是让查询按对象范围**收窄**，已改为版本列表逐条`authorize()`（含真实敏感等级）实现，比只按`organization_id`过滤更严。是否仍需provider待与对象关联模型（`DocumentLink`当前无任何写入方）一并裁决。
 - [x] 敏感等级判权必须落在票据签发环节：`DocumentVersionDownloadTicketView`签发前按版本真实`sensitivity_level`重新`authorize()`，DRF权限类只能按资源类型判定、会把所有文件当作INTERNAL。已补测越权用户拿不到票据、票据消费后不可重放。
-- [ ] 运行documents/products目标测试、文件移动失败恢复和MySQL并发测试。
-- [ ] 提交：`feat: stage catalogued legacy materials`。
+- [x] 运行documents/products目标测试、文件移动失败恢复和MySQL并发测试：`ruff check`/`ruff format --check`、`mypy config apps`（320文件0错）、`makemigrations --check`（无漂移）、`pytest -q`（586通过）、`spectacular --validate`、前端`typecheck`/`vitest`（23文件71例）。本轮未运行：Playwright E2E、Docker镜像构建。
+- [x] 提交：`feat: stage catalogued legacy materials`（`0260b9b`）。
 
 ## 10. Task 6.3：产品材料版本链、专业确认与完整性
 
