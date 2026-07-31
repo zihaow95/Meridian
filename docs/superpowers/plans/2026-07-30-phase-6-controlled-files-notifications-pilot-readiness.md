@@ -169,7 +169,7 @@ notifications.Todo: (models.W036) MySQL does not support unique constraints with
 - [x] 复用`AdminChangeRequest`及审计，不复制审批状态机；`business_confirmed`布尔值不再充当关键配置发布证据（`PublishVersion`改收`approved_request`）。
 - [x] 补齐`AdminChangeRequest`缺失的接线：新增申请/复核HTTP API、实现`APPROVED → APPLIED`推进、让`dual_control_enabled()`真正生效（`services/__init__.py:89`）。申请与复核走领域动作码`configuration.publication.request`/`review`，不复用平台通用复核权，避免通用复核权外溢到配置发布。
 - [x] 同定义只有一个当前PUBLISHED版本按第5.1节的哨兵列模式实现（`configuration/0004_current_published_slot.py`），禁止条件唯一约束；已用直接插入冲突行的MySQL测试断言数据库拒绝，并覆盖升级回填与重复数据停线。重复守卫必须在任何DDL之前执行，因为MySQL无法回滚已应用的DDL。
-- [ ] 并发直发的落败方语义（拒绝还是串行覆盖）暂缓裁决：双人复核落地后不存在绕过复核的并发直发路径，唯一约束继续作为兜底。复核环节实现时一并确定并补测。
+- [ ] 并发直发的落败方语义（拒绝还是串行覆盖）暂缓裁决，已登记为第19bis节D-3：双人复核落地后不存在绕过复核的并发直发路径，唯一约束继续作为兜底。
 - [x] 增加草稿详情、创建、发布申请和复核API；敏感正文按权限过滤（无`configuration.content.read_sensitive`者只拿到摘要与状态，`content_json`为`null`）。
 - [x] 前端完成定义、版本、差异、校验错误、申请和复核最小闭环（`ConfigurationListView.spec.ts`，12例）。
 - [x] 运行配置/授权目标测试、mypy、OpenAPI与前端Vitest：`ruff check`/`ruff format --check`、`mypy config apps`（318文件0错）、`makemigrations --check`（无漂移）、`pytest -q`（550通过）、`spectacular --validate`、前端`lint`/`typecheck`/`vitest`（23文件71例）。本轮未运行：Playwright E2E、Docker镜像构建（属完整`scripts/check.ps1`范围）。
@@ -191,7 +191,7 @@ notifications.Todo: (models.W036) MySQL does not support unique constraints with
 - [x] 同一幂等键重试只产生一个待整理记录；相同SHA-256关联不同对象时提示重复候选。唯一约束落在`(organization, idempotency_key)`，已用直接插入冲突行的MySQL测试断言数据库拒绝。
 - [x] 待整理资料默认不能成为`Document.current_version`、`material_status=APPROVED`的`ProductMaterial`或发布材料：录入完全不写`ProductMaterial`，状态停在`PENDING_TRIAGE`。发布门禁的对应断言在6.3随`validate_publication`一并补。
 - [x] 上传、重复判断、状态变化和失败写审计，审计不保存文件正文（审计摘要只含标识、SHA-256和声称值）。
-- [ ] 为`documents`注册`ObjectIdentityProvider`：**本轮判定为不可按原文执行**。唯一能由documents自身确立的对象身份是"上传者"，而授予上传者下载权会放宽访问，与既有已测规则冲突（`tests/projects/test_inflight_migration.py:248`断言迁移人未获授权时`can_download`为假）。原始需求是让查询按对象范围**收窄**，已改为版本列表逐条`authorize()`（含真实敏感等级）实现，比只按`organization_id`过滤更严。是否仍需provider待与对象关联模型（`DocumentLink`当前无任何写入方）一并裁决。
+- [ ] 为`documents`注册`ObjectIdentityProvider`：**本轮判定为不可按原文执行，已登记为第19bis节D-2并推迟到阶段6开发完成后裁决**。原始需求"查询按对象范围收窄"已用版本列表逐条`authorize()`（含真实敏感等级）满足，比只按`organization_id`过滤更严。
 - [x] 敏感等级判权必须落在票据签发环节：`DocumentVersionDownloadTicketView`签发前按版本真实`sensitivity_level`重新`authorize()`，DRF权限类只能按资源类型判定、会把所有文件当作INTERNAL。已补测越权用户拿不到票据、票据消费后不可重放。
 - [x] 运行documents/products目标测试、文件移动失败恢复和MySQL并发测试：`ruff check`/`ruff format --check`、`mypy config apps`（320文件0错）、`makemigrations --check`（无漂移）、`pytest -q`（586通过）、`spectacular --validate`、前端`typecheck`/`vitest`（23文件71例）。本轮未运行：Playwright E2E、Docker镜像构建。
 - [x] 提交：`feat: stage catalogued legacy materials`（`0260b9b`）。
@@ -357,6 +357,17 @@ notifications.Todo: (models.W036) MySQL does not support unique constraints with
 - 离线发布包、受控试用环境部署、回滚和启动批准；
 - 正式生产切换、生产数据迁移和全员推广延后到真实用户试用结论之后；
 - 真实用户首轮试用的实际运行与业务反馈结论。
+
+## 19bis. 开发中判定为需要裁决但不阻塞的问题
+
+本节登记实现过程中发现、经判断不影响当前任务达成目标、因而推迟到阶段6全部开发完成后统一处置的问题。登记规则：发现即写入，写明证据与当前实际行为，不得在未处置前从计划中删除，也不得把"已登记"当作"已解决"。
+
+| 编号 | 问题 | 发现于 | 当前实际行为 | 证据 | 处置窗口 |
+|---|---|---|---|---|---|
+| D-1 | `DocumentLink`模型自`documents/0001_initial`起存在，但全仓库没有任何写入方，文档版本与业务对象之间缺少显式关联事实 | Task 6.2 | 保留该表不动，不新增写入方也不删除。文档版本的可见性改由逐条`authorize()`判定，不依赖该表 | `apps/documents/models.py`的`DocumentLink`；全仓检索仅命中模型定义与初始迁移 | 阶段6开发完成后，与D-2一并裁决 |
+| D-2 | Task 6.2要求为`documents`注册`ObjectIdentityProvider`，但按原文不可执行 | Task 6.2 | 未注册provider。documents自身唯一能确立的对象身份是"上传者"，授予其下载权属于放宽访问，与既有已测规则直接冲突；原始需求"查询按对象范围收窄"已用版本列表逐条`authorize()`（含真实敏感等级）满足 | `tests/projects/test_inflight_migration.py:248`断言迁移人未获授权时`can_download`为假；`apps/documents/api/documents.py`的`_may_read` | 阶段6开发完成后，需先确定文档与业务对象的关联模型（依赖D-1）再决定是否引入provider |
+| D-3 | 配置并发直发的落败方语义（拒绝还是串行覆盖）未裁决 | Task 6.1 | 双人复核落地后不存在绕过复核的并发直发路径，`configuration_version_published_slot_uniq`唯一约束继续作为兜底 | 第8节对应条目 | 阶段6开发完成后，若仍存在直发入口再裁决 |
+| D-4 | 待整理资料不得成为发布材料这一约束，只验证了"录入不写`ProductMaterial`"，尚未验证发布门禁本身 | Task 6.2 | 录入完全不创建`ProductMaterial`，状态停在`PENDING_TRIAGE` | `tests/products/test_legacy_material_intake.py` | Task 6.3随`validate_publication`补齐断言，不延期到阶段末 |
 
 ## 20. 阶段6退出证据
 
