@@ -85,7 +85,7 @@ def test_non_controlled_material_blocks_publication(change_set, active_user) -> 
         change_set=change_set,
         owner_type=AttributeOwnerType.PRODUCT,
         owner_id=change_set.product_id,
-        material_type=MaterialType.LABEL,
+        material_type_code=MaterialType.LABEL,
         document_version=draft_version,
         material_status=MaterialStatus.DRAFT,
     )

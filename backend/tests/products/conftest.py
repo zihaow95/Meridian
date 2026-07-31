@@ -3,6 +3,9 @@
 from __future__ import annotations
 
 from collections.abc import Callable
+from hashlib import sha256
+from typing import Any
+from uuid import uuid4
 
 import pytest
 from django.utils import timezone
@@ -387,3 +390,56 @@ def active_product(
 @pytest.fixture
 def ordinary_employee(another_active_user: User) -> User:
     return another_active_user
+
+
+@pytest.fixture
+def controlled_document_version(
+    organization: Organization, active_user: User
+) -> Callable[..., Any]:
+    """Build a CONTROLLED document version a product material may reference."""
+
+    def _create(*, code: str = "LABEL", content: bytes = b"%PDF-1.4 label") -> Any:
+        from apps.documents.models import (
+            Document,
+            DocumentSource,
+            DocumentStatus,
+            DocumentVersion,
+            FileObject,
+            StorageBackend,
+            StorageStatus,
+            VersionStatus,
+        )
+
+        suffix = uuid4().hex[:8]
+        file_object = FileObject.objects.create(
+            organization=organization,
+            storage_backend=StorageBackend.NAS_NFS,
+            object_key=f"products/{code}-{suffix}.pdf",
+            size_bytes=len(content),
+            sha256=sha256(content).hexdigest(),
+            detected_mime_type="application/pdf",
+            storage_status=StorageStatus.ACTIVE,
+        )
+        document = Document.objects.create(
+            organization=organization,
+            document_code=f"{code}-{suffix}",
+            title=f"{code} document",
+            category=code,
+            source=DocumentSource.PRODUCT,
+            status=DocumentStatus.ACTIVE,
+        )
+        return DocumentVersion.objects.create(
+            organization=organization,
+            document=document,
+            version_number=1,
+            file_object=file_object,
+            original_filename=f"{code.lower()}.pdf",
+            declared_mime_type="application/pdf",
+            detected_mime_type="application/pdf",
+            status=VersionStatus.CONTROLLED,
+            uploaded_by=active_user,
+            uploaded_at=timezone.now(),
+            catalog_item_code=code,
+        )
+
+    return _create

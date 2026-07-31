@@ -718,6 +718,13 @@ class NutritionItem(OrganizationOwnedModel):
 
 
 class MaterialType(models.TextChoices):
+    """Seed vocabulary only.
+
+    Material types are configuration-driven (`ProductMaterial.material_type_code`);
+    these are the codes the pre-phase-6 rows were written with and the codes the
+    default material requirements configuration ships with.
+    """
+
     INNER_PACKAGING = "INNER_PACKAGING", "Inner packaging"
     OUTER_PACKAGING = "OUTER_PACKAGING", "Outer packaging"
     LABEL = "LABEL", "Label"
@@ -742,7 +749,10 @@ class ProductMaterial(OrganizationOwnedModel):
     )
     owner_type = models.CharField(max_length=16, choices=AttributeOwnerType.choices)
     owner_id = models.BigIntegerField()
-    material_type = models.CharField(max_length=24, choices=MaterialType.choices)
+    # Free-form on purpose: the catalogue of material types is configuration,
+    # so a new type must not require a code change. MaterialType survives only
+    # as the seed vocabulary the legacy rows were written with.
+    material_type_code = models.CharField(max_length=64)
     document_version = models.ForeignKey(
         "documents.DocumentVersion",
         on_delete=models.PROTECT,
@@ -757,21 +767,54 @@ class ProductMaterial(OrganizationOwnedModel):
     )
     valid_from = models.DateTimeField(null=True, blank=True)
     valid_to = models.DateTimeField(null=True, blank=True)
-    confirmation = models.ForeignKey(
-        "products.AttributeConfirmation",
+    version_no = models.PositiveIntegerField(default=1)
+    supersedes_material = models.ForeignKey(
+        "self",
         null=True,
         blank=True,
         on_delete=models.PROTECT,
-        related_name="materials",
+        related_name="superseded_by",
     )
+    source_submission = models.ForeignKey(
+        "products.LegacyMaterialSubmission",
+        null=True,
+        blank=True,
+        on_delete=models.PROTECT,
+        related_name="promoted_materials",
+    )
+    # Nullable sentinel: occupied by the one material that is current for this
+    # owner and material type. MySQL ignores conditional unique constraints.
+    current_slot = models.PositiveSmallIntegerField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
         db_table = "products_product_material"
+        constraints = [
+            models.UniqueConstraint(
+                fields=[
+                    "organization",
+                    "owner_type",
+                    "owner_id",
+                    "material_type_code",
+                    "current_slot",
+                ],
+                name="products_material_current_uniq",
+            ),
+            models.UniqueConstraint(
+                fields=[
+                    "organization",
+                    "owner_type",
+                    "owner_id",
+                    "material_type_code",
+                    "version_no",
+                ],
+                name="products_material_version_uniq",
+            ),
+        ]
         indexes = [
             models.Index(fields=["owner_type", "owner_id", "material_status"]),
-            models.Index(fields=["change_set", "material_type"]),
+            models.Index(fields=["change_set", "material_type_code"]),
         ]
 
 
@@ -812,6 +855,22 @@ class LegacyMaterialSubmission(OrganizationOwnedModel):
         default=LegacyMaterialStatus.PENDING_TRIAGE,
     )
     idempotency_key = models.CharField(max_length=64)
+    verified_by = models.ForeignKey(
+        "identity.User",
+        null=True,
+        blank=True,
+        on_delete=models.PROTECT,
+        related_name="verified_legacy_material_submissions",
+    )
+    verified_at = models.DateTimeField(null=True, blank=True)
+    verification_note = models.TextField(blank=True, default="")
+    promoted_material = models.ForeignKey(
+        "products.ProductMaterial",
+        null=True,
+        blank=True,
+        on_delete=models.PROTECT,
+        related_name="promoted_from",
+    )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -863,6 +922,73 @@ class AttributeConfirmation(OrganizationOwnedModel):
         indexes = [
             models.Index(fields=["change_set", "decision"]),
             models.Index(fields=["group_value", "superseded_at"]),
+        ]
+
+
+class MaterialConfirmationDecision(models.TextChoices):
+    PENDING = "PENDING", "Pending"
+    APPROVED = "APPROVED", "Approved"
+    RETURNED = "RETURNED", "Returned"
+
+
+class MaterialConfirmation(OrganizationOwnedModel):
+    """One professional's decision about one exact file version.
+
+    Kept apart from `AttributeConfirmation` because the subject differs: this
+    record names a `DocumentVersion` and the hash of its bytes, so replacing the
+    file provably invalidates the decision.
+    """
+
+    material = models.ForeignKey(
+        ProductMaterial,
+        on_delete=models.PROTECT,
+        related_name="confirmations",
+    )
+    document_version = models.ForeignKey(
+        "documents.DocumentVersion",
+        on_delete=models.PROTECT,
+        related_name="material_confirmations",
+    )
+    content_hash = models.CharField(max_length=64)
+    requested_by = models.ForeignKey(
+        "identity.User",
+        on_delete=models.PROTECT,
+        related_name="requested_material_confirmations",
+    )
+    requested_at = models.DateTimeField()
+    confirmer = models.ForeignKey(
+        "identity.User",
+        null=True,
+        blank=True,
+        on_delete=models.PROTECT,
+        related_name="material_confirmations",
+    )
+    decision = models.CharField(
+        max_length=16,
+        choices=MaterialConfirmationDecision.choices,
+        default=MaterialConfirmationDecision.PENDING,
+    )
+    comment = models.TextField(blank=True, default="")
+    decided_at = models.DateTimeField(null=True, blank=True)
+    superseded_at = models.DateTimeField(null=True, blank=True)
+    # Nullable sentinel: occupied while the record is the material's live
+    # confirmation (pending or approved). MySQL ignores conditional unique
+    # constraints, so the slot carries the rule instead.
+    live_slot = models.PositiveSmallIntegerField(null=True, blank=True, default=1)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "products_material_confirmation"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["material", "live_slot"],
+                name="products_material_live_confirmation_uniq",
+            )
+        ]
+        indexes = [
+            models.Index(fields=["material", "decision"]),
+            models.Index(fields=["document_version", "superseded_at"]),
         ]
 
 

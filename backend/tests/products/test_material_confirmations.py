@@ -1,0 +1,338 @@
+"""Material confirmations are their own record, and only one may be live.
+
+Professional confirmation used to have nowhere to live: `ProductMaterial`
+carried a nullable FK to `AttributeConfirmation`, which records a decision about
+an attribute group's content hash, not about a file. A row there could never
+prove that anybody looked at the bytes, so it cannot be replayed as an approval.
+"""
+
+from __future__ import annotations
+
+import importlib
+from typing import Any
+
+import pytest
+from django.db import IntegrityError, transaction
+from django.utils import timezone
+
+from apps.audit.models import AuditEvent
+from apps.identity.models.user import User, UserStatus
+from apps.platform.api.errors import PermissionDeniedError
+from apps.platform.application.command import CommandContext
+from apps.products.models import (
+    AttributeOwnerType,
+    MaterialConfirmation,
+    MaterialConfirmationDecision,
+    MaterialStatus,
+    ProductMaterial,
+)
+from apps.products.services.material_chains import make_material_current
+from apps.products.services.material_confirmations import (
+    DecideMaterialConfirmation,
+    MaterialConfirmationRejected,
+    SubmitMaterialConfirmation,
+)
+
+governed_materials = importlib.import_module(
+    "apps.products.migrations.0013_governed_product_materials"
+)
+
+pytestmark = pytest.mark.django_db
+
+
+@pytest.fixture
+def material(organization, change_set, controlled_document_version) -> ProductMaterial:
+    return ProductMaterial.objects.create(
+        organization=organization,
+        change_set=change_set,
+        owner_type="PRODUCT",
+        owner_id=change_set.product_id,
+        material_type_code="LABEL",
+        document_version=controlled_document_version(),
+    )
+
+
+def live_confirmation(material: ProductMaterial, **overrides) -> MaterialConfirmation:
+    defaults = {
+        "organization": material.organization,
+        "material": material,
+        "document_version": material.document_version,
+        "content_hash": material.document_version.file_object.sha256,
+        "requested_by": material.change_set.created_by,
+        "requested_at": timezone.now(),
+    }
+    return MaterialConfirmation.objects.create(**{**defaults, **overrides})
+
+
+def test_a_pending_confirmation_occupies_the_material_live_slot(material) -> None:
+    confirmation = live_confirmation(material)
+
+    assert confirmation.decision == MaterialConfirmationDecision.PENDING
+    assert confirmation.live_slot == 1
+    assert confirmation.decided_at is None
+    assert confirmation.confirmer is None
+
+
+def test_database_refuses_a_second_live_confirmation_for_one_material(material) -> None:
+    live_confirmation(material)
+
+    with pytest.raises(IntegrityError), transaction.atomic():
+        live_confirmation(material)
+
+
+def test_a_returned_confirmation_releases_the_slot_for_a_new_request(material, active_user) -> None:
+    returned = live_confirmation(material)
+    returned.decision = MaterialConfirmationDecision.RETURNED
+    returned.confirmer = active_user
+    returned.decided_at = timezone.now()
+    returned.live_slot = None
+    returned.save()
+
+    replacement = live_confirmation(material)
+
+    assert replacement.live_slot == 1
+
+
+def test_a_superseded_approval_releases_the_slot(material, active_user) -> None:
+    approved = live_confirmation(
+        material,
+        decision=MaterialConfirmationDecision.APPROVED,
+        confirmer=active_user,
+        decided_at=timezone.now(),
+    )
+    assert approved.live_slot == 1
+
+    approved.superseded_at = timezone.now()
+    approved.live_slot = None
+    approved.save()
+
+    assert live_confirmation(material).live_slot == 1
+
+
+def test_the_confirmation_records_the_exact_bytes_that_were_reviewed(material) -> None:
+    confirmation = live_confirmation(material)
+
+    assert confirmation.document_version_id == material.document_version_id
+    assert confirmation.content_hash == material.document_version.file_object.sha256
+
+
+def test_the_migration_never_replays_an_attribute_confirmation_as_an_approval() -> None:
+    """An attribute-group decision is not evidence anybody reviewed a file."""
+
+    with pytest.raises(RuntimeError) as excinfo:
+        governed_materials.assert_legacy_material_confirmations_are_absent(linked_count=3)
+
+    message = str(excinfo.value)
+    assert "3" in message
+    assert "products_material_confirmation" in message
+
+
+def test_the_migration_proceeds_when_no_material_ever_carried_a_confirmation() -> None:
+    governed_materials.assert_legacy_material_confirmations_are_absent(linked_count=0)
+
+
+@pytest.fixture
+def requester(active_user, grant_action) -> Any:
+    grant_action(active_user, "product_material.manage", "product_material")
+    return active_user
+
+
+@pytest.fixture
+def confirmer(another_active_user, grant_action) -> Any:
+    grant_action(another_active_user, "product_material.confirm", "product_material")
+    return another_active_user
+
+
+@pytest.fixture
+def current_material(organization, change_set, controlled_document_version) -> ProductMaterial:
+    return ProductMaterial.objects.create(
+        organization=organization,
+        change_set=change_set,
+        owner_type=AttributeOwnerType.PRODUCT,
+        owner_id=change_set.product_id,
+        material_type_code="PRODUCT_LABEL",
+        document_version=controlled_document_version(),
+        version_no=1,
+        current_slot=1,
+    )
+
+
+def submit(actor, material: ProductMaterial, confirmer) -> MaterialConfirmation:
+    return SubmitMaterialConfirmation(
+        context=CommandContext.for_actor(actor),
+        material_public_id=material.public_id,
+        confirmer_public_id=confirmer.public_id,
+        comment="请确认标签版本",
+    ).execute()
+
+
+def decide(actor, confirmation: MaterialConfirmation, decision: str) -> MaterialConfirmation:
+    return DecideMaterialConfirmation(
+        context=CommandContext.for_actor(actor),
+        confirmation_public_id=confirmation.public_id,
+        decision=decision,
+        comment="内容与备案一致",
+    ).execute()
+
+
+def test_a_request_names_the_confirmer_and_the_exact_file(
+    requester, confirmer, current_material
+) -> None:
+    confirmation = submit(requester, current_material, confirmer)
+
+    assert confirmation.confirmer_id == confirmer.id
+    assert confirmation.decision == MaterialConfirmationDecision.PENDING
+    assert confirmation.document_version_id == current_material.document_version_id
+    assert confirmation.content_hash == current_material.document_version.file_object.sha256
+
+
+def test_a_nominee_without_the_confirm_action_is_refused_at_request_time(
+    requester, another_active_user, current_material
+) -> None:
+    with pytest.raises(MaterialConfirmationRejected):
+        submit(requester, current_material, another_active_user)
+
+    assert MaterialConfirmation.objects.count() == 0
+
+
+def test_requesting_confirmation_requires_the_manage_action(
+    another_active_user, confirmer, current_material
+) -> None:
+    with pytest.raises(PermissionDeniedError):
+        submit(another_active_user, current_material, confirmer)
+
+
+def test_a_superseded_material_cannot_be_sent_for_confirmation(
+    requester, confirmer, current_material, organization, change_set, controlled_document_version
+) -> None:
+    old = ProductMaterial.objects.create(
+        organization=organization,
+        change_set=change_set,
+        owner_type=AttributeOwnerType.PRODUCT,
+        owner_id=change_set.product_id,
+        material_type_code="PRODUCT_LABEL",
+        document_version=controlled_document_version(),
+        version_no=2,
+        current_slot=None,
+    )
+
+    with pytest.raises(MaterialConfirmationRejected):
+        submit(requester, old, confirmer)
+
+
+def test_only_the_nominated_confirmer_may_decide(
+    requester, confirmer, current_material, grant_action, organization
+) -> None:
+    other = User.objects.create_user(
+        organization=organization,
+        display_name="Other confirmer",
+        status=UserStatus.ACTIVE,
+        activated_at=timezone.now(),
+    )
+    grant_action(other, "product_material.confirm", "product_material")
+    confirmation = submit(requester, current_material, confirmer)
+
+    with pytest.raises(PermissionDeniedError):
+        decide(other, confirmation, MaterialConfirmationDecision.APPROVED)
+
+    confirmation.refresh_from_db()
+    assert confirmation.decision == MaterialConfirmationDecision.PENDING
+
+
+def test_an_approval_marks_the_material_approved(requester, confirmer, current_material) -> None:
+    confirmation = submit(requester, current_material, confirmer)
+
+    decided = decide(confirmer, confirmation, MaterialConfirmationDecision.APPROVED)
+
+    current_material.refresh_from_db()
+    assert decided.decision == MaterialConfirmationDecision.APPROVED
+    assert decided.decided_at is not None
+    assert decided.live_slot == 1
+    assert current_material.material_status == MaterialStatus.APPROVED
+
+
+def test_a_return_leaves_the_material_unapproved_and_reopens_the_slot(
+    requester, confirmer, current_material
+) -> None:
+    confirmation = submit(requester, current_material, confirmer)
+
+    returned = decide(confirmer, confirmation, MaterialConfirmationDecision.RETURNED)
+
+    current_material.refresh_from_db()
+    assert returned.live_slot is None
+    assert current_material.material_status == MaterialStatus.DRAFT
+
+    replacement = submit(requester, current_material, confirmer)
+    assert replacement.live_slot == 1
+
+
+def test_a_decided_confirmation_cannot_be_decided_again(
+    requester, confirmer, current_material
+) -> None:
+    confirmation = submit(requester, current_material, confirmer)
+    decide(confirmer, confirmation, MaterialConfirmationDecision.APPROVED)
+
+    with pytest.raises(MaterialConfirmationRejected):
+        decide(confirmer, confirmation, MaterialConfirmationDecision.RETURNED)
+
+
+def test_a_second_live_request_for_one_material_is_refused_by_the_service(
+    requester, confirmer, current_material
+) -> None:
+    submit(requester, current_material, confirmer)
+
+    with pytest.raises(MaterialConfirmationRejected):
+        submit(requester, current_material, confirmer)
+
+
+def test_replacing_the_file_invalidates_the_approval_but_keeps_the_record(
+    requester, confirmer, current_material, organization, controlled_document_version
+) -> None:
+    confirmation = submit(requester, current_material, confirmer)
+    decide(confirmer, confirmation, MaterialConfirmationDecision.APPROVED)
+
+    newer = ProductMaterial.objects.create(
+        organization=organization,
+        change_set=current_material.change_set,
+        owner_type=current_material.owner_type,
+        owner_id=current_material.owner_id,
+        material_type_code=current_material.material_type_code,
+        document_version=controlled_document_version(content=b"%PDF-1.4 newer"),
+        version_no=2,
+        supersedes_material=current_material,
+    )
+    make_material_current(newer)
+
+    confirmation.refresh_from_db()
+    current_material.refresh_from_db()
+    assert confirmation.superseded_at is not None
+    assert confirmation.live_slot is None
+    assert confirmation.decision == MaterialConfirmationDecision.APPROVED
+    assert current_material.material_status == MaterialStatus.INACTIVE
+    assert current_material.current_slot is None
+    assert newer.current_slot == 1
+
+
+def test_a_decision_is_audited_against_the_file_that_was_reviewed(
+    requester, confirmer, current_material
+) -> None:
+    confirmation = submit(requester, current_material, confirmer)
+
+    decide(confirmer, confirmation, MaterialConfirmationDecision.APPROVED)
+
+    event = AuditEvent.objects.get(
+        action_code="product_material.confirm",
+        resource_public_id=confirmation.public_id,
+    )
+    assert event.after_summary["decision"] == MaterialConfirmationDecision.APPROVED
+    assert event.after_summary["content_hash"] == confirmation.content_hash
+
+
+def test_a_decision_is_refused_when_the_reviewed_bytes_no_longer_match(
+    requester, confirmer, current_material
+) -> None:
+    confirmation = submit(requester, current_material, confirmer)
+    MaterialConfirmation.objects.filter(pk=confirmation.pk).update(content_hash="0" * 64)
+
+    with pytest.raises(MaterialConfirmationRejected):
+        decide(confirmer, confirmation, MaterialConfirmationDecision.APPROVED)
