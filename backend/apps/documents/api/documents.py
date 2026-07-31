@@ -14,6 +14,9 @@ from rest_framework.request import Request
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from apps.authorization.context import AuthorizationContext, ResourceDescriptor
+from apps.authorization.policies.engine import authorize
+from apps.authorization.services.subject import subject_for
 from apps.documents.models import Document, DocumentVersion
 from apps.documents.services.tickets import (
     ConsumeDownloadTicket,
@@ -23,13 +26,35 @@ from apps.documents.services.tickets import (
 )
 from apps.documents.storage.factory import get_file_storage
 from apps.identity.models.user import User
-from apps.platform.api.errors import ResourceNotFoundError
+from apps.platform.api.errors import PermissionDeniedError, ResourceNotFoundError
 from apps.platform.api.permissions import requires_action
 
 DocumentDownloadPermission = requires_action(
     action_code="document.version.download",
     resource_type="document.version",
 )
+
+
+def _may_read(user: User, version: DocumentVersion) -> bool:
+    """Re-authorize with the version's real sensitivity level.
+
+    The DRF permission class only knows the resource type, so it decides as if
+    every file were INTERNAL. Sensitivity is a property of the stored version,
+    so the clearance check belongs here — and for downloads it must happen
+    before a ticket exists, because the download endpoint is token-only.
+    """
+    decision = authorize(
+        subject_for(user),
+        action="document.version.download",
+        resource=ResourceDescriptor(
+            resource_type="document.version",
+            public_id=version.public_id,
+            organization_id=user.organization_id,
+            sensitivity_level=version.sensitivity_level,
+        ),
+        context=AuthorizationContext.current(),
+    )
+    return decision.allowed
 
 
 class DocumentVersionListView(APIView):
@@ -67,6 +92,7 @@ class DocumentVersionListView(APIView):
                     "original_filename": version.original_filename,
                 }
                 for version in versions
+                if _may_read(user, version)
             ]
         )
 
@@ -95,6 +121,8 @@ class DocumentVersionDownloadTicketView(APIView):
         ).first()
         if version is None:
             raise ResourceNotFoundError()
+        if not _may_read(user, version):
+            raise PermissionDeniedError()
 
         _, token = IssueDownloadTicket(actor=user, version=version).execute()
         return Response({"token": token})

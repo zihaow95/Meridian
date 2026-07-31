@@ -775,6 +775,60 @@ class ProductMaterial(OrganizationOwnedModel):
         ]
 
 
+class LegacyMaterialStatus(models.TextChoices):
+    PENDING_TRIAGE = "PENDING_TRIAGE", "Pending triage"
+    VERIFIED = "VERIFIED", "Verified"
+    REJECTED = "REJECTED", "Rejected"
+
+
+class LegacyMaterialSubmission(OrganizationOwnedModel):
+    """A historical file parked for review; not yet a product material.
+
+    Everything a submitter says about the file — its version, when it took
+    effect, where it came from — is a *claim* until someone verifies it, so the
+    fields are named accordingly and never feed publication.
+    """
+
+    document_version = models.ForeignKey(
+        "documents.DocumentVersion",
+        on_delete=models.PROTECT,
+        related_name="legacy_material_submissions",
+    )
+    owner_type = models.CharField(max_length=16, choices=AttributeOwnerType.choices)
+    owner_id = models.BigIntegerField()
+    submitted_by = models.ForeignKey(
+        "identity.User",
+        on_delete=models.PROTECT,
+        related_name="legacy_material_submissions",
+    )
+    source_note = models.TextField(blank=True, default="")
+    original_file_date = models.DateField(null=True, blank=True)
+    sha256 = models.CharField(max_length=64)
+    claimed_version = models.CharField(max_length=64, blank=True, default="")
+    claimed_effective_from = models.DateField(null=True, blank=True)
+    processing_status = models.CharField(
+        max_length=16,
+        choices=LegacyMaterialStatus.choices,
+        default=LegacyMaterialStatus.PENDING_TRIAGE,
+    )
+    idempotency_key = models.CharField(max_length=64)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "products_legacy_material_submission"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["organization", "idempotency_key"],
+                name="products_legacy_submission_idem_uniq",
+            )
+        ]
+        indexes = [
+            models.Index(fields=["sha256"]),
+            models.Index(fields=["owner_type", "owner_id", "processing_status"]),
+        ]
+
+
 class ConfirmationDecision(models.TextChoices):
     APPROVED = "APPROVED", "Approved"
     RETURNED = "RETURNED", "Returned"

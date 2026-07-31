@@ -183,16 +183,16 @@ notifications.Todo: (models.W036) MySQL does not support unique constraints with
 
 **Interfaces:** `CreateCataloguedUploadSession(context, catalog_item_code, filename, declared_mime)`, `CompleteCataloguedUpload(...)`, `CreateLegacyMaterialSubmission(context, document_version_public_id, owner, claimed_metadata, idempotency_key)`。
 
-- [ ] 先写测试：目录项必须来自当前已发布技术目录；MIME、大小、敏感等级和预览能力由该版本解析，缺失或停用项拒绝上传。
-- [ ] 保留代码级安全上限作为故障兜底，业务默认50MB只来自配置；新配置无需发版即可改变新上传限制。
-- [ ] 上传会话锁定目录版本和摘要，完成时再次校验；上传期间换版不改变已开始会话的规则。
-- [ ] 测试空文件、超限、声明/检测MIME不一致、移动失败、重复完成和并发完成；失败不得产生可引用ACTIVE版本。
-- [ ] 保存来源说明、原始文件日期、提交人、SHA-256、声称版本、声称效力和处理状态，不修改二进制。
-- [ ] 同一幂等键重试只产生一个待整理记录；相同SHA-256关联不同对象时提示重复候选。
-- [ ] 待整理资料默认不能成为`Document.current_version`、`material_status=APPROVED`的`ProductMaterial`或发布材料。
-- [ ] 上传、重复判断、状态变化和失败写审计，审计不保存文件正文。
-- [ ] 为`documents`注册`ObjectIdentityProvider`并让版本列表按对象范围过滤：当前只按`organization_id`过滤，不满足"查询必须对象级过滤"。参照`products/policies/identity_provider.py`的注册方式。
-- [ ] 敏感等级判权必须落在票据签发环节：`DocumentDownloadView`是`authentication_classes = []`的token入口，签发后无法再判权。补测越权用户拿不到票据、票据不可跨用户复用。
+- [x] 先写测试：目录项必须来自当前已发布技术目录；MIME、大小、敏感等级和预览能力由该版本解析，缺失或停用项拒绝上传（`documents/services/catalog.py`，`tests/documents/test_catalogued_uploads.py`）。目录项schema新增可选`enabled`布尔值：缺省即可用，停用必须显式声明。
+- [x] 保留代码级安全上限作为故障兜底，业务默认50MB只来自配置；新配置无需发版即可改变新上传限制（`DOCUMENT_UPLOAD_HARD_MAX_BYTES`按`min()`封顶，配置写多大都不越过）。
+- [x] 上传会话锁定目录版本和摘要，完成时再次校验；上传期间换版不改变已开始会话的规则（会话存`catalog_version_public_id`+`catalog_content_digest`，完成时按该版本读规则）。
+- [x] 测试空文件、超限、声明/检测MIME不一致、移动失败、重复完成和并发完成；失败不得产生可引用ACTIVE版本。MIME核验按magic number签名表执行：声明类型可验证时字节必须匹配。
+- [x] 保存来源说明、原始文件日期、提交人、SHA-256、声称版本、声称效力和处理状态，不修改二进制（`LegacyMaterialSubmission`，字段名一律带`claimed_`前缀以标明未经核实）。
+- [x] 同一幂等键重试只产生一个待整理记录；相同SHA-256关联不同对象时提示重复候选。唯一约束落在`(organization, idempotency_key)`，已用直接插入冲突行的MySQL测试断言数据库拒绝。
+- [x] 待整理资料默认不能成为`Document.current_version`、`material_status=APPROVED`的`ProductMaterial`或发布材料：录入完全不写`ProductMaterial`，状态停在`PENDING_TRIAGE`。发布门禁的对应断言在6.3随`validate_publication`一并补。
+- [x] 上传、重复判断、状态变化和失败写审计，审计不保存文件正文（审计摘要只含标识、SHA-256和声称值）。
+- [ ] 为`documents`注册`ObjectIdentityProvider`：**本轮判定为不可按原文执行**。唯一能由documents自身确立的对象身份是"上传者"，而授予上传者下载权会放宽访问，与既有已测规则冲突（`tests/projects/test_inflight_migration.py:248`断言迁移人未获授权时`can_download`为假）。原始需求是让查询按对象范围**收窄**，已改为版本列表逐条`authorize()`（含真实敏感等级）实现，比只按`organization_id`过滤更严。是否仍需provider待与对象关联模型（`DocumentLink`当前无任何写入方）一并裁决。
+- [x] 敏感等级判权必须落在票据签发环节：`DocumentVersionDownloadTicketView`签发前按版本真实`sensitivity_level`重新`authorize()`，DRF权限类只能按资源类型判定、会把所有文件当作INTERNAL。已补测越权用户拿不到票据、票据消费后不可重放。
 - [ ] 运行documents/products目标测试、文件移动失败恢复和MySQL并发测试。
 - [ ] 提交：`feat: stage catalogued legacy materials`。
 

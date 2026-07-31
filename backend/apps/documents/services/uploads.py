@@ -12,12 +12,19 @@ from pathlib import Path
 from django.db import transaction
 from django.utils import timezone
 
+from apps.configuration.models import ConfigurationVersion
 from apps.documents.models import (
     DocumentSource,
     DocumentVersion,
     UploadSession,
 )
 from apps.documents.policy import resolve_upload_policy
+from apps.documents.services.catalog import (
+    CatalogItemRules,
+    CatalogItemUnavailable,
+    read_catalog_item,
+    resolve_catalog_item,
+)
 from apps.documents.services.ingest import (
     StagedContent,
     activate_staged_content,
@@ -26,9 +33,26 @@ from apps.documents.services.ingest import (
 from apps.documents.storage.base import FileStorage, StorageMoveFailed
 from apps.identity.models.user import User
 
+# Magic numbers for the formats the platform can verify. A declared type in this
+# table must be backed by matching bytes; anything else is a lie about content.
+_MIME_SIGNATURES: tuple[tuple[bytes, str], ...] = (
+    (b"%PDF-", "application/pdf"),
+    (b"\x89PNG\r\n\x1a\n", "image/png"),
+    (b"\xff\xd8\xff", "image/jpeg"),
+)
+_VERIFIABLE_MIME_TYPES = frozenset(mime for _, mime in _MIME_SIGNATURES)
+_SIGNATURE_READ_BYTES = 16
+
 
 class UploadValidationFailed(Exception):
     pass
+
+
+def detect_mime_type(head: bytes) -> str | None:
+    for signature, mime_type in _MIME_SIGNATURES:
+        if head.startswith(signature):
+            return mime_type
+    return None
 
 
 @dataclass(frozen=True)
@@ -38,10 +62,23 @@ class CreateUploadSession:
     declared_mime_type: str
     storage: FileStorage
     ttl_minutes: int = 60
+    catalog_item_code: str | None = None
 
     def execute(self) -> UploadSession:
-        policy = resolve_upload_policy(self.actor.organization)
-        if self.declared_mime_type not in policy.allowed_mime_types:
+        rules = (
+            resolve_catalog_item(
+                organization=self.actor.organization,
+                item_code=self.catalog_item_code,
+            )
+            if self.catalog_item_code is not None
+            else None
+        )
+        allowed = (
+            rules.allowed_mime_types
+            if rules is not None
+            else resolve_upload_policy(self.actor.organization).allowed_mime_types
+        )
+        if self.declared_mime_type not in allowed:
             raise UploadValidationFailed("MIME type not allowed.")
 
         temp_name = f"{uuid.uuid4()}.part"
@@ -52,6 +89,11 @@ class CreateUploadSession:
             temp_path=str(temp_path),
             original_filename=self.original_filename,
             declared_mime_type=self.declared_mime_type,
+            catalog_item_code=self.catalog_item_code or "",
+            catalog_version_public_id=(
+                rules.catalog_version_public_id if rules is not None else None
+            ),
+            catalog_content_digest=(rules.catalog_content_digest if rules is not None else ""),
             expires_at=timezone.now() + timedelta(minutes=self.ttl_minutes),
         )
 
@@ -77,13 +119,23 @@ class CompleteUpload:
             if session.uploaded_by_id != self.actor.id:
                 raise UploadValidationFailed("Upload session belongs to another user.")
 
-            policy = resolve_upload_policy(session.organization)
-            if session.declared_mime_type not in policy.allowed_mime_types:
+            rules = _locked_catalog_rules(session)
+            if rules is not None:
+                allowed_mime_types = rules.allowed_mime_types
+                max_bytes = rules.max_bytes
+            else:
+                policy = resolve_upload_policy(session.organization)
+                allowed_mime_types = policy.allowed_mime_types
+                max_bytes = policy.max_bytes
+
+            if session.declared_mime_type not in allowed_mime_types:
                 raise UploadValidationFailed("MIME type not allowed.")
             if session.size_bytes <= 0:
                 raise UploadValidationFailed("Uploaded file is empty.")
-            if session.size_bytes > policy.max_bytes:
+            if session.size_bytes > max_bytes:
                 raise UploadValidationFailed("Uploaded file exceeds size limit.")
+            if rules is not None:
+                _assert_content_matches_declaration(session)
 
             if session.document_version_id is not None:
                 version = DocumentVersion.objects.select_related("file_object").get(
@@ -107,6 +159,10 @@ class CompleteUpload:
                     source=DocumentSource.PROJECT,
                     document_code=self.document_code,
                     title=self.title,
+                    catalog_item_code=session.catalog_item_code,
+                    sensitivity_level=(
+                        rules.default_sensitivity_level if rules is not None else "INTERNAL"
+                    ),
                 )
                 session.document_version = version
                 session.save(update_fields=["document_version"])
@@ -128,6 +184,33 @@ class CompleteUpload:
             elif session.document_version_id != activated.id:
                 raise UploadValidationFailed("Upload session already completed.")
         return activated
+
+
+def _locked_catalog_rules(session: UploadSession) -> CatalogItemRules | None:
+    """Read the rules from the catalog version this session started under."""
+    if not session.catalog_item_code or session.catalog_version_public_id is None:
+        return None
+
+    catalog_version = ConfigurationVersion.objects.filter(
+        public_id=session.catalog_version_public_id
+    ).first()
+    if catalog_version is None:
+        raise CatalogItemUnavailable("The catalog version this upload started under is gone.")
+    return read_catalog_item(
+        catalog_version=catalog_version,
+        item_code=session.catalog_item_code,
+    )
+
+
+def _assert_content_matches_declaration(session: UploadSession) -> None:
+    with Path(session.temp_path).open("rb") as handle:
+        head = handle.read(_SIGNATURE_READ_BYTES)
+
+    detected = detect_mime_type(head)
+    if detected == session.declared_mime_type:
+        return
+    if detected is not None or session.declared_mime_type in _VERIFIABLE_MIME_TYPES:
+        raise UploadValidationFailed("File content does not match the declared MIME type.")
 
 
 def complete_upload(

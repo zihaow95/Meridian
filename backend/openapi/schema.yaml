@@ -6626,6 +6626,8 @@ components:
           type: string
         declared_mime_type:
           type: string
+        catalog_item_code:
+          type: string
       required:
       - file
     UploadSessionCreateResponse:
@@ -6639,7 +6641,10 @@ components:
           type: string
         size_bytes:
           type: integer
+        catalog_item_code:
+          type: string
       required:
+      - catalog_item_code
       - declared_mime_type
       - original_filename
       - public_id

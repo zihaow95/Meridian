@@ -69,6 +69,7 @@ def stage_controlled_content(
     document_code: str | None = None,
     title: str | None = None,
     sensitivity_level: str = "INTERNAL",
+    catalog_item_code: str = "",
 ) -> tuple[DocumentVersion, StagedContent]:
     """Create PENDING file/document/version rows for an already-staged payload.
 
@@ -109,6 +110,7 @@ def stage_controlled_content(
         uploaded_by=uploaded_by,
         uploaded_at=now,
         sensitivity_level=sensitivity_level,
+        catalog_item_code=catalog_item_code,
     )
     staged = StagedContent(
         version_id=version.id,

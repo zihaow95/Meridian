@@ -3315,12 +3315,14 @@ export interface components {
             file: string;
             original_filename?: string;
             declared_mime_type?: string;
+            catalog_item_code?: string;
         };
         UploadSessionCreateResponse: {
             public_id: string;
             original_filename: string;
             declared_mime_type: string;
             size_bytes: number;
+            catalog_item_code: string;
         };
         UpsertExternalBindingRequest: {
             source_system: string;

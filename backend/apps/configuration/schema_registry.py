@@ -171,6 +171,8 @@ _SCHEMAS: dict[str, dict[str, Any]] = {
                         "preview_enabled": {"type": "boolean"},
                         "default_sensitivity_level": {"enum": SENSITIVITY_LEVELS},
                         "retention_years": {"type": "integer", "minimum": 1},
+                        # Absent means usable; retiring an item must be explicit.
+                        "enabled": {"type": "boolean"},
                     },
                 },
             }
