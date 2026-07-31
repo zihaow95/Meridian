@@ -380,73 +380,83 @@ docker compose -f deploy/compose/compose.dev.yml config
 - [ ] 覆盖OPS-008至OPS-012。
 - [ ] 提交：`feat: close iteration and retirement loop`
 
-## 9. 阶段6：正式集成和迁移
+## 9. 阶段6：存量产品、受控文件和试用准备
 
-### Task 6.1：钉钉
+**状态：** 范围、退出标准与任务级计划已确认（2026-07-30）；执行基线已建立（2026-07-31，分支 `codex/phase-6-controlled-files-notifications-pilot-readiness`，基线提交 `a39414b`，全量门禁通过），尚未开始实现。
 
-**Files:**
+**范围说明：** [`2026-07-30-phase-6-internal-pilot-scope.md`](../superpowers/specs/2026-07-30-phase-6-internal-pilot-scope.md)
 
-- Modify: `backend/apps/identity/`
-- Modify: `backend/apps/notifications/`
-- Create: `backend/apps/integrations/dingtalk/`
-- Create: `backend/tests/integrations/test_dingtalk.py`
-- Modify: `frontend/src/modules/auth/`
+**任务级计划：** [`2026-07-30-phase-6-controlled-files-notifications-pilot-readiness.md`](../superpowers/plans/2026-07-30-phase-6-controlled-files-notifications-pilot-readiness.md)
 
-- [ ] 接入钉钉企业认证、组织同步、通知和深链接。
-- [ ] 移除生产环境本地登录能力。
-- [ ] 验证停用用户、无权限深链接和通知脱敏。
-- [ ] 提交：`feat: integrate dingtalk identity and notifications`
+**测试矩阵：** [`phase-6-test-matrix.md`](../implementation/phase-6-test-matrix.md)
 
-### Task 6.2：外部数据与迁移演练
+**试用访问边界：** 阶段6仅通过公司局域网访问非生产环境；每位试用人员使用管理员预置的独立临时账号和密码，不允许共享账号。钉钉登录完成后是否保留本地账号能力另行评估，未经正式批准不得在生产环境启用。
 
-**Files:**
+**首批文件验收基线：** 不超过20个产品、至少100个正式受控文件版本，其中至少20个可信历史版本；另含至少10个待整理资料。单文件试用默认上限通过版本化配置设为50MB，首批文件总量不超过2GB；这些数字不替代阶段7正式容量验证。
 
-- Modify: `backend/apps/integrations/`
-- Create: `backend/tests/integrations/`
-- Create: `scripts/migrate_legacy_data.py`
-- Create: `scripts/reconcile_migration.py`
+**首轮真实用户试用默认配置：** 阶段7 GO 后启动，约8人、持续2周，由产品总监担任验收负责人，一名产品经理统一收集反馈，研发、质量/合规、包装/设计、销售/渠道和系统管理共同参与。部门、人员、周期和反馈责任人按试用批次配置，不硬编码且不改写历史批次记录。
 
-- [ ] 接入首批已确认数据源和字段映射。
-- [ ] 执行存量产品、在途项目和经营数据迁移演练。
-- [ ] 输出成功、失败、重复和待处理报告。
-- [ ] 验证迁移可重复执行且不重复创建。
-- [ ] 提交：`feat: add initial integrations and migration`
+较早的“钉钉正式集成和外部系统 API 接入”范围已被本节取代。当前不存在统一外部业务系统，历史资料分散在项目成员设备中；阶段六不得虚构 API 数据源，也不得建设个人设备扫描、桌面采集代理或通用集成平台。
 
-## 10. 阶段7：生产化和上线
+### Task 6.1：存量产品和受控文件
 
-### Task 7.1：安全、容量和恢复
+- [ ] 首批不超过20个现有产品，全部复用既有产品创建流程逐一录入；不建设产品主数据 Excel 批量导入或第二条创建入口。
+- [ ] 将逐一录入作为既有产品档案、版本、SKU和渠道模块的业务回归，问题进入阶段六试用反馈闭环。
+- [ ] 复用配置版本能力实现双层文件治理：系统管理员发布技术文件目录，产品总监发布产品材料要求模板。
+- [ ] 首批已上市产品默认要求产品规格、内外包装图片、标签稿、营养标签/营养成分文件和检测报告；其他已批准材料类型可按配置上传。
+- [ ] 支持将业务提交的历史文件纳入受控文件版本、权限、审计和业务对象关联。
+- [ ] 当前有效材料必须上传；可靠历史材料按版本时间顺序追加，无法确认版本顺序或有效状态的文件进入待整理区，不得直接成为正式有效版本。
+- [ ] 建立受控资料包的来源、提交人、校验值、映射结果、重复/冲突和待处理记录。
+- [ ] 通过可重复演练证明重试不会重复创建产品、文件版本或业务关联。
 
-**Files:**
+### Task 6.2：站内通知闭环
 
-- Create: `tests/performance/`
-- Create: `tests/security/`
-- Create: `scripts/backup/`
-- Create: `scripts/restore/`
-- Create: `docs/operations/recovery-runbook.md`
+- [ ] 复用现有待办和站内通知模型，补齐通知分类、等级、模板、策略版本和历史绑定。
+- [ ] 完成站内通知列表、未读/已读、待办深链接、处理结果同步、关闭和审计闭环。
+- [ ] 采用已确认的初始渠道矩阵；阶段六所有类别均只投递站内，不调用钉钉。
+- [ ] 通知摘要遵循最小披露和对象级实时判权。
 
-- [ ] 完成权限矩阵回归、会话、CSRF、文件和凭据检查。
-- [ ] 在6 vCPU、8GB限制下执行容量测试。
-- [ ] 验证每日数据库与文件备份。
-- [ ] 在隔离环境完成数据库和NAS联合恢复。
-- [ ] 证明RPO和RTO不超过24小时。
-- [ ] 提交：`test: verify security capacity and recovery`
+### Task 6.3：试用能力和内部验收
 
-### Task 7.2：离线发布和业务验收
+- [ ] 由管理员预置独立临时账号和密码，通过公司局域网访问非生产环境；禁止共享账号并记录登录审计。
+- [ ] 准备可重复初始化的试用产品、受控文件、待办和站内通知数据。
+- [ ] 在非生产环境完成试用能力、主流程和问题反馈闭环的内部验收，不在阶段6启动真实业务用户试用。
+- [ ] 运行全量质量门禁、完成代码审阅并形成阶段检查点；阶段6 GO 后进入阶段7。
 
-**Files:**
+### 延期范围
 
-- Modify: `.gitee/pipeline.yml`或Gitee实际流水线配置文件
-- Create: `scripts/build-release-package.ps1`
-- Create: `scripts/deploy-release.ps1`
-- Create: `docs/operations/release-runbook.md`
-- Create: `docs/acceptance/first-release.md`
+- 钉钉登录、组织同步、钉钉通知和钉钉深链接全部延期；研究结论保留在 `docs/research/2026-07-30-dingtalk-app-provisioning-requirements.md`。
+- 真实外部系统 API 接入延期到存在明确源系统、数据负责人和字段契约之后。
+- 安全容量、备份恢复、离线发布和受控试用环境部署属于阶段7；正式生产切换在真实用户试用结论之后另行批准。
 
-- [ ] CI生成带版本、提交号和SHA-256的离线发布包。
-- [ ] 同一发布包先部署测试环境。
-- [ ] 完成新品、老品迭代、退市和迁移端到端验收。
-- [ ] 人工批准并部署生产。
-- [ ] 验证健康检查、回滚和发布日志。
-- [ ] 提交：`release: prepare first production baseline`
+## 10. 阶段7：生产化准备与受控试用发布
+
+**状态：** 范围、退出标准与任务级计划已确认（2026-07-30），等待阶段6 GO后实现。
+
+**任务级计划：** [`2026-07-30-phase-7-production-readiness-pilot-release.md`](../superpowers/plans/2026-07-30-phase-7-production-readiness-pilot-release.md)
+
+**阶段终点：** 完成内网HTTPS受控试用环境、安全、容量、备份恢复、运行健康、离线发布、部署回滚与全链路回归，并批准约8名真实用户启动两周试用。阶段7 GO不等于试用完成或正式生产上线。
+
+**访问与延期边界：** 无需公网IP，仅允许公司内网可信HTTPS入口；临时账号继续独立预置并禁止共享。钉钉登录/组织/通知/深链接及真实外部系统API仍延期，不得成为阶段7依赖或完成声明。
+
+### Task 7.1：运行与恢复准备
+
+- [ ] 建立6 vCPU/8GB受控试用拓扑、内网HTTPS、密钥引用和可重复部署。
+- [ ] 实现最小披露运行看板、备份运行和恢复验证事实及授权API。
+- [ ] 完成每日MySQL/文件备份、失败站内告警和隔离联合恢复。
+- [ ] 证明RPO、RTO均不超过24小时，抽查业务记录与文件SHA-256一致。
+- [ ] 完成会话、CSRF、权限、文件、凭据、依赖和日志脱敏安全专项。
+- [ ] 在首期规模数据下通过既定p95、通知时效和错误率容量门槛。
+
+### Task 7.2：离线发布、回滚和试用启动验收
+
+- [ ] CI一次生成带版本、提交号、镜像摘要、迁移清单和SHA-256的离线发布包。
+- [ ] 同一发布包先部署干净验证环境，再部署受控试用环境；禁止现场重新构建。
+- [ ] 完成部署前备份、迁移、健康检查、核心冒烟、发布日志和应用包回滚演练。
+- [ ] 回归阶段1—6、两条主链、四个重大阶段门、存量文件、站内通知和反馈闭环。
+- [ ] 运行全量质量门禁并完成Spec/Standards双轴严格代码审核，P0/P1为零。
+- [ ] 产品总监批准参与人、周期、数据范围、反馈R/A、停止条件和回滚方案后，阶段7才可GO并启动真实用户试用。
+- [ ] 真实用户试用完成、反馈整改和正式生产上线另行验收与批准。
 
 ## 11. 全局完成标准
 
@@ -456,5 +466,5 @@ docker compose -f deploy/compose/compose.dev.yml config
 - 未授权访问、下载、导出和通知被拒绝；
 - 历史文件、产品版本、决策和快照不可覆盖；
 - 同一关键命令重复执行不产生重复事实；
-- 测试、生产、备份、恢复和离线发布均验证通过；
+- 测试/受控试用环境、备份、恢复和离线发布均验证通过；
 - 正式工程对旧原型零运行时依赖。
