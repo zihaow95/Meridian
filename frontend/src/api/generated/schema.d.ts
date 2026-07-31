@@ -487,6 +487,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/legacy-materials/{public_id}/verify": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["legacy_materials_verify"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/lifecycle-board": {
         parameters: {
             query?: never;
@@ -497,6 +513,22 @@ export interface paths {
         get: operations["lifecycle_board_list"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/material-confirmations/{public_id}/decide": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["material_confirmations_decide"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1289,6 +1321,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/product-materials/{public_id}/confirmations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["product_materials_confirmations_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/products": {
         parameters: {
             query?: never;
@@ -1347,6 +1395,86 @@ export interface paths {
         get?: never;
         put?: never;
         post: operations["products_external_bindings_upsert"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/products/{public_id}/legacy-material-submissions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["products_legacy_materials_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/products/{public_id}/legacy-materials": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["products_legacy_materials_list"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/products/{public_id}/material-chains": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["products_material_chains_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/products/{public_id}/material-completeness": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["products_material_completeness_retrieve"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/products/{public_id}/materials": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["products_materials_list"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -2387,6 +2515,44 @@ export interface components {
             failure_count: number;
             items: unknown[];
         };
+        LegacyMaterialSubmission: {
+            /** Format: uuid */
+            public_id: string;
+            /** Format: uuid */
+            document_version_public_id: string;
+            processing_status: string;
+            source_note: string;
+            /** Format: date */
+            original_file_date: string | null;
+            claimed_version: string;
+            /** Format: date */
+            claimed_effective_from: string | null;
+            sha256: string;
+            /** Format: uuid */
+            submitted_by_public_id: string;
+            /** Format: uuid */
+            verified_by_public_id: string | null;
+            verification_note: string;
+            duplicate_candidates?: unknown[];
+        };
+        LegacyMaterialSubmissionCreateRequest: {
+            /** Format: uuid */
+            document_version_public_id: string;
+            idempotency_key: string;
+            source_note?: string;
+            /** Format: date */
+            original_file_date?: string | null;
+            claimed_version?: string;
+            /** Format: date */
+            claimed_effective_from?: string | null;
+        };
+        LegacyMaterialSubmissionPage: {
+            items: components["schemas"]["LegacyMaterialSubmission"][];
+        };
+        LegacyMaterialSubmissionVerifyRequest: {
+            decision: string;
+            note?: string;
+        };
         LifecycleBoardItem: {
             item_type: string;
             public_id: string;
@@ -2422,6 +2588,27 @@ export interface components {
             final_decision: string;
             has_conclusion_difference: boolean;
             decision_summary: string;
+        };
+        MaterialConfirmation: {
+            /** Format: uuid */
+            public_id: string;
+            decision: string;
+            /** Format: uuid */
+            confirmer_public_id: string | null;
+            content_hash: string;
+            /** Format: date-time */
+            requested_at: string;
+            /** Format: date-time */
+            decided_at: string | null;
+        };
+        MaterialConfirmationCreateRequest: {
+            /** Format: uuid */
+            confirmer_public_id: string;
+            comment?: string;
+        };
+        MaterialConfirmationDecideRequest: {
+            decision: string;
+            comment?: string;
         };
         MeResponse: {
             /** Format: uuid */
@@ -2867,6 +3054,49 @@ export interface components {
             product_asset_name: string;
             target_product_asset_public_id: string | null;
             candidate_public_id: string;
+        };
+        ProductMaterial: {
+            /** Format: uuid */
+            public_id: string;
+            material_type_code: string;
+            version_no: number;
+            material_status: string;
+            is_current: boolean;
+            /** Format: uuid */
+            document_version_public_id: string;
+            original_filename: string;
+            confirmation: components["schemas"]["MaterialConfirmation"];
+        };
+        ProductMaterialChain: {
+            items: components["schemas"]["ProductMaterial"][];
+        };
+        ProductMaterialChainCreateRequest: {
+            material_type_code: string;
+            ordered_submission_ids: string[];
+            /** Format: uuid */
+            current_submission_id: string;
+        };
+        ProductMaterialCompleteness: {
+            /** Format: uuid */
+            requirement_version_public_id: string;
+            requirement_version_number: number;
+            requirement_content_digest: string;
+            is_complete: boolean;
+            blocking_material_type_codes: string[];
+            items: components["schemas"]["ProductMaterialCompletenessItem"][];
+        };
+        ProductMaterialCompletenessItem: {
+            material_type_code: string;
+            requirement: string;
+            state: string;
+        };
+        ProductMaterialGroup: {
+            material_type_code: string;
+            current: components["schemas"]["ProductMaterial"];
+            history: components["schemas"]["ProductMaterial"][];
+        };
+        ProductMaterialGroupPage: {
+            items: components["schemas"]["ProductMaterialGroup"][];
         };
         ProductSearchPage: {
             items: components["schemas"]["ProductSummary"][];
@@ -4112,6 +4342,33 @@ export interface operations {
             };
         };
     };
+    legacy_materials_verify: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                public_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LegacyMaterialSubmissionVerifyRequest"];
+                "application/x-www-form-urlencoded": components["schemas"]["LegacyMaterialSubmissionVerifyRequest"];
+                "multipart/form-data": components["schemas"]["LegacyMaterialSubmissionVerifyRequest"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LegacyMaterialSubmission"];
+                };
+            };
+        };
+    };
     lifecycle_board_list: {
         parameters: {
             query?: never;
@@ -4127,6 +4384,33 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["LifecycleBoardPage"];
+                };
+            };
+        };
+    };
+    material_confirmations_decide: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                public_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MaterialConfirmationDecideRequest"];
+                "application/x-www-form-urlencoded": components["schemas"]["MaterialConfirmationDecideRequest"];
+                "multipart/form-data": components["schemas"]["MaterialConfirmationDecideRequest"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MaterialConfirmation"];
                 };
             };
         };
@@ -5405,6 +5689,33 @@ export interface operations {
             };
         };
     };
+    product_materials_confirmations_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                public_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MaterialConfirmationCreateRequest"];
+                "application/x-www-form-urlencoded": components["schemas"]["MaterialConfirmationCreateRequest"];
+                "multipart/form-data": components["schemas"]["MaterialConfirmationCreateRequest"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MaterialConfirmation"];
+                };
+            };
+        };
+    };
     products_list: {
         parameters: {
             query?: {
@@ -5506,6 +5817,127 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ExternalBinding"];
+                };
+            };
+        };
+    };
+    products_legacy_materials_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                public_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LegacyMaterialSubmissionCreateRequest"];
+                "application/x-www-form-urlencoded": components["schemas"]["LegacyMaterialSubmissionCreateRequest"];
+                "multipart/form-data": components["schemas"]["LegacyMaterialSubmissionCreateRequest"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LegacyMaterialSubmission"];
+                };
+            };
+        };
+    };
+    products_legacy_materials_list: {
+        parameters: {
+            query?: {
+                processing_status?: string;
+            };
+            header?: never;
+            path: {
+                public_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LegacyMaterialSubmissionPage"];
+                };
+            };
+        };
+    };
+    products_material_chains_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                public_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ProductMaterialChainCreateRequest"];
+                "application/x-www-form-urlencoded": components["schemas"]["ProductMaterialChainCreateRequest"];
+                "multipart/form-data": components["schemas"]["ProductMaterialChainCreateRequest"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProductMaterialChain"];
+                };
+            };
+        };
+    };
+    products_material_completeness_retrieve: {
+        parameters: {
+            query?: {
+                lifecycle_state?: string;
+            };
+            header?: never;
+            path: {
+                public_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProductMaterialCompleteness"];
+                };
+            };
+        };
+    };
+    products_materials_list: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                public_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProductMaterialGroupPage"];
                 };
             };
         };

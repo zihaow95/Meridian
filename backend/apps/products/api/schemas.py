@@ -2,8 +2,20 @@
 
 from __future__ import annotations
 
+from copy import deepcopy
+
 from drf_spectacular.utils import inline_serializer
 from rest_framework import serializers
+
+
+def _nested(schema: serializers.Serializer) -> serializers.Serializer:
+    """Reuse a schema inside another one.
+
+    DRF binds a field to the serializer that declares it, so the same instance
+    cannot appear in two places.
+    """
+    return deepcopy(schema)
+
 
 PRODUCT_SUMMARY_SCHEMA = inline_serializer(
     name="ProductSummary",
@@ -233,5 +245,141 @@ DECIDE_IMPORT_ITEM_RESPONSE_SCHEMA = inline_serializer(
         "row_number": serializers.IntegerField(),
         "decision": serializers.CharField(),
         "target_product_public_id": serializers.UUIDField(required=False, allow_null=True),
+    },
+)
+
+LEGACY_MATERIAL_SCHEMA = inline_serializer(
+    name="LegacyMaterialSubmission",
+    fields={
+        "public_id": serializers.UUIDField(),
+        "document_version_public_id": serializers.UUIDField(),
+        "processing_status": serializers.CharField(),
+        "source_note": serializers.CharField(allow_blank=True),
+        "original_file_date": serializers.DateField(allow_null=True),
+        "claimed_version": serializers.CharField(allow_blank=True),
+        "claimed_effective_from": serializers.DateField(allow_null=True),
+        "sha256": serializers.CharField(),
+        "submitted_by_public_id": serializers.UUIDField(),
+        "verified_by_public_id": serializers.UUIDField(allow_null=True),
+        "verification_note": serializers.CharField(allow_blank=True),
+        "duplicate_candidates": serializers.ListField(required=False),
+    },
+)
+
+LEGACY_MATERIAL_PAGE_SCHEMA = inline_serializer(
+    name="LegacyMaterialSubmissionPage",
+    fields={"items": serializers.ListField(child=_nested(LEGACY_MATERIAL_SCHEMA))},
+)
+
+LEGACY_MATERIAL_CREATE_REQUEST_SCHEMA = inline_serializer(
+    name="LegacyMaterialSubmissionCreateRequest",
+    fields={
+        "document_version_public_id": serializers.UUIDField(),
+        "idempotency_key": serializers.CharField(),
+        "source_note": serializers.CharField(required=False, allow_blank=True),
+        "original_file_date": serializers.DateField(required=False, allow_null=True),
+        "claimed_version": serializers.CharField(required=False, allow_blank=True),
+        "claimed_effective_from": serializers.DateField(required=False, allow_null=True),
+    },
+)
+
+LEGACY_MATERIAL_VERIFY_REQUEST_SCHEMA = inline_serializer(
+    name="LegacyMaterialSubmissionVerifyRequest",
+    fields={
+        "decision": serializers.CharField(),
+        "note": serializers.CharField(required=False, allow_blank=True),
+    },
+)
+
+MATERIAL_CONFIRMATION_SCHEMA = inline_serializer(
+    name="MaterialConfirmation",
+    fields={
+        "public_id": serializers.UUIDField(),
+        "decision": serializers.CharField(),
+        "confirmer_public_id": serializers.UUIDField(allow_null=True),
+        "content_hash": serializers.CharField(),
+        "requested_at": serializers.DateTimeField(),
+        "decided_at": serializers.DateTimeField(allow_null=True),
+    },
+)
+
+PRODUCT_MATERIAL_SCHEMA = inline_serializer(
+    name="ProductMaterial",
+    fields={
+        "public_id": serializers.UUIDField(),
+        "material_type_code": serializers.CharField(),
+        "version_no": serializers.IntegerField(),
+        "material_status": serializers.CharField(),
+        "is_current": serializers.BooleanField(),
+        "document_version_public_id": serializers.UUIDField(),
+        "original_filename": serializers.CharField(),
+        "confirmation": _nested(MATERIAL_CONFIRMATION_SCHEMA),
+    },
+)
+
+MATERIAL_CHAIN_SCHEMA = inline_serializer(
+    name="ProductMaterialChain",
+    fields={"items": serializers.ListField(child=_nested(PRODUCT_MATERIAL_SCHEMA))},
+)
+
+MATERIAL_CHAIN_CREATE_REQUEST_SCHEMA = inline_serializer(
+    name="ProductMaterialChainCreateRequest",
+    fields={
+        "material_type_code": serializers.CharField(),
+        "ordered_submission_ids": serializers.ListField(child=serializers.UUIDField()),
+        "current_submission_id": serializers.UUIDField(),
+    },
+)
+
+MATERIAL_GROUP_PAGE_SCHEMA = inline_serializer(
+    name="ProductMaterialGroupPage",
+    fields={
+        "items": serializers.ListField(
+            child=inline_serializer(
+                name="ProductMaterialGroup",
+                fields={
+                    "material_type_code": serializers.CharField(),
+                    "current": _nested(PRODUCT_MATERIAL_SCHEMA),
+                    "history": serializers.ListField(child=_nested(PRODUCT_MATERIAL_SCHEMA)),
+                },
+            )
+        )
+    },
+)
+
+MATERIAL_COMPLETENESS_ITEM_SCHEMA = inline_serializer(
+    name="ProductMaterialCompletenessItem",
+    fields={
+        "material_type_code": serializers.CharField(),
+        "requirement": serializers.CharField(),
+        "state": serializers.CharField(),
+    },
+)
+
+MATERIAL_COMPLETENESS_SCHEMA = inline_serializer(
+    name="ProductMaterialCompleteness",
+    fields={
+        "requirement_version_public_id": serializers.UUIDField(),
+        "requirement_version_number": serializers.IntegerField(),
+        "requirement_content_digest": serializers.CharField(allow_blank=True),
+        "is_complete": serializers.BooleanField(),
+        "blocking_material_type_codes": serializers.ListField(child=serializers.CharField()),
+        "items": serializers.ListField(child=_nested(MATERIAL_COMPLETENESS_ITEM_SCHEMA)),
+    },
+)
+
+MATERIAL_CONFIRMATION_REQUEST_SCHEMA = inline_serializer(
+    name="MaterialConfirmationCreateRequest",
+    fields={
+        "confirmer_public_id": serializers.UUIDField(),
+        "comment": serializers.CharField(required=False, allow_blank=True),
+    },
+)
+
+MATERIAL_CONFIRMATION_DECIDE_REQUEST_SCHEMA = inline_serializer(
+    name="MaterialConfirmationDecideRequest",
+    fields={
+        "decision": serializers.CharField(),
+        "comment": serializers.CharField(required=False, allow_blank=True),
     },
 )

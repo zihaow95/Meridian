@@ -705,6 +705,39 @@ paths:
               schema:
                 $ref: '#/components/schemas/PublishLegacyBaselineResponse'
           description: ''
+  /api/v1/legacy-materials/{public_id}/verify:
+    post:
+      operationId: legacy_materials_verify
+      parameters:
+      - in: path
+        name: public_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - legacy-materials
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LegacyMaterialSubmissionVerifyRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/LegacyMaterialSubmissionVerifyRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/LegacyMaterialSubmissionVerifyRequest'
+        required: true
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LegacyMaterialSubmission'
+          description: ''
   /api/v1/lifecycle-board:
     get:
       operationId: lifecycle_board_list
@@ -718,6 +751,39 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/LifecycleBoardPage'
+          description: ''
+  /api/v1/material-confirmations/{public_id}/decide:
+    post:
+      operationId: material_confirmations_decide
+      parameters:
+      - in: path
+        name: public_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - material-confirmations
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MaterialConfirmationDecideRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/MaterialConfirmationDecideRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/MaterialConfirmationDecideRequest'
+        required: true
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MaterialConfirmation'
           description: ''
   /api/v1/me:
     get:
@@ -2097,6 +2163,39 @@ paths:
                 type: string
                 format: binary
           description: XLSX import template
+  /api/v1/product-materials/{public_id}/confirmations:
+    post:
+      operationId: product_materials_confirmations_create
+      parameters:
+      - in: path
+        name: public_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - product-materials
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MaterialConfirmationCreateRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/MaterialConfirmationCreateRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/MaterialConfirmationCreateRequest'
+        required: true
+      security:
+      - cookieAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MaterialConfirmation'
+          description: ''
   /api/v1/products:
     get:
       operationId: products_list
@@ -2238,6 +2337,143 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ExternalBinding'
+          description: ''
+  /api/v1/products/{public_id}/legacy-material-submissions:
+    post:
+      operationId: products_legacy_materials_create
+      parameters:
+      - in: path
+        name: public_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - products
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LegacyMaterialSubmissionCreateRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/LegacyMaterialSubmissionCreateRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/LegacyMaterialSubmissionCreateRequest'
+        required: true
+      security:
+      - cookieAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LegacyMaterialSubmission'
+          description: ''
+  /api/v1/products/{public_id}/legacy-materials:
+    get:
+      operationId: products_legacy_materials_list
+      parameters:
+      - in: query
+        name: processing_status
+        schema:
+          type: string
+      - in: path
+        name: public_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - products
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LegacyMaterialSubmissionPage'
+          description: ''
+  /api/v1/products/{public_id}/material-chains:
+    post:
+      operationId: products_material_chains_create
+      parameters:
+      - in: path
+        name: public_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - products
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProductMaterialChainCreateRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/ProductMaterialChainCreateRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/ProductMaterialChainCreateRequest'
+        required: true
+      security:
+      - cookieAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProductMaterialChain'
+          description: ''
+  /api/v1/products/{public_id}/material-completeness:
+    get:
+      operationId: products_material_completeness_retrieve
+      parameters:
+      - in: query
+        name: lifecycle_state
+        schema:
+          type: string
+      - in: path
+        name: public_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - products
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProductMaterialCompleteness'
+          description: ''
+  /api/v1/products/{public_id}/materials:
+    get:
+      operationId: products_materials_list
+      parameters:
+      - in: path
+        name: public_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - products
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProductMaterialGroupPage'
           description: ''
   /api/v1/products/{public_id}/operating-summary:
     get:
@@ -4349,6 +4585,96 @@ components:
       - success_count
       - template_version
       - total_count
+    LegacyMaterialSubmission:
+      type: object
+      properties:
+        public_id:
+          type: string
+          format: uuid
+        document_version_public_id:
+          type: string
+          format: uuid
+        processing_status:
+          type: string
+        source_note:
+          type: string
+        original_file_date:
+          type: string
+          format: date
+          nullable: true
+        claimed_version:
+          type: string
+        claimed_effective_from:
+          type: string
+          format: date
+          nullable: true
+        sha256:
+          type: string
+        submitted_by_public_id:
+          type: string
+          format: uuid
+        verified_by_public_id:
+          type: string
+          format: uuid
+          nullable: true
+        verification_note:
+          type: string
+        duplicate_candidates:
+          type: array
+          items: {}
+      required:
+      - claimed_effective_from
+      - claimed_version
+      - document_version_public_id
+      - original_file_date
+      - processing_status
+      - public_id
+      - sha256
+      - source_note
+      - submitted_by_public_id
+      - verification_note
+      - verified_by_public_id
+    LegacyMaterialSubmissionCreateRequest:
+      type: object
+      properties:
+        document_version_public_id:
+          type: string
+          format: uuid
+        idempotency_key:
+          type: string
+        source_note:
+          type: string
+        original_file_date:
+          type: string
+          format: date
+          nullable: true
+        claimed_version:
+          type: string
+        claimed_effective_from:
+          type: string
+          format: date
+          nullable: true
+      required:
+      - document_version_public_id
+      - idempotency_key
+    LegacyMaterialSubmissionPage:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/LegacyMaterialSubmission'
+      required:
+      - items
+    LegacyMaterialSubmissionVerifyRequest:
+      type: object
+      properties:
+        decision:
+          type: string
+        note:
+          type: string
+      required:
+      - decision
     LifecycleBoardItem:
       type: object
       properties:
@@ -4448,6 +4774,53 @@ components:
       - management_conclusion
       - public_id
       - stage_gate_public_id
+    MaterialConfirmation:
+      type: object
+      properties:
+        public_id:
+          type: string
+          format: uuid
+        decision:
+          type: string
+        confirmer_public_id:
+          type: string
+          format: uuid
+          nullable: true
+        content_hash:
+          type: string
+        requested_at:
+          type: string
+          format: date-time
+        decided_at:
+          type: string
+          format: date-time
+          nullable: true
+      required:
+      - confirmer_public_id
+      - content_hash
+      - decided_at
+      - decision
+      - public_id
+      - requested_at
+    MaterialConfirmationCreateRequest:
+      type: object
+      properties:
+        confirmer_public_id:
+          type: string
+          format: uuid
+        comment:
+          type: string
+      required:
+      - confirmer_public_id
+    MaterialConfirmationDecideRequest:
+      type: object
+      properties:
+        decision:
+          type: string
+        comment:
+          type: string
+      required:
+      - decision
     MeResponse:
       type: object
       properties:
@@ -5532,6 +5905,126 @@ components:
       - status
       - target_product_asset_public_id
       - title
+    ProductMaterial:
+      type: object
+      properties:
+        public_id:
+          type: string
+          format: uuid
+        material_type_code:
+          type: string
+        version_no:
+          type: integer
+        material_status:
+          type: string
+        is_current:
+          type: boolean
+        document_version_public_id:
+          type: string
+          format: uuid
+        original_filename:
+          type: string
+        confirmation:
+          $ref: '#/components/schemas/MaterialConfirmation'
+      required:
+      - confirmation
+      - document_version_public_id
+      - is_current
+      - material_status
+      - material_type_code
+      - original_filename
+      - public_id
+      - version_no
+    ProductMaterialChain:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/ProductMaterial'
+      required:
+      - items
+    ProductMaterialChainCreateRequest:
+      type: object
+      properties:
+        material_type_code:
+          type: string
+        ordered_submission_ids:
+          type: array
+          items:
+            type: string
+            format: uuid
+        current_submission_id:
+          type: string
+          format: uuid
+      required:
+      - current_submission_id
+      - material_type_code
+      - ordered_submission_ids
+    ProductMaterialCompleteness:
+      type: object
+      properties:
+        requirement_version_public_id:
+          type: string
+          format: uuid
+        requirement_version_number:
+          type: integer
+        requirement_content_digest:
+          type: string
+        is_complete:
+          type: boolean
+        blocking_material_type_codes:
+          type: array
+          items:
+            type: string
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/ProductMaterialCompletenessItem'
+      required:
+      - blocking_material_type_codes
+      - is_complete
+      - items
+      - requirement_content_digest
+      - requirement_version_number
+      - requirement_version_public_id
+    ProductMaterialCompletenessItem:
+      type: object
+      properties:
+        material_type_code:
+          type: string
+        requirement:
+          type: string
+        state:
+          type: string
+      required:
+      - material_type_code
+      - requirement
+      - state
+    ProductMaterialGroup:
+      type: object
+      properties:
+        material_type_code:
+          type: string
+        current:
+          $ref: '#/components/schemas/ProductMaterial'
+        history:
+          type: array
+          items:
+            $ref: '#/components/schemas/ProductMaterial'
+      required:
+      - current
+      - history
+      - material_type_code
+    ProductMaterialGroupPage:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/ProductMaterialGroup'
+      required:
+      - items
     ProductSearchPage:
       type: object
       properties:
