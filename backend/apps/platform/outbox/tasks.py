@@ -4,19 +4,31 @@ from __future__ import annotations
 
 from celery import shared_task  # type: ignore[import-untyped]
 
-from apps.notifications.consumers import local_consumer_registry
-from apps.platform.outbox.consumer import consume_once
+from apps.notifications.consumers import local_consumer_registry as notifications_registry
+from apps.operations.consumers import local_consumer_registry as operations_registry
+from apps.operations.consumers import no_local_subscriber_event_types
+from apps.platform.outbox.consumer import OutboxConsumer, consume_once
 from apps.platform.outbox.dispatcher import UnregisteredEventType, dispatch_pending_events
 from apps.platform.outbox.models import OutboxEvent
 
 
+def merged_consumer_registry() -> dict[str, list[tuple[str, OutboxConsumer]]]:
+    merged: dict[str, list[tuple[str, OutboxConsumer]]] = {}
+    for registry in (notifications_registry(), operations_registry()):
+        for event_type, consumers in registry.items():
+            merged.setdefault(event_type, []).extend(consumers)
+    return merged
+
+
 class LocalOutboxPublisher:
     def publish(self, event: OutboxEvent) -> None:
-        entry = local_consumer_registry().get(event.event_type)
-        if entry is None:
+        if event.event_type in no_local_subscriber_event_types():
+            return
+        consumers = merged_consumer_registry().get(event.event_type)
+        if not consumers:
             raise UnregisteredEventType()
-        consumer_code, handler = entry
-        consume_once(event=event, consumer_code=consumer_code, handler=handler)
+        for consumer_code, handler in consumers:
+            consume_once(event=event, consumer_code=consumer_code, handler=handler)
 
 
 @shared_task(name="platform.dispatch_outbox")

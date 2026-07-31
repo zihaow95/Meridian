@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import datetime
 
-from django.db import models, transaction
+from django.db import transaction
 from django.utils import timezone
 
 from apps.audit.models import AuditResult
@@ -14,12 +14,18 @@ from apps.audit.services.snapshots import acting_roles_snapshot
 from apps.authorization.context import (
     AuthorizationContext,
     AuthorizationDecision,
-    AuthorizationSubject,
     ResourceDescriptor,
 )
-from apps.authorization.models.assignment import RoleAssignment, ScopeType
+from apps.authorization.models.assignment import (
+    RoleAssignment,
+    ScopeType,
+    build_scope_key,
+    resolve_scope_id,
+)
 from apps.authorization.models.role import Role
 from apps.authorization.policies.engine import authorize
+from apps.authorization.services.role_assignment_locks import lock_organization_and_users
+from apps.authorization.services.subject import subject_for
 from apps.identity.models.user import User
 from apps.platform.application.command import CommandContext
 
@@ -43,63 +49,65 @@ class AssignRole:
 
     def execute(self) -> RoleAssignment:
         command_context = self.context or CommandContext.for_actor(self.actor)
-        decision = authorize(
-            _subject_for(self.actor),
-            action="authorization.role.assign",
-            resource=ResourceDescriptor(
-                resource_type="authorization.role",
-                public_id=self.role.public_id,
-                organization_id=self.target.organization_id,
-            ),
-            context=AuthorizationContext.current(),
-        )
-        if not decision.allowed:
-            raise RoleAssignmentDenied(decision)
 
         if self.role.is_critical and not self.approval_reference:
             raise ValueError("Critical roles require an approval reference.")
 
+        resolved_scope_id = resolve_scope_id(
+            scope_type=self.scope_type,
+            scope_id=self.scope_id,
+            organization_id=self.target.organization_id,
+        )
+        scope_key = build_scope_key(scope_type=self.scope_type, scope_id=resolved_scope_id)
+
         with transaction.atomic():
+            _, locked_users = lock_organization_and_users(
+                organization_id=self.target.organization_id,
+                user_ids=(self.actor.id, self.target.id),
+            )
+            locked_actor = locked_users[self.actor.id]
+            locked_target = locked_users[self.target.id]
+            decision = authorize(
+                subject_for(locked_actor),
+                action="authorization.role.assign",
+                resource=ResourceDescriptor(
+                    resource_type="authorization.role",
+                    public_id=self.role.public_id,
+                    organization_id=locked_target.organization_id,
+                ),
+                context=AuthorizationContext.current(),
+            )
+            if not decision.allowed:
+                raise RoleAssignmentDenied(decision)
+
             assignment = RoleAssignment.objects.create(
-                user=self.target,
+                user=locked_target,
                 role=self.role,
                 scope_type=self.scope_type,
-                scope_id=self.scope_id,
+                scope_id=resolved_scope_id,
+                scope_key=scope_key,
                 effective_from=self.effective_from or timezone.now(),
-                configured_by=self.actor,
+                configured_by=locked_actor,
                 approval_reference=self.approval_reference,
+                status="ACTIVE",
+                active_slot=1,
             )
             append_event(
                 AuditRecord(
-                    actor=command_context.actor,
+                    actor=locked_actor,
                     action_code="authorization.role.assign",
                     resource_type="authorization.role_assignment",
                     resource_public_id=assignment.public_id,
                     result=AuditResult.SUCCESS,
                     trace_id=command_context.trace_id,
                     occurred_at=command_context.occurred_at,
-                    acting_roles_snapshot=acting_roles_snapshot(command_context.actor),
+                    acting_roles_snapshot=acting_roles_snapshot(locked_actor),
                     after_summary={
                         "role_code": self.role.role_code,
-                        "target_user_id": str(self.target.public_id),
+                        "target_user_id": str(locked_target.public_id),
+                        "scope_key": scope_key,
                     },
                     reason=self.approval_reference,
                 )
             )
             return assignment
-
-
-def _subject_for(user: User) -> AuthorizationSubject:
-    from apps.authorization.models.assignment import AssignmentStatus
-
-    now = timezone.now()
-    role_codes = frozenset(
-        RoleAssignment.objects.filter(
-            user=user,
-            status=AssignmentStatus.ACTIVE,
-            effective_from__lte=now,
-        )
-        .filter(models.Q(effective_to__isnull=True) | models.Q(effective_to__gt=now))
-        .values_list("role__role_code", flat=True)
-    )
-    return AuthorizationSubject(user=user, role_codes=role_codes)

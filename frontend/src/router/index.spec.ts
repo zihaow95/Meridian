@@ -18,4 +18,13 @@ describe('router guards', () => {
     expect(router.currentRoute.value.path).toBe('/login')
     expect(String(router.currentRoute.value.query.next)).toContain('/documents/secret-id')
   })
+
+  it('requires auth for operations workbench and preserves next redirect', async () => {
+    const auth = useAuthStore()
+    vi.spyOn(auth, 'fetchMe').mockRejectedValue(new Error('not logged in'))
+
+    await router.push('/operations/risk-signals')
+    expect(router.currentRoute.value.path).toBe('/login')
+    expect(String(router.currentRoute.value.query.next)).toContain('/operations/risk-signals')
+  })
 })

@@ -611,6 +611,574 @@ paths:
               schema:
                 $ref: '#/components/schemas/MeResponse'
           description: ''
+  /api/v1/operating-data-sources:
+    get:
+      operationId: operating_data_sources_list
+      parameters:
+      - in: query
+        name: page
+        schema:
+          type: integer
+      - in: query
+        name: page_size
+        schema:
+          type: integer
+      tags:
+      - operating-data-sources
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OperatingDataSourceListResponse'
+          description: ''
+    post:
+      operationId: operating_data_sources_create
+      tags:
+      - operating-data-sources
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OperatingDataSourceCreateRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/OperatingDataSourceCreateRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/OperatingDataSourceCreateRequest'
+        required: true
+      security:
+      - cookieAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OperatingDataSource'
+          description: ''
+  /api/v1/operating-data-sources/{public_id}/publish:
+    post:
+      operationId: operating_data_sources_publish
+      parameters:
+      - in: path
+        name: public_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - operating-data-sources
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OperatingDataSource'
+          description: ''
+  /api/v1/operating-data/batches:
+    post:
+      operationId: operating_data_batches_create
+      tags:
+      - operating-data
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OperatingIngestionBatchCreateRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/OperatingIngestionBatchCreateRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/OperatingIngestionBatchCreateRequest'
+        required: true
+      security:
+      - cookieAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OperatingIngestionBatch'
+          description: ''
+  /api/v1/operating-data/batches/{public_id}:
+    get:
+      operationId: operating_data_batches_retrieve
+      parameters:
+      - in: path
+        name: public_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - operating-data
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OperatingIngestionBatch'
+          description: ''
+  /api/v1/operating-data/batches/{public_id}/confirm:
+    post:
+      operationId: operating_data_batches_confirm
+      parameters:
+      - in: path
+        name: public_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - operating-data
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OperatingIngestionBatchConfirmRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/OperatingIngestionBatchConfirmRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/OperatingIngestionBatchConfirmRequest'
+        required: true
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OperatingIngestionBatchConfirmResponse'
+          description: ''
+  /api/v1/operating-data/batches/{public_id}/retry:
+    post:
+      operationId: operating_data_batches_retry
+      parameters:
+      - in: path
+        name: public_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - operating-data
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OperatingIngestionBatch'
+          description: ''
+  /api/v1/operating-data/batches/{public_id}/rows:
+    get:
+      operationId: operating_data_batches_rows_list
+      parameters:
+      - in: query
+        name: page
+        schema:
+          type: integer
+      - in: query
+        name: page_size
+        schema:
+          type: integer
+      - in: path
+        name: public_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - operating-data
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OperatingIngestionBatchRowsResponse'
+          description: ''
+  /api/v1/operating-data/batches/{public_id}/validate:
+    post:
+      operationId: operating_data_batches_validate
+      parameters:
+      - in: path
+        name: public_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - operating-data
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OperatingIngestionBatch'
+          description: ''
+  /api/v1/operating-data/exports:
+    post:
+      operationId: operating_data_exports_create
+      tags:
+      - operating-data
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OperatingDataExportRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/OperatingDataExportRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/OperatingDataExportRequest'
+        required: true
+      security:
+      - cookieAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OperatingDataExportResponse'
+          description: ''
+  /api/v1/operating-data/snapshots:
+    post:
+      operationId: operating_data_snapshots_create
+      tags:
+      - operating-data
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OperatingDataSnapshotCreateRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/OperatingDataSnapshotCreateRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/OperatingDataSnapshotCreateRequest'
+        required: true
+      security:
+      - cookieAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OperatingDataSnapshot'
+          description: ''
+  /api/v1/operating-data/unmapped:
+    get:
+      operationId: operating_data_unmapped_list
+      parameters:
+      - in: query
+        name: page
+        schema:
+          type: integer
+      - in: query
+        name: page_size
+        schema:
+          type: integer
+      tags:
+      - operating-data
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OperatingUnmappedRowsResponse'
+          description: ''
+  /api/v1/operating-issues:
+    get:
+      operationId: operating_issues_list
+      parameters:
+      - in: query
+        name: page
+        schema:
+          type: integer
+      - in: query
+        name: page_size
+        schema:
+          type: integer
+      - in: query
+        name: status
+        schema:
+          type: string
+      tags:
+      - operating-issues
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OperatingIssueListResponse'
+          description: ''
+    post:
+      operationId: operating_issues_create
+      tags:
+      - operating-issues
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OperatingIssueCreateRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/OperatingIssueCreateRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/OperatingIssueCreateRequest'
+        required: true
+      security:
+      - cookieAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OperatingIssue'
+          description: ''
+  /api/v1/operating-issues/{public_id}/decisions:
+    post:
+      operationId: operating_issues_decisions_create
+      parameters:
+      - in: path
+        name: public_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - operating-issues
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OperatingIssueDecisionRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/OperatingIssueDecisionRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/OperatingIssueDecisionRequest'
+        required: true
+      security:
+      - cookieAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OperatingIssueDecisionResponse'
+          description: ''
+  /api/v1/operating-issues/{public_id}/iteration-proposal:
+    post:
+      operationId: operating_issues_iteration_proposal_create
+      parameters:
+      - in: path
+        name: public_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - operating-issues
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OperatingIssueIterationProposalRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/OperatingIssueIterationProposalRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/OperatingIssueIterationProposalRequest'
+        required: true
+      security:
+      - cookieAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OperatingIssue'
+          description: ''
+  /api/v1/operating-metrics:
+    get:
+      operationId: operating_metrics_list
+      parameters:
+      - in: query
+        name: page
+        schema:
+          type: integer
+      - in: query
+        name: page_size
+        schema:
+          type: integer
+      tags:
+      - operating-metrics
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OperatingMetricListResponse'
+          description: ''
+    post:
+      operationId: operating_metrics_create
+      tags:
+      - operating-metrics
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OperatingMetricCreateRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/OperatingMetricCreateRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/OperatingMetricCreateRequest'
+        required: true
+      security:
+      - cookieAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OperatingMetricDefinition'
+          description: ''
+  /api/v1/operating-metrics/{public_id}/publish:
+    post:
+      operationId: operating_metrics_publish
+      parameters:
+      - in: path
+        name: public_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - operating-metrics
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OperatingMetricDefinition'
+          description: ''
+  /api/v1/operating-metrics/recalculate:
+    post:
+      operationId: operating_metrics_recalculate
+      description: Thin wrapper around RecalculateMetricAggregates for E2E / ops recalculation.
+      tags:
+      - operating-metrics
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OperatingMetricRecalculateRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/OperatingMetricRecalculateRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/OperatingMetricRecalculateRequest'
+        required: true
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OperatingMetricRecalculateResponse'
+          description: ''
+  /api/v1/operating-values/overrides:
+    post:
+      operationId: operating_values_overrides_create
+      tags:
+      - operating-values
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OperatingManualValueCreateRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/OperatingManualValueCreateRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/OperatingManualValueCreateRequest'
+        required: true
+      security:
+      - cookieAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OperatingManualValue'
+          description: ''
+  /api/v1/operating-values/overrides/{public_id}/revoke:
+    post:
+      operationId: operating_values_overrides_revoke
+      parameters:
+      - in: path
+        name: public_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - operating-values
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OperatingManualValueRevokeRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/OperatingManualValueRevokeRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/OperatingManualValueRevokeRequest'
+        required: true
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OperatingManualValue'
+          description: ''
   /api/v1/opportunities:
     get:
       operationId: opportunities_list_mine
@@ -1548,6 +2116,47 @@ paths:
               schema:
                 $ref: '#/components/schemas/ExternalBinding'
           description: ''
+  /api/v1/products/{public_id}/operating-summary:
+    get:
+      operationId: products_operating_summary_retrieve
+      parameters:
+      - in: query
+        name: include_drilldown
+        schema:
+          type: boolean
+      - in: query
+        name: metric_codes
+        schema:
+          type: string
+      - in: query
+        name: period_end
+        schema:
+          type: string
+      - in: query
+        name: period_granularity
+        schema:
+          type: string
+      - in: query
+        name: period_start
+        schema:
+          type: string
+      - in: path
+        name: public_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - products
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OperatingSummaryResponse'
+          description: ''
   /api/v1/professional-confirmations/{public_id}/decide:
     post:
       operationId: professional_confirmations_decide
@@ -2214,6 +2823,377 @@ paths:
               schema:
                 $ref: '#/components/schemas/ReconsiderationResponse'
           description: ''
+  /api/v1/retirement-plans:
+    post:
+      operationId: retirement_plans_create
+      tags:
+      - retirement-plans
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RetirementPlanCreateRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/RetirementPlanCreateRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/RetirementPlanCreateRequest'
+        required: true
+      security:
+      - cookieAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RetirementPlan'
+          description: ''
+  /api/v1/retirement-plans/{public_id}/execute:
+    post:
+      operationId: retirement_plans_execute
+      parameters:
+      - in: path
+        name: public_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - retirement-plans
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RetirementPlanExecuteRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/RetirementPlanExecuteRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/RetirementPlanExecuteRequest'
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RetirementPlan'
+          description: ''
+  /api/v1/retirement-plans/{public_id}/submit:
+    post:
+      operationId: retirement_plans_submit
+      parameters:
+      - in: path
+        name: public_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - retirement-plans
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RetirementPlanSubmitRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/RetirementPlanSubmitRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/RetirementPlanSubmitRequest'
+        required: true
+      security:
+      - cookieAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RetirementPlanSubmitResponse'
+          description: ''
+  /api/v1/retirement-plans/{public_id}/validate:
+    post:
+      operationId: retirement_plans_validate
+      parameters:
+      - in: path
+        name: public_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - retirement-plans
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RetirementPlanValidateResponse'
+          description: ''
+  /api/v1/risk-rules:
+    get:
+      operationId: risk_rules_list
+      parameters:
+      - in: query
+        name: page
+        schema:
+          type: integer
+      - in: query
+        name: page_size
+        schema:
+          type: integer
+      tags:
+      - risk-rules
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RiskRuleListResponse'
+          description: ''
+    post:
+      operationId: risk_rules_create
+      tags:
+      - risk-rules
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RiskRuleCreateRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/RiskRuleCreateRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/RiskRuleCreateRequest'
+        required: true
+      security:
+      - cookieAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RiskRuleDefinition'
+          description: ''
+  /api/v1/risk-rules/{public_id}/evaluate:
+    post:
+      operationId: risk_rules_evaluate
+      description: Thin authenticated wrapper around EvaluateRiskRules for governed
+        E2E/ops runs.
+      parameters:
+      - in: path
+        name: public_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - risk-rules
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RiskRuleEvaluateRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/RiskRuleEvaluateRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/RiskRuleEvaluateRequest'
+        required: true
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RiskRuleEvaluateResponse'
+          description: ''
+  /api/v1/risk-rules/{public_id}/publish:
+    post:
+      operationId: risk_rules_publish
+      parameters:
+      - in: path
+        name: public_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - risk-rules
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RiskRuleDefinition'
+          description: ''
+  /api/v1/risk-signals:
+    get:
+      operationId: risk_signals_list
+      parameters:
+      - in: query
+        name: page
+        schema:
+          type: integer
+      - in: query
+        name: page_size
+        schema:
+          type: integer
+      - in: query
+        name: status
+        schema:
+          type: string
+      tags:
+      - risk-signals
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RiskSignalListResponse'
+          description: ''
+  /api/v1/risk-signals/{public_id}/close:
+    post:
+      operationId: risk_signals_close
+      parameters:
+      - in: path
+        name: public_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - risk-signals
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RiskSignalCloseRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/RiskSignalCloseRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/RiskSignalCloseRequest'
+        required: true
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RiskSignal'
+          description: ''
+  /api/v1/risk-signals/{public_id}/escalate:
+    post:
+      operationId: risk_signals_escalate
+      parameters:
+      - in: path
+        name: public_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - risk-signals
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RiskSignalEscalateRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/RiskSignalEscalateRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/RiskSignalEscalateRequest'
+        required: true
+      security:
+      - cookieAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RiskSignalEscalateResponse'
+          description: ''
+  /api/v1/risk-signals/{public_id}/view:
+    post:
+      operationId: risk_signals_view
+      parameters:
+      - in: path
+        name: public_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - risk-signals
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RiskSignal'
+          description: ''
+  /api/v1/skus/{public_id}/operating-summary:
+    get:
+      operationId: skus_operating_summary_retrieve
+      parameters:
+      - in: query
+        name: include_drilldown
+        schema:
+          type: boolean
+      - in: query
+        name: metric_codes
+        schema:
+          type: string
+      - in: query
+        name: period_end
+        schema:
+          type: string
+      - in: query
+        name: period_granularity
+        schema:
+          type: string
+      - in: query
+        name: period_start
+        schema:
+          type: string
+      - in: path
+        name: public_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - skus
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OperatingSummaryResponse'
+          description: ''
   /api/v1/stage-gates/{public_id}/decision:
     post:
       operationId: stage_gates_decision_create
@@ -2345,6 +3325,72 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/MajorGateDecisionResponse'
+          description: ''
+  /api/v1/stage-gates/{public_id}/retirement-final-decision:
+    post:
+      operationId: stage_gates_retirement_final_decision_create
+      parameters:
+      - in: path
+        name: public_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - stage-gates
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RetirementFinalRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/RetirementFinalRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/RetirementFinalRequest'
+        required: true
+      security:
+      - cookieAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StageGateDecisionResponse'
+          description: ''
+  /api/v1/stage-gates/{public_id}/retirement-management-conclusion:
+    post:
+      operationId: stage_gates_retirement_management_conclusion_create
+      parameters:
+      - in: path
+        name: public_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - stage-gates
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RetirementManagementRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/RetirementManagementRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/RetirementManagementRequest'
+        required: true
+      security:
+      - cookieAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StageGateDecisionResponse'
           description: ''
   /api/v1/stage-gates/{public_id}/submissions:
     post:
@@ -3362,6 +4408,624 @@ components:
       - public_id
       - status
       - title
+    OperatingDataExportRequest:
+      type: object
+      properties:
+        period_start:
+          type: string
+        period_end:
+          type: string
+        period_granularity:
+          type: string
+        metric_codes:
+          type: array
+          items:
+            type: string
+      required:
+      - period_end
+      - period_granularity
+      - period_start
+    OperatingDataExportResponse:
+      type: object
+      properties:
+        document_version_public_id:
+          type: string
+          format: uuid
+        token:
+          type: string
+        expires_at:
+          type: string
+      required:
+      - document_version_public_id
+      - expires_at
+      - token
+    OperatingDataSnapshot:
+      type: object
+      properties:
+        public_id:
+          type: string
+          format: uuid
+        purpose:
+          type: string
+        content_hash:
+          type: string
+      required:
+      - content_hash
+      - public_id
+      - purpose
+    OperatingDataSnapshotCreateRequest:
+      type: object
+      properties:
+        product_public_id:
+          type: string
+          format: uuid
+        evidence:
+          type: object
+          additionalProperties: {}
+        metric_codes:
+          type: array
+          items:
+            type: string
+        periods:
+          type: array
+          items: {}
+      required:
+      - evidence
+      - product_public_id
+    OperatingDataSource:
+      type: object
+      properties:
+        public_id:
+          type: string
+          format: uuid
+        source_code:
+          type: string
+        name:
+          type: string
+        source_type:
+          type: string
+        status:
+          type: string
+        sensitivity_level:
+          type: string
+        owner_department_public_id:
+          type: string
+          format: uuid
+        configuration_version_public_id:
+          type: string
+          format: uuid
+      required:
+      - configuration_version_public_id
+      - name
+      - owner_department_public_id
+      - public_id
+      - sensitivity_level
+      - source_code
+      - source_type
+      - status
+    OperatingDataSourceCreateRequest:
+      type: object
+      properties:
+        source_code:
+          type: string
+        name:
+          type: string
+        source_type:
+          type: string
+        owner_department_public_id:
+          type: string
+          format: uuid
+        sensitivity_level:
+          type: string
+        mapping_content:
+          type: object
+          additionalProperties: {}
+        status:
+          type: string
+      required:
+      - mapping_content
+      - name
+      - owner_department_public_id
+      - sensitivity_level
+      - source_code
+      - source_type
+    OperatingDataSourceListResponse:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/OperatingDataSource'
+        page:
+          type: integer
+        page_size:
+          type: integer
+        count:
+          type: integer
+      required:
+      - count
+      - items
+      - page
+      - page_size
+    OperatingIngestionBatch:
+      type: object
+      properties:
+        public_id:
+          type: string
+          format: uuid
+        batch_key:
+          type: string
+        source_public_id:
+          type: string
+          format: uuid
+        source_type:
+          type: string
+        status:
+          type: string
+        total_count:
+          type: integer
+        success_count:
+          type: integer
+        warning_count:
+          type: integer
+        error_count:
+          type: integer
+        skipped_count:
+          type: integer
+        added_count:
+          type: integer
+        revision_count:
+          type: integer
+        rows_url:
+          type: string
+      required:
+      - added_count
+      - batch_key
+      - error_count
+      - public_id
+      - revision_count
+      - rows_url
+      - skipped_count
+      - source_public_id
+      - source_type
+      - status
+      - success_count
+      - total_count
+      - warning_count
+    OperatingIngestionBatchConfirmRequest:
+      type: object
+      properties:
+        idempotency_key:
+          type: string
+        confirm_warnings:
+          type: boolean
+      required:
+      - idempotency_key
+    OperatingIngestionBatchConfirmResponse:
+      type: object
+      properties:
+        public_id:
+          type: string
+          format: uuid
+        added_count:
+          type: integer
+        revision_count:
+          type: integer
+        skipped_count:
+          type: integer
+        error_count:
+          type: integer
+        warning_count:
+          type: integer
+      required:
+      - added_count
+      - error_count
+      - public_id
+      - revision_count
+      - skipped_count
+      - warning_count
+    OperatingIngestionBatchCreateRequest:
+      type: object
+      properties:
+        source_public_id:
+          type: string
+          format: uuid
+        batch_key:
+          type: string
+        source_type:
+          type: string
+        rows:
+          type: array
+          items: {}
+        input_file_version_public_id:
+          type: string
+          format: uuid
+          nullable: true
+      required:
+      - batch_key
+      - source_public_id
+      - source_type
+    OperatingIngestionBatchRowsResponse:
+      type: object
+      properties:
+        items:
+          type: array
+          items: {}
+        page:
+          type: integer
+        page_size:
+          type: integer
+        count:
+          type: integer
+      required:
+      - count
+      - items
+      - page
+      - page_size
+    OperatingIssue:
+      type: object
+      properties:
+        public_id:
+          type: string
+          format: uuid
+        business_no:
+          type: string
+        title:
+          type: string
+        status:
+          type: string
+        version_no:
+          type: integer
+        product_public_id:
+          type: string
+          format: uuid
+        phenomenon_summary:
+          type: string
+      required:
+      - business_no
+      - phenomenon_summary
+      - product_public_id
+      - public_id
+      - status
+      - title
+      - version_no
+    OperatingIssueCreateRequest:
+      type: object
+      properties:
+        title:
+          type: string
+        product_public_id:
+          type: string
+          format: uuid
+        phenomenon_summary:
+          type: string
+        signal_public_ids:
+          type: array
+          items:
+            type: string
+            format: uuid
+        source_type:
+          type: string
+        source_materials_json:
+          type: object
+          additionalProperties: {}
+        target_review_at:
+          type: string
+          nullable: true
+        owner_public_id:
+          type: string
+          format: uuid
+          nullable: true
+      required:
+      - phenomenon_summary
+      - product_public_id
+      - title
+    OperatingIssueDecisionRequest:
+      type: object
+      properties:
+        version_no:
+          type: integer
+        recommendation_type:
+          type: string
+        action_summary:
+          type: string
+        responsible_user_public_id:
+          type: string
+          format: uuid
+          nullable: true
+        planned_at:
+          type: string
+          nullable: true
+        materials_snapshot_json:
+          type: object
+          additionalProperties: {}
+        target_status:
+          type: string
+          nullable: true
+      required:
+      - action_summary
+      - recommendation_type
+      - version_no
+    OperatingIssueDecisionResponse:
+      type: object
+      properties:
+        public_id:
+          type: string
+          format: uuid
+        recommendation_type:
+          type: string
+        action_summary:
+          type: string
+        issue:
+          type: object
+          additionalProperties: {}
+      required:
+      - action_summary
+      - issue
+      - public_id
+      - recommendation_type
+    OperatingIssueIterationProposalRequest:
+      type: object
+      properties:
+        proposal_owner_public_id:
+          type: string
+          format: uuid
+        idempotency_key:
+          type: string
+        version_no:
+          type: integer
+          nullable: true
+      required:
+      - idempotency_key
+      - proposal_owner_public_id
+    OperatingIssueListResponse:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/OperatingIssue'
+        page:
+          type: integer
+        page_size:
+          type: integer
+        count:
+          type: integer
+      required:
+      - count
+      - items
+      - page
+      - page_size
+    OperatingManualValue:
+      type: object
+      properties:
+        public_id:
+          type: string
+          format: uuid
+        status:
+          type: string
+        numeric_value:
+          type: string
+          nullable: true
+        reason:
+          type: string
+        sku_public_id:
+          type: string
+          format: uuid
+        channel_public_id:
+          type: string
+          format: uuid
+        metric_definition_public_id:
+          type: string
+          format: uuid
+        period_start:
+          type: string
+          format: date
+        period_end:
+          type: string
+          format: date
+        period_granularity:
+          type: string
+      required:
+      - channel_public_id
+      - metric_definition_public_id
+      - numeric_value
+      - period_end
+      - period_granularity
+      - period_start
+      - public_id
+      - reason
+      - sku_public_id
+      - status
+    OperatingManualValueCreateRequest:
+      type: object
+      properties:
+        sku_public_id:
+          type: string
+          format: uuid
+        channel_public_id:
+          type: string
+          format: uuid
+        metric_definition_public_id:
+          type: string
+          format: uuid
+        period_granularity:
+          type: string
+        period_start:
+          type: string
+        period_end:
+          type: string
+        numeric_value:
+          type: string
+        reason:
+          type: string
+        text_value:
+          type: string
+      required:
+      - channel_public_id
+      - metric_definition_public_id
+      - numeric_value
+      - period_end
+      - period_granularity
+      - period_start
+      - reason
+      - sku_public_id
+    OperatingManualValueRevokeRequest:
+      type: object
+      properties:
+        reason:
+          type: string
+      required:
+      - reason
+    OperatingMetricCreateRequest:
+      type: object
+      properties:
+        metric_code:
+          type: string
+        name:
+          type: string
+        value_type:
+          type: string
+        unit:
+          type: string
+        currency:
+          type: string
+        source_field_codes:
+          type: array
+          items:
+            type: string
+        calculation_type:
+          type: string
+        aggregation_rule:
+          type: object
+          additionalProperties: {}
+        window_definition:
+          type: object
+          additionalProperties: {}
+        coverage_requirement:
+          type: object
+          additionalProperties: {}
+        valid_from:
+          type: string
+        valid_to:
+          type: string
+          nullable: true
+        controlled_rule_code:
+          type: string
+        parameters_json:
+          type: object
+          additionalProperties: {}
+      required:
+      - aggregation_rule
+      - calculation_type
+      - coverage_requirement
+      - currency
+      - metric_code
+      - name
+      - source_field_codes
+      - unit
+      - valid_from
+      - value_type
+      - window_definition
+    OperatingMetricDefinition:
+      type: object
+      properties:
+        public_id:
+          type: string
+          format: uuid
+        metric_code:
+          type: string
+        name:
+          type: string
+        version_number:
+          type: integer
+        status:
+          type: string
+        value_type:
+          type: string
+        unit:
+          type: string
+        currency:
+          type: string
+        calculation_type:
+          type: string
+      required:
+      - calculation_type
+      - currency
+      - metric_code
+      - name
+      - public_id
+      - status
+      - unit
+      - value_type
+      - version_number
+    OperatingMetricListResponse:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/OperatingMetricDefinition'
+        page:
+          type: integer
+        page_size:
+          type: integer
+        count:
+          type: integer
+      required:
+      - count
+      - items
+      - page
+      - page_size
+    OperatingMetricRecalculateRequest:
+      type: object
+      properties:
+        affected_keys:
+          type: array
+          items:
+            type: object
+            additionalProperties: {}
+        calculation_run_id:
+          type: string
+          format: uuid
+      required:
+      - affected_keys
+    OperatingMetricRecalculateResponse:
+      type: object
+      properties:
+        written_count:
+          type: integer
+        calculation_run_id:
+          type: string
+          format: uuid
+      required:
+      - calculation_run_id
+      - written_count
+    OperatingSummaryResponse:
+      type: object
+      properties:
+        items:
+          type: array
+          items: {}
+      required:
+      - items
+    OperatingUnmappedRowsResponse:
+      type: object
+      properties:
+        items:
+          type: array
+          items: {}
+        page:
+          type: integer
+        page_size:
+          type: integer
+        count:
+          type: integer
+      required:
+      - count
+      - items
+      - page
+      - page_size
     OpportunityCreateRequest:
       type: object
       properties:
@@ -4152,6 +5816,354 @@ components:
       - original_cycle_public_id
       - public_id
       - target_stage_code
+    RetirementFinalRequest:
+      type: object
+      properties:
+        final_decision:
+          type: string
+        decision_summary:
+          type: string
+        idempotency_key:
+          type: string
+      required:
+      - final_decision
+      - idempotency_key
+    RetirementManagementRequest:
+      type: object
+      properties:
+        management_conclusion:
+          type: string
+        decision_summary:
+          type: string
+        idempotency_key:
+          type: string
+      required:
+      - idempotency_key
+      - management_conclusion
+    RetirementPlan:
+      type: object
+      properties:
+        public_id:
+          type: string
+          format: uuid
+        status:
+          type: string
+        product_public_id:
+          type: string
+          format: uuid
+        issue_public_id:
+          type: string
+          format: uuid
+        stage_gate_public_id:
+          type: string
+          format: uuid
+          nullable: true
+        content_hash:
+          type: string
+      required:
+      - content_hash
+      - issue_public_id
+      - product_public_id
+      - public_id
+      - stage_gate_public_id
+      - status
+    RetirementPlanCreateRequest:
+      type: object
+      properties:
+        product_public_id:
+          type: string
+          format: uuid
+        scope_snapshot:
+          type: object
+          additionalProperties: {}
+        inventory_plan:
+          type: object
+          additionalProperties: {}
+        supply_contract_impact:
+          type: object
+          additionalProperties: {}
+        customer_market_plan:
+          type: object
+          additionalProperties: {}
+        replacement_plan:
+          type: object
+          additionalProperties: {}
+        stop_production_at:
+          type: string
+          nullable: true
+        stop_sale_at:
+          type: string
+          nullable: true
+        retire_at:
+          type: string
+          nullable: true
+        issue_public_id:
+          type: string
+          format: uuid
+          nullable: true
+        source_type:
+          type: string
+        source_materials_json:
+          type: object
+          additionalProperties: {}
+        coverage_gap_explanation:
+          type: string
+        operating_snapshot_public_id:
+          type: string
+          format: uuid
+          nullable: true
+        document_version_public_id:
+          type: string
+          format: uuid
+          nullable: true
+      required:
+      - product_public_id
+      - scope_snapshot
+    RetirementPlanExecuteRequest:
+      type: object
+      properties:
+        as_of:
+          type: string
+          nullable: true
+    RetirementPlanSubmitRequest:
+      type: object
+      properties:
+        idempotency_key:
+          type: string
+      required:
+      - idempotency_key
+    RetirementPlanSubmitResponse:
+      type: object
+      properties:
+        public_id:
+          type: string
+          format: uuid
+        submission_number:
+          type: integer
+        content_hash:
+          type: string
+      required:
+      - content_hash
+      - public_id
+      - submission_number
+    RetirementPlanValidateResponse:
+      type: object
+      properties:
+        ok:
+          type: boolean
+        missing:
+          type: array
+          items: {}
+      required:
+      - missing
+      - ok
+    RiskRuleCreateRequest:
+      type: object
+      properties:
+        rule_code:
+          type: string
+        name:
+          type: string
+        metric_codes:
+          type: array
+          items:
+            type: string
+        evaluator_code:
+          type: string
+        parameters_json:
+          type: object
+          additionalProperties: {}
+        scope_type:
+          type: string
+        valid_from:
+          type: string
+        valid_to:
+          type: string
+          nullable: true
+      required:
+      - evaluator_code
+      - metric_codes
+      - name
+      - parameters_json
+      - rule_code
+      - scope_type
+      - valid_from
+    RiskRuleDefinition:
+      type: object
+      properties:
+        public_id:
+          type: string
+          format: uuid
+        rule_code:
+          type: string
+        name:
+          type: string
+        version_number:
+          type: integer
+        status:
+          type: string
+        evaluator_code:
+          type: string
+        scope_type:
+          type: string
+        metric_codes:
+          type: array
+          items:
+            type: string
+      required:
+      - evaluator_code
+      - metric_codes
+      - name
+      - public_id
+      - rule_code
+      - scope_type
+      - status
+      - version_number
+    RiskRuleEvaluateRequest:
+      type: object
+      properties:
+        period_granularity:
+          type: string
+        period_start:
+          type: string
+        period_end:
+          type: string
+      required:
+      - period_end
+      - period_granularity
+      - period_start
+    RiskRuleEvaluateResponse:
+      type: object
+      properties:
+        created_count:
+          type: integer
+        signal_public_ids:
+          type: array
+          items:
+            type: string
+            format: uuid
+      required:
+      - created_count
+      - signal_public_ids
+    RiskRuleListResponse:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/RiskRuleDefinition'
+        page:
+          type: integer
+        page_size:
+          type: integer
+        count:
+          type: integer
+      required:
+      - count
+      - items
+      - page
+      - page_size
+    RiskSignal:
+      type: object
+      properties:
+        public_id:
+          type: string
+          format: uuid
+        status:
+          type: string
+        scope_type:
+          type: string
+        scope_id:
+          type: string
+          format: uuid
+        scope_key:
+          type: string
+        period_start:
+          type: string
+          format: date
+        period_end:
+          type: string
+          format: date
+        period_granularity:
+          type: string
+        coverage_status:
+          type: string
+        actual_value:
+          type: string
+          nullable: true
+        threshold_value:
+          type: string
+          nullable: true
+        rule_code:
+          type: string
+        closed_reason:
+          type: string
+      required:
+      - actual_value
+      - closed_reason
+      - coverage_status
+      - period_end
+      - period_granularity
+      - period_start
+      - public_id
+      - rule_code
+      - scope_id
+      - scope_key
+      - scope_type
+      - status
+      - threshold_value
+    RiskSignalCloseRequest:
+      type: object
+      properties:
+        reason:
+          type: string
+      required:
+      - reason
+    RiskSignalEscalateRequest:
+      type: object
+      properties:
+        title:
+          type: string
+        phenomenon_summary:
+          type: string
+        target_review_at:
+          type: string
+          nullable: true
+      required:
+      - phenomenon_summary
+      - title
+    RiskSignalEscalateResponse:
+      type: object
+      properties:
+        issue_public_id:
+          type: string
+          format: uuid
+        title:
+          type: string
+        status:
+          type: string
+      required:
+      - issue_public_id
+      - status
+      - title
+    RiskSignalListResponse:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/RiskSignal'
+        page:
+          type: integer
+        page_size:
+          type: integer
+        count:
+          type: integer
+      required:
+      - count
+      - items
+      - page
+      - page_size
     RoleCatalogItem:
       type: object
       properties:

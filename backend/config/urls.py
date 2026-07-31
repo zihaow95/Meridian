@@ -118,3 +118,8 @@ if getattr(settings, "ENABLE_PRODUCTS_API", False):
     urlpatterns += [
         path("api/v1/", include("apps.products.api.urls")),
     ]
+
+if getattr(settings, "ENABLE_OPERATIONS_API", False):
+    urlpatterns += [
+        path("api/v1/", include("apps.operations.api.urls")),
+    ]

@@ -373,6 +373,7 @@ def serialize_sku(sku: SKU) -> dict[str, Any]:
         "barcode": sku.barcode,
         "channels": [
             {
+                "public_id": str(config.public_id),
                 "channel_code": config.channel_code,
                 "channel_status": config.channel_status,
             }

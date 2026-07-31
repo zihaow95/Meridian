@@ -18,7 +18,11 @@ from django.utils import timezone
 from rest_framework.test import APIClient
 
 from apps.authorization.context import AuthorizationSubject, ResourceDescriptor
-from apps.authorization.models.assignment import RoleAssignment, ScopeType
+from apps.authorization.models.assignment import (
+    RoleAssignment,
+    ScopeType,
+    build_scope_key,
+)
 from apps.authorization.models.role import (
     ActionCategory,
     DataSensitivityLevel,
@@ -83,17 +87,24 @@ def grant_action(db: None):
             role=role,
             action=action,
             defaults={
-                "max_data_level": DataSensitivityLevel.INTERNAL,
+                # Cover sensitive operating resources when an action is explicitly granted.
+                "max_data_level": DataSensitivityLevel.HIGHLY_SENSITIVE,
                 "requires_object_scope": False,
             },
         )
+        scope_id = user.organization_id
+        scope_key = build_scope_key(scope_type=ScopeType.ORGANIZATION, scope_id=scope_id)
         RoleAssignment.objects.get_or_create(
             user=user,
             role=role,
+            scope_type=ScopeType.ORGANIZATION,
+            scope_key=scope_key,
             defaults={
-                "scope_type": ScopeType.ORGANIZATION,
+                "scope_id": scope_id,
                 "effective_from": timezone.now(),
                 "configured_by": user,
+                "status": "ACTIVE",
+                "active_slot": 1,
             },
         )
 
@@ -127,22 +138,28 @@ def another_active_user(organization: Organization, db: None) -> User:
 
 @pytest.fixture
 def platform_admin_role(db: None) -> Role:
-    role = Role.objects.create(
+    role, _ = Role.objects.get_or_create(
         role_code="SYSTEM_ADMIN",
-        name="System Administrator",
-        role_type=RoleType.PLATFORM,
-        is_critical=True,
+        defaults={
+            "name": "System Administrator",
+            "role_type": RoleType.PLATFORM,
+            "is_critical": True,
+        },
     )
-    action = PermissionAction.objects.create(
+    action, _ = PermissionAction.objects.get_or_create(
         action_code="platform.settings.read",
-        resource_type="platform",
-        action_category=ActionCategory.READ,
+        defaults={
+            "resource_type": "platform",
+            "action_category": ActionCategory.READ,
+        },
     )
-    RolePermission.objects.create(
+    RolePermission.objects.get_or_create(
         role=role,
         action=action,
-        max_data_level=DataSensitivityLevel.INTERNAL,
-        requires_object_scope=False,
+        defaults={
+            "max_data_level": DataSensitivityLevel.INTERNAL,
+            "requires_object_scope": False,
+        },
     )
     return role
 
@@ -177,12 +194,32 @@ def platform_admin_user(
         max_data_level=DataSensitivityLevel.INTERNAL,
         requires_object_scope=False,
     )
+    role_revoke_action, _ = PermissionAction.objects.get_or_create(
+        action_code="authorization.role.revoke",
+        defaults={
+            "resource_type": "authorization.role",
+            "action_category": ActionCategory.ADMIN,
+        },
+    )
+    RolePermission.objects.get_or_create(
+        role=platform_admin_role,
+        action=role_revoke_action,
+        defaults={
+            "max_data_level": DataSensitivityLevel.INTERNAL,
+            "requires_object_scope": False,
+        },
+    )
+    scope_id = admin.organization_id
     RoleAssignment.objects.create(
         user=admin,
         role=platform_admin_role,
         scope_type=ScopeType.ORGANIZATION,
+        scope_id=scope_id,
+        scope_key=build_scope_key(scope_type=ScopeType.ORGANIZATION, scope_id=scope_id),
         effective_from=timezone.now(),
         configured_by=admin,
+        status="ACTIVE",
+        active_slot=1,
     )
     return admin
 

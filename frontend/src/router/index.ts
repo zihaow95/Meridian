@@ -22,6 +22,11 @@ import ProductChangeSetView from '@/modules/products/ProductChangeSetView.vue'
 import ProductImportPage from '@/modules/products/ProductImportPage.vue'
 import ProjectLifecycleBoardView from '@/modules/projects/LifecycleBoardView.vue'
 import ProjectWorkbenchView from '@/modules/projects/ProjectWorkbenchView.vue'
+import OperatingDashboardPage from '@/modules/operations/OperatingDashboardPage.vue'
+import OperatingDataBatchPage from '@/modules/operations/OperatingDataBatchPage.vue'
+import RiskSignalCenterPage from '@/modules/operations/RiskSignalCenterPage.vue'
+import OperatingIssuePage from '@/modules/operations/OperatingIssuePage.vue'
+import RetirementPlanPage from '@/modules/operations/RetirementPlanPage.vue'
 
 const routes: RouteRecordRaw[] = [
   { path: '/', redirect: '/todos' },
@@ -71,6 +76,27 @@ const routes: RouteRecordRaw[] = [
   {
     path: '/projects/:publicId/launch-gate',
     component: ProjectWorkbenchView,
+    meta: { requiresAuth: true },
+  },
+  { path: '/operations', component: OperatingDashboardPage, meta: { requiresAuth: true } },
+  {
+    path: '/operations/data-batches',
+    component: OperatingDataBatchPage,
+    meta: { requiresAuth: true },
+  },
+  {
+    path: '/operations/risk-signals',
+    component: RiskSignalCenterPage,
+    meta: { requiresAuth: true },
+  },
+  {
+    path: '/operations/issues/:publicId',
+    component: OperatingIssuePage,
+    meta: { requiresAuth: true },
+  },
+  {
+    path: '/retirement-plans/:publicId',
+    component: RetirementPlanPage,
     meta: { requiresAuth: true },
   },
   { path: '/documents/:publicId', component: AccessDeniedView, meta: { requiresAuth: true } },

@@ -97,9 +97,17 @@ onMounted(load)
             <span>{{ products.detail.category_code }}</span>
           </p>
         </div>
-        <el-button data-test="start-iteration" type="primary" @click="startIteration">
-          发起迭代
-        </el-button>
+        <div class="product-detail__actions">
+          <el-button
+            data-test="open-operations"
+            @click="router.push(`/operations?product=${products.detail.public_id}`)"
+          >
+            经营看板
+          </el-button>
+          <el-button data-test="start-iteration" type="primary" @click="startIteration">
+            发起迭代
+          </el-button>
+        </div>
       </div>
       <p v-if="products.detail.formula_summary" data-test="formula-summary">
         {{ products.detail.formula_summary }}
@@ -170,6 +178,11 @@ onMounted(load)
   justify-content: space-between;
   gap: 1rem;
   align-items: flex-start;
+}
+
+.product-detail__actions {
+  display: flex;
+  gap: 0.75rem;
 }
 
 .product-detail__meta {

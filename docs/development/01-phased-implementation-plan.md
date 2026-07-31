@@ -301,7 +301,7 @@ docker compose -f deploy/compose/compose.dev.yml config
 
 ## 7. 阶段4：开发到首次上市
 
-**状态：** 进行中 / 尚未完成（2026-07-14 建立执行基线；`scripts\check.cmd` 复验通过，EXE 实现与阶段退出尚未完成）
+**状态：** 已完成（GO，2026-07-20）；见 [`phase-4-checkpoint.md`](../implementation/phase-4-checkpoint.md)。阶段5分支自 tip `edd50ce`。
 
 **任务级计划：** [`docs/superpowers/plans/2026-07-14-phase-4-development-first-launch.md`](../superpowers/plans/2026-07-14-phase-4-development-first-launch.md)
 
@@ -340,6 +340,14 @@ docker compose -f deploy/compose/compose.dev.yml config
 - [ ] 提交：`feat: complete launch and handover workflow`
 
 ## 8. 阶段5：运营、迭代和退市
+
+**状态：** 已完成（GO，2026-07-29）；见 [`phase-5-checkpoint.md`](../implementation/phase-5-checkpoint.md)。全量门禁与 Standards / Spec 双轴终审均通过；阶段6尚未开始。
+
+**任务级计划：** [`docs/superpowers/plans/2026-07-20-phase-5-operations-iteration-retirement.md`](../superpowers/plans/2026-07-20-phase-5-operations-iteration-retirement.md)
+
+**测试矩阵：** [`docs/implementation/phase-5-test-matrix.md`](../implementation/phase-5-test-matrix.md)
+
+任务切片以任务级计划 Task 5.0—5.10 与 PR1—PR7 为准（监控配置 → 接入事实 → 汇总风险 → 议题迭代 → 退市 → API → 前端/E2E）。下方保留主计划摘要，便于跨阶段导航。
 
 ### Task 5.1：经营事实、指标和风险信号
 

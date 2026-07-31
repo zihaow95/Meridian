@@ -27,6 +27,18 @@ if (Test-Path $EnvFile) {
     }
 }
 
+# Force a user-writable npm cache AFTER .env load so a misconfigured
+# Program Files / sandbox cache path cannot override it (Windows EPERM -4048).
+foreach ($name in @(
+        'npm_config_devdir', 'NPM_CONFIG_DEVDIR',
+        'npm_config_cache', 'NPM_CONFIG_CACHE'
+    )) {
+    Remove-Item "Env:$name" -ErrorAction SilentlyContinue
+}
+$writableNpmCache = Join-Path $env:LOCALAPPDATA 'npm-cache'
+New-Item -ItemType Directory -Force -Path $writableNpmCache | Out-Null
+$env:npm_config_cache = $writableNpmCache
+
 $script:StepNo = 0
 
 function Invoke-Native {
@@ -43,6 +55,42 @@ function Invoke-Native {
         & $Action
         if ($LASTEXITCODE -ne $null -and $LASTEXITCODE -ne 0) {
             throw ("step failed (exit {0}): {1}" -f $LASTEXITCODE, $Title)
+        }
+    }
+    finally {
+        Pop-Location
+    }
+}
+
+function Invoke-NpmCi {
+    param(
+        [Parameter(Mandatory)][string]$Title,
+        [Parameter(Mandatory)][string]$WorkDir,
+        [int]$MaxAttempts = 3
+    )
+    # Windows often returns -4048 (EPERM) when node_modules is locked mid-replace.
+    $script:StepNo++
+    Write-Host ""
+    Write-Host ("=== [{0}] {1} ===" -f $script:StepNo, $Title) -ForegroundColor Cyan
+    Push-Location $WorkDir
+    try {
+        $attempt = 1
+        while ($true) {
+            if (Test-Path 'node_modules') {
+                cmd /c "rmdir /s /q node_modules" | Out-Null
+            }
+            npm.cmd ci
+            if ($LASTEXITCODE -eq $null -or $LASTEXITCODE -eq 0) {
+                return
+            }
+            $code = $LASTEXITCODE
+            $isEperm = ($code -eq -4048) -or ($code -eq 4294963248)
+            if (-not $isEperm -or $attempt -ge $MaxAttempts) {
+                throw ("step failed (exit {0}): {1}" -f $code, $Title)
+            }
+            Write-Host ("Retrying {0} after Windows EPERM ({1}/{2})..." -f $Title, $attempt, $MaxAttempts) -ForegroundColor Yellow
+            Start-Sleep -Seconds (2 * $attempt)
+            $attempt++
         }
     }
     finally {
@@ -74,6 +122,9 @@ try {
     Invoke-Native 'Backend: migration drift' {
         uv run python manage.py makemigrations --check --dry-run --settings=config.settings.test
     } $backend
+    Invoke-Native 'Backend: clean E2E seed' {
+        uv run python 'tests\identity\verify_e2e_seed_cold_start.py'
+    } $backend
     Invoke-Native 'Backend: pytest (MySQL)' { uv run pytest -q } $backend
     Invoke-Native 'Backend: OpenAPI drift' {
         $spectacularOutput = uv run python manage.py spectacular --file openapi/schema.yaml --validate --settings=config.settings.test 2>&1 | Out-String
@@ -86,7 +137,7 @@ try {
 
     # 4. Frontend gates.
     $frontend = Join-Path $RepoRoot 'frontend'
-    Invoke-Native 'Frontend: npm ci' { npm.cmd ci } $frontend
+    Invoke-NpmCi 'Frontend: npm ci' $frontend
     Invoke-Native 'Frontend: lint' { npm.cmd run lint } $frontend
     Invoke-Native 'Frontend: format check' { npm.cmd run format:check } $frontend
     Invoke-Native 'Frontend: typecheck' { npm.cmd run typecheck } $frontend
@@ -99,11 +150,11 @@ try {
 
     # 5. E2E: platform kernel + phase 2 opportunity-to-project (backend + frontend dev servers).
     $e2e = Join-Path $RepoRoot 'tests/e2e'
-    Invoke-Native 'E2E: install deps' { npm.cmd ci } $e2e
+    Invoke-NpmCi 'E2E: install deps' $e2e
     Invoke-Native 'E2E: Playwright browser' { npx playwright install chromium } $e2e
     Invoke-Native 'E2E: platform kernel, phase 2, and phase 3 product profile' {
         $env:CI = 'true'
-        npx playwright test platform-kernel.spec.ts opportunity-to-project.spec.ts product-profile-migration.spec.ts development-first-launch.spec.ts
+        npx playwright test platform-kernel.spec.ts opportunity-to-project.spec.ts product-profile-migration.spec.ts development-first-launch.spec.ts operations-iteration-retirement.spec.ts
     } $e2e
 
     # 6. Docker image builds.

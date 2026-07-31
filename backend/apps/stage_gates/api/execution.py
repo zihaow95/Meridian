@@ -20,6 +20,10 @@ from apps.stage_gates.services.record_first_launch_decision import (
     RecordFirstLaunchManagementConclusion,
 )
 from apps.stage_gates.services.record_normal_decision import RecordNormalGateDecision
+from apps.stage_gates.services.record_retirement_decision import (
+    RecordRetirementFinalDecision,
+    RecordRetirementManagementConclusion,
+)
 from apps.stage_gates.services.submit_execution_gate import SubmitExecutionGate
 from apps.stage_gates.services.validate_execution_gate import ValidateExecutionGate
 
@@ -49,6 +53,24 @@ FIRST_LAUNCH_MANAGEMENT_REQUEST = inline_serializer(
 
 FIRST_LAUNCH_FINAL_REQUEST = inline_serializer(
     name="FirstLaunchFinalRequest",
+    fields={
+        "final_decision": serializers.CharField(),
+        "decision_summary": serializers.CharField(required=False),
+        "idempotency_key": serializers.CharField(),
+    },
+)
+
+RETIREMENT_MANAGEMENT_REQUEST = inline_serializer(
+    name="RetirementManagementRequest",
+    fields={
+        "management_conclusion": serializers.CharField(),
+        "decision_summary": serializers.CharField(required=False),
+        "idempotency_key": serializers.CharField(),
+    },
+)
+
+RETIREMENT_FINAL_REQUEST = inline_serializer(
+    name="RetirementFinalRequest",
     fields={
         "final_decision": serializers.CharField(),
         "decision_summary": serializers.CharField(required=False),
@@ -225,6 +247,68 @@ class StageGateFirstLaunchFinalDecisionView(APIView):
                 "project_status": (
                     result.handover.project.status if result.handover is not None else None
                 ),
+            },
+            status=201,
+        )
+
+
+class StageGateRetirementManagementConclusionView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    @extend_schema(
+        operation_id="stage_gates_retirement_management_conclusion_create",
+        request=RETIREMENT_MANAGEMENT_REQUEST,
+        responses={201: GATE_DECISION_RESPONSE},
+    )
+    def post(self, request: Request, public_id: UUID) -> Response:
+        user = cast(User, request.user)
+        management_conclusion = str(request.data.get("management_conclusion") or "")
+        idempotency_key = str(request.data.get("idempotency_key") or "").strip()
+        if not management_conclusion or not idempotency_key:
+            raise ValidationFailedError(
+                message="management_conclusion and idempotency_key are required."
+            )
+        result = RecordRetirementManagementConclusion(
+            context=CommandContext.for_actor(user),
+            stage_gate_public_id=public_id,
+            management_conclusion=management_conclusion,
+            decision_summary=str(request.data.get("decision_summary") or ""),
+            idempotency_key=idempotency_key,
+        ).execute()
+        return Response(
+            {
+                "decision_public_id": str(result.decision.public_id),
+                "management_conclusion": result.decision.management_conclusion,
+            },
+            status=201,
+        )
+
+
+class StageGateRetirementFinalDecisionView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    @extend_schema(
+        operation_id="stage_gates_retirement_final_decision_create",
+        request=RETIREMENT_FINAL_REQUEST,
+        responses={201: GATE_DECISION_RESPONSE},
+    )
+    def post(self, request: Request, public_id: UUID) -> Response:
+        user = cast(User, request.user)
+        final_decision = str(request.data.get("final_decision") or "")
+        idempotency_key = str(request.data.get("idempotency_key") or "").strip()
+        if not final_decision or not idempotency_key:
+            raise ValidationFailedError(message="final_decision and idempotency_key are required.")
+        result = RecordRetirementFinalDecision(
+            context=CommandContext.for_actor(user),
+            stage_gate_public_id=public_id,
+            final_decision=final_decision,
+            decision_summary=str(request.data.get("decision_summary") or ""),
+            idempotency_key=idempotency_key,
+        ).execute()
+        return Response(
+            {
+                "decision_public_id": str(result.decision.public_id),
+                "final_decision": result.decision.final_decision,
             },
             status=201,
         )

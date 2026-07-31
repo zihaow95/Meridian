@@ -10,7 +10,12 @@ from django.utils import timezone
 
 from apps.identity.models.organization import Organization
 from apps.identity.models.user import User, UserStatus
-from apps.operations.models import MonitoringScope
+from apps.operations.models import (
+    MonitoringAssignment,
+    MonitoringAssignmentStatus,
+    MonitoringScope,
+    MonitoringScopeType,
+)
 from apps.platform.application.command import CommandContext
 from apps.products.models import (
     ChangeSetStatus,
@@ -174,6 +179,13 @@ def test_approved_first_launch_publishes_and_hands_over(
     assert draft.status == ChangeSetStatus.PUBLISHED
     assert ProductVersion.objects.filter(change_set=draft).count() == 1
     assert MonitoringScope.objects.filter(project=project).count() == 1
+    scope = MonitoringScope.objects.get(project=project)
+    assignments = MonitoringAssignment.objects.filter(monitoring_scope=scope)
+    assert assignments.count() == 1
+    assignment = assignments.get()
+    assert assignment.scope_type == MonitoringScopeType.PRODUCT
+    assert assignment.status == MonitoringAssignmentStatus.ACTIVE
+    assert assignment.product_id == project.product_asset_id
     assert project.status == ProjectStatus.OPERATING
     assert project.product_asset.lifecycle_status == ProductLifecycleStatus.ACTIVE
 
@@ -260,4 +272,12 @@ def test_repair_retry_publishes_idempotently(
     assert first.product_version.public_id == second.product_version.public_id
     assert ProductVersion.objects.filter(change_set=draft).count() == 1
     assert MonitoringScope.objects.filter(project=project).count() == 1
+    assert (
+        MonitoringAssignment.objects.filter(
+            monitoring_scope__project=project,
+            scope_type=MonitoringScopeType.PRODUCT,
+            status=MonitoringAssignmentStatus.ACTIVE,
+        ).count()
+        == 1
+    )
     assert project.status == ProjectStatus.OPERATING

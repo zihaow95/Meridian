@@ -68,14 +68,22 @@ def test_special_grant_allows_grantee_to_read_resource(
     )
     from django.utils import timezone
 
-    from apps.authorization.models.assignment import RoleAssignment, ScopeType
+    from apps.authorization.models.assignment import (
+        RoleAssignment,
+        ScopeType,
+        build_scope_key,
+    )
 
     RoleAssignment.objects.create(
         user=active_user,
         role=role,
         scope_type=ScopeType.ORGANIZATION,
+        scope_id=organization.id,
+        scope_key=build_scope_key(scope_type=ScopeType.ORGANIZATION, scope_id=organization.id),
         effective_from=timezone.now(),
         configured_by=active_user,
+        status="ACTIVE",
+        active_slot=1,
     )
 
     resource_id = uuid4()

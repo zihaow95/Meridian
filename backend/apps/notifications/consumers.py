@@ -15,7 +15,7 @@ class TodoProjectionConsumer:
         UpsertOpenTodo(event=todo_event).execute()
 
 
-def local_consumer_registry() -> dict[str, tuple[str, OutboxConsumer]]:
+def local_consumer_registry() -> dict[str, list[tuple[str, OutboxConsumer]]]:
     return {
-        "todo.requested": ("todo_projection", TodoProjectionConsumer()),
+        "todo.requested": [("todo_projection", TodoProjectionConsumer())],
     }

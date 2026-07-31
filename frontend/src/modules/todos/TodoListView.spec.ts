@@ -3,6 +3,12 @@ import { mount } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
 import { defineComponent, h } from 'vue'
 
+const push = vi.fn()
+
+vi.mock('vue-router', () => ({
+  useRouter: () => ({ push }),
+}))
+
 vi.mock('@/api/client', async () => {
   const actual = await vi.importActual<typeof import('@/api/client')>('@/api/client')
   return { ...actual, apiFetch: vi.fn() }
@@ -55,6 +61,7 @@ describe('TodoListView', () => {
   beforeEach(() => {
     setActivePinia(createPinia())
     vi.mocked(apiFetch).mockReset()
+    push.mockReset()
   })
 
   it('renders todos returned by the API', async () => {
@@ -87,5 +94,79 @@ describe('TodoListView', () => {
     await flush()
     expect(wrapper.find('.alert').text()).toContain('RESOURCE_NOT_FOUND')
     expect(wrapper.find('.alert').text()).toContain('trace-xyz')
+  })
+
+  it('uses SPA navigation for operations and retirement deep links', async () => {
+    vi.mocked(apiFetch).mockResolvedValue([
+      {
+        public_id: '1',
+        title: 'Ops',
+        status: 'OPEN',
+        due_at: null,
+        deep_link: '/operations/issues/issue-1',
+      },
+    ])
+    const assign = vi.fn()
+    vi.stubGlobal('location', { ...window.location, assign })
+
+    const opsStubs = {
+      ...stubs,
+      'el-table-column': defineComponent({
+        name: 'ElTableColumnStub',
+        setup(_, { slots }) {
+          return () =>
+            h(
+              'div',
+              slots.default?.({
+                row: {
+                  deep_link: '/operations/issues/issue-1',
+                  title: 't',
+                  status: 'OPEN',
+                },
+              }),
+            )
+        },
+      }),
+    }
+    const opsWrapper = mount(TodoListView, {
+      global: {
+        stubs: opsStubs,
+        directives: { loading: () => {} },
+      },
+    })
+    await flush()
+    await opsWrapper.get('[data-test="open-todo"]').trigger('click')
+    expect(push).toHaveBeenCalledWith('/operations/issues/issue-1')
+
+    push.mockReset()
+    const retirementStubs = {
+      ...stubs,
+      'el-table-column': defineComponent({
+        name: 'ElTableColumnStub',
+        setup(_, { slots }) {
+          return () =>
+            h(
+              'div',
+              slots.default?.({
+                row: {
+                  deep_link: '/retirement-plans/plan-1',
+                  title: 't',
+                  status: 'OPEN',
+                },
+              }),
+            )
+        },
+      }),
+    }
+    const retirementWrapper = mount(TodoListView, {
+      global: {
+        stubs: retirementStubs,
+        directives: { loading: () => {} },
+      },
+    })
+    await flush()
+    await retirementWrapper.get('[data-test="open-todo"]').trigger('click')
+    expect(push).toHaveBeenCalledWith('/retirement-plans/plan-1')
+    expect(assign).not.toHaveBeenCalled()
   })
 })

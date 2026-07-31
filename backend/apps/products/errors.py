@@ -75,3 +75,11 @@ class ExternalBindingConflict(ApiError):
     code = "EXTERNAL_BINDING_CONFLICT"
     message = "The external identifier is already bound to another internal object."
     status_code = 409
+
+
+class RetirementScopeMismatch(ApiError):
+    code = "RETIREMENT_SCOPE_INVALID"
+    message = (
+        "One or more retirement scope IDs do not resolve to this organization's product hierarchy."
+    )
+    status_code = 409
