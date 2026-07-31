@@ -41,6 +41,10 @@ class ReviewAdminChange:
     actor: User
     request: AdminChangeRequest
     context: CommandContext | None = None
+    # Domains reuse this state machine under their own action so that reviewing
+    # one kind of change does not grant generic administrative review authority.
+    action_code: str = "authorization.admin_change.review"
+    resource_type: str = "authorization.admin_change_request"
 
     def approve(self) -> AdminChangeRequest:
         return self._review(decision=AdminChangeStatus.APPROVED)
@@ -62,9 +66,9 @@ class ReviewAdminChange:
         with transaction.atomic():
             auth_decision = authorize(
                 subject_for(self.actor),
-                action="authorization.admin_change.review",
+                action=self.action_code,
                 resource=ResourceDescriptor(
-                    resource_type="authorization.admin_change_request",
+                    resource_type=self.resource_type,
                     public_id=self.request.public_id,
                     organization_id=self.actor.organization_id,
                 ),
@@ -80,8 +84,8 @@ class ReviewAdminChange:
             append_event(
                 AuditRecord(
                     actor=command_context.actor,
-                    action_code="authorization.admin_change.review",
-                    resource_type="authorization.admin_change_request",
+                    action_code=self.action_code,
+                    resource_type=self.resource_type,
                     resource_public_id=self.request.public_id,
                     result=AuditResult.SUCCESS,
                     trace_id=command_context.trace_id,

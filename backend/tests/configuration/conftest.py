@@ -39,3 +39,19 @@ def published_version(
     draft_version: ConfigurationVersion, active_user: User
 ) -> ConfigurationVersion:
     return PublishVersion(version=draft_version, actor=active_user).execute()
+
+
+@pytest.fixture
+def draft_of(active_user: User):
+    """Draft the reference content for any definition, bypassing the HTTP layer."""
+
+    def _draft(definition: ConfigurationDefinition, content: dict | None = None):
+        from tests.configuration.test_configuration_publication_api import catalog_content
+
+        return CreateDraft(
+            actor=active_user,
+            definition=definition,
+            content=content if content is not None else catalog_content(),
+        ).execute()
+
+    return _draft

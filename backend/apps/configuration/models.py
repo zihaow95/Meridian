@@ -57,6 +57,9 @@ class ConfigurationVersion(OrganizationOwnedModel):
     content_json = models.JSONField(default=dict)
     content_digest = models.CharField(max_length=64, blank=True)
     scope_json = models.JSONField(default=dict)
+    # Occupied (value 1) only while this version is the published one. MySQL
+    # ignores conditional unique constraints, so the slot carries the rule.
+    current_published_slot = models.PositiveSmallIntegerField(null=True, blank=True)
     created_by = models.ForeignKey(
         User,
         on_delete=models.PROTECT,
@@ -81,7 +84,11 @@ class ConfigurationVersion(OrganizationOwnedModel):
             models.UniqueConstraint(
                 fields=["definition", "version_number"],
                 name="configuration_version_def_num_uniq",
-            )
+            ),
+            models.UniqueConstraint(
+                fields=["definition", "current_published_slot"],
+                name="configuration_version_published_slot_uniq",
+            ),
         ]
         indexes = [
             models.Index(fields=["definition", "status"]),

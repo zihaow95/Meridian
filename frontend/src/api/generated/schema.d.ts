@@ -166,6 +166,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/configurations/definitions/{definition_code}/drafts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["configuration_drafts_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/configurations/definitions/{definition_code}/versions": {
         parameters: {
             query?: never;
@@ -176,6 +192,70 @@ export interface paths {
         get: operations["configuration_versions_list"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/configurations/publication-requests": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["configuration_publication_requests_list"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/configurations/publication-requests/{public_id}/review": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["configuration_publication_requests_review"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/configurations/versions/{public_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["configuration_versions_retrieve"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/configurations/versions/{public_id}/publication-requests": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["configuration_publication_requests_create"];
         delete?: never;
         options?: never;
         head?: never;
@@ -2091,6 +2171,46 @@ export interface components {
             name: string;
             description: string;
         };
+        ConfigurationDraftCreateRequest: {
+            content: unknown;
+            scope?: unknown;
+        };
+        ConfigurationDraftCreateResponse: {
+            public_id: string;
+            version_number: number;
+            status: string;
+        };
+        ConfigurationPublicationRequestListItem: {
+            public_id: string;
+            definition_code: string;
+            version_public_id: string;
+            version_number: number;
+            proposed_by: string;
+            status: string;
+            expires_at: string;
+        };
+        ConfigurationPublicationRequestResponse: {
+            public_id: string;
+            status: string;
+            version_public_id: string;
+        };
+        ConfigurationPublicationReviewRequest: {
+            decision: string;
+        };
+        ConfigurationPublicationReviewResponse: {
+            public_id: string;
+            status: string;
+        };
+        ConfigurationVersionDetail: {
+            public_id: string;
+            definition_code: string;
+            version_number: number;
+            status: string;
+            content_digest: string;
+            content_json: unknown;
+            validation_errors: string[];
+            diff_summary: unknown;
+        };
         ConfigurationVersionListItem: {
             public_id: string;
             version_number: number;
@@ -3522,6 +3642,33 @@ export interface operations {
             };
         };
     };
+    configuration_drafts_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                definition_code: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ConfigurationDraftCreateRequest"];
+                "application/x-www-form-urlencoded": components["schemas"]["ConfigurationDraftCreateRequest"];
+                "multipart/form-data": components["schemas"]["ConfigurationDraftCreateRequest"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConfigurationDraftCreateResponse"];
+                };
+            };
+        };
+    };
     configuration_versions_list: {
         parameters: {
             query?: never;
@@ -3539,6 +3686,94 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ConfigurationVersionListItem"][];
+                };
+            };
+        };
+    };
+    configuration_publication_requests_list: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConfigurationPublicationRequestListItem"][];
+                };
+            };
+        };
+    };
+    configuration_publication_requests_review: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                public_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ConfigurationPublicationReviewRequest"];
+                "application/x-www-form-urlencoded": components["schemas"]["ConfigurationPublicationReviewRequest"];
+                "multipart/form-data": components["schemas"]["ConfigurationPublicationReviewRequest"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConfigurationPublicationReviewResponse"];
+                };
+            };
+        };
+    };
+    configuration_versions_retrieve: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                public_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConfigurationVersionDetail"];
+                };
+            };
+        };
+    };
+    configuration_publication_requests_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                public_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConfigurationPublicationRequestResponse"];
                 };
             };
         };

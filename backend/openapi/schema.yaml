@@ -193,6 +193,38 @@ paths:
                 items:
                   $ref: '#/components/schemas/ConfigurationDefinitionListItem'
           description: ''
+  /api/v1/configurations/definitions/{definition_code}/drafts:
+    post:
+      operationId: configuration_drafts_create
+      parameters:
+      - in: path
+        name: definition_code
+        schema:
+          type: string
+        required: true
+      tags:
+      - configurations
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ConfigurationDraftCreateRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/ConfigurationDraftCreateRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/ConfigurationDraftCreateRequest'
+        required: true
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConfigurationDraftCreateResponse'
+          description: ''
   /api/v1/configurations/definitions/{definition_code}/versions:
     get:
       operationId: configuration_versions_list
@@ -214,6 +246,97 @@ paths:
                 type: array
                 items:
                   $ref: '#/components/schemas/ConfigurationVersionListItem'
+          description: ''
+  /api/v1/configurations/publication-requests:
+    get:
+      operationId: configuration_publication_requests_list
+      tags:
+      - configurations
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ConfigurationPublicationRequestListItem'
+          description: ''
+  /api/v1/configurations/publication-requests/{public_id}/review:
+    post:
+      operationId: configuration_publication_requests_review
+      parameters:
+      - in: path
+        name: public_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - configurations
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ConfigurationPublicationReviewRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/ConfigurationPublicationReviewRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/ConfigurationPublicationReviewRequest'
+        required: true
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConfigurationPublicationReviewResponse'
+          description: ''
+  /api/v1/configurations/versions/{public_id}:
+    get:
+      operationId: configuration_versions_retrieve
+      parameters:
+      - in: path
+        name: public_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - configurations
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConfigurationVersionDetail'
+          description: ''
+  /api/v1/configurations/versions/{public_id}/publication-requests:
+    post:
+      operationId: configuration_publication_requests_create
+      parameters:
+      - in: path
+        name: public_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - configurations
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConfigurationPublicationRequestResponse'
           description: ''
   /api/v1/configurations/versions/{public_id}/publish:
     post:
@@ -3699,6 +3822,110 @@ components:
       - definition_code
       - description
       - name
+    ConfigurationDraftCreateRequest:
+      type: object
+      properties:
+        content: {}
+        scope: {}
+      required:
+      - content
+    ConfigurationDraftCreateResponse:
+      type: object
+      properties:
+        public_id:
+          type: string
+        version_number:
+          type: integer
+        status:
+          type: string
+      required:
+      - public_id
+      - status
+      - version_number
+    ConfigurationPublicationRequestListItem:
+      type: object
+      properties:
+        public_id:
+          type: string
+        definition_code:
+          type: string
+        version_public_id:
+          type: string
+        version_number:
+          type: integer
+        proposed_by:
+          type: string
+        status:
+          type: string
+        expires_at:
+          type: string
+      required:
+      - definition_code
+      - expires_at
+      - proposed_by
+      - public_id
+      - status
+      - version_number
+      - version_public_id
+    ConfigurationPublicationRequestResponse:
+      type: object
+      properties:
+        public_id:
+          type: string
+        status:
+          type: string
+        version_public_id:
+          type: string
+      required:
+      - public_id
+      - status
+      - version_public_id
+    ConfigurationPublicationReviewRequest:
+      type: object
+      properties:
+        decision:
+          type: string
+      required:
+      - decision
+    ConfigurationPublicationReviewResponse:
+      type: object
+      properties:
+        public_id:
+          type: string
+        status:
+          type: string
+      required:
+      - public_id
+      - status
+    ConfigurationVersionDetail:
+      type: object
+      properties:
+        public_id:
+          type: string
+        definition_code:
+          type: string
+        version_number:
+          type: integer
+        status:
+          type: string
+        content_digest:
+          type: string
+        content_json:
+          nullable: true
+        validation_errors:
+          type: array
+          items:
+            type: string
+        diff_summary: {}
+      required:
+      - content_digest
+      - content_json
+      - definition_code
+      - diff_summary
+      - public_id
+      - status
+      - validation_errors
+      - version_number
     ConfigurationVersionListItem:
       type: object
       properties:

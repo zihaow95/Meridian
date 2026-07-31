@@ -160,18 +160,19 @@ notifications.Todo: (models.W036) MySQL does not support unique constraints with
 
 **Interfaces:** `CreateConfigurationDraft(context, definition_code, content, scope)`, `RequestConfigurationPublication(context, version_public_id)`, `ReviewConfigurationPublication(context, request_public_id, decision)`, existing`CreateSnapshot(...)`。
 
-- [ ] 先写MySQL测试：`TECHNICAL_FILE_CATALOG`、`PRODUCT_MATERIAL_REQUIREMENTS`、`NOTIFICATION_TEMPLATE_CATALOG`、`NOTIFICATION_DELIVERY_POLICY`可创建草稿、校验和发布。
-- [ ] 技术目录schema定义目录项代码、名称、MIME、单文件上限、预览能力、默认敏感等级和保留约束；材料要求按产品分类/生命周期状态定义三态要求。
-- [ ] 通知模板定义模板代码、类别、默认等级、最小摘要和允许变量；策略定义类别×等级的站内规则，阶段6拒绝启用钉钉。
-- [ ] `authorization/0013`一次性登记第21节附录列出的全部新增动作；后续PR不得回改该迁移。动作写入**新建的`PHASE6_ACTIONS`元组**，不得追加进`PLATFORM_ACTIONS`/`PRODUCT_ACTIONS`——既有种子迁移`0003`/`0005`在运行时导入这些元组，追加会改变历史迁移在空库上的行为，且其反向操作会误删阶段6动作。
-- [ ] 现有`configuration.version.publish`直发入口改为只接受已批准变更请求，不允许绕过申请人与复核人分离。
-- [ ] 测试创建人不能复核自己的发布请求；复核人必须有动作权限；拒绝、过期和重复复核不发布。
-- [ ] 复用`AdminChangeRequest`及审计，不复制审批状态机；`business_confirmed`布尔值不再充当关键配置发布证据。
-- [ ] 补齐`AdminChangeRequest`缺失的接线：新增申请/复核HTTP API、实现`APPROVED → APPLIED`推进（当前无任何代码写入`APPLIED`）、让`dual_control_enabled()`真正生效（当前无调用方）。既有服务只有测试调用，不能假定生产可用。
-- [ ] 发布使用`select_for_update`；同定义只有一个当前PUBLISHED版本按第5.1节的哨兵列模式实现，禁止条件唯一约束；并发发布只有一个成功，并用直接插入冲突行的MySQL测试断言数据库拒绝。
-- [ ] 增加草稿详情、创建、发布申请和复核API；敏感正文按权限过滤。
-- [ ] 前端完成定义、版本、差异、校验错误、申请和复核最小闭环。
-- [ ] 运行配置/授权目标测试、mypy、OpenAPI与前端Vitest。
+- [x] 先写MySQL测试：`TECHNICAL_FILE_CATALOG`、`PRODUCT_MATERIAL_REQUIREMENTS`、`NOTIFICATION_TEMPLATE_CATALOG`、`NOTIFICATION_DELIVERY_POLICY`可创建草稿、校验和发布（`tests/configuration/test_phase6_definitions.py`）。
+- [x] 技术目录schema定义目录项代码、名称、MIME、单文件上限、预览能力、默认敏感等级和保留约束；材料要求按产品分类/生命周期状态定义三态要求。
+- [x] 通知模板定义模板代码、类别、默认等级、最小摘要和允许变量；策略定义类别×等级的站内规则，阶段6拒绝启用钉钉（`NOTIFICATION_CHANNELS`只含`IN_APP`，schema层面无法表达钉钉）。
+- [x] `authorization/0013`一次性登记第21节附录列出的全部新增动作；后续PR不得回改该迁移。动作写入**新建的`PHASE6_ACTIONS`元组**，不得追加进`PLATFORM_ACTIONS`/`PRODUCT_ACTIONS`——既有种子迁移`0003`/`0005`在运行时导入这些元组，追加会改变历史迁移在空库上的行为，且其反向操作会误删阶段6动作。`tests/authorization/test_phase6_actions.py`把附录清单固化为断言，防止后续PR回改。
+- [x] 现有`configuration.version.publish`直发入口改为只接受已批准变更请求，不允许绕过申请人与复核人分离。
+- [x] 测试创建人不能复核自己的发布请求；复核人必须有动作权限；拒绝、过期和重复复核不发布（`tests/configuration/test_dual_control_publish.py`）。
+- [x] 复用`AdminChangeRequest`及审计，不复制审批状态机；`business_confirmed`布尔值不再充当关键配置发布证据（`PublishVersion`改收`approved_request`）。
+- [x] 补齐`AdminChangeRequest`缺失的接线：新增申请/复核HTTP API、实现`APPROVED → APPLIED`推进、让`dual_control_enabled()`真正生效（`services/__init__.py:89`）。申请与复核走领域动作码`configuration.publication.request`/`review`，不复用平台通用复核权，避免通用复核权外溢到配置发布。
+- [x] 同定义只有一个当前PUBLISHED版本按第5.1节的哨兵列模式实现（`configuration/0004_current_published_slot.py`），禁止条件唯一约束；已用直接插入冲突行的MySQL测试断言数据库拒绝，并覆盖升级回填与重复数据停线。重复守卫必须在任何DDL之前执行，因为MySQL无法回滚已应用的DDL。
+- [ ] 并发直发的落败方语义（拒绝还是串行覆盖）暂缓裁决：双人复核落地后不存在绕过复核的并发直发路径，唯一约束继续作为兜底。复核环节实现时一并确定并补测。
+- [x] 增加草稿详情、创建、发布申请和复核API；敏感正文按权限过滤（无`configuration.content.read_sensitive`者只拿到摘要与状态，`content_json`为`null`）。
+- [x] 前端完成定义、版本、差异、校验错误、申请和复核最小闭环（`ConfigurationListView.spec.ts`，12例）。
+- [x] 运行配置/授权目标测试、mypy、OpenAPI与前端Vitest：`ruff check`/`ruff format --check`、`mypy config apps`（318文件0错）、`makemigrations --check`（无漂移）、`pytest -q`（550通过）、`spectacular --validate`、前端`lint`/`typecheck`/`vitest`（23文件71例）。本轮未运行：Playwright E2E、Docker镜像构建（属完整`scripts/check.ps1`范围）。
 - [ ] 提交：`feat: govern phase 6 configuration`。
 
 ## 9. Task 6.2：目录化文件上传与待整理资料
