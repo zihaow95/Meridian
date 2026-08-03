@@ -318,7 +318,7 @@ notifications.Todo: (models.W036) MySQL does not support unique constraints with
 - [x] 测试矩阵记录本轮真实命令、提交号和结果；未执行、环境阻塞和文档历史结果分栏披露。
 - [x] 检查点给出明确GO/NO-GO；只有全量门禁通过、代码审阅闭环和P0/P1为零才可进入阶段7。
 - [x] 明确阶段6 GO不代表真实用户试用开始，下一步只能是阶段7生产化收尾。
-- [ ] 提交：`docs: record phase 6 acceptance`。
+- [x] 提交：`docs: record phase 6 acceptance`。
 
 ## 17. 阶段6必须覆盖的权限与审计
 
