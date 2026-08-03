@@ -1,10 +1,37 @@
-import { expect, test } from '@playwright/test'
+import { expect, test, type Page } from '@playwright/test'
 
 const E2E_LOGIN_KEY = 'e2e-active-user'
 const E2E_APPROVER_LOGIN_KEY = 'e2e-approver-user'
 
+async function csrfHeaders(page: Page): Promise<Record<string, string>> {
+  await page.request.get('/api/v1/auth/csrf')
+  const cookies = await page.context().cookies()
+  const csrf = cookies.find((cookie) => cookie.name === 'csrftoken')?.value
+  return csrf ? { 'X-CSRFToken': csrf } : {}
+}
+
+async function authedJson(
+  page: Page,
+  method: 'POST' | 'PATCH' | 'GET',
+  url: string,
+  data?: unknown,
+) {
+  const headers: Record<string, string> = {
+    Accept: 'application/json',
+    ...(await csrfHeaders(page)),
+  }
+  if (data !== undefined) {
+    headers['Content-Type'] = 'application/json'
+  }
+  return page.request.fetch(url, {
+    method,
+    headers,
+    data: data === undefined ? undefined : data,
+  })
+}
+
 async function devLogin(
-  page: import('@playwright/test').Page,
+  page: Page,
   next: string,
   loginKey = E2E_LOGIN_KEY,
 ): Promise<void> {
@@ -14,8 +41,85 @@ async function devLogin(
   await page.waitForURL((url) => !url.pathname.startsWith('/login'))
 }
 
+async function attachApprovedProductLabel(page: Page, productPublicId: string): Promise<void> {
+  const stamp = Date.now()
+  const headers = await csrfHeaders(page)
+  const buffer = Buffer.from(`%PDF-1.4 phase3-e2e-label-${stamp}`)
+  const upload = await page.request.post('/api/v1/documents/uploads', {
+    headers,
+    multipart: {
+      file: {
+        name: `label-${stamp}.pdf`,
+        mimeType: 'application/pdf',
+        buffer,
+      },
+      original_filename: `label-${stamp}.pdf`,
+      declared_mime_type: 'application/pdf',
+      catalog_item_code: 'PRODUCT_LABEL',
+    },
+  })
+  expect(upload.status()).toBe(201)
+  const session = await upload.json()
+  const complete = await authedJson(
+    page,
+    'POST',
+    `/api/v1/documents/uploads/${session.public_id}/complete`,
+    {
+      document_code: `E2E-P3-${stamp}`,
+      title: 'E2E Phase3 Label',
+    },
+  )
+  expect(complete.ok()).toBeTruthy()
+  const versionPublicId = (await complete.json()).version_public_id as string
+
+  const submission = await authedJson(
+    page,
+    'POST',
+    `/api/v1/products/${productPublicId}/legacy-material-submissions`,
+    {
+      document_version_public_id: versionPublicId,
+      idempotency_key: `e2e-p3-sub-${stamp}`,
+      source_note: 'E2E import label',
+      claimed_version: 'V1',
+    },
+  )
+  expect(submission.status()).toBe(201)
+  const submissionBody = await submission.json()
+
+  const verified = await authedJson(
+    page,
+    'POST',
+    `/api/v1/legacy-materials/${submissionBody.public_id}/verify`,
+    { decision: 'VERIFIED', note: 'E2E verified' },
+  )
+  expect(verified.status()).toBe(200)
+
+  const chain = await authedJson(page, 'POST', `/api/v1/products/${productPublicId}/material-chains`, {
+    material_type_code: 'PRODUCT_LABEL',
+    ordered_submission_ids: [submissionBody.public_id],
+    current_submission_id: submissionBody.public_id,
+  })
+  expect(chain.status()).toBe(201)
+  const material = (await chain.json()).items[0]
+  const me = await (await page.request.get('/api/v1/me')).json()
+  const confirmation = await authedJson(
+    page,
+    'POST',
+    `/api/v1/product-materials/${material.public_id}/confirmations`,
+    { confirmer_public_id: me.public_id, comment: 'E2E confirm' },
+  )
+  expect(confirmation.status()).toBe(201)
+  const decided = await authedJson(
+    page,
+    'POST',
+    `/api/v1/material-confirmations/${(await confirmation.json()).public_id}/decide`,
+    { decision: 'APPROVED', comment: 'E2E approved' },
+  )
+  expect(decided.status()).toBe(200)
+}
+
 async function importAndPublishProduct(
-  page: import('@playwright/test').Page,
+  page: Page,
   productName: string,
   businessNo: string,
   barcode: string,
@@ -38,6 +142,17 @@ async function importAndPublishProduct(
   await page.locator('[data-test="confirm-import"]').click()
   await expect(page.locator('[data-test="import-status"]')).toContainText('已确认导入')
   await expect(page.locator('[data-test="import-report"]')).toBeVisible()
+
+  const listed = await page.request.get(
+    `/api/v1/products?search=${encodeURIComponent(businessNo)}`,
+  )
+  expect(listed.status()).toBe(200)
+  const product = ((await listed.json()).items as Array<{ public_id: string; business_no: string }>).find(
+    (row) => row.business_no === businessNo,
+  )
+  expect(product?.public_id).toBeTruthy()
+  await attachApprovedProductLabel(page, product!.public_id)
+
   await page.locator('[data-test="publish-baseline"]').click()
   await expect(page.locator('[data-test="import-status"]')).toContainText('基线已发布')
 }

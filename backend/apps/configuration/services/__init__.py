@@ -105,22 +105,42 @@ class CreateDraft:
     context: CommandContext | None = None
 
     def execute(self) -> ConfigurationVersion:
-        latest = (
-            ConfigurationVersion.objects.filter(definition=self.definition)
-            .order_by("-version_number")
-            .first()
-        )
-        next_version = 1 if latest is None else latest.version_number + 1
-        return ConfigurationVersion.objects.create(
-            organization=self.definition.organization,
-            definition=self.definition,
-            version_number=next_version,
-            status=ConfigurationStatus.DRAFT,
-            content_json=self.content,
-            content_digest=compute_content_digest(self.content),
-            scope_json=self.scope or {},
-            created_by=self.actor,
-        )
+        with transaction.atomic():
+            definition = (
+                ConfigurationDefinition.objects.select_for_update()
+                .filter(pk=self.definition.pk, organization_id=self.actor.organization_id)
+                .first()
+            )
+            if definition is None:
+                raise PermissionDeniedError()
+            auth_decision = authorize(
+                subject_for(self.actor),
+                action="configuration.draft.create",
+                resource=ResourceDescriptor(
+                    resource_type="configuration.version",
+                    public_id=None,
+                    organization_id=self.actor.organization_id,
+                ),
+                context=AuthorizationContext.current(),
+            )
+            if not auth_decision.allowed:
+                raise PermissionDeniedError()
+            latest = (
+                ConfigurationVersion.objects.filter(definition=definition)
+                .order_by("-version_number")
+                .first()
+            )
+            next_version = 1 if latest is None else latest.version_number + 1
+            return ConfigurationVersion.objects.create(
+                organization=definition.organization,
+                definition=definition,
+                version_number=next_version,
+                status=ConfigurationStatus.DRAFT,
+                content_json=self.content,
+                content_digest=compute_content_digest(self.content),
+                scope_json=self.scope or {},
+                created_by=self.actor,
+            )
 
 
 @dataclass(frozen=True)
@@ -130,20 +150,39 @@ class ValidateVersion:
     context: CommandContext | None = None
 
     def execute(self) -> ConfigurationVersion:
-        if self.version.status not in {ConfigurationStatus.DRAFT, ConfigurationStatus.FAILED}:
-            raise ValueError(f"Cannot validate version in status {self.version.status}")
+        with transaction.atomic():
+            version = (
+                ConfigurationVersion.objects.select_for_update()
+                .select_related("definition")
+                .filter(pk=self.version.pk, organization_id=self.actor.organization_id)
+                .first()
+            )
+            if version is None:
+                raise PermissionDeniedError()
+            auth_decision = authorize(
+                subject_for(self.actor),
+                action="configuration.draft.create",
+                resource=ResourceDescriptor(
+                    resource_type="configuration.version",
+                    public_id=version.public_id,
+                    organization_id=self.actor.organization_id,
+                ),
+                context=AuthorizationContext.current(),
+            )
+            if not auth_decision.allowed:
+                raise PermissionDeniedError()
+            if version.status not in {ConfigurationStatus.DRAFT, ConfigurationStatus.FAILED}:
+                raise ValueError(f"Cannot validate version in status {version.status}")
 
-        errors = validate_content(
-            self.version.definition.definition_code, self.version.content_json
-        )
-        self.version.status = ConfigurationStatus.VALIDATING
-        self.version.validation_errors = errors
-        if errors:
-            self.version.status = ConfigurationStatus.FAILED
-        self.version.save(update_fields=["status", "validation_errors", "updated_at"])
-        if errors:
-            raise ConfigurationValidationFailed(errors)
-        return self.version
+            errors = validate_content(version.definition.definition_code, version.content_json)
+            version.status = ConfigurationStatus.VALIDATING
+            version.validation_errors = errors
+            if errors:
+                version.status = ConfigurationStatus.FAILED
+            version.save(update_fields=["status", "validation_errors", "updated_at"])
+            if errors:
+                raise ConfigurationValidationFailed(errors)
+            return version
 
 
 @dataclass(frozen=True)
@@ -385,13 +424,33 @@ class CreateSnapshot:
     context: CommandContext | None = None
 
     def execute(self) -> ConfigurationSnapshot:
-        if self.version.status != ConfigurationStatus.PUBLISHED:
-            raise ValueError("Only published configuration versions can be snapshotted.")
-        return ConfigurationSnapshot.objects.create(
-            organization=self.version.organization,
-            version=self.version,
-            content_copy=self.version.content_json,
-            content_hash=self.version.content_digest,
-            reference_type=self.reference_type,
-            reference_id=self.reference_id,
-        )
+        with transaction.atomic():
+            version = (
+                ConfigurationVersion.objects.select_for_update()
+                .filter(pk=self.version.pk, organization_id=self.actor.organization_id)
+                .first()
+            )
+            if version is None:
+                raise PermissionDeniedError()
+            auth_decision = authorize(
+                subject_for(self.actor),
+                action="configuration.version.read",
+                resource=ResourceDescriptor(
+                    resource_type="configuration.version",
+                    public_id=version.public_id,
+                    organization_id=self.actor.organization_id,
+                ),
+                context=AuthorizationContext.current(),
+            )
+            if not auth_decision.allowed:
+                raise PermissionDeniedError()
+            if version.status != ConfigurationStatus.PUBLISHED:
+                raise ValueError("Only published configuration versions can be snapshotted.")
+            return ConfigurationSnapshot.objects.create(
+                organization=version.organization,
+                version=version,
+                content_copy=version.content_json,
+                content_hash=version.content_digest,
+                reference_type=self.reference_type,
+                reference_id=self.reference_id,
+            )

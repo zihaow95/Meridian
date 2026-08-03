@@ -319,7 +319,13 @@ test.describe('Phase 6 controlled files / notifications / pilot readiness', () =
     expect((await closed.json()).status).toBe('CLOSED')
 
     // Limited user hits the same real product deep link the notification pointed at.
+    const productPublicId = productDeepLink.startsWith('/products/')
+      ? productDeepLink.split('/')[2]
+      : ''
+    expect(productPublicId).toBeTruthy()
     await reloginAs(page, E2E_LIMITED_LOGIN_KEY, productDeepLink)
+    const detailResponse = await page.request.get(`/api/v1/products/${productPublicId}`)
+    expect(detailResponse.status()).toBe(403)
     await expect(page.getByText('无权访问或内容不存在')).toBeVisible({ timeout: 15_000 })
 
     const limited = await authedJson(page, 'GET', '/api/v1/notifications/my')

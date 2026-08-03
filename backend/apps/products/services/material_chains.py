@@ -242,6 +242,13 @@ class CreateLegacyMaterialVersionChain:
             submission = found.get(public_id)
             if submission is None:
                 raise MaterialChainRejected(f"Submission {public_id} does not exist.")
+            if (
+                submission.owner_type != self.owner.owner_type
+                or submission.owner_id != self.owner.owner_id
+            ):
+                raise MaterialChainRejected(
+                    f"Submission {public_id} belongs to a different business object."
+                )
             if submission.processing_status != LegacyMaterialStatus.VERIFIED:
                 raise MaterialChainRejected(
                     f"Submission {public_id} is {submission.processing_status}; only a "

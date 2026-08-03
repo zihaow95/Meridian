@@ -153,6 +153,8 @@ class Command(BaseCommand):
 
         self._grant_action(user, "notification.todo.read", "notification.todo")
         self._grant_action(user, "configuration.version.read", "configuration.version")
+        self._grant_action(user, "configuration.draft.create", "configuration.version")
+        self._grant_action(user, "configuration.version.publish", "configuration.version")
         for action_code, resource_type, role_code in _PHASE2_ACTIONS:
             self._grant_action(user, action_code, resource_type, role_code=role_code)
         for action_code, resource_type, role_code in _PHASE3_ACTIONS:
@@ -246,6 +248,10 @@ class Command(BaseCommand):
             ("first_launch.final_decision.record", "stage_gate", "BOSS"),
             # PRODUCT_RETIREMENT final decision — dual-control vs active user mgmt.
             ("retirement.final_decision.record", "stage_gate", "BOSS"),
+            # Project creation pins the published template via CreateSnapshot.
+            ("configuration.version.read", "configuration.version", "BOSS"),
+            ("major_gate.final_decision.record", "stage_gate", "BOSS"),
+            ("major_gate.management_conclusion.record", "stage_gate", "BOSS"),
         ):
             self._grant_action(approver, action_code, resource_type, role_code=role_code)
 
@@ -963,6 +969,9 @@ class Command(BaseCommand):
             ],
         }
         repaired_draft.save(update_fields=["change_scope", "updated_at"])
+        repaired_product = project.product_asset
+        if repaired_product is not None:
+            self._ensure_approved_product_label(product=repaired_product, actor=leader)
 
     def _rearm_repair_retry_project(self, project: Project, *, business_no: str) -> None:
         """Re-drive a real publish failure so every E2E run starts from PENDING_REPAIR.
@@ -1083,6 +1092,101 @@ class Command(BaseCommand):
             ],
         }
         draft.save(update_fields=["change_scope", "updated_at"])
+        product = project.product_asset
+        if product is not None:
+            self._ensure_approved_product_label(product=product, actor=project.leader)
+
+    def _ensure_approved_product_label(self, *, product: object, actor: User) -> None:
+        """Satisfy YOGURT ACTIVE material requirements for publish/repair retries."""
+
+        import hashlib
+
+        from django.conf import settings
+
+        from apps.documents.models import (
+            Document,
+            DocumentSource,
+            DocumentVersion,
+            FileObject,
+            StorageBackend,
+            StorageStatus,
+            VersionStatus,
+        )
+        from apps.products.models import (
+            AttributeOwnerType,
+            MaterialStatus,
+            ProductAsset,
+            ProductMaterial,
+        )
+
+        assert isinstance(product, ProductAsset)
+        if ProductMaterial.objects.filter(
+            organization_id=product.organization_id,
+            owner_type=AttributeOwnerType.PRODUCT,
+            owner_id=product.id,
+            material_type_code="PRODUCT_LABEL",
+            current_slot=1,
+            material_status=MaterialStatus.APPROVED,
+        ).exists():
+            return
+
+        storage_root = settings.FILE_STORAGE_ROOT
+        storage_root.mkdir(parents=True, exist_ok=True)
+        code = f"E2E-LABEL-{product.business_no}"
+        document, _ = Document.objects.get_or_create(
+            organization_id=product.organization_id,
+            document_code=code,
+            defaults={
+                "title": f"Label for {product.business_no}",
+                "source": DocumentSource.PRODUCT,
+            },
+        )
+        payload = f"e2e-label-{product.business_no}".encode()
+        digest = hashlib.sha256(payload).hexdigest()
+        object_key = f"e2e/labels/{code}.bin"
+        file_object, created = FileObject.objects.get_or_create(
+            organization_id=product.organization_id,
+            object_key=object_key,
+            defaults={
+                "storage_backend": StorageBackend.NAS_NFS,
+                "size_bytes": len(payload),
+                "sha256": digest,
+                "detected_mime_type": "application/pdf",
+                "storage_status": StorageStatus.ACTIVE,
+            },
+        )
+        if created:
+            path = storage_root / object_key
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_bytes(payload)
+        version, _ = DocumentVersion.objects.get_or_create(
+            organization_id=product.organization_id,
+            document=document,
+            version_number=1,
+            defaults={
+                "file_object": file_object,
+                "original_filename": f"{code}.pdf",
+                "declared_mime_type": "application/pdf",
+                "detected_mime_type": "application/pdf",
+                "status": VersionStatus.CONTROLLED,
+                "catalog_item_code": "PRODUCT_LABEL",
+                "uploaded_by": actor,
+                "uploaded_at": timezone.now(),
+            },
+        )
+        ProductMaterial.objects.update_or_create(
+            organization_id=product.organization_id,
+            owner_type=AttributeOwnerType.PRODUCT,
+            owner_id=product.id,
+            material_type_code="PRODUCT_LABEL",
+            current_slot=1,
+            defaults={
+                "document_version": version,
+                "material_status": MaterialStatus.APPROVED,
+                "version_no": 1,
+                "sensitivity_level": version.sensitivity_level,
+            },
+        )
 
     def _submit_first_launch_gate(self, project: Project, *, submitter: User) -> StageGateInstance:
         """Put the FIRST_LAUNCH gate into a decideable SUBMITTED + active L2 state."""

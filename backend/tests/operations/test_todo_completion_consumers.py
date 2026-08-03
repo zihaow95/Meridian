@@ -72,6 +72,7 @@ def test_complete_open_todos_for_source_is_idempotent(organization, active_user)
             organization_id=organization.id,
             source_type="operating_issue",
             source_id=source_id,
+            actor=active_user,
         ).execute()
         == 1
     )
@@ -81,6 +82,7 @@ def test_complete_open_todos_for_source_is_idempotent(organization, active_user)
             organization_id=organization.id,
             source_type="operating_issue",
             source_id=source_id,
+            actor=active_user,
         ).execute()
         == 0
     )

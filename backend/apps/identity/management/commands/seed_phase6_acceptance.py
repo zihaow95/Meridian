@@ -54,7 +54,11 @@ from apps.identity.management.commands.seed_e2e_user import (
 )
 from apps.identity.models.organization import Organization
 from apps.identity.models.user import User, UserStatus
-from apps.notifications.models import NotificationCategory, NotificationLevel
+from apps.notifications.models import (
+    NotificationCategory,
+    NotificationLevel,
+    NotificationStatus,
+)
 from apps.notifications.services.notifications import CreateInAppNotification
 from apps.pilot.models import PilotBatchPurpose, PilotBatchStatus, PilotFeedbackSeverity
 from apps.pilot.services.batches import (
@@ -469,10 +473,14 @@ class Command(BaseCommand):
                 action_code="notification.read",
                 level=level,
             ).execute()
-            # Idempotent seed must refresh deep links so E2E denial stays on a
-            # real product even when the row was created before products existed.
+            # Idempotent seed must refresh deep links and reopen the fixture
+            # rows so later E2E suites that closed them still see unread facts.
             Notification.objects.filter(recipient=actor, dedup_key=dedup_key).update(
-                deep_link=deep_link
+                deep_link=deep_link,
+                status=NotificationStatus.UNREAD,
+                read_at=None,
+                closed_at=None,
+                close_reason="",
             )
 
     def _ensure_document_volume(

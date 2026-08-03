@@ -61,9 +61,9 @@ def post_json(client: Client, url: str, payload: dict[str, Any] | None = None):
 
 @pytest.mark.django_db
 def test_creating_a_draft_requires_the_draft_action(
-    client: Client, active_user, catalog_definition
+    client: Client, another_active_user, catalog_definition
 ) -> None:
-    client.force_login(active_user)
+    client.force_login(another_active_user)
 
     response = post_json(
         client,

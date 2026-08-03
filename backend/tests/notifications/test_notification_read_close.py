@@ -125,6 +125,7 @@ def test_completing_a_todo_closes_its_linked_notifications(active_user, todo, no
         source_type=todo.source_type,
         source_id=todo.source_id,
         close_reason="SOURCE_COMPLETED",
+        actor=active_user,
     ).execute()
 
     assert closed == 1
@@ -141,6 +142,7 @@ def test_synchronizing_the_same_source_twice_does_not_reopen_a_closed_notificati
         source_type=todo.source_type,
         source_id=todo.source_id,
         close_reason="SOURCE_COMPLETED",
+        actor=active_user,
     ).execute()
     first_closed_at = Notification.objects.get(pk=notification.pk).closed_at
 
@@ -149,6 +151,7 @@ def test_synchronizing_the_same_source_twice_does_not_reopen_a_closed_notificati
         source_type=todo.source_type,
         source_id=todo.source_id,
         close_reason="SOURCE_COMPLETED_AGAIN",
+        actor=active_user,
     ).execute()
 
     notification.refresh_from_db()
@@ -209,7 +212,50 @@ def test_synchronization_ignores_notifications_for_other_sources(
         source_type=other.source_type,
         source_id=other.source_id,
         close_reason="SOURCE_COMPLETED",
+        actor=active_user,
     ).execute()
 
     notification.refresh_from_db()
     assert notification.status == NotificationStatus.UNREAD
+
+
+def test_source_sync_close_does_not_overwrite_a_concurrent_manual_close(
+    active_user, todo, notification
+) -> None:
+    """A race with CloseNotification must preserve the first close reason/time."""
+
+    from apps.notifications.services.lifecycle import CloseNotification
+    from apps.platform.application.command import CommandContext
+
+    first = CloseNotification(
+        context=CommandContext.for_actor(active_user),
+        notification_public_id=notification.public_id,
+        close_reason="MANUAL_FIRST",
+    ).execute()
+
+    SynchronizeNotificationForSource(
+        organization_id=todo.organization_id,
+        source_type=todo.source_type,
+        source_id=todo.source_id,
+        close_reason="SOURCE_COMPLETED",
+        actor=active_user,
+        trace_id="trace-race",
+    ).execute()
+
+    notification.refresh_from_db()
+    assert notification.status == NotificationStatus.CLOSED
+    assert notification.close_reason == "MANUAL_FIRST"
+    assert notification.closed_at == first.closed_at
+
+
+def test_source_sync_close_requires_an_actor_when_rows_close(
+    active_user, todo, notification
+) -> None:
+    with pytest.raises(ValueError, match="actor"):
+        SynchronizeNotificationForSource(
+            organization_id=todo.organization_id,
+            source_type=todo.source_type,
+            source_id=todo.source_id,
+            close_reason="SOURCE_COMPLETED",
+            actor=None,
+        ).execute()

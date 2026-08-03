@@ -19,6 +19,15 @@ from apps.platform.outbox.consumer import OutboxConsumer
 from apps.platform.outbox.models import OutboxEvent
 from apps.products.models import SKU
 
+
+def _actor_from_payload(payload: dict[str, Any], *, fallback_user_id: int) -> User:
+    actor_id = payload.get("actor_user_id") or fallback_user_id
+    actor = User.objects.filter(pk=actor_id).first()
+    if actor is None:
+        raise ValueError("outbox settle requires a resolvable actor_user_id")
+    return actor
+
+
 # Event types intentionally without local side effects. LocalOutboxPublisher
 # treats these as registered-but-empty so publish succeeds without ack-only
 # assert consumers.
@@ -258,10 +267,13 @@ class OperatingIssueConvertedConsumer:
         issue = OperatingIssue.objects.filter(public_id=UUID(str(issue_id))).first()
         if issue is None:
             raise ValueError("operating_issue.converted issue does not resolve")
+        actor = _actor_from_payload(payload, fallback_user_id=issue.created_by_id)
         CompleteOpenTodosForSource(
             organization_id=issue.organization_id,
             source_type="operating_issue",
             source_id=issue.public_id,
+            actor=actor,
+            trace_id=str(event.event_id),
         ).execute()
 
 
@@ -292,10 +304,13 @@ class RetirementCompletedConsumer:
         plan = RetirementPlan.objects.filter(public_id=UUID(str(plan_id))).first()
         if plan is None:
             raise ValueError("retirement.completed plan does not resolve")
+        actor = _actor_from_payload(payload, fallback_user_id=plan.created_by_id)
         CompleteOpenTodosForSource(
             organization_id=plan.organization_id,
             source_type="retirement_plan",
             source_id=plan.public_id,
+            actor=actor,
+            trace_id=str(event.event_id),
         ).execute()
 
 

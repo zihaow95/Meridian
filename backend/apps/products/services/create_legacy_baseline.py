@@ -21,6 +21,9 @@ from apps.products.models import (
     ChangeSetStatus,
     ChangeSetType,
     CompletenessStatus,
+    ImportBatch,
+    ImportBatchStatus,
+    ImportItem,
     ProductAsset,
     ProductChangeSet,
     ProductLifecycleStatus,
@@ -78,10 +81,12 @@ class CreateLegacyBaselineDraft:
             # item-by-item form uses legacy_baseline.draft.create. Either path
             # must re-check inside the writer so an internal call cannot widen.
             if self.migration_batch_id is not None:
+                batch = self._locked_import_batch(actor.organization_id)
                 action = "migration.confirm"
                 resource_type = "migration"
                 public_id = None
             else:
+                batch = None
                 action = "legacy_baseline.draft.create"
                 resource_type = "product_change_set"
                 public_id = self.existing_product.public_id if self.existing_product else None
@@ -108,13 +113,15 @@ class CreateLegacyBaselineDraft:
                         product=replay.product, change_set=replay, created=False
                     )
 
-            product = self.existing_product or self._create_product(actor)
+            product = self._locked_existing_product(actor.organization_id) or self._create_product(
+                actor
+            )
             change_set = ProductChangeSet.objects.create(
                 organization_id=actor.organization_id,
                 change_type=ChangeSetType.LEGACY_BASELINE,
                 status=ChangeSetStatus.DRAFT,
                 product=product,
-                migration_batch_id=self.migration_batch_id,
+                migration_batch_id=batch.id if batch is not None else None,
                 title=self._title(product),
                 definition_summary=str(self.payload.get("specification") or ""),
                 completeness_status=self._completeness(),
@@ -124,6 +131,53 @@ class CreateLegacyBaselineDraft:
             )
 
         return LegacyBaselineDraft(product=product, change_set=change_set, created=True)
+
+    def _locked_import_batch(self, organization_id: int) -> ImportBatch:
+        batch_id = self.migration_batch_id
+        if batch_id is None:
+            raise PermissionDeniedError()
+        batch = (
+            ImportBatch.objects.select_for_update()
+            .filter(pk=batch_id, organization_id=organization_id)
+            .first()
+        )
+        if batch is None:
+            raise PermissionDeniedError()
+        if batch.status not in {
+            ImportBatchStatus.PARSED,
+            ImportBatchStatus.CONFIRMED,
+        }:
+            raise ValidationFailedError(
+                message="Import batch is not ready for baseline creation.",
+                details={"blocks": ["IMPORT_BATCH_NOT_READY"], "status": batch.status},
+            )
+        if self.import_row_number is not None:
+            item_exists = ImportItem.objects.filter(
+                batch_id=batch.id,
+                organization_id=organization_id,
+                row_number=self.import_row_number,
+            ).exists()
+            if not item_exists:
+                raise ValidationFailedError(
+                    message="Import row does not belong to this batch.",
+                    details={
+                        "blocks": ["IMPORT_ROW_NOT_IN_BATCH"],
+                        "row_number": self.import_row_number,
+                    },
+                )
+        return batch
+
+    def _locked_existing_product(self, organization_id: int) -> ProductAsset | None:
+        if self.existing_product is None:
+            return None
+        product = (
+            ProductAsset.objects.select_for_update()
+            .filter(pk=self.existing_product.pk, organization_id=organization_id)
+            .first()
+        )
+        if product is None:
+            raise PermissionDeniedError()
+        return product
 
     def _create_product(self, actor: Any) -> ProductAsset:
         business_no = str(self.payload.get("business_no") or self.business_no_fallback)

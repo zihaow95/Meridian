@@ -418,3 +418,6 @@ def test_confirmation_survives_when_local_outbox_dispatch_fails(
     assert MaterialConfirmation.objects.filter(pk=confirmation.pk).exists()
     pending = OutboxEvent.objects.get(aggregate_id=confirmation.public_id)
     assert pending.status == OutboxStatus.PENDING
+    assert pending.attempt_count == 1
+    assert pending.last_error_code == "LOCAL_DISPATCH_FAILED"
+    assert pending.next_attempt_at is not None

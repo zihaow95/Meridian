@@ -19,6 +19,8 @@ from apps.identity.models.user import User
 @pytest.fixture(autouse=True)
 def _grant_configuration_publish(active_user: User, grant_action: Callable[..., None]) -> None:
     grant_action(active_user, "configuration.version.publish", "configuration.version")
+    grant_action(active_user, "configuration.draft.create", "configuration.version")
+    grant_action(active_user, "configuration.version.read", "configuration.version")
 
 
 @pytest.fixture

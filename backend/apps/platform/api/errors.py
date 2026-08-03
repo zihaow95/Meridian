@@ -37,6 +37,14 @@ class PermissionDeniedError(ApiError):
     status_code = 404
 
 
+class AuthorizationForbiddenError(ApiError):
+    """Authenticated actor is known; refusal must stay visible as HTTP 403."""
+
+    code = "PERMISSION_DENIED"
+    message = "You are not allowed to access this resource."
+    status_code = 403
+
+
 class ValidationFailedError(ApiError):
     code = "VALIDATION_FAILED"
     message = "The request could not be validated."

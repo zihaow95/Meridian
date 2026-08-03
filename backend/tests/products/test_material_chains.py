@@ -236,6 +236,21 @@ def test_a_submission_still_in_triage_cannot_be_promoted(submissions, submitter:
     assert ProductMaterial.objects.count() == 0
 
 
+def test_a_submission_cannot_be_chained_onto_a_different_owner(
+    submissions, verifier: User, submitter: User
+) -> None:
+    verified = verify(verifier, submissions("V1", date(2019, 1, 1)))
+
+    with pytest.raises(MaterialChainRejected, match="different business object"):
+        CreateLegacyMaterialVersionChain(
+            context=CommandContext.for_actor(submitter),
+            ordered_submission_ids=[verified.public_id],
+            current_submission_id=verified.public_id,
+            owner=MaterialOwner(owner_type=AttributeOwnerType.PRODUCT, owner_id=OWNER_ID + 999),
+            material_type_code=MATERIAL_TYPE,
+        ).execute()
+
+
 def test_a_hand_flipped_status_is_not_accepted_as_verification(
     submissions, submitter: User
 ) -> None:

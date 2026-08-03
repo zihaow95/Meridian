@@ -143,44 +143,56 @@ class SynchronizeNotificationForSource:
 
     def execute(self) -> int:
         now = timezone.now()
-        open_rows = list(
-            Notification.objects.filter(
-                organization_id=self.organization_id,
-                object_type=self.source_type,
-                object_id=self.source_id,
+        with transaction.atomic():
+            # Lock open rows so a concurrent manual close cannot be overwritten.
+            open_rows = list(
+                Notification.objects.select_for_update()
+                .filter(
+                    organization_id=self.organization_id,
+                    object_type=self.source_type,
+                    object_id=self.source_id,
+                )
+                .filter(Q(status=NotificationStatus.UNREAD) | Q(status=NotificationStatus.READ))
+                .values_list("public_id", flat=True)
             )
-            .filter(Q(status=NotificationStatus.UNREAD) | Q(status=NotificationStatus.READ))
-            .values_list("public_id", "recipient_id")
-        )
-        if not open_rows:
-            return 0
-        updated = Notification.objects.filter(
-            organization_id=self.organization_id,
-            object_type=self.source_type,
-            object_id=self.source_id,
-            public_id__in=[row[0] for row in open_rows],
-        ).update(
-            status=NotificationStatus.CLOSED,
-            closed_at=now,
-            close_reason=self.close_reason,
-        )
-        if updated and self.actor is not None:
-            append_event(
-                AuditRecord(
-                    actor=self.actor,
-                    action_code="notification.message.close",
-                    resource_type=self.source_type,
-                    resource_public_id=self.source_id,
-                    result=AuditResult.SUCCESS,
-                    trace_id=self.trace_id,
-                    occurred_at=now,
-                    acting_roles_snapshot=acting_roles_snapshot(self.actor),
-                    after_summary={
-                        "closed_count": updated,
-                        "close_reason": self.close_reason,
-                        "notification_public_ids": [str(row[0]) for row in open_rows],
-                    },
-                    reason="SOURCE_SETTLED",
+            if not open_rows:
+                return 0
+            if self.actor is None:
+                raise ValueError(
+                    "SynchronizeNotificationForSource requires an actor so every "
+                    "automatic close leaves an audit fact."
+                )
+            updated = (
+                Notification.objects.filter(
+                    organization_id=self.organization_id,
+                    object_type=self.source_type,
+                    object_id=self.source_id,
+                    public_id__in=list(open_rows),
+                )
+                .filter(Q(status=NotificationStatus.UNREAD) | Q(status=NotificationStatus.READ))
+                .update(
+                    status=NotificationStatus.CLOSED,
+                    closed_at=now,
+                    close_reason=self.close_reason,
                 )
             )
-        return updated
+            if updated:
+                append_event(
+                    AuditRecord(
+                        actor=self.actor,
+                        action_code="notification.message.close",
+                        resource_type=self.source_type,
+                        resource_public_id=self.source_id,
+                        result=AuditResult.SUCCESS,
+                        trace_id=self.trace_id,
+                        occurred_at=now,
+                        acting_roles_snapshot=acting_roles_snapshot(self.actor),
+                        after_summary={
+                            "closed_count": updated,
+                            "close_reason": self.close_reason,
+                            "notification_public_ids": [str(pid) for pid in open_rows],
+                        },
+                        reason="SOURCE_SETTLED",
+                    )
+                )
+            return updated

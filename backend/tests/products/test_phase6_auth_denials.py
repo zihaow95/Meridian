@@ -88,19 +88,80 @@ def test_legacy_baseline_draft_refuses_actor_without_draft_create(
 
 def test_import_batch_draft_accepts_migration_confirm_without_draft_create(
     active_user: User,
+    organization: Organization,
     grant_action: Callable[..., None],
 ) -> None:
     """Phase-3 import confirmation only holds migration.confirm — keep that path."""
 
+    from apps.products.models import ImportBatch, ImportBatchStatus, ImportItem, ImportItemStatus
+
     grant_action(active_user, "migration.confirm", "migration")
+    batch = ImportBatch.objects.create(
+        organization=organization,
+        template_version="v1",
+        status=ImportBatchStatus.PARSED,
+        created_by=active_user,
+        total_count=1,
+    )
+    ImportItem.objects.create(
+        organization=organization,
+        batch=batch,
+        row_number=1,
+        raw_row_digest="a" * 64,
+        normalized_payload={"name": "Imported", "category_code": "YOGURT"},
+        item_status=ImportItemStatus.VALID,
+    )
     draft = CreateLegacyBaselineDraft(
         context=CommandContext.for_actor(active_user),
         payload={"name": "Imported", "category_code": "YOGURT"},
         idempotency_key="import-draft-ok",
-        migration_batch_id=1,
+        migration_batch_id=batch.id,
+        import_row_number=1,
         business_no_fallback="IMP-001",
     ).execute()
-    assert draft.change_set.migration_batch_id == 1
+    assert draft.change_set.migration_batch_id == batch.id
+
+
+def test_import_batch_draft_refuses_foreign_batch_id(
+    active_user: User,
+    grant_action: Callable[..., None],
+) -> None:
+    grant_action(active_user, "migration.confirm", "migration")
+    with pytest.raises(PermissionDeniedError):
+        CreateLegacyBaselineDraft(
+            context=CommandContext.for_actor(active_user),
+            payload={"name": "Imported", "category_code": "YOGURT"},
+            idempotency_key="import-foreign-batch",
+            migration_batch_id=9_999_999,
+            business_no_fallback="IMP-X",
+        ).execute()
+
+
+def test_legacy_link_refuses_cross_organization_existing_product(
+    active_user: User,
+    grant_action: Callable[..., None],
+) -> None:
+    from apps.identity.models.organization import Organization as Org
+    from apps.products.models import ProductLifecycleStatus, ProductSourceType
+
+    grant_action(active_user, "legacy_baseline.draft.create", "product_change_set")
+    foreign_org = Org.objects.create(name="Other Org")
+    foreign_product = ProductAsset.objects.create(
+        organization=foreign_org,
+        business_no="FOREIGN-1",
+        name="Foreign",
+        category_code="YOGURT",
+        source_type=ProductSourceType.LEGACY_IMPORT,
+        lifecycle_status=ProductLifecycleStatus.DEVELOPING,
+        product_owner=active_user,
+    )
+    with pytest.raises(PermissionDeniedError):
+        CreateLegacyBaselineDraft(
+            context=CommandContext.for_actor(active_user),
+            payload={"name": "Link", "category_code": "YOGURT"},
+            idempotency_key="link-cross-org",
+            existing_product=foreign_product,
+        ).execute()
 
 
 def test_material_list_redacts_high_sensitivity_fields_for_low_clearance(

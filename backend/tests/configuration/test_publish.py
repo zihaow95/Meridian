@@ -43,17 +43,31 @@ def test_published_configuration_digest_cannot_be_rewritten(published_version) -
 
 @pytest.mark.django_db
 def test_publish_refuses_actor_without_publish_action(
-    file_upload_definition, another_active_user
+    file_upload_definition, active_user, another_active_user
 ) -> None:
     from apps.platform.api.errors import PermissionDeniedError
 
     draft = CreateDraft(
-        actor=another_active_user,
+        actor=active_user,
         definition=file_upload_definition,
         content={"allowed_mime_types": ["application/pdf"], "max_bytes": 1_048_576},
     ).execute()
     with pytest.raises(PermissionDeniedError):
         PublishVersion(version=draft, actor=another_active_user).execute()
+
+
+@pytest.mark.django_db
+def test_create_draft_refuses_actor_without_draft_action(
+    file_upload_definition, another_active_user
+) -> None:
+    from apps.platform.api.errors import PermissionDeniedError
+
+    with pytest.raises(PermissionDeniedError):
+        CreateDraft(
+            actor=another_active_user,
+            definition=file_upload_definition,
+            content={"allowed_mime_types": ["application/pdf"], "max_bytes": 1_048_576},
+        ).execute()
 
 
 @pytest.mark.django_db

@@ -226,6 +226,7 @@ class ConvertIssueToIterationProposal:
                         "issue_public_id": str(issue.public_id),
                         "opportunity_public_id": str(opportunity.public_id),
                         "organization_id": issue.organization_id,
+                        "actor_user_id": actor.id,
                     },
                     occurred_at=now,
                 )

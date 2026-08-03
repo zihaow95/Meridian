@@ -45,6 +45,12 @@ def phase2_product_manager(
         "project_candidate",
         role_code="PRODUCT_DIRECTOR",
     )
+    grant_action(
+        product_manager,
+        "configuration.version.read",
+        "configuration.version",
+        role_code="PRODUCT_DIRECTOR",
+    )
     return product_manager
 
 
@@ -54,6 +60,12 @@ def phase2_boss(boss: User, grant_action: Callable[..., None]) -> User:
         boss,
         "major_gate.management_conclusion.record",
         "stage_gate",
+        role_code="BOSS",
+    )
+    grant_action(
+        boss,
+        "configuration.version.read",
+        "configuration.version",
         role_code="BOSS",
     )
     return boss
