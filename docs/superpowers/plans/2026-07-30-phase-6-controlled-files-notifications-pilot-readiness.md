@@ -299,7 +299,7 @@ notifications.Todo: (models.W036) MySQL does not support unique constraints with
 - [x] 权限区分批次管理、反馈创建、分派、处理、复测和关闭；系统管理员不因环境支持权获得敏感反馈读取权。
 - [x] 阶段6只用内部验收数据走通完整反馈链，不把批次标记为真实业务试用完成。
 - [x] 生成阶段7后试用启动清单：账号、人员、周期、数据范围、反馈R/A、已知限制和停止条件。
-- [ ] 提交：`feat: prepare governed pilot feedback`。
+- [x] 提交：`feat: prepare governed pilot feedback`。
 
 ## 16. Task 6.9：纵向E2E、全量门禁、代码审阅与阶段GO
 
