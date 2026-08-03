@@ -48,6 +48,9 @@ class User(AbstractBaseUser, PublicIdModel):
         related_name="users",
     )
     employee_no = models.CharField(max_length=64, blank=True, default="")
+    # Nullable sentinel: occupied when employee_no is non-empty so MySQL can
+    # enforce per-organization uniqueness. Empty numbers leave the slot null.
+    employee_no_slot = models.PositiveSmallIntegerField(null=True, blank=True)
     display_name = models.CharField(max_length=255)
     status = models.CharField(
         max_length=16,
@@ -77,8 +80,7 @@ class User(AbstractBaseUser, PublicIdModel):
         db_table = "identity_user"
         constraints = [
             models.UniqueConstraint(
-                fields=["organization", "employee_no"],
-                condition=~models.Q(employee_no=""),
+                fields=["organization", "employee_no", "employee_no_slot"],
                 name="identity_user_org_employee_no_uniq",
             ),
         ]
@@ -86,6 +88,14 @@ class User(AbstractBaseUser, PublicIdModel):
     def save(self, *args: Any, **kwargs: Any) -> None:
         if not self.login_key:
             self.login_key = uuid.uuid4().hex
+        self.employee_no = (self.employee_no or "").strip()
+        self.employee_no_slot = 1 if self.employee_no else None
+        update_fields = kwargs.get("update_fields")
+        if update_fields is not None:
+            fields = set(update_fields)
+            if "employee_no" in fields:
+                fields.add("employee_no_slot")
+            kwargs["update_fields"] = list(fields)
         super().save(*args, **kwargs)
 
     @property

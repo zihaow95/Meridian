@@ -36,6 +36,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/auth/capabilities": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["auth_capabilities_retrieve"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/auth/csrf": {
         parameters: {
             query?: never;
@@ -112,6 +128,22 @@ export interface paths {
         get?: never;
         put?: never;
         post: operations["auth_logout"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/auth/pilot/login": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["auth_pilot_login"];
         delete?: never;
         options?: never;
         head?: never;
@@ -2331,6 +2363,10 @@ export interface components {
             resource_public_id: string | null;
             result: string;
         };
+        AuthCapabilitiesResponse: {
+            pilot_password_login: boolean;
+            dev_login: boolean;
+        };
         CandidateSplitList: {
             public_id: string;
             name: string;
@@ -3143,6 +3179,16 @@ export interface components {
             target_users_needs?: string;
             suggested_retail_price?: string | null;
         };
+        PilotLoginRequest: {
+            /** Format: uuid */
+            organization_public_id: string;
+            employee_no: string;
+            password: string;
+        };
+        PilotLoginResponse: {
+            public_id: string;
+            display_name: string;
+        };
         PlanChangeRequest: {
             change_type: string;
             target_type: string;
@@ -3825,6 +3871,25 @@ export interface operations {
             };
         };
     };
+    auth_capabilities_retrieve: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AuthCapabilitiesResponse"];
+                };
+            };
+        };
+    };
     auth_csrf_retrieve: {
         parameters: {
             query?: never;
@@ -3922,6 +3987,38 @@ export interface operations {
         responses: {
             /** @description No response body */
             204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    auth_pilot_login: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PilotLoginRequest"];
+                "application/x-www-form-urlencoded": components["schemas"]["PilotLoginRequest"];
+                "multipart/form-data": components["schemas"]["PilotLoginRequest"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PilotLoginResponse"];
+                };
+            };
+            /** @description No response body */
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };

@@ -36,6 +36,20 @@ paths:
                 items:
                   $ref: '#/components/schemas/AuditEventListItem'
           description: ''
+  /api/v1/auth/capabilities:
+    get:
+      operationId: auth_capabilities_retrieve
+      tags:
+      - auth
+      security:
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthCapabilitiesResponse'
+          description: ''
   /api/v1/auth/csrf:
     get:
       operationId: auth_csrf_retrieve
@@ -105,6 +119,34 @@ paths:
       - cookieAuth: []
       responses:
         '204':
+          description: No response body
+  /api/v1/auth/pilot/login:
+    post:
+      operationId: auth_pilot_login
+      tags:
+      - auth
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PilotLoginRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PilotLoginRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PilotLoginRequest'
+        required: true
+      security:
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PilotLoginResponse'
+          description: ''
+        '404':
           description: No response body
   /api/v1/authorization/roles:
     get:
@@ -4098,6 +4140,16 @@ components:
       - resource_public_id
       - resource_type
       - result
+    AuthCapabilitiesResponse:
+      type: object
+      properties:
+        pilot_password_login:
+          type: boolean
+        dev_login:
+          type: boolean
+      required:
+      - dev_login
+      - pilot_password_login
     CandidateSplitList:
       type: object
       properties:
@@ -6077,6 +6129,30 @@ components:
         suggested_retail_price:
           type: string
           nullable: true
+    PilotLoginRequest:
+      type: object
+      properties:
+        organization_public_id:
+          type: string
+          format: uuid
+        employee_no:
+          type: string
+        password:
+          type: string
+      required:
+      - employee_no
+      - organization_public_id
+      - password
+    PilotLoginResponse:
+      type: object
+      properties:
+        public_id:
+          type: string
+        display_name:
+          type: string
+      required:
+      - display_name
+      - public_id
     PlanChangeRequest:
       type: object
       properties:

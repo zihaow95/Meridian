@@ -3,19 +3,30 @@
 from __future__ import annotations
 
 from .base import *  # noqa: F403
-from .base import DATABASES, env
+from .base import DATABASES, env, env_list
 
 DEBUG = True
 
 SECRET_KEY = env("DJANGO_SECRET_KEY", "dev-insecure-secret-key-do-not-use-in-production")
 
-ALLOWED_HOSTS = ["localhost", "127.0.0.1", "[::1]"]
+# Loopback defaults plus any explicit pilot LAN hosts from the environment.
+# start-pilot.ps1 sets DJANGO_ALLOWED_HOSTS / DJANGO_CSRF_TRUSTED_ORIGINS.
+ALLOWED_HOSTS = list(
+    dict.fromkeys(
+        ["localhost", "127.0.0.1", "[::1]", *env_list("DJANGO_ALLOWED_HOSTS")]
+    )
+)
 
-CSRF_TRUSTED_ORIGINS = [
-    "http://localhost:5173",
-    "http://127.0.0.1:5173",
-    "http://[::1]:5173",
-]
+CSRF_TRUSTED_ORIGINS = list(
+    dict.fromkeys(
+        [
+            "http://localhost:5173",
+            "http://127.0.0.1:5173",
+            "http://[::1]:5173",
+            *env_list("DJANGO_CSRF_TRUSTED_ORIGINS"),
+        ]
+    )
+)
 
 DATABASES["default"]["NAME"] = env("MYSQL_DATABASE", "meridian")
 DATABASES["default"]["USER"] = env("MYSQL_USER", "meridian")
@@ -38,6 +49,7 @@ ENABLE_PRODUCTS_API = True
 ENABLE_OPERATIONS_API = True
 # Phase 6: in-app only. An unset DINGTALK_NOTIFIER is not a decision; this is.
 ENABLE_DINGTALK_NOTIFICATIONS = False
+ENABLE_PILOT_PASSWORD_LOGIN = True
 
 FILE_STORAGE_ROOT = BASE_DIR / "var" / "files"  # noqa: F405
 

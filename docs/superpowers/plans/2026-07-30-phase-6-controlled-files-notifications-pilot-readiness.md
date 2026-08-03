@@ -271,17 +271,17 @@ notifications.Todo: (models.W036) MySQL does not support unique constraints with
 
 **Interfaces:** `POST /api/v1/auth/pilot/login`使用`employee_no + password`；`provision_pilot_user --employee-no ... --roles ...`；现有session/logout/me保持不变。
 
-- [ ] 使用Django密码哈希和服务端session，不自建令牌；`login_key`继续只服务开发/E2E。`User`已继承`AbstractBaseUser`且`UserManager`支持`set_password`，无需新增密码存储。
-- [ ] 与既有钉钉OAuth入口（`DingTalkStartView`/`DingTalkCallbackView`）并存不冲突：三条登录路径的会话建立必须走同一`establish_session()`，不得各自实现登录。
-- [ ] 前置：先按第5.1节修复`identity_user_org_employee_no_uniq`，让"同组织非空`employee_no`唯一"在MySQL上真实生效，并测试重复`employee_no`被数据库拒绝。未修复前不得上线以`employee_no`为标识的密码登录。
-- [ ] `ENABLE_PILOT_PASSWORD_LOGIN`只允许非生产设置显式开启；production检测到开启必须启动失败。
-- [ ] 登录校验组织、ACTIVE状态和密码；停用、离职、错误密码和无角色用户拒绝。
-- [ ] 成功和失败登录写脱敏审计；密码、哈希、Cookie和完整凭据不得进入日志或审计。
-- [ ] 管理命令只创建或更新明确账号，不批量赋予关键角色；关键角色继续走既有批准流程。
-- [ ] 前端仅在非生产标识和后端能力同时存在时展示临时登录，并醒目标注非生产环境。
-- [ ] 启动脚本显式绑定批准的局域网地址，配置ALLOWED_HOSTS/CSRF来源并打印访问地址；不自动开放防火墙或公网端口。
-- [ ] 每位参与人必须使用独立账号，禁止公共演示账号或共享凭据。
-- [ ] 钉钉完成后是否保留只记录为后续评估项，阶段6不自动删除本地认证代码。
+- [x] 使用Django密码哈希和服务端session，不自建令牌；`login_key`继续只服务开发/E2E。`User`已继承`AbstractBaseUser`且`UserManager`支持`set_password`，无需新增密码存储。
+- [x] 与既有钉钉OAuth入口（`DingTalkStartView`/`DingTalkCallbackView`）并存不冲突：三条登录路径的会话建立必须走同一`establish_session()`，不得各自实现登录。
+- [x] 前置：先按第5.1节修复`identity_user_org_employee_no_uniq`，让"同组织非空`employee_no`唯一"在MySQL上真实生效，并测试重复`employee_no`被数据库拒绝。未修复前不得上线以`employee_no`为标识的密码登录。
+- [x] `ENABLE_PILOT_PASSWORD_LOGIN`只允许非生产设置显式开启；production检测到开启必须启动失败。
+- [x] 登录校验组织、ACTIVE状态和密码；停用、离职、错误密码和无角色用户拒绝。
+- [x] 成功和失败登录写脱敏审计；密码、哈希、Cookie和完整凭据不得进入日志或审计。
+- [x] 管理命令只创建或更新明确账号，不批量赋予关键角色；关键角色继续走既有批准流程。
+- [x] 前端仅在非生产标识和后端能力同时存在时展示临时登录，并醒目标注非生产环境。
+- [x] 启动脚本显式绑定批准的局域网地址，配置ALLOWED_HOSTS/CSRF来源并打印访问地址；不自动开放防火墙或公网端口。
+- [x] 每位参与人必须使用独立账号，禁止公共演示账号或共享凭据。
+- [x] 钉钉完成后是否保留只记录为后续评估项，阶段6不自动删除本地认证代码。
 - [ ] 提交：`feat: enable controlled non-production pilot access`。
 
 ## 15. Task 6.8：试用批次、反馈闭环与启动准备

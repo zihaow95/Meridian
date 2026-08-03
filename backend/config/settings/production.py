@@ -59,3 +59,9 @@ if (env("ENABLE_DINGTALK_NOTIFICATIONS") or "false").lower() in {"1", "true", "y
     raise ImproperlyConfigured(
         "ENABLE_DINGTALK_NOTIFICATIONS must not be enabled in production during phase 6."
     )
+
+ENABLE_PILOT_PASSWORD_LOGIN = False
+if (env("ENABLE_PILOT_PASSWORD_LOGIN") or "false").lower() in {"1", "true", "yes"}:
+    raise ImproperlyConfigured(
+        "ENABLE_PILOT_PASSWORD_LOGIN must not be enabled in production."
+    )
