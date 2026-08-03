@@ -44,7 +44,11 @@ from apps.configuration.schema_registry import (
 from apps.identity.models.user import User
 from apps.platform.api.errors import PermissionDeniedError
 from apps.platform.application.command import CommandContext
-from apps.platform.outbox.services import OutboxMessage, register_outbox_event
+from apps.platform.outbox.services import (
+    OutboxMessage,
+    register_outbox_event,
+    schedule_local_dispatch_after_commit,
+)
 
 
 class ConfigurationValidationFailed(Exception):
@@ -158,6 +162,20 @@ class CreateDraft:
                     },
                 )
             )
+            outbox_event = register_outbox_event(
+                OutboxMessage(
+                    event_type="configuration.draft.created",
+                    aggregate_type="configuration.version",
+                    aggregate_id=version.public_id,
+                    payload={
+                        "definition_code": definition.definition_code,
+                        "version_number": version.version_number,
+                        "content_digest": version.content_digest,
+                    },
+                    occurred_at=command_context.occurred_at,
+                )
+            )
+            schedule_local_dispatch_after_commit(outbox_event)
             return version
 
 
@@ -204,7 +222,7 @@ class ValidateVersion:
             append_event(
                 AuditRecord(
                     actor=command_context.actor,
-                    action_code="configuration.draft.create",
+                    action_code="configuration.version.validate",
                     resource_type="configuration.version",
                     resource_public_id=version.public_id,
                     result=AuditResult.FAILURE if errors else AuditResult.SUCCESS,
@@ -214,10 +232,23 @@ class ValidateVersion:
                     after_summary={
                         "status": version.status,
                         "validation_errors": errors,
-                        "operation": "validate",
                     },
                 )
             )
+            outbox_event = register_outbox_event(
+                OutboxMessage(
+                    event_type="configuration.version.validated",
+                    aggregate_type="configuration.version",
+                    aggregate_id=version.public_id,
+                    payload={
+                        "status": version.status,
+                        "validation_errors": errors,
+                        "content_digest": version.content_digest,
+                    },
+                    occurred_at=command_context.occurred_at,
+                )
+            )
+            schedule_local_dispatch_after_commit(outbox_event)
             if failed_errors is None:
                 return version
         # Raise after commit so FAILED + validation_errors remain durable facts.
@@ -531,7 +562,7 @@ class CreateSnapshot:
             append_event(
                 AuditRecord(
                     actor=command_context.actor,
-                    action_code="configuration.version.read",
+                    action_code="configuration.snapshot.create",
                     resource_type="configuration.version",
                     resource_public_id=version.public_id,
                     result=AuditResult.SUCCESS,
@@ -539,11 +570,24 @@ class CreateSnapshot:
                     occurred_at=command_context.occurred_at,
                     acting_roles_snapshot=acting_roles_snapshot(command_context.actor),
                     after_summary={
-                        "operation": "snapshot",
                         "reference_type": self.reference_type,
                         "reference_id": str(self.reference_id),
                         "content_hash": snapshot.content_hash,
                     },
                 )
             )
+            outbox_event = register_outbox_event(
+                OutboxMessage(
+                    event_type="configuration.snapshot.created",
+                    aggregate_type="configuration.version",
+                    aggregate_id=version.public_id,
+                    payload={
+                        "reference_type": self.reference_type,
+                        "reference_id": str(self.reference_id),
+                        "content_hash": snapshot.content_hash,
+                    },
+                    occurred_at=command_context.occurred_at,
+                )
+            )
+            schedule_local_dispatch_after_commit(outbox_event)
             return snapshot

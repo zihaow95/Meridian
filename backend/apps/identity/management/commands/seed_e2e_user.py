@@ -1127,14 +1127,18 @@ class Command(BaseCommand):
         )
 
         assert isinstance(product, ProductAsset)
-        if ProductMaterial.objects.filter(
-            organization_id=product.organization_id,
-            owner_type=AttributeOwnerType.PRODUCT,
-            owner_id=product.id,
-            material_type_code="PRODUCT_LABEL",
-            current_slot=1,
-            material_status=MaterialStatus.APPROVED,
-        ).exists():
+        material = (
+            ProductMaterial.objects.select_related("document_version__file_object")
+            .filter(
+                organization_id=product.organization_id,
+                owner_type=AttributeOwnerType.PRODUCT,
+                owner_id=product.id,
+                material_type_code="PRODUCT_LABEL",
+                current_slot=1,
+            )
+            .first()
+        )
+        if material is not None and self._has_valid_approved_confirmation(material):
             return
 
         self._grant_action(actor, "product_material.manage", "product_material")
@@ -1184,45 +1188,78 @@ class Command(BaseCommand):
                 "uploaded_at": timezone.now(),
             },
         )
-        material, _ = ProductMaterial.objects.get_or_create(
-            organization_id=product.organization_id,
-            owner_type=AttributeOwnerType.PRODUCT,
-            owner_id=product.id,
-            material_type_code="PRODUCT_LABEL",
-            version_no=1,
-            defaults={
-                "document_version": version,
-                "material_status": MaterialStatus.DRAFT,
-                "current_slot": 1,
-                "sensitivity_level": version.sensitivity_level,
-            },
-        )
-        if material.current_slot is None:
-            material.current_slot = 1
-            material.save(update_fields=["current_slot", "updated_at"])
-        if material.material_status == MaterialStatus.APPROVED:
+        if material is None:
+            material = ProductMaterial.objects.create(
+                organization_id=product.organization_id,
+                owner_type=AttributeOwnerType.PRODUCT,
+                owner_id=product.id,
+                material_type_code="PRODUCT_LABEL",
+                version_no=1,
+                document_version=version,
+                material_status=MaterialStatus.DRAFT,
+                current_slot=1,
+                sensitivity_level=version.sensitivity_level,
+            )
+        else:
+            # Repair forged APPROVED rows that lack a bound confirmation fact.
+            material.document_version = version
+            material.sensitivity_level = version.sensitivity_level
+            if material.current_slot is None:
+                material.current_slot = 1
+            if not self._has_valid_approved_confirmation(material):
+                material.material_status = MaterialStatus.DRAFT
+            material.save(
+                update_fields=[
+                    "document_version",
+                    "sensitivity_level",
+                    "current_slot",
+                    "material_status",
+                    "updated_at",
+                ]
+            )
+        if self._has_valid_approved_confirmation(material):
             return
 
-        live = MaterialConfirmation.objects.filter(material=material, live_slot=1).first()
-        if live is None or live.decision != MaterialConfirmationDecision.APPROVED:
-            pending = MaterialConfirmation.objects.filter(
-                material=material,
-                decision=MaterialConfirmationDecision.PENDING,
-                superseded_at__isnull=True,
-            ).first()
-            if pending is None:
-                pending = SubmitMaterialConfirmation(
-                    context=CommandContext.for_actor(actor),
-                    material_public_id=material.public_id,
-                    confirmer_public_id=actor.public_id,
-                    comment="E2E repair seed confirmation",
-                ).execute()
-            DecideMaterialConfirmation(
+        pending = MaterialConfirmation.objects.filter(
+            material=material,
+            decision=MaterialConfirmationDecision.PENDING,
+            superseded_at__isnull=True,
+        ).first()
+        if pending is None:
+            pending = SubmitMaterialConfirmation(
                 context=CommandContext.for_actor(actor),
-                confirmation_public_id=pending.public_id,
-                decision=MaterialConfirmationDecision.APPROVED,
-                comment="E2E repair seed approval",
+                material_public_id=material.public_id,
+                confirmer_public_id=actor.public_id,
+                comment="E2E repair seed confirmation",
             ).execute()
+        DecideMaterialConfirmation(
+            context=CommandContext.for_actor(actor),
+            confirmation_public_id=pending.public_id,
+            decision=MaterialConfirmationDecision.APPROVED,
+            comment="E2E repair seed approval",
+        ).execute()
+
+    def _has_valid_approved_confirmation(self, material: object) -> bool:
+        from apps.products.models import (
+            MaterialConfirmation,
+            MaterialConfirmationDecision,
+            MaterialStatus,
+            ProductMaterial,
+        )
+
+        assert isinstance(material, ProductMaterial)
+        if material.material_status != MaterialStatus.APPROVED:
+            return False
+        file_object = material.document_version.file_object
+        return MaterialConfirmation.objects.filter(
+            material=material,
+            decision=MaterialConfirmationDecision.APPROVED,
+            live_slot=1,
+            document_version_id=material.document_version_id,
+            content_hash=file_object.sha256,
+            confirmer__isnull=False,
+            superseded_at__isnull=True,
+        ).exists()
 
     def _submit_first_launch_gate(self, project: Project, *, submitter: User) -> StageGateInstance:
         """Put the FIRST_LAUNCH gate into a decideable SUBMITTED + active L2 state."""

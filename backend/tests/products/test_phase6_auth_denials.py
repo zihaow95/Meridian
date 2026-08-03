@@ -103,13 +103,18 @@ def test_import_batch_draft_accepts_migration_confirm_without_draft_create(
         created_by=active_user,
         total_count=1,
     )
-    ImportItem.objects.create(
+    from apps.audit.models import AuditEvent
+    from apps.platform.outbox.models import OutboxEvent
+    from apps.products.models import ImportItemDecision
+
+    item = ImportItem.objects.create(
         organization=organization,
         batch=batch,
         row_number=1,
         raw_row_digest="a" * 64,
         normalized_payload={"name": "Imported", "category_code": "YOGURT"},
         item_status=ImportItemStatus.VALID,
+        decision=ImportItemDecision.CREATE,
     )
     draft = CreateLegacyBaselineDraft(
         context=CommandContext.for_actor(active_user),
@@ -120,6 +125,16 @@ def test_import_batch_draft_accepts_migration_confirm_without_draft_create(
         business_no_fallback="IMP-001",
     ).execute()
     assert draft.change_set.migration_batch_id == batch.id
+    item.refresh_from_db()
+    assert item.decision == ImportItemDecision.CREATE
+    assert AuditEvent.objects.filter(
+        action_code="legacy_baseline.draft.create",
+        resource_public_id=draft.change_set.public_id,
+    ).exists()
+    assert OutboxEvent.objects.filter(
+        event_type="legacy_baseline.draft.created",
+        aggregate_id=draft.change_set.public_id,
+    ).exists()
 
 
 def test_import_batch_draft_refuses_foreign_batch_id(
@@ -193,6 +208,8 @@ def test_import_batch_draft_is_idempotent_for_the_same_locked_row(
         created_by=active_user,
         total_count=1,
     )
+    from apps.products.models import ImportItemDecision
+
     payload = {"name": "Imported", "category_code": "YOGURT"}
     ImportItem.objects.create(
         organization=organization,
@@ -201,6 +218,7 @@ def test_import_batch_draft_is_idempotent_for_the_same_locked_row(
         raw_row_digest="c" * 64,
         normalized_payload=payload,
         item_status=ImportItemStatus.VALID,
+        decision=ImportItemDecision.CREATE,
     )
     first = CreateLegacyBaselineDraft(
         context=CommandContext.for_actor(active_user),
@@ -225,6 +243,102 @@ def test_import_batch_draft_is_idempotent_for_the_same_locked_row(
         ).count()
         == 1
     )
+
+
+def test_import_batch_draft_rejects_undecided_or_invalid_rows(
+    active_user: User,
+    organization: Organization,
+    grant_action: Callable[..., None],
+) -> None:
+    from apps.platform.api.errors import ValidationFailedError
+    from apps.products.models import (
+        ImportBatch,
+        ImportBatchStatus,
+        ImportItem,
+        ImportItemDecision,
+        ImportItemStatus,
+    )
+
+    grant_action(active_user, "migration.confirm", "migration")
+    batch = ImportBatch.objects.create(
+        organization=organization,
+        template_version="v1",
+        status=ImportBatchStatus.PARSED,
+        created_by=active_user,
+        total_count=3,
+    )
+    payload = {"name": "Imported", "category_code": "YOGURT"}
+    cases = (
+        (1, ImportItemStatus.INVALID, ImportItemDecision.CREATE, "IMPORT_ROW_NOT_READY"),
+        (2, ImportItemStatus.PENDING, ImportItemDecision.CREATE, "IMPORT_ROW_NOT_READY"),
+        (
+            3,
+            ImportItemStatus.DUPLICATE_REVIEW,
+            ImportItemDecision.PENDING,
+            "IMPORT_DECISION_REQUIRED",
+        ),
+    )
+    for row_number, status, decision, block in cases:
+        ImportItem.objects.create(
+            organization=organization,
+            batch=batch,
+            row_number=row_number,
+            raw_row_digest=f"{row_number}" * 64,
+            normalized_payload=payload,
+            item_status=status,
+            decision=decision,
+        )
+        with pytest.raises(ValidationFailedError) as exc:
+            CreateLegacyBaselineDraft(
+                context=CommandContext.for_actor(active_user),
+                payload=payload,
+                migration_batch_id=batch.id,
+                import_row_number=row_number,
+                business_no_fallback=f"IMP-BAD-{row_number}",
+            ).execute()
+        assert block in exc.value.details["blocks"]
+
+
+def test_import_batch_draft_persists_implicit_create_decision(
+    active_user: User,
+    organization: Organization,
+    grant_action: Callable[..., None],
+) -> None:
+    from apps.products.models import (
+        ImportBatch,
+        ImportBatchStatus,
+        ImportItem,
+        ImportItemDecision,
+        ImportItemStatus,
+    )
+
+    grant_action(active_user, "migration.confirm", "migration")
+    batch = ImportBatch.objects.create(
+        organization=organization,
+        template_version="v1",
+        status=ImportBatchStatus.PARSED,
+        created_by=active_user,
+        total_count=1,
+    )
+    payload = {"name": "Imported", "category_code": "YOGURT"}
+    item = ImportItem.objects.create(
+        organization=organization,
+        batch=batch,
+        row_number=1,
+        raw_row_digest="d" * 64,
+        normalized_payload=payload,
+        item_status=ImportItemStatus.VALID,
+        decision=ImportItemDecision.PENDING,
+    )
+    CreateLegacyBaselineDraft(
+        context=CommandContext.for_actor(active_user),
+        payload=payload,
+        migration_batch_id=batch.id,
+        import_row_number=1,
+        business_no_fallback="IMP-IMPLICIT",
+    ).execute()
+    item.refresh_from_db()
+    assert item.decision == ImportItemDecision.CREATE
 
 
 def test_legacy_link_refuses_cross_organization_existing_product(

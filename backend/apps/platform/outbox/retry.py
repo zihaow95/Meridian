@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Collection
 from datetime import datetime, timedelta
 
 from django.utils import timezone
@@ -24,22 +25,29 @@ def mark_pending_for_retry(
     *,
     error_code: str,
     now: datetime | None = None,
+    expected_statuses: Collection[str] | None = None,
 ) -> int:
-    """Bump attempt metadata and keep/return the event to PENDING for retry."""
+    """Conditionally bump attempt metadata without clobbering newer statuses.
+
+    Uses a status-gated UPDATE so a stale in-memory instance cannot pull a row
+    already moved to PROCESSING/PUBLISHED back to PENDING.
+    """
 
     clock = now or timezone.now()
     attempt = event.attempt_count + 1
-    event.status = OutboxStatus.PENDING
-    event.attempt_count = attempt
-    event.next_attempt_at = next_attempt_at(attempt_count=attempt, now=clock)
-    event.last_error_code = error_code
-    event.save(
-        update_fields=[
-            "status",
-            "attempt_count",
-            "next_attempt_at",
-            "last_error_code",
-            "updated_at",
-        ]
+    next_at = next_attempt_at(attempt_count=attempt, now=clock)
+    allowed = tuple(expected_statuses or (OutboxStatus.PENDING, OutboxStatus.PROCESSING))
+    updated = OutboxEvent.objects.filter(pk=event.pk, status__in=allowed).update(
+        status=OutboxStatus.PENDING,
+        attempt_count=attempt,
+        next_attempt_at=next_at,
+        last_error_code=error_code,
     )
-    return attempt
+    if updated:
+        event.status = OutboxStatus.PENDING
+        event.attempt_count = attempt
+        event.next_attempt_at = next_at
+        event.last_error_code = error_code
+        return attempt
+    event.refresh_from_db(fields=["status", "attempt_count", "next_attempt_at", "last_error_code"])
+    return event.attempt_count

@@ -226,23 +226,40 @@ def test_source_sync_close_does_not_overwrite_a_concurrent_manual_close(
     """Two DB connections race; the first close reason/time must stick."""
 
     import threading
+    import time
 
-    from django.db import close_old_connections, connections
+    from django.db import OperationalError, close_old_connections, connections
 
     from apps.notifications.services.lifecycle import CloseNotification
 
     barrier = threading.Barrier(2)
     errors: list[BaseException] = []
 
+    def _retry_deadlock(action) -> None:
+        for attempt in range(4):
+            try:
+                action()
+                return
+            except OperationalError as exc:
+                # MySQL 1213: transient deadlock under dual-connection races.
+                if exc.args and exc.args[0] == 1213 and attempt < 3:
+                    time.sleep(0.05 * (attempt + 1))
+                    continue
+                raise
+
     def manual_close() -> None:
         close_old_connections()
         try:
             barrier.wait(timeout=10)
-            CloseNotification(
-                context=CommandContext.for_actor(active_user),
-                notification_public_id=notification.public_id,
-                close_reason="MANUAL_FIRST",
-            ).execute()
+
+            def _run() -> None:
+                CloseNotification(
+                    context=CommandContext.for_actor(active_user),
+                    notification_public_id=notification.public_id,
+                    close_reason="MANUAL_FIRST",
+                ).execute()
+
+            _retry_deadlock(_run)
         except BaseException as exc:  # noqa: BLE001 - collect either outcome
             errors.append(exc)
         finally:
@@ -252,14 +269,18 @@ def test_source_sync_close_does_not_overwrite_a_concurrent_manual_close(
         close_old_connections()
         try:
             barrier.wait(timeout=10)
-            SynchronizeNotificationForSource(
-                organization_id=todo.organization_id,
-                source_type=todo.source_type,
-                source_id=todo.source_id,
-                close_reason="SOURCE_COMPLETED",
-                actor=active_user,
-                trace_id="trace-race",
-            ).execute()
+
+            def _run() -> None:
+                SynchronizeNotificationForSource(
+                    organization_id=todo.organization_id,
+                    source_type=todo.source_type,
+                    source_id=todo.source_id,
+                    close_reason="SOURCE_COMPLETED",
+                    actor=active_user,
+                    trace_id="trace-race",
+                ).execute()
+
+            _retry_deadlock(_run)
         except BaseException as exc:  # noqa: BLE001 - collect either outcome
             errors.append(exc)
         finally:

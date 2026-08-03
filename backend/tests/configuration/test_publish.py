@@ -74,13 +74,17 @@ def test_create_draft_refuses_actor_without_draft_action(
 def test_publish_registers_outbox_event(published_version) -> None:
     from apps.platform.outbox.models import OutboxEvent
 
-    event = OutboxEvent.objects.get(aggregate_id=published_version.public_id)
+    event = OutboxEvent.objects.get(
+        aggregate_id=published_version.public_id,
+        event_type="configuration.published",
+    )
     assert event.event_type == "configuration.published"
 
 
 @pytest.mark.django_db
-def test_create_draft_writes_audit(file_upload_definition, active_user) -> None:
+def test_create_draft_writes_audit_and_outbox(file_upload_definition, active_user) -> None:
     from apps.audit.models import AuditEvent
+    from apps.platform.outbox.models import OutboxEvent
 
     draft = CreateDraft(
         actor=active_user,
@@ -93,6 +97,10 @@ def test_create_draft_writes_audit(file_upload_definition, active_user) -> None:
         resource_public_id=draft.public_id,
         actor_user=active_user,
     ).exists()
+    assert OutboxEvent.objects.filter(
+        event_type="configuration.draft.created",
+        aggregate_id=draft.public_id,
+    ).exists()
 
 
 @pytest.mark.django_db
@@ -102,6 +110,7 @@ def test_validate_failure_persists_failed_status_and_errors(
     from apps.audit.models import AuditEvent, AuditResult
     from apps.configuration.models import ConfigurationStatus
     from apps.configuration.services import ConfigurationValidationFailed, ValidateVersion
+    from apps.platform.outbox.models import OutboxEvent
 
     draft = CreateDraft(
         actor=active_user,
@@ -116,15 +125,20 @@ def test_validate_failure_persists_failed_status_and_errors(
     assert draft.status == ConfigurationStatus.FAILED
     assert draft.validation_errors
     assert AuditEvent.objects.filter(
-        action_code="configuration.draft.create",
+        action_code="configuration.version.validate",
         resource_public_id=draft.public_id,
         result=AuditResult.FAILURE,
+    ).exists()
+    assert OutboxEvent.objects.filter(
+        event_type="configuration.version.validated",
+        aggregate_id=draft.public_id,
     ).exists()
 
 
 @pytest.mark.django_db
-def test_snapshot_writes_audit(file_upload_definition, active_user) -> None:
+def test_snapshot_writes_audit_and_outbox(file_upload_definition, active_user) -> None:
     from apps.audit.models import AuditEvent
+    from apps.platform.outbox.models import OutboxEvent
 
     v1 = CreateDraft(
         actor=active_user,
@@ -140,9 +154,13 @@ def test_snapshot_writes_audit(file_upload_definition, active_user) -> None:
     ).execute()
 
     assert AuditEvent.objects.filter(
-        action_code="configuration.version.read",
+        action_code="configuration.snapshot.create",
         resource_public_id=v1.public_id,
         actor_user=active_user,
+    ).exists()
+    assert OutboxEvent.objects.filter(
+        event_type="configuration.snapshot.created",
+        aggregate_id=v1.public_id,
     ).exists()
 
 

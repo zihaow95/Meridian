@@ -11,12 +11,17 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from django.db import transaction
+from django.utils import timezone
 
+from apps.audit.models import AuditResult
+from apps.audit.services.append_event import AuditRecord, append_event
+from apps.audit.services.snapshots import acting_roles_snapshot
 from apps.authorization.context import AuthorizationContext, ResourceDescriptor
 from apps.authorization.policies.engine import authorize
 from apps.authorization.services.subject import subject_for
 from apps.platform.api.errors import PermissionDeniedError, ValidationFailedError
 from apps.platform.application.command import CommandContext
+from apps.platform.outbox.services import OutboxMessage, register_outbox_event
 from apps.products.models import (
     ChangeSetStatus,
     ChangeSetType,
@@ -25,6 +30,7 @@ from apps.products.models import (
     ImportBatchStatus,
     ImportItem,
     ImportItemDecision,
+    ImportItemStatus,
     ProductAsset,
     ProductChangeSet,
     ProductLifecycleStatus,
@@ -32,6 +38,7 @@ from apps.products.models import (
 )
 
 REQUIRED_PAYLOAD_FIELDS = ("name", "category_code")
+_READY_ITEM_STATUSES = frozenset({ImportItemStatus.VALID, ImportItemStatus.DUPLICATE_REVIEW})
 
 
 @dataclass(frozen=True)
@@ -87,11 +94,13 @@ class CreateLegacyBaselineDraft:
                 action = "migration.confirm"
                 resource_type = "migration"
                 public_id = None
+                audit_action = "legacy_baseline.draft.create"
             else:
                 batch = None
                 action = "legacy_baseline.draft.create"
                 resource_type = "product_change_set"
                 public_id = self.existing_product.public_id if self.existing_product else None
+                audit_action = "legacy_baseline.draft.create"
             decision = authorize(
                 subject_for(actor),
                 action=action,
@@ -155,6 +164,40 @@ class CreateLegacyBaselineDraft:
                     update_fields=["baseline_change_set", "target_product", "updated_at"]
                 )
 
+            now = self.context.occurred_at or timezone.now()
+            append_event(
+                AuditRecord(
+                    actor=actor,
+                    action_code=audit_action,
+                    resource_type="product_change_set",
+                    resource_public_id=change_set.public_id,
+                    result=AuditResult.SUCCESS,
+                    trace_id=self.context.trace_id,
+                    occurred_at=now,
+                    acting_roles_snapshot=acting_roles_snapshot(actor),
+                    after_summary={
+                        "product_public_id": str(product.public_id),
+                        "migration_batch_id": batch.id if batch is not None else None,
+                        "import_row_number": self.import_row_number,
+                        "linked_existing_product": self.existing_product is not None,
+                    },
+                )
+            )
+            register_outbox_event(
+                OutboxMessage(
+                    event_type="legacy_baseline.draft.created",
+                    aggregate_type="product_change_set",
+                    aggregate_id=change_set.public_id,
+                    payload={
+                        "product_public_id": str(product.public_id),
+                        "change_set_public_id": str(change_set.public_id),
+                        "migration_batch_id": batch.id if batch is not None else None,
+                        "import_row_number": self.import_row_number,
+                    },
+                    occurred_at=now,
+                )
+            )
+
         return LegacyBaselineDraft(product=product, change_set=change_set, created=True)
 
     def _locked_import_item(self, organization_id: int) -> tuple[ImportBatch, ImportItem]:
@@ -203,12 +246,42 @@ class CreateLegacyBaselineDraft:
                 message="Import payload does not match the locked import row.",
                 details={"blocks": ["IMPORT_PAYLOAD_MISMATCH"], "row_number": item.row_number},
             )
+        if item.item_status not in _READY_ITEM_STATUSES:
+            raise ValidationFailedError(
+                message="Import row is not ready for baseline creation.",
+                details={
+                    "blocks": ["IMPORT_ROW_NOT_READY"],
+                    "row_number": item.row_number,
+                    "item_status": item.item_status,
+                },
+            )
         if item.decision == ImportItemDecision.SKIP:
             raise ValidationFailedError(
                 message="Import row was decided as SKIP.",
                 details={"blocks": ["IMPORT_ROW_SKIPPED"], "row_number": item.row_number},
             )
-        if item.decision == ImportItemDecision.LINK:
+        if item.decision == ImportItemDecision.PENDING:
+            if item.item_status == ImportItemStatus.DUPLICATE_REVIEW:
+                raise ValidationFailedError(
+                    message="Duplicate import rows require an explicit CREATE or LINK decision.",
+                    details={
+                        "blocks": ["IMPORT_DECISION_REQUIRED"],
+                        "row_number": item.row_number,
+                    },
+                )
+            if self.existing_product is not None:
+                raise ValidationFailedError(
+                    message="Import CREATE path cannot bind an existing product.",
+                    details={
+                        "blocks": ["IMPORT_CREATE_TARGET_FORBIDDEN"],
+                        "row_number": item.row_number,
+                    },
+                )
+            # Persist the implicit CREATE decision in the same locked transaction
+            # so retries and concurrent callers see an authoritative fact.
+            item.decision = ImportItemDecision.CREATE
+            item.save(update_fields=["decision", "updated_at"])
+        elif item.decision == ImportItemDecision.LINK:
             if (
                 self.existing_product is None
                 or item.target_product_id is None
@@ -221,12 +294,22 @@ class CreateLegacyBaselineDraft:
                         "row_number": item.row_number,
                     },
                 )
-        elif self.existing_product is not None:
+        elif item.decision == ImportItemDecision.CREATE:
+            if self.existing_product is not None:
+                raise ValidationFailedError(
+                    message="Import CREATE path cannot bind an existing product.",
+                    details={
+                        "blocks": ["IMPORT_CREATE_TARGET_FORBIDDEN"],
+                        "row_number": item.row_number,
+                    },
+                )
+        else:
             raise ValidationFailedError(
-                message="Import CREATE path cannot bind an existing product.",
+                message="Import row decision is not accepted for baseline creation.",
                 details={
-                    "blocks": ["IMPORT_CREATE_TARGET_FORBIDDEN"],
+                    "blocks": ["IMPORT_DECISION_REQUIRED"],
                     "row_number": item.row_number,
+                    "decision": item.decision,
                 },
             )
         return batch, item

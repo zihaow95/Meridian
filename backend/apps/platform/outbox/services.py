@@ -64,6 +64,7 @@ def schedule_local_dispatch_after_commit(event: OutboxEvent) -> None:
                 pending,
                 error_code=LOCAL_DISPATCH_FAILED,
                 now=now,
+                expected_statuses=(OutboxStatus.PENDING,),
             )
             logger.exception(
                 "outbox.local_dispatch_failed",

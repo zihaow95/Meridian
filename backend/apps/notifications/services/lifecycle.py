@@ -160,6 +160,7 @@ class SynchronizeNotificationForSource:
                     object_id=self.source_id,
                 )
                 .filter(Q(status=NotificationStatus.UNREAD) | Q(status=NotificationStatus.READ))
+                .order_by("pk")
                 .values_list("public_id", flat=True)
             )
             if not open_rows:

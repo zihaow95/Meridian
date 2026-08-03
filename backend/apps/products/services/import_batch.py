@@ -294,6 +294,11 @@ class ConfirmProductImportBatch:
         if item.decision == ImportItemDecision.LINK:
             return self._link_existing_product(batch=batch, item=item, actor=actor)
 
+        if item.decision == ImportItemDecision.PENDING:
+            # Authoritative CREATE fact before the single writer runs.
+            item.decision = ImportItemDecision.CREATE
+            item.save(update_fields=["decision", "updated_at"])
+
         draft = CreateLegacyBaselineDraft(
             context=CommandContext.for_actor(actor),
             payload=item.normalized_payload,

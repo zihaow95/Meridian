@@ -38,6 +38,11 @@ NO_LOCAL_SUBSCRIBER_EVENT_TYPES = frozenset(
         "monitoring_assignment.updated",
         # Published for audit/downstream; phase 6 has no local side effect.
         "configuration.published",
+        "configuration.draft.created",
+        "configuration.version.validated",
+        "configuration.snapshot.created",
+        "legacy_baseline.draft.created",
+        "legacy_baseline.published",
     }
 )
 

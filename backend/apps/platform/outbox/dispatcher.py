@@ -60,7 +60,12 @@ def dispatch_pending_events(*, publisher: OutboxPublisher, limit: int = 100) -> 
         except Exception:
             with transaction.atomic():
                 event.refresh_from_db()
-                mark_pending_for_retry(event, error_code=PUBLISH_FAILED, now=now)
+                mark_pending_for_retry(
+                    event,
+                    error_code=PUBLISH_FAILED,
+                    now=now,
+                    expected_statuses=(OutboxStatus.PROCESSING,),
+                )
             continue
 
         with transaction.atomic():
