@@ -70,6 +70,18 @@ def supersede_live_confirmations(material: ProductMaterial, *, at: datetime | No
     )
 
 
+def supersede_open_confirmations(material: ProductMaterial, *, at: datetime | None = None) -> None:
+    """Retire live approvals and unfinished pending requests on a material."""
+
+    clock = at or timezone.now()
+    supersede_live_confirmations(material, at=clock)
+    MaterialConfirmation.objects.filter(
+        material=material,
+        decision=MaterialConfirmationDecision.PENDING,
+        superseded_at__isnull=True,
+    ).update(superseded_at=clock, updated_at=clock)
+
+
 @dataclass(frozen=True)
 class SubmitMaterialConfirmation:
     context: CommandContext

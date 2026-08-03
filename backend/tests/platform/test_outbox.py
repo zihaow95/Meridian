@@ -59,6 +59,71 @@ def test_unregistered_event_type_is_not_marked_published(outbox_event: OutboxEve
 
 
 @pytest.mark.django_db(transaction=True)
+def test_concurrent_retries_increment_attempt_count_atomically(
+    outbox_event: OutboxEvent,
+) -> None:
+    import threading
+
+    from django.db import close_old_connections, connections
+
+    from apps.platform.outbox.retry import LOCAL_DISPATCH_FAILED, mark_pending_for_retry
+
+    barrier = threading.Barrier(2)
+    errors: list[BaseException] = []
+
+    def _retry() -> None:
+        close_old_connections()
+        try:
+            stale = OutboxEvent.objects.get(pk=outbox_event.pk)
+            barrier.wait(timeout=10)
+            mark_pending_for_retry(
+                stale,
+                error_code=LOCAL_DISPATCH_FAILED,
+                expected_statuses=(OutboxStatus.PENDING, OutboxStatus.PROCESSING),
+            )
+        except BaseException as exc:  # noqa: BLE001
+            errors.append(exc)
+        finally:
+            connections.close_all()
+
+    t1 = threading.Thread(target=_retry)
+    t2 = threading.Thread(target=_retry)
+    t1.start()
+    t2.start()
+    t1.join(timeout=30)
+    t2.join(timeout=30)
+
+    assert errors == []
+    outbox_event.refresh_from_db()
+    assert outbox_event.attempt_count == 2
+    assert outbox_event.updated_at is not None
+
+
+@pytest.mark.django_db
+def test_retry_marks_failed_after_max_attempts(outbox_event: OutboxEvent) -> None:
+    from apps.platform.outbox.retry import (
+        LOCAL_DISPATCH_FAILED,
+        MAX_ATTEMPTS,
+        mark_pending_for_retry,
+    )
+
+    outbox_event.attempt_count = MAX_ATTEMPTS - 1
+    outbox_event.save(update_fields=["attempt_count", "updated_at"])
+
+    attempt = mark_pending_for_retry(
+        outbox_event,
+        error_code=LOCAL_DISPATCH_FAILED,
+        expected_statuses=(OutboxStatus.PENDING,),
+    )
+
+    outbox_event.refresh_from_db()
+    assert attempt == MAX_ATTEMPTS
+    assert outbox_event.status == OutboxStatus.FAILED
+    assert outbox_event.last_error_code == LOCAL_DISPATCH_FAILED
+    assert outbox_event.attempt_count == MAX_ATTEMPTS
+
+
+@pytest.mark.django_db(transaction=True)
 def test_local_retry_does_not_clobber_a_concurrent_published_status(
     outbox_event: OutboxEvent,
 ) -> None:

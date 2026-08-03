@@ -146,22 +146,25 @@ def test_snapshot_writes_audit_and_outbox(file_upload_definition, active_user) -
         content={"allowed_mime_types": ["application/pdf"], "max_bytes": 1_048_576},
     ).execute()
     v1 = PublishVersion(version=v1, actor=active_user).execute()
-    CreateSnapshot(
+    snapshot = CreateSnapshot(
         version=v1,
         reference_type="project",
         reference_id=v1.public_id,
         actor=active_user,
     ).execute()
 
-    assert AuditEvent.objects.filter(
+    audit = AuditEvent.objects.get(
         action_code="configuration.snapshot.create",
-        resource_public_id=v1.public_id,
+        resource_public_id=snapshot.public_id,
         actor_user=active_user,
-    ).exists()
-    assert OutboxEvent.objects.filter(
+    )
+    assert audit.resource_type == "configuration.snapshot"
+    event = OutboxEvent.objects.get(
         event_type="configuration.snapshot.created",
-        aggregate_id=v1.public_id,
-    ).exists()
+        aggregate_id=snapshot.public_id,
+    )
+    assert event.aggregate_type == "configuration.snapshot"
+    assert event.payload_json["version_public_id"] == str(v1.public_id)
 
 
 @pytest.mark.django_db

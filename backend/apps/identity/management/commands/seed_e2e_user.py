@@ -1102,6 +1102,8 @@ class Command(BaseCommand):
         import hashlib
 
         from django.conf import settings
+        from django.db import transaction
+        from django.db.models import Max
 
         from apps.documents.models import (
             Document,
@@ -1121,13 +1123,14 @@ class Command(BaseCommand):
             ProductAsset,
             ProductMaterial,
         )
+        from apps.products.services.material_chains import make_material_current
         from apps.products.services.material_confirmations import (
             DecideMaterialConfirmation,
             SubmitMaterialConfirmation,
         )
 
         assert isinstance(product, ProductAsset)
-        material = (
+        current = (
             ProductMaterial.objects.select_related("document_version__file_object")
             .filter(
                 organization_id=product.organization_id,
@@ -1138,7 +1141,7 @@ class Command(BaseCommand):
             )
             .first()
         )
-        if material is not None and self._has_valid_approved_confirmation(material):
+        if current is not None and self._has_valid_approved_confirmation(current):
             return
 
         self._grant_action(actor, "product_material.manage", "product_material")
@@ -1188,35 +1191,46 @@ class Command(BaseCommand):
                 "uploaded_at": timezone.now(),
             },
         )
-        if material is None:
-            material = ProductMaterial.objects.create(
-                organization_id=product.organization_id,
-                owner_type=AttributeOwnerType.PRODUCT,
-                owner_id=product.id,
-                material_type_code="PRODUCT_LABEL",
-                version_no=1,
-                document_version=version,
-                material_status=MaterialStatus.DRAFT,
-                current_slot=1,
-                sensitivity_level=version.sensitivity_level,
+
+        with transaction.atomic():
+            # Never rewrite an existing material's document_version in place.
+            # Keep the old row as history and promote a new draft version.
+            highest = (
+                ProductMaterial.objects.filter(
+                    organization_id=product.organization_id,
+                    owner_type=AttributeOwnerType.PRODUCT,
+                    owner_id=product.id,
+                    material_type_code="PRODUCT_LABEL",
+                ).aggregate(highest=Max("version_no"))["highest"]
+                or 0
             )
-        else:
-            # Repair forged APPROVED rows that lack a bound confirmation fact.
-            material.document_version = version
-            material.sensitivity_level = version.sensitivity_level
-            if material.current_slot is None:
-                material.current_slot = 1
-            if not self._has_valid_approved_confirmation(material):
-                material.material_status = MaterialStatus.DRAFT
-            material.save(
-                update_fields=[
-                    "document_version",
-                    "sensitivity_level",
-                    "current_slot",
-                    "material_status",
-                    "updated_at",
-                ]
-            )
+            if current is None:
+                material = ProductMaterial.objects.create(
+                    organization_id=product.organization_id,
+                    owner_type=AttributeOwnerType.PRODUCT,
+                    owner_id=product.id,
+                    material_type_code="PRODUCT_LABEL",
+                    version_no=highest + 1,
+                    document_version=version,
+                    material_status=MaterialStatus.DRAFT,
+                    current_slot=None,
+                    sensitivity_level=version.sensitivity_level,
+                )
+            else:
+                material = ProductMaterial.objects.create(
+                    organization_id=product.organization_id,
+                    owner_type=AttributeOwnerType.PRODUCT,
+                    owner_id=product.id,
+                    material_type_code="PRODUCT_LABEL",
+                    version_no=highest + 1,
+                    supersedes_material=current,
+                    document_version=version,
+                    material_status=MaterialStatus.DRAFT,
+                    current_slot=None,
+                    sensitivity_level=version.sensitivity_level,
+                )
+            make_material_current(material)
+
         if self._has_valid_approved_confirmation(material):
             return
 

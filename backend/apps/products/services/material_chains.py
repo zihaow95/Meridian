@@ -55,7 +55,7 @@ def make_material_current(material: ProductMaterial) -> ProductMaterial:
     no longer the current ones.
     """
 
-    from apps.products.services.material_confirmations import supersede_live_confirmations
+    from apps.products.services.material_confirmations import supersede_open_confirmations
 
     stood_down = (
         ProductMaterial.objects.select_for_update()
@@ -69,7 +69,7 @@ def make_material_current(material: ProductMaterial) -> ProductMaterial:
         .exclude(pk=material.pk)
     )
     for previous in stood_down:
-        supersede_live_confirmations(previous)
+        supersede_open_confirmations(previous)
     stood_down.update(current_slot=None, material_status=MaterialStatus.INACTIVE)
 
     material.current_slot = 1

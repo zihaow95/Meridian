@@ -563,13 +563,14 @@ class CreateSnapshot:
                 AuditRecord(
                     actor=command_context.actor,
                     action_code="configuration.snapshot.create",
-                    resource_type="configuration.version",
-                    resource_public_id=version.public_id,
+                    resource_type="configuration.snapshot",
+                    resource_public_id=snapshot.public_id,
                     result=AuditResult.SUCCESS,
                     trace_id=command_context.trace_id,
                     occurred_at=command_context.occurred_at,
                     acting_roles_snapshot=acting_roles_snapshot(command_context.actor),
                     after_summary={
+                        "version_public_id": str(version.public_id),
                         "reference_type": self.reference_type,
                         "reference_id": str(self.reference_id),
                         "content_hash": snapshot.content_hash,
@@ -579,9 +580,10 @@ class CreateSnapshot:
             outbox_event = register_outbox_event(
                 OutboxMessage(
                     event_type="configuration.snapshot.created",
-                    aggregate_type="configuration.version",
-                    aggregate_id=version.public_id,
+                    aggregate_type="configuration.snapshot",
+                    aggregate_id=snapshot.public_id,
                     payload={
+                        "version_public_id": str(version.public_id),
                         "reference_type": self.reference_type,
                         "reference_id": str(self.reference_id),
                         "content_hash": snapshot.content_hash,
