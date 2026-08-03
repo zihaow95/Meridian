@@ -27,20 +27,25 @@ export default defineConfig({
   webServer: [
     {
       command:
-        'uv run python manage.py migrate --settings=config.settings.test && uv run python manage.py seed_e2e_user --settings=config.settings.test && uv run python manage.py runserver 127.0.0.1:8000 --settings=config.settings.test',
+        'uv run python manage.py migrate --settings=config.settings.test && uv run python manage.py seed_phase6_acceptance --settings=config.settings.test && uv run python manage.py runserver 127.0.0.1:8000 --settings=config.settings.test',
       cwd: '../../backend',
       url: `${BACKEND_URL}/api/v1/health`,
       reuseExistingServer: !process.env.CI,
-      timeout: 180_000,
+      timeout: 300_000,
     },
     {
-      command: `npm --prefix ../../frontend run dev -- --port ${PORT} --host localhost --strictPort`,
+      command:
+        'npm.cmd run dev -- --port ' +
+        String(PORT) +
+        ' --host localhost --strictPort',
+      cwd: '../../frontend',
       url: BASE_URL,
       reuseExistingServer: !process.env.CI,
       timeout: 180_000,
       env: {
         ...process.env,
         VITE_ENABLE_DEV_LOGIN: 'true',
+        VITE_ENABLE_PILOT_PASSWORD_LOGIN: 'true',
       },
     },
   ],

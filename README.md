@@ -19,9 +19,9 @@ D:\Projects\Meridian
 - **阶段2（提案→立案→立项）已完成**（两个重大阶段门、原子项目/产品草稿创建、前端最小闭环与 E2E 验收已通过本地门禁）；
 - **阶段3（产品档案与存量迁移）已完成**（见 [`phase-3-checkpoint.md`](docs/implementation/phase-3-checkpoint.md)；全量门禁 `All quality gates passed.`，pytest 199、产品迁移 E2E 9）；
 - **阶段4（开发到首次上市）已完成实现与退出证据**（见 [`phase-4-checkpoint.md`](docs/implementation/phase-4-checkpoint.md)；EXE-001—014；全量门禁以阶段4 GO / 阶段5 Task 5.0 复验为准）；
-- **阶段5（运营、迭代和退市）已完成并通过验收**（见 [`phase-5-checkpoint.md`](docs/implementation/phase-5-checkpoint.md)；全量门禁 `All quality gates passed.`，Standards / Spec 双轴 P0/P1/P2 均为 0）；阶段6尚未开始。
-- **阶段6（存量产品、受控文件、站内通知与试用准备）已建立执行基线，尚未开始实现**（见 [`阶段6范围`](docs/superpowers/specs/2026-07-30-phase-6-internal-pilot-scope.md)、[`阶段6任务级计划`](docs/superpowers/plans/2026-07-30-phase-6-controlled-files-notifications-pilot-readiness.md)与[`阶段6测试矩阵`](docs/implementation/phase-6-test-matrix.md)）；分支 `codex/phase-6-controlled-files-notifications-pilot-readiness` 基线提交 `a39414b`，2026-07-31 全量门禁 `All quality gates passed.`。
-- **阶段7（生产化准备与受控试用发布）任务级计划已确认，等待阶段6 GO后实现**（见 [`阶段7任务级计划`](docs/superpowers/plans/2026-07-30-phase-7-production-readiness-pilot-release.md)）；阶段7 GO仅允许启动真实用户试用，不代表正式生产上线。
+- **阶段5（运营、迭代和退市）已完成并通过验收**（见 [`phase-5-checkpoint.md`](docs/implementation/phase-5-checkpoint.md)；全量门禁 `All quality gates passed.`，Standards / Spec 双轴 P0/P1/P2 均为 0）。
+- **阶段6（存量产品、受控文件、站内通知与试用准备）实现已完成，检查点为条件 GO**（见 [`phase-6-checkpoint.md`](docs/implementation/phase-6-checkpoint.md)、[`阶段6测试矩阵`](docs/implementation/phase-6-test-matrix.md)）；冷启动种子与纵向 E2E 已通过；无条件 GO 前需补全量 `scripts\check.cmd`、TRD 校验与双轴审阅证据。阶段6 GO **不**启动真实用户试用。
+- **阶段7（生产化准备与受控试用发布）任务级计划已确认，等待阶段6无条件 GO 后实现**（见 [`阶段7任务级计划`](docs/superpowers/plans/2026-07-30-phase-7-production-readiness-pilot-release.md)）；阶段7 GO仅允许启动真实用户试用，不代表正式生产上线。
 
 ## 文档入口
 
@@ -61,6 +61,7 @@ D:\Projects\Meridian
 - [阶段5任务级计划](docs/superpowers/plans/2026-07-20-phase-5-operations-iteration-retirement.md)
 - [阶段6范围说明](docs/superpowers/specs/2026-07-30-phase-6-internal-pilot-scope.md)
 - [阶段6任务级计划](docs/superpowers/plans/2026-07-30-phase-6-controlled-files-notifications-pilot-readiness.md)
+- [阶段6完成检查点](docs/implementation/phase-6-checkpoint.md)
 - [阶段6测试矩阵](docs/implementation/phase-6-test-matrix.md)
 - [阶段7任务级计划](docs/superpowers/plans/2026-07-30-phase-7-production-readiness-pilot-release.md)
 

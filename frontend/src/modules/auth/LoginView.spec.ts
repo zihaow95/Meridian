@@ -91,4 +91,17 @@ describe('LoginView pilot password login', () => {
 
     expect(wrapper.find('[data-test="pilot-login"]').exists()).toBe(false)
   })
+
+  it('hides the pilot form when the vite flag explicitly disables it', async () => {
+    vi.stubEnv('VITE_ENABLE_PILOT_PASSWORD_LOGIN', 'false')
+    vi.mocked(apiFetch).mockResolvedValue({
+      pilot_password_login: true,
+      dev_login: false,
+    })
+
+    const wrapper = mount(LoginView, { global: { stubs } })
+    await flushPromises()
+
+    expect(wrapper.find('[data-test="pilot-login"]').exists()).toBe(false)
+  })
 })

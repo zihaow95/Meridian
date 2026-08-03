@@ -11,7 +11,10 @@ const route = useRoute()
 
 const showDevLogin = import.meta.env.DEV && import.meta.env.VITE_ENABLE_DEV_LOGIN === 'true'
 const nonProduction = !import.meta.env.PROD
-const vitePilotEnabled = import.meta.env.VITE_ENABLE_PILOT_PASSWORD_LOGIN === 'true'
+// Optional extra gate for builds that still want to hide the form while the
+// backend capability remains on. Production builds never show this path.
+const vitePilotEnabled =
+  import.meta.env.VITE_ENABLE_PILOT_PASSWORD_LOGIN !== 'false'
 const loginKey = ref('active-user')
 const organizationPublicId = ref('')
 const employeeNo = ref('')
