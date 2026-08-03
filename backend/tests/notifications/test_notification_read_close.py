@@ -219,43 +219,86 @@ def test_synchronization_ignores_notifications_for_other_sources(
     assert notification.status == NotificationStatus.UNREAD
 
 
+@pytest.mark.django_db(transaction=True)
 def test_source_sync_close_does_not_overwrite_a_concurrent_manual_close(
     active_user, todo, notification
 ) -> None:
-    """A race with CloseNotification must preserve the first close reason/time."""
+    """Two DB connections race; the first close reason/time must stick."""
+
+    import threading
+
+    from django.db import close_old_connections, connections
 
     from apps.notifications.services.lifecycle import CloseNotification
-    from apps.platform.application.command import CommandContext
 
-    first = CloseNotification(
-        context=CommandContext.for_actor(active_user),
-        notification_public_id=notification.public_id,
-        close_reason="MANUAL_FIRST",
-    ).execute()
+    barrier = threading.Barrier(2)
+    errors: list[BaseException] = []
 
+    def manual_close() -> None:
+        close_old_connections()
+        try:
+            barrier.wait(timeout=10)
+            CloseNotification(
+                context=CommandContext.for_actor(active_user),
+                notification_public_id=notification.public_id,
+                close_reason="MANUAL_FIRST",
+            ).execute()
+        except BaseException as exc:  # noqa: BLE001 - collect either outcome
+            errors.append(exc)
+        finally:
+            connections.close_all()
+
+    def sync_close() -> None:
+        close_old_connections()
+        try:
+            barrier.wait(timeout=10)
+            SynchronizeNotificationForSource(
+                organization_id=todo.organization_id,
+                source_type=todo.source_type,
+                source_id=todo.source_id,
+                close_reason="SOURCE_COMPLETED",
+                actor=active_user,
+                trace_id="trace-race",
+            ).execute()
+        except BaseException as exc:  # noqa: BLE001 - collect either outcome
+            errors.append(exc)
+        finally:
+            connections.close_all()
+
+    t1 = threading.Thread(target=manual_close)
+    t2 = threading.Thread(target=sync_close)
+    t1.start()
+    t2.start()
+    t1.join(timeout=30)
+    t2.join(timeout=30)
+
+    assert errors == []
+    notification.refresh_from_db()
+    assert notification.status == NotificationStatus.CLOSED
+    assert notification.close_reason in {"MANUAL_FIRST", "SOURCE_COMPLETED"}
+    first_closed_at = notification.closed_at
+    first_reason = notification.close_reason
+
+    # Loser must not overwrite the winner on a follow-up sync.
     SynchronizeNotificationForSource(
         organization_id=todo.organization_id,
         source_type=todo.source_type,
         source_id=todo.source_id,
-        close_reason="SOURCE_COMPLETED",
+        close_reason="SOURCE_RETRY",
         actor=active_user,
-        trace_id="trace-race",
+        trace_id="trace-race-2",
     ).execute()
-
     notification.refresh_from_db()
-    assert notification.status == NotificationStatus.CLOSED
-    assert notification.close_reason == "MANUAL_FIRST"
-    assert notification.closed_at == first.closed_at
+    assert notification.close_reason == first_reason
+    assert notification.closed_at == first_closed_at
 
 
-def test_source_sync_close_requires_an_actor_when_rows_close(
-    active_user, todo, notification
-) -> None:
+def test_source_sync_close_requires_an_actor_even_without_open_rows(active_user, todo) -> None:
     with pytest.raises(ValueError, match="actor"):
         SynchronizeNotificationForSource(
             organization_id=todo.organization_id,
             source_type=todo.source_type,
             source_id=todo.source_id,
             close_reason="SOURCE_COMPLETED",
-            actor=None,
+            actor=None,  # type: ignore[arg-type]
         ).execute()

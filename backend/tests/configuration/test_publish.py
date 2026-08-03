@@ -79,6 +79,74 @@ def test_publish_registers_outbox_event(published_version) -> None:
 
 
 @pytest.mark.django_db
+def test_create_draft_writes_audit(file_upload_definition, active_user) -> None:
+    from apps.audit.models import AuditEvent
+
+    draft = CreateDraft(
+        actor=active_user,
+        definition=file_upload_definition,
+        content={"allowed_mime_types": ["application/pdf"], "max_bytes": 1_048_576},
+    ).execute()
+
+    assert AuditEvent.objects.filter(
+        action_code="configuration.draft.create",
+        resource_public_id=draft.public_id,
+        actor_user=active_user,
+    ).exists()
+
+
+@pytest.mark.django_db
+def test_validate_failure_persists_failed_status_and_errors(
+    file_upload_definition, active_user
+) -> None:
+    from apps.audit.models import AuditEvent, AuditResult
+    from apps.configuration.models import ConfigurationStatus
+    from apps.configuration.services import ConfigurationValidationFailed, ValidateVersion
+
+    draft = CreateDraft(
+        actor=active_user,
+        definition=file_upload_definition,
+        content={"allowed_mime_types": ["application/pdf"], "max_bytes": "not-a-number"},
+    ).execute()
+
+    with pytest.raises(ConfigurationValidationFailed):
+        ValidateVersion(version=draft, actor=active_user).execute()
+
+    draft.refresh_from_db()
+    assert draft.status == ConfigurationStatus.FAILED
+    assert draft.validation_errors
+    assert AuditEvent.objects.filter(
+        action_code="configuration.draft.create",
+        resource_public_id=draft.public_id,
+        result=AuditResult.FAILURE,
+    ).exists()
+
+
+@pytest.mark.django_db
+def test_snapshot_writes_audit(file_upload_definition, active_user) -> None:
+    from apps.audit.models import AuditEvent
+
+    v1 = CreateDraft(
+        actor=active_user,
+        definition=file_upload_definition,
+        content={"allowed_mime_types": ["application/pdf"], "max_bytes": 1_048_576},
+    ).execute()
+    v1 = PublishVersion(version=v1, actor=active_user).execute()
+    CreateSnapshot(
+        version=v1,
+        reference_type="project",
+        reference_id=v1.public_id,
+        actor=active_user,
+    ).execute()
+
+    assert AuditEvent.objects.filter(
+        action_code="configuration.version.read",
+        resource_public_id=v1.public_id,
+        actor_user=active_user,
+    ).exists()
+
+
+@pytest.mark.django_db
 def test_snapshot_preserves_published_content(file_upload_definition, active_user) -> None:
     v1 = CreateDraft(
         actor=active_user,

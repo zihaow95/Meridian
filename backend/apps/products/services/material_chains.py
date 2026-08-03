@@ -249,6 +249,12 @@ class CreateLegacyMaterialVersionChain:
                 raise MaterialChainRejected(
                     f"Submission {public_id} belongs to a different business object."
                 )
+            catalog_code = submission.document_version.catalog_item_code or ""
+            if catalog_code != self.material_type_code:
+                raise MaterialChainRejected(
+                    f"Submission {public_id} catalog item {catalog_code!r} does not "
+                    f"match material type {self.material_type_code!r}."
+                )
             if submission.processing_status != LegacyMaterialStatus.VERIFIED:
                 raise MaterialChainRejected(
                     f"Submission {public_id} is {submission.processing_status}; only a "

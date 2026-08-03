@@ -108,6 +108,7 @@ def _seed(*, user, department, grant_action, catalog) -> None:
         == MetricDefinitionStatus.PUBLISHED
     )
     grant_action(user, "data_source.configure", "data_source")
+    grant_action(user, "configuration.draft.create", "configuration.version")
     grant_action(user, "configuration.version.publish", "configuration.version")
     grant_action(user, "ingestion_batch.create", "ingestion_batch")
     grant_action(user, "ingestion_batch.confirm", "ingestion_batch")

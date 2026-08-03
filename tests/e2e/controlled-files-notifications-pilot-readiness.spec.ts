@@ -325,7 +325,8 @@ test.describe('Phase 6 controlled files / notifications / pilot readiness', () =
     expect(productPublicId).toBeTruthy()
     await reloginAs(page, E2E_LIMITED_LOGIN_KEY, productDeepLink)
     const detailResponse = await page.request.get(`/api/v1/products/${productPublicId}`)
-    expect(detailResponse.status()).toBe(403)
+    // Existence-hiding: denied reads share the same 404 surface as missing ids.
+    expect(detailResponse.status()).toBe(404)
     await expect(page.getByText('无权访问或内容不存在')).toBeVisible({ timeout: 15_000 })
 
     const limited = await authedJson(page, 'GET', '/api/v1/notifications/my')

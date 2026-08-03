@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
-from datetime import datetime, timedelta
+from datetime import datetime
 from typing import Any
 from uuid import UUID
 
@@ -12,6 +12,8 @@ from django.db import transaction
 from django.utils import timezone
 
 from apps.platform.outbox.models import OutboxEvent, OutboxStatus
+from apps.platform.outbox.retry import LOCAL_DISPATCH_FAILED, mark_pending_for_retry
+from apps.platform.request_context import get_or_create_trace_id
 
 logger = logging.getLogger(__name__)
 
@@ -58,17 +60,23 @@ def schedule_local_dispatch_after_commit(event: OutboxEvent) -> None:
             LocalOutboxPublisher().publish(pending)
         except Exception:
             now = timezone.now()
-            attempt = pending.attempt_count + 1
-            OutboxEvent.objects.filter(pk=event_id, status=OutboxStatus.PENDING).update(
-                attempt_count=attempt,
-                next_attempt_at=now + timedelta(seconds=min(60, 2**attempt)),
-                last_error_code="LOCAL_DISPATCH_FAILED",
+            attempt = mark_pending_for_retry(
+                pending,
+                error_code=LOCAL_DISPATCH_FAILED,
+                now=now,
             )
             logger.exception(
-                "Local outbox dispatch failed event_id=%s event_type=%s attempt=%s",
-                pending.event_id,
-                pending.event_type,
-                attempt,
+                "outbox.local_dispatch_failed",
+                extra={
+                    "event_code": LOCAL_DISPATCH_FAILED,
+                    "trace_id": get_or_create_trace_id(),
+                    "event_id": str(pending.event_id),
+                    "event_type": pending.event_type,
+                    "aggregate_type": pending.aggregate_type,
+                    "aggregate_id": str(pending.aggregate_id),
+                    "attempt": attempt,
+                    "last_error_code": LOCAL_DISPATCH_FAILED,
+                },
             )
             return
         OutboxEvent.objects.filter(pk=event_id, status=OutboxStatus.PENDING).update(

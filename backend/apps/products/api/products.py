@@ -12,7 +12,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from apps.identity.models.user import User
-from apps.platform.api.errors import AuthorizationForbiddenError, ResourceNotFoundError
+from apps.platform.api.errors import PermissionDeniedError, ResourceNotFoundError
 from apps.products.api.schemas import PRODUCT_DETAIL_SCHEMA, PRODUCT_SEARCH_PAGE_SCHEMA
 from apps.products.models import ProductAsset
 from apps.products.queries.products import get_product_detail, search_products
@@ -86,7 +86,7 @@ class ProductDetailView(APIView):
             raise ResourceNotFoundError()
         detail = get_product_detail(user=user, public_id=public_id)
         if detail is None:
-            # Product exists in the actor's org but read_basic was denied.
-            # Deep-link targets already expose the id, so refuse with 403.
-            raise AuthorizationForbiddenError()
+            # Same opaque 404 as a missing product: never disclose that the
+            # object exists but the actor lacks read_basic.
+            raise PermissionDeniedError()
         return Response(detail)

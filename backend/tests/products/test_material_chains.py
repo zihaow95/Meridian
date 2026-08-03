@@ -251,6 +251,21 @@ def test_a_submission_cannot_be_chained_onto_a_different_owner(
         ).execute()
 
 
+def test_a_submission_catalog_must_match_the_requested_material_type(
+    submissions, verifier: User, submitter: User
+) -> None:
+    verified = verify(verifier, submissions("V1", date(2019, 1, 1)))
+
+    with pytest.raises(MaterialChainRejected, match="catalog item"):
+        CreateLegacyMaterialVersionChain(
+            context=CommandContext.for_actor(submitter),
+            ordered_submission_ids=[verified.public_id],
+            current_submission_id=verified.public_id,
+            owner=MaterialOwner(owner_type=AttributeOwnerType.PRODUCT, owner_id=OWNER_ID),
+            material_type_code="MARKETING_IMAGE",
+        ).execute()
+
+
 def test_a_hand_flipped_status_is_not_accepted_as_verification(
     submissions, submitter: User
 ) -> None:

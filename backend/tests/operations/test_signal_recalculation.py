@@ -127,6 +127,7 @@ def test_late_fact_and_manual_trigger_recalc_without_rewriting_history(
 ) -> None:
     grant_action(active_user, "metric_rule.configure", "metric_definition")
     grant_action(active_user, "data_source.configure", "data_source")
+    grant_action(active_user, "configuration.draft.create", "configuration.version")
     grant_action(active_user, "configuration.version.publish", "configuration.version")
     grant_action(active_user, "ingestion_batch.create", "ingestion_batch")
     grant_action(active_user, "ingestion_batch.confirm", "ingestion_batch")

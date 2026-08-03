@@ -3,13 +3,13 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import timedelta
 from typing import Protocol
 
 from django.db import transaction
 from django.utils import timezone
 
 from apps.platform.outbox.models import OutboxEvent, OutboxStatus
+from apps.platform.outbox.retry import PUBLISH_FAILED, mark_pending_for_retry
 
 
 class OutboxPublisher(Protocol):
@@ -60,19 +60,7 @@ def dispatch_pending_events(*, publisher: OutboxPublisher, limit: int = 100) -> 
         except Exception:
             with transaction.atomic():
                 event.refresh_from_db()
-                event.status = OutboxStatus.PENDING
-                event.attempt_count += 1
-                event.next_attempt_at = now + timedelta(seconds=min(60, 2**event.attempt_count))
-                event.last_error_code = "PUBLISH_FAILED"
-                event.save(
-                    update_fields=[
-                        "status",
-                        "attempt_count",
-                        "next_attempt_at",
-                        "last_error_code",
-                        "updated_at",
-                    ]
-                )
+                mark_pending_for_retry(event, error_code=PUBLISH_FAILED, now=now)
             continue
 
         with transaction.atomic():

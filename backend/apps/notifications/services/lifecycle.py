@@ -137,11 +137,18 @@ class SynchronizeNotificationForSource:
     organization_id: int
     source_type: str
     source_id: UUID
+    actor: User
     close_reason: str = "SOURCE_SETTLED"
-    actor: User | None = None
     trace_id: str = ""
 
     def execute(self) -> int:
+        # Validate before any early return so a missing actor is never hidden
+        # by an empty open-notification set.
+        if self.actor is None:
+            raise ValueError(
+                "SynchronizeNotificationForSource requires an actor so every "
+                "automatic close leaves an audit fact."
+            )
         now = timezone.now()
         with transaction.atomic():
             # Lock open rows so a concurrent manual close cannot be overwritten.
@@ -157,11 +164,6 @@ class SynchronizeNotificationForSource:
             )
             if not open_rows:
                 return 0
-            if self.actor is None:
-                raise ValueError(
-                    "SynchronizeNotificationForSource requires an actor so every "
-                    "automatic close leaves an audit fact."
-                )
             updated = (
                 Notification.objects.filter(
                     organization_id=self.organization_id,

@@ -24,6 +24,7 @@ from apps.products.models import (
     ImportBatch,
     ImportBatchStatus,
     ImportItem,
+    ImportItemDecision,
     ProductAsset,
     ProductChangeSet,
     ProductLifecycleStatus,
@@ -80,8 +81,9 @@ class CreateLegacyBaselineDraft:
             # Import-batch confirmation already holds migration.confirm; the
             # item-by-item form uses legacy_baseline.draft.create. Either path
             # must re-check inside the writer so an internal call cannot widen.
+            import_item: ImportItem | None = None
             if self.migration_batch_id is not None:
-                batch = self._locked_import_batch(actor.organization_id)
+                batch, import_item = self._locked_import_item(actor.organization_id)
                 action = "migration.confirm"
                 resource_type = "migration"
                 public_id = None
@@ -102,6 +104,23 @@ class CreateLegacyBaselineDraft:
             )
             if not decision.allowed:
                 raise PermissionDeniedError()
+
+            if import_item is not None and import_item.baseline_change_set_id is not None:
+                change_set = (
+                    ProductChangeSet.objects.select_related("product")
+                    .filter(pk=import_item.baseline_change_set_id)
+                    .first()
+                )
+                if change_set is None:
+                    raise ValidationFailedError(
+                        message="Import row points at a missing baseline.",
+                        details={"blocks": ["IMPORT_BASELINE_MISSING"]},
+                    )
+                return LegacyBaselineDraft(
+                    product=change_set.product,
+                    change_set=change_set,
+                    created=False,
+                )
 
             if self.idempotency_key:
                 replay = find_draft_by_idempotency_key(
@@ -129,10 +148,16 @@ class CreateLegacyBaselineDraft:
                 created_by=actor,
                 draft_idempotency_key=self.idempotency_key or None,
             )
+            if import_item is not None:
+                import_item.baseline_change_set = change_set
+                import_item.target_product = product
+                import_item.save(
+                    update_fields=["baseline_change_set", "target_product", "updated_at"]
+                )
 
         return LegacyBaselineDraft(product=product, change_set=change_set, created=True)
 
-    def _locked_import_batch(self, organization_id: int) -> ImportBatch:
+    def _locked_import_item(self, organization_id: int) -> tuple[ImportBatch, ImportItem]:
         batch_id = self.migration_batch_id
         if batch_id is None:
             raise PermissionDeniedError()
@@ -151,21 +176,60 @@ class CreateLegacyBaselineDraft:
                 message="Import batch is not ready for baseline creation.",
                 details={"blocks": ["IMPORT_BATCH_NOT_READY"], "status": batch.status},
             )
-        if self.import_row_number is not None:
-            item_exists = ImportItem.objects.filter(
+        if self.import_row_number is None:
+            raise ValidationFailedError(
+                message="Import baseline creation requires a batch row number.",
+                details={"blocks": ["IMPORT_ROW_REQUIRED"]},
+            )
+        item = (
+            ImportItem.objects.select_for_update()
+            .filter(
                 batch_id=batch.id,
                 organization_id=organization_id,
                 row_number=self.import_row_number,
-            ).exists()
-            if not item_exists:
+            )
+            .first()
+        )
+        if item is None:
+            raise ValidationFailedError(
+                message="Import row does not belong to this batch.",
+                details={
+                    "blocks": ["IMPORT_ROW_NOT_IN_BATCH"],
+                    "row_number": self.import_row_number,
+                },
+            )
+        if item.normalized_payload != self.payload:
+            raise ValidationFailedError(
+                message="Import payload does not match the locked import row.",
+                details={"blocks": ["IMPORT_PAYLOAD_MISMATCH"], "row_number": item.row_number},
+            )
+        if item.decision == ImportItemDecision.SKIP:
+            raise ValidationFailedError(
+                message="Import row was decided as SKIP.",
+                details={"blocks": ["IMPORT_ROW_SKIPPED"], "row_number": item.row_number},
+            )
+        if item.decision == ImportItemDecision.LINK:
+            if (
+                self.existing_product is None
+                or item.target_product_id is None
+                or self.existing_product.pk != item.target_product_id
+            ):
                 raise ValidationFailedError(
-                    message="Import row does not belong to this batch.",
+                    message="Import LINK decision requires the locked target product.",
                     details={
-                        "blocks": ["IMPORT_ROW_NOT_IN_BATCH"],
-                        "row_number": self.import_row_number,
+                        "blocks": ["IMPORT_LINK_TARGET_MISMATCH"],
+                        "row_number": item.row_number,
                     },
                 )
-        return batch
+        elif self.existing_product is not None:
+            raise ValidationFailedError(
+                message="Import CREATE path cannot bind an existing product.",
+                details={
+                    "blocks": ["IMPORT_CREATE_TARGET_FORBIDDEN"],
+                    "row_number": item.row_number,
+                },
+            )
+        return batch, item
 
     def _locked_existing_product(self, organization_id: int) -> ProductAsset | None:
         if self.existing_product is None:

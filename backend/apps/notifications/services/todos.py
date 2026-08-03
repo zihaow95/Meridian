@@ -86,12 +86,14 @@ class SettleOpenTodosForSource:
     source_id: UUID
     status: str
     close_reason: str
-    actor: User | None = None
+    actor: User
     trace_id: str = ""
 
     def execute(self) -> int:
         from apps.notifications.services.lifecycle import SynchronizeNotificationForSource
 
+        if self.actor is None:
+            raise ValueError("SettleOpenTodosForSource requires an actor.")
         if self.status not in {
             TodoStatus.COMPLETED,
             TodoStatus.CANCELLED,
@@ -124,7 +126,7 @@ class CompleteOpenTodosForSource:
     organization_id: int
     source_type: str
     source_id: UUID
-    actor: User | None = None
+    actor: User
     trace_id: str = ""
 
     def execute(self) -> int:

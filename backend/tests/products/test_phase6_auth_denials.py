@@ -133,8 +133,98 @@ def test_import_batch_draft_refuses_foreign_batch_id(
             payload={"name": "Imported", "category_code": "YOGURT"},
             idempotency_key="import-foreign-batch",
             migration_batch_id=9_999_999,
+            import_row_number=1,
             business_no_fallback="IMP-X",
         ).execute()
+
+
+def test_import_batch_draft_requires_row_number(
+    active_user: User,
+    organization: Organization,
+    grant_action: Callable[..., None],
+) -> None:
+    from apps.platform.api.errors import ValidationFailedError
+    from apps.products.models import ImportBatch, ImportBatchStatus, ImportItem, ImportItemStatus
+
+    grant_action(active_user, "migration.confirm", "migration")
+    batch = ImportBatch.objects.create(
+        organization=organization,
+        template_version="v1",
+        status=ImportBatchStatus.PARSED,
+        created_by=active_user,
+        total_count=1,
+    )
+    ImportItem.objects.create(
+        organization=organization,
+        batch=batch,
+        row_number=1,
+        raw_row_digest="b" * 64,
+        normalized_payload={"name": "Imported", "category_code": "YOGURT"},
+        item_status=ImportItemStatus.VALID,
+    )
+    with pytest.raises(ValidationFailedError) as exc:
+        CreateLegacyBaselineDraft(
+            context=CommandContext.for_actor(active_user),
+            payload={"name": "Imported", "category_code": "YOGURT"},
+            migration_batch_id=batch.id,
+            business_no_fallback="IMP-ROW",
+        ).execute()
+    assert "IMPORT_ROW_REQUIRED" in exc.value.details["blocks"]
+
+
+def test_import_batch_draft_is_idempotent_for_the_same_locked_row(
+    active_user: User,
+    organization: Organization,
+    grant_action: Callable[..., None],
+) -> None:
+    from apps.products.models import (
+        ImportBatch,
+        ImportBatchStatus,
+        ImportItem,
+        ImportItemStatus,
+        ProductChangeSet,
+    )
+
+    grant_action(active_user, "migration.confirm", "migration")
+    batch = ImportBatch.objects.create(
+        organization=organization,
+        template_version="v1",
+        status=ImportBatchStatus.PARSED,
+        created_by=active_user,
+        total_count=1,
+    )
+    payload = {"name": "Imported", "category_code": "YOGURT"}
+    ImportItem.objects.create(
+        organization=organization,
+        batch=batch,
+        row_number=1,
+        raw_row_digest="c" * 64,
+        normalized_payload=payload,
+        item_status=ImportItemStatus.VALID,
+    )
+    first = CreateLegacyBaselineDraft(
+        context=CommandContext.for_actor(active_user),
+        payload=payload,
+        migration_batch_id=batch.id,
+        import_row_number=1,
+        business_no_fallback="IMP-IDEM-1",
+    ).execute()
+    second = CreateLegacyBaselineDraft(
+        context=CommandContext.for_actor(active_user),
+        payload=payload,
+        migration_batch_id=batch.id,
+        import_row_number=1,
+        business_no_fallback="IMP-IDEM-2",
+    ).execute()
+    assert second.created is False
+    assert second.change_set.public_id == first.change_set.public_id
+    assert (
+        ProductChangeSet.objects.filter(
+            migration_batch_id=batch.id,
+            change_type="LEGACY_BASELINE",
+        ).count()
+        == 1
+    )
 
 
 def test_legacy_link_refuses_cross_organization_existing_product(

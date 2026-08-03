@@ -162,6 +162,7 @@ def test_concurrent_confirm_produces_one_fact_set_one_audit_one_outbox(
     del sku_channel
     _publish_metric(active_user, grant_action)
     grant_action(active_user, "data_source.configure", "data_source")
+    grant_action(active_user, "configuration.draft.create", "configuration.version")
     grant_action(active_user, "configuration.version.publish", "configuration.version")
     grant_action(active_user, "ingestion_batch.create", "ingestion_batch")
     grant_action(active_user, "ingestion_batch.confirm", "ingestion_batch")

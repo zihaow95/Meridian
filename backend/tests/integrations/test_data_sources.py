@@ -56,6 +56,7 @@ def test_configure_requires_published_configuration_and_locks_version(
     grant_action,
 ) -> None:
     grant_action(active_user, "data_source.configure", "data_source")
+    grant_action(active_user, "configuration.draft.create", "configuration.version")
     grant_action(active_user, "configuration.version.publish", "configuration.version")
 
     source = ConfigureOperatingDataSource(
@@ -85,6 +86,7 @@ def test_credentials_never_enter_configuration_or_audit(
     grant_action,
 ) -> None:
     grant_action(active_user, "data_source.configure", "data_source")
+    grant_action(active_user, "configuration.draft.create", "configuration.version")
     grant_action(active_user, "configuration.version.publish", "configuration.version")
 
     with pytest.raises(ValidationFailedError):
@@ -119,6 +121,7 @@ def test_inactive_source_cannot_build_ingestion_batch(
     grant_action,
 ) -> None:
     grant_action(active_user, "data_source.configure", "data_source")
+    grant_action(active_user, "configuration.draft.create", "configuration.version")
     grant_action(active_user, "configuration.version.publish", "configuration.version")
     source = ConfigureOperatingDataSource(
         context=CommandContext.for_actor(active_user),
@@ -142,6 +145,7 @@ def test_source_priority_and_mapping_come_from_locked_configuration_version(
     grant_action,
 ) -> None:
     grant_action(active_user, "data_source.configure", "data_source")
+    grant_action(active_user, "configuration.draft.create", "configuration.version")
     grant_action(active_user, "configuration.version.publish", "configuration.version")
     source = ConfigureOperatingDataSource(
         context=CommandContext.for_actor(active_user),
@@ -171,6 +175,7 @@ def test_operating_source_mapping_schema_rejects_script_fields() -> None:
 @pytest.mark.django_db
 def test_configure_data_source_outbox_publishes(active_user, ops_department, grant_action) -> None:
     grant_action(active_user, "data_source.configure", "data_source")
+    grant_action(active_user, "configuration.draft.create", "configuration.version")
     grant_action(active_user, "configuration.version.publish", "configuration.version")
     source = ConfigureOperatingDataSource(
         context=CommandContext.for_actor(active_user),
@@ -197,6 +202,7 @@ def test_inactive_data_source_configured_event_publishes(
     from apps.integrations.models import DataSourceStatus
 
     grant_action(active_user, "data_source.configure", "data_source")
+    grant_action(active_user, "configuration.draft.create", "configuration.version")
     grant_action(active_user, "configuration.version.publish", "configuration.version")
     source = ConfigureOperatingDataSource(
         context=CommandContext.for_actor(active_user),

@@ -473,15 +473,32 @@ class Command(BaseCommand):
                 action_code="notification.read",
                 level=level,
             ).execute()
-            # Idempotent seed must refresh deep links and reopen the fixture
-            # rows so later E2E suites that closed them still see unread facts.
-            Notification.objects.filter(recipient=actor, dedup_key=dedup_key).update(
-                deep_link=deep_link,
-                status=NotificationStatus.UNREAD,
-                read_at=None,
-                closed_at=None,
-                close_reason="",
-            )
+            existing = Notification.objects.filter(recipient=actor, dedup_key=dedup_key).first()
+            if existing is None:
+                continue
+            if existing.status == NotificationStatus.CLOSED:
+                # Never reopen CLOSED history. Seed a sibling unread fixture
+                # with a stable secondary key for later E2E suites.
+                reseed_key = f"{dedup_key}:open"
+                CreateInAppNotification(
+                    recipient=actor,
+                    template_code=template_code,
+                    variables={"title": f"{category}-{level}"},
+                    object_type="identity.user",
+                    object_id=actor.public_id,
+                    dedup_key=reseed_key,
+                    deep_link=deep_link,
+                    action_code="notification.read",
+                    level=level,
+                ).execute()
+                Notification.objects.filter(recipient=actor, dedup_key=reseed_key).exclude(
+                    status=NotificationStatus.CLOSED
+                ).update(deep_link=deep_link)
+            else:
+                # Refresh deep links on open rows only; keep read/close facts.
+                Notification.objects.filter(pk=existing.pk).exclude(
+                    status=NotificationStatus.CLOSED
+                ).update(deep_link=deep_link)
 
     def _ensure_document_volume(
         self, organization: Organization, actor: User

@@ -1097,7 +1097,7 @@ class Command(BaseCommand):
             self._ensure_approved_product_label(product=product, actor=project.leader)
 
     def _ensure_approved_product_label(self, *, product: object, actor: User) -> None:
-        """Satisfy YOGURT ACTIVE material requirements for publish/repair retries."""
+        """Satisfy YOGURT ACTIVE material requirements via real confirmation facts."""
 
         import hashlib
 
@@ -1112,11 +1112,18 @@ class Command(BaseCommand):
             StorageStatus,
             VersionStatus,
         )
+        from apps.platform.application.command import CommandContext
         from apps.products.models import (
             AttributeOwnerType,
+            MaterialConfirmation,
+            MaterialConfirmationDecision,
             MaterialStatus,
             ProductAsset,
             ProductMaterial,
+        )
+        from apps.products.services.material_confirmations import (
+            DecideMaterialConfirmation,
+            SubmitMaterialConfirmation,
         )
 
         assert isinstance(product, ProductAsset)
@@ -1129,6 +1136,9 @@ class Command(BaseCommand):
             material_status=MaterialStatus.APPROVED,
         ).exists():
             return
+
+        self._grant_action(actor, "product_material.manage", "product_material")
+        self._grant_action(actor, "product_material.confirm", "product_material")
 
         storage_root = settings.FILE_STORAGE_ROOT
         storage_root.mkdir(parents=True, exist_ok=True)
@@ -1174,19 +1184,45 @@ class Command(BaseCommand):
                 "uploaded_at": timezone.now(),
             },
         )
-        ProductMaterial.objects.update_or_create(
+        material, _ = ProductMaterial.objects.get_or_create(
             organization_id=product.organization_id,
             owner_type=AttributeOwnerType.PRODUCT,
             owner_id=product.id,
             material_type_code="PRODUCT_LABEL",
-            current_slot=1,
+            version_no=1,
             defaults={
                 "document_version": version,
-                "material_status": MaterialStatus.APPROVED,
-                "version_no": 1,
+                "material_status": MaterialStatus.DRAFT,
+                "current_slot": 1,
                 "sensitivity_level": version.sensitivity_level,
             },
         )
+        if material.current_slot is None:
+            material.current_slot = 1
+            material.save(update_fields=["current_slot", "updated_at"])
+        if material.material_status == MaterialStatus.APPROVED:
+            return
+
+        live = MaterialConfirmation.objects.filter(material=material, live_slot=1).first()
+        if live is None or live.decision != MaterialConfirmationDecision.APPROVED:
+            pending = MaterialConfirmation.objects.filter(
+                material=material,
+                decision=MaterialConfirmationDecision.PENDING,
+                superseded_at__isnull=True,
+            ).first()
+            if pending is None:
+                pending = SubmitMaterialConfirmation(
+                    context=CommandContext.for_actor(actor),
+                    material_public_id=material.public_id,
+                    confirmer_public_id=actor.public_id,
+                    comment="E2E repair seed confirmation",
+                ).execute()
+            DecideMaterialConfirmation(
+                context=CommandContext.for_actor(actor),
+                confirmation_public_id=pending.public_id,
+                decision=MaterialConfirmationDecision.APPROVED,
+                comment="E2E repair seed approval",
+            ).execute()
 
     def _submit_first_launch_gate(self, project: Project, *, submitter: User) -> StageGateInstance:
         """Put the FIRST_LAUNCH gate into a decideable SUBMITTED + active L2 state."""

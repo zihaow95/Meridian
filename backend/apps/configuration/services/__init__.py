@@ -105,6 +105,7 @@ class CreateDraft:
     context: CommandContext | None = None
 
     def execute(self) -> ConfigurationVersion:
+        command_context = self.context or CommandContext.for_actor(self.actor)
         with transaction.atomic():
             definition = (
                 ConfigurationDefinition.objects.select_for_update()
@@ -131,7 +132,7 @@ class CreateDraft:
                 .first()
             )
             next_version = 1 if latest is None else latest.version_number + 1
-            return ConfigurationVersion.objects.create(
+            version = ConfigurationVersion.objects.create(
                 organization=definition.organization,
                 definition=definition,
                 version_number=next_version,
@@ -141,6 +142,23 @@ class CreateDraft:
                 scope_json=self.scope or {},
                 created_by=self.actor,
             )
+            append_event(
+                AuditRecord(
+                    actor=command_context.actor,
+                    action_code="configuration.draft.create",
+                    resource_type="configuration.version",
+                    resource_public_id=version.public_id,
+                    result=AuditResult.SUCCESS,
+                    trace_id=command_context.trace_id,
+                    occurred_at=command_context.occurred_at,
+                    acting_roles_snapshot=acting_roles_snapshot(command_context.actor),
+                    after_summary={
+                        "definition_code": definition.definition_code,
+                        "version_number": version.version_number,
+                    },
+                )
+            )
+            return version
 
 
 @dataclass(frozen=True)
@@ -150,6 +168,8 @@ class ValidateVersion:
     context: CommandContext | None = None
 
     def execute(self) -> ConfigurationVersion:
+        command_context = self.context or CommandContext.for_actor(self.actor)
+        failed_errors: list[str] | None = None
         with transaction.atomic():
             version = (
                 ConfigurationVersion.objects.select_for_update()
@@ -179,10 +199,29 @@ class ValidateVersion:
             version.validation_errors = errors
             if errors:
                 version.status = ConfigurationStatus.FAILED
+                failed_errors = errors
             version.save(update_fields=["status", "validation_errors", "updated_at"])
-            if errors:
-                raise ConfigurationValidationFailed(errors)
-            return version
+            append_event(
+                AuditRecord(
+                    actor=command_context.actor,
+                    action_code="configuration.draft.create",
+                    resource_type="configuration.version",
+                    resource_public_id=version.public_id,
+                    result=AuditResult.FAILURE if errors else AuditResult.SUCCESS,
+                    trace_id=command_context.trace_id,
+                    occurred_at=command_context.occurred_at,
+                    acting_roles_snapshot=acting_roles_snapshot(command_context.actor),
+                    after_summary={
+                        "status": version.status,
+                        "validation_errors": errors,
+                        "operation": "validate",
+                    },
+                )
+            )
+            if failed_errors is None:
+                return version
+        # Raise after commit so FAILED + validation_errors remain durable facts.
+        raise ConfigurationValidationFailed(failed_errors)
 
 
 @dataclass(frozen=True)
@@ -195,6 +234,7 @@ class PublishVersion:
     def execute(self) -> ConfigurationVersion:
         command_context = self.context or CommandContext.for_actor(self.actor)
         now = command_context.occurred_at
+        failed_errors: list[str] | None = None
         with transaction.atomic():
             version = (
                 ConfigurationVersion.objects.select_for_update()
@@ -234,86 +274,119 @@ class PublishVersion:
                 version.status = ConfigurationStatus.FAILED
                 version.validation_errors = errors
                 version.save(update_fields=["status", "validation_errors", "updated_at"])
-                raise ConfigurationValidationFailed(errors)
-
-            previous_published = (
-                ConfigurationVersion.objects.select_for_update()
-                .filter(
-                    definition=version.definition,
-                    status=ConfigurationStatus.PUBLISHED,
-                )
-                .order_by("-version_number")
-                .first()
-            )
-            diff_summary: dict[str, Any] = {}
-            if previous_published is not None:
-                diff_summary = {
-                    "previous_version_number": previous_published.version_number,
-                    "previous_digest": previous_published.content_digest,
-                    "new_digest": version.content_digest,
-                }
-                previous_published.status = ConfigurationStatus.RETIRED
-                previous_published.current_published_slot = None
-                previous_published.save(
-                    update_fields=["status", "current_published_slot", "updated_at"]
-                )
-
-            if approved_request is not None:
-                if approved_request.status != AdminChangeStatus.APPROVED:
-                    raise PublicationApprovalInvalid(
-                        f"Approval is {approved_request.status}, not APPROVED."
+                append_event(
+                    AuditRecord(
+                        actor=command_context.actor,
+                        action_code="configuration.version.publish",
+                        resource_type="configuration.version",
+                        resource_public_id=version.public_id,
+                        result=AuditResult.FAILURE,
+                        trace_id=command_context.trace_id,
+                        occurred_at=command_context.occurred_at,
+                        acting_roles_snapshot=acting_roles_snapshot(command_context.actor),
+                        after_summary={
+                            "status": version.status,
+                            "validation_errors": errors,
+                        },
                     )
-                approved_request.status = AdminChangeStatus.APPLIED
-                approved_request.save(update_fields=["status", "updated_at"])
-
-            version.status = ConfigurationStatus.PUBLISHED
-            version.current_published_slot = 1
-            version.published_by = self.actor
-            version.published_at = now
-            version.diff_summary = diff_summary
-            version.validation_errors = []
-            version.save(
-                update_fields=[
-                    "status",
-                    "current_published_slot",
-                    "published_by",
-                    "published_at",
-                    "diff_summary",
-                    "validation_errors",
-                    "updated_at",
-                ]
-            )
-
-            append_event(
-                AuditRecord(
-                    actor=command_context.actor,
-                    action_code="configuration.version.publish",
-                    resource_type="configuration.version",
-                    resource_public_id=version.public_id,
-                    result=AuditResult.SUCCESS,
-                    trace_id=command_context.trace_id,
-                    occurred_at=command_context.occurred_at,
-                    acting_roles_snapshot=acting_roles_snapshot(command_context.actor),
-                    after_summary={
-                        "definition_code": version.definition.definition_code,
-                        "version_number": version.version_number,
-                    },
                 )
-            )
-            register_outbox_event(
-                OutboxMessage(
-                    event_type="configuration.published",
-                    aggregate_type="configuration.version",
-                    aggregate_id=version.public_id,
-                    payload={
-                        "definition_code": version.definition.definition_code,
-                        "version_number": version.version_number,
-                        "content_digest": version.content_digest,
-                    },
-                    occurred_at=command_context.occurred_at,
+                failed_errors = errors
+            else:
+                return self._publish_validated(
+                    version=version,
+                    approved_request=approved_request,
+                    command_context=command_context,
+                    now=now,
                 )
+        assert failed_errors is not None
+        raise ConfigurationValidationFailed(failed_errors)
+
+    def _publish_validated(
+        self,
+        *,
+        version: ConfigurationVersion,
+        approved_request: AdminChangeRequest | None,
+        command_context: CommandContext,
+        now: Any,
+    ) -> ConfigurationVersion:
+        previous_published = (
+            ConfigurationVersion.objects.select_for_update()
+            .filter(
+                definition=version.definition,
+                status=ConfigurationStatus.PUBLISHED,
             )
-            return version
+            .order_by("-version_number")
+            .first()
+        )
+        diff_summary: dict[str, Any] = {}
+        if previous_published is not None:
+            diff_summary = {
+                "previous_version_number": previous_published.version_number,
+                "previous_digest": previous_published.content_digest,
+                "new_digest": version.content_digest,
+            }
+            previous_published.status = ConfigurationStatus.RETIRED
+            previous_published.current_published_slot = None
+            previous_published.save(
+                update_fields=["status", "current_published_slot", "updated_at"]
+            )
+
+        if approved_request is not None:
+            if approved_request.status != AdminChangeStatus.APPROVED:
+                raise PublicationApprovalInvalid(
+                    f"Approval is {approved_request.status}, not APPROVED."
+                )
+            approved_request.status = AdminChangeStatus.APPLIED
+            approved_request.save(update_fields=["status", "updated_at"])
+
+        version.status = ConfigurationStatus.PUBLISHED
+        version.current_published_slot = 1
+        version.published_by = self.actor
+        version.published_at = now
+        version.diff_summary = diff_summary
+        version.validation_errors = []
+        version.save(
+            update_fields=[
+                "status",
+                "current_published_slot",
+                "published_by",
+                "published_at",
+                "diff_summary",
+                "validation_errors",
+                "updated_at",
+            ]
+        )
+
+        append_event(
+            AuditRecord(
+                actor=command_context.actor,
+                action_code="configuration.version.publish",
+                resource_type="configuration.version",
+                resource_public_id=version.public_id,
+                result=AuditResult.SUCCESS,
+                trace_id=command_context.trace_id,
+                occurred_at=command_context.occurred_at,
+                acting_roles_snapshot=acting_roles_snapshot(command_context.actor),
+                after_summary={
+                    "definition_code": version.definition.definition_code,
+                    "version_number": version.version_number,
+                },
+            )
+        )
+        register_outbox_event(
+            OutboxMessage(
+                event_type="configuration.published",
+                aggregate_type="configuration.version",
+                aggregate_id=version.public_id,
+                payload={
+                    "definition_code": version.definition.definition_code,
+                    "version_number": version.version_number,
+                    "content_digest": version.content_digest,
+                },
+                occurred_at=command_context.occurred_at,
+            )
+        )
+        return version
 
     def _assert_approval_authorizes_this_version(
         self,
@@ -424,6 +497,7 @@ class CreateSnapshot:
     context: CommandContext | None = None
 
     def execute(self) -> ConfigurationSnapshot:
+        command_context = self.context or CommandContext.for_actor(self.actor)
         with transaction.atomic():
             version = (
                 ConfigurationVersion.objects.select_for_update()
@@ -446,7 +520,7 @@ class CreateSnapshot:
                 raise PermissionDeniedError()
             if version.status != ConfigurationStatus.PUBLISHED:
                 raise ValueError("Only published configuration versions can be snapshotted.")
-            return ConfigurationSnapshot.objects.create(
+            snapshot = ConfigurationSnapshot.objects.create(
                 organization=version.organization,
                 version=version,
                 content_copy=version.content_json,
@@ -454,3 +528,22 @@ class CreateSnapshot:
                 reference_type=self.reference_type,
                 reference_id=self.reference_id,
             )
+            append_event(
+                AuditRecord(
+                    actor=command_context.actor,
+                    action_code="configuration.version.read",
+                    resource_type="configuration.version",
+                    resource_public_id=version.public_id,
+                    result=AuditResult.SUCCESS,
+                    trace_id=command_context.trace_id,
+                    occurred_at=command_context.occurred_at,
+                    acting_roles_snapshot=acting_roles_snapshot(command_context.actor),
+                    after_summary={
+                        "operation": "snapshot",
+                        "reference_type": self.reference_type,
+                        "reference_id": str(self.reference_id),
+                        "content_hash": snapshot.content_hash,
+                    },
+                )
+            )
+            return snapshot
