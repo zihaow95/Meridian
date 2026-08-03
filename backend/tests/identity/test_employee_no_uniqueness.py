@@ -92,7 +92,9 @@ def test_the_migration_refuses_duplicate_employee_numbers_instead_of_picking(
             employee_no="",
             status=UserStatus.ACTIVE,
         )
-    User.objects.filter(organization=organization).update(employee_no="E-DUP", employee_no_slot=None)
+    User.objects.filter(organization=organization).update(
+        employee_no="E-DUP", employee_no_slot=None
+    )
 
     with pytest.raises(RuntimeError) as excinfo:
         employee_no_migration.refuse_duplicate_employee_numbers(django_apps, None)

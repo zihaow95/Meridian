@@ -187,15 +187,9 @@ def main() -> int:
 
         run_manage("seed_phase6_acceptance", env=child_env)
         second_snapshot = read_seed_snapshot(cursor, database_name)
-        changed = [
-            name
-            for name in first_snapshot
-            if second_snapshot[name] != first_snapshot[name]
-        ]
+        changed = [name for name in first_snapshot if second_snapshot[name] != first_snapshot[name]]
         if changed:
-            raise RuntimeError(
-                "Repeat Phase 6 seed changed stable fixtures: " + ", ".join(changed)
-            )
+            raise RuntimeError("Repeat Phase 6 seed changed stable fixtures: " + ", ".join(changed))
 
         print(
             "Clean Phase 6 seed verification passed: "

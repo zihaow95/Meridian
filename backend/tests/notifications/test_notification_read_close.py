@@ -160,6 +160,7 @@ def test_synchronizing_the_same_source_twice_does_not_reopen_a_closed_notificati
 def test_cancelling_a_todo_also_closes_linked_notifications(
     active_user, todo, notification
 ) -> None:
+    from apps.audit.models import AuditEvent
     from apps.notifications.services.todos import SettleOpenTodosForSource
 
     SettleOpenTodosForSource(
@@ -168,6 +169,8 @@ def test_cancelling_a_todo_also_closes_linked_notifications(
         source_id=todo.source_id,
         status=TodoStatus.CANCELLED,
         close_reason="SOURCE_CANCELLED",
+        actor=active_user,
+        trace_id="trace-source-settle",
     ).execute()
 
     notification.refresh_from_db()
@@ -176,6 +179,12 @@ def test_cancelling_a_todo_also_closes_linked_notifications(
     assert todo.open_slot is None
     assert notification.status == NotificationStatus.CLOSED
     assert notification.close_reason == "SOURCE_CANCELLED"
+    assert AuditEvent.objects.filter(
+        action_code="notification.message.close",
+        resource_public_id=todo.source_id,
+        actor_user=active_user,
+        trace_id="trace-source-settle",
+    ).exists()
 
 
 def test_synchronization_ignores_notifications_for_other_sources(

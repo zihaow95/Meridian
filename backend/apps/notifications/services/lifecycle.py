@@ -17,6 +17,7 @@ from django.utils import timezone
 from apps.audit.models import AuditResult
 from apps.audit.services.append_event import AuditRecord, append_event
 from apps.audit.services.snapshots import acting_roles_snapshot
+from apps.identity.models.user import User
 from apps.notifications.models import Notification, NotificationStatus
 from apps.platform.api.errors import PermissionDeniedError, ResourceNotFoundError
 from apps.platform.application.command import CommandContext
@@ -137,19 +138,49 @@ class SynchronizeNotificationForSource:
     source_type: str
     source_id: UUID
     close_reason: str = "SOURCE_SETTLED"
+    actor: User | None = None
+    trace_id: str = ""
 
     def execute(self) -> int:
         now = timezone.now()
-        return (
+        open_rows = list(
             Notification.objects.filter(
                 organization_id=self.organization_id,
                 object_type=self.source_type,
                 object_id=self.source_id,
             )
             .filter(Q(status=NotificationStatus.UNREAD) | Q(status=NotificationStatus.READ))
-            .update(
-                status=NotificationStatus.CLOSED,
-                closed_at=now,
-                close_reason=self.close_reason,
-            )
+            .values_list("public_id", "recipient_id")
         )
+        if not open_rows:
+            return 0
+        updated = Notification.objects.filter(
+            organization_id=self.organization_id,
+            object_type=self.source_type,
+            object_id=self.source_id,
+            public_id__in=[row[0] for row in open_rows],
+        ).update(
+            status=NotificationStatus.CLOSED,
+            closed_at=now,
+            close_reason=self.close_reason,
+        )
+        if updated and self.actor is not None:
+            append_event(
+                AuditRecord(
+                    actor=self.actor,
+                    action_code="notification.message.close",
+                    resource_type=self.source_type,
+                    resource_public_id=self.source_id,
+                    result=AuditResult.SUCCESS,
+                    trace_id=self.trace_id,
+                    occurred_at=now,
+                    acting_roles_snapshot=acting_roles_snapshot(self.actor),
+                    after_summary={
+                        "closed_count": updated,
+                        "close_reason": self.close_reason,
+                        "notification_public_ids": [str(row[0]) for row in open_rows],
+                    },
+                    reason="SOURCE_SETTLED",
+                )
+            )
+        return updated

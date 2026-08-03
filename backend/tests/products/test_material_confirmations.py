@@ -397,3 +397,24 @@ def test_a_decision_is_refused_when_the_reviewed_bytes_no_longer_match(
 
     with pytest.raises(MaterialConfirmationRejected):
         decide(confirmer, confirmation, MaterialConfirmationDecision.APPROVED)
+
+
+def test_confirmation_survives_when_local_outbox_dispatch_fails(
+    monkeypatch, django_capture_on_commit_callbacks, requester, confirmer, current_material
+) -> None:
+    """Notification/todo projection failure must not unwind the confirmation."""
+
+    from apps.platform.outbox.models import OutboxEvent, OutboxStatus
+    from apps.platform.outbox.tasks import LocalOutboxPublisher
+
+    def _boom(self: Any, event: Any) -> None:
+        raise RuntimeError("projection unavailable")
+
+    monkeypatch.setattr(LocalOutboxPublisher, "publish", _boom)
+
+    with django_capture_on_commit_callbacks(execute=True):
+        confirmation = submit(requester, current_material, confirmer)
+
+    assert MaterialConfirmation.objects.filter(pk=confirmation.pk).exists()
+    pending = OutboxEvent.objects.get(aggregate_id=confirmation.public_id)
+    assert pending.status == OutboxStatus.PENDING

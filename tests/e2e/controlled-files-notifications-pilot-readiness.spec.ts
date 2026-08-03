@@ -182,6 +182,19 @@ test.describe('Phase 6 controlled files / notifications / pilot readiness', () =
     expect(confirmation.status()).toBe(201)
     const confirmationBody = await confirmation.json()
 
+    // on_commit local dispatch must have projected todo + in-app notification.
+    // Todos list is a bare array (not { items }).
+    await expect
+      .poll(async () => {
+        const todos = await authedJson(page, 'GET', '/api/v1/todos/my')
+        if (todos.status() !== 200) return false
+        const items = (await todos.json()) as Array<{ title: string; status: string }>
+        return items.some(
+          (row) => row.status === 'OPEN' && String(row.title).includes('Confirm material'),
+        )
+      })
+      .toBeTruthy()
+
     const notifications = await authedJson(
       page,
       'GET',
@@ -189,12 +202,13 @@ test.describe('Phase 6 controlled files / notifications / pilot readiness', () =
     )
     expect(notifications.status()).toBe(200)
     const notifyBody = await notifications.json()
-    expect(
-      notifyBody.items.some(
-        (row: { summary: string; category: string }) =>
-          row.category === 'ACTION_REQUIRED' && String(row.summary).includes('Confirm material'),
-      ),
-    ).toBeTruthy()
+    const confirmNotice = notifyBody.items.find(
+      (row: { summary: string; category: string; status: string }) =>
+        row.category === 'ACTION_REQUIRED' &&
+        row.status !== 'CLOSED' &&
+        String(row.summary).includes('Confirm material'),
+    )
+    expect(confirmNotice?.public_id).toBeTruthy()
 
     const decided = await authedJson(
       page,
@@ -203,6 +217,36 @@ test.describe('Phase 6 controlled files / notifications / pilot readiness', () =
       { decision: 'APPROVED', comment: 'E2E approved' },
     )
     expect(decided.status()).toBe(200)
+
+    const confirmToken = String(confirmationBody.public_id)
+    await expect
+      .poll(async () => {
+        const todosAfter = await authedJson(page, 'GET', '/api/v1/todos/my')
+        if (todosAfter.status() !== 200) return false
+        const items = (await todosAfter.json()) as Array<{
+          title: string
+          status: string
+          deep_link: string
+        }>
+        const linked = items.filter((row) => String(row.deep_link).includes(confirmToken))
+        return linked.length > 0 && linked.every((row) => row.status !== 'OPEN')
+      })
+      .toBeTruthy()
+
+    await expect
+      .poll(async () => {
+        const noticeAfter = await authedJson(
+          page,
+          'GET',
+          `/api/v1/notifications/my?page_size=50`,
+        )
+        if (noticeAfter.status() !== 200) return false
+        const closedNotice = (await noticeAfter.json()).items.find(
+          (row: { public_id: string }) => row.public_id === confirmNotice.public_id,
+        )
+        return closedNotice?.status === 'CLOSED'
+      })
+      .toBeTruthy()
 
     const published = await authedJson(
       page,
@@ -243,7 +287,16 @@ test.describe('Phase 6 controlled files / notifications / pilot readiness', () =
     const levels = new Set(
       body.items.map((row: { level: string }) => row.level).filter(Boolean),
     )
-    expect(levels.has('URGENT') || levels.has('IMPORTANT') || levels.has('NORMAL')).toBeTruthy()
+    expect(levels.has('URGENT')).toBe(true)
+    expect(levels.has('IMPORTANT')).toBe(true)
+    expect(levels.has('NORMAL')).toBe(true)
+
+    const actionRequired = body.items.find(
+      (row: { category: string; deep_link: string }) =>
+        row.category === 'ACTION_REQUIRED' && String(row.deep_link).startsWith('/products/'),
+    )
+    expect(actionRequired?.deep_link).toBeTruthy()
+    const productDeepLink = actionRequired.deep_link as string
 
     const target = body.items.find((row: { status: string }) => row.status === 'UNREAD')
     expect(target?.public_id).toBeTruthy()
@@ -265,13 +318,10 @@ test.describe('Phase 6 controlled files / notifications / pilot readiness', () =
     expect(closed.status()).toBe(200)
     expect((await closed.json()).status).toBe('CLOSED')
 
-    const forbiddenDeepLink = await page.goto('/products/00000000-0000-4000-8000-000000000099')
-    expect(forbiddenDeepLink?.status() ?? 200).toBeLessThan(500)
-    await expect(page.getByText(/无权访问或内容不存在|404|Not Found|登录/)).toBeVisible({
-      timeout: 10_000,
-    })
+    // Limited user hits the same real product deep link the notification pointed at.
+    await reloginAs(page, E2E_LIMITED_LOGIN_KEY, productDeepLink)
+    await expect(page.getByText('无权访问或内容不存在')).toBeVisible({ timeout: 15_000 })
 
-    await reloginAs(page, E2E_LIMITED_LOGIN_KEY, '/notifications')
     const limited = await authedJson(page, 'GET', '/api/v1/notifications/my')
     if (limited.status() === 200) {
       const limitedBody = await limited.json()
@@ -281,7 +331,7 @@ test.describe('Phase 6 controlled files / notifications / pilot readiness', () =
         ),
       ).toBeTruthy()
     } else {
-      expect(limited.status()).toBe(404)
+      expect([403, 404]).toContain(limited.status())
     }
   })
 

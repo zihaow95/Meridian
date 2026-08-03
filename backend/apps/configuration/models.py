@@ -108,9 +108,14 @@ class ConfigurationVersion(OrganizationOwnedModel):
     def save(self, *args: Any, **kwargs: Any) -> None:
         if self.status in {ConfigurationStatus.PUBLISHED, ConfigurationStatus.RETIRED} and self.pk:
             previous = (
-                ConfigurationVersion.objects.filter(pk=self.pk).values("content_json").first()
+                ConfigurationVersion.objects.filter(pk=self.pk)
+                .values("content_json", "content_digest")
+                .first()
             )
-            if previous and previous["content_json"] != self.content_json:
+            if previous and (
+                previous["content_json"] != self.content_json
+                or previous["content_digest"] != self.content_digest
+            ):
                 raise PublishedConfigurationImmutable(
                     "Published or retired configuration cannot be edited."
                 )

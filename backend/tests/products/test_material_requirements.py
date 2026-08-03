@@ -45,6 +45,7 @@ def requirements(organization, active_user) -> Any:
         definition_code=PRODUCT_MATERIAL_REQUIREMENTS_CODE,
         defaults={"name": "产品材料要求", "description": ""},
     )
+
     def _publish(materials: list[dict[str, str]]) -> ConfigurationVersion:
         ConfigurationVersion.objects.filter(
             definition=definition, status=ConfigurationStatus.PUBLISHED

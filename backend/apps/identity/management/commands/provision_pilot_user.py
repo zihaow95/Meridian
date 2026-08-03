@@ -7,6 +7,9 @@ logs or audit summaries.
 
 from __future__ import annotations
 
+from argparse import ArgumentParser
+from typing import Any
+
 from django.core.management.base import BaseCommand, CommandError
 from django.db import transaction
 from django.utils import timezone
@@ -28,7 +31,7 @@ from apps.identity.models.user import User, UserStatus
 class Command(BaseCommand):
     help = "Provision one pilot user with employee_no, password and non-critical roles."
 
-    def add_arguments(self, parser) -> None:
+    def add_arguments(self, parser: ArgumentParser) -> None:
         parser.add_argument("--organization-public-id", required=True)
         parser.add_argument("--employee-no", required=True)
         parser.add_argument("--display-name", required=True)
@@ -44,7 +47,7 @@ class Command(BaseCommand):
             help="Existing operator who is recorded as configured_by.",
         )
 
-    def handle(self, *args, **options) -> None:
+    def handle(self, *args: Any, **options: Any) -> None:
         organization = Organization.objects.filter(
             public_id=options["organization_public_id"]
         ).first()
@@ -79,9 +82,7 @@ class Command(BaseCommand):
             raise CommandError("employee_no is required.")
 
         with transaction.atomic():
-            user = User.objects.filter(
-                organization=organization, employee_no=employee_no
-            ).first()
+            user = User.objects.filter(organization=organization, employee_no=employee_no).first()
             created = user is None
             if user is None:
                 user = User.objects.create_user(

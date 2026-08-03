@@ -10,6 +10,8 @@ from apps.products.errors import ChangeSetAlreadyPublished, ProductPublicationFa
 from apps.products.models import ChangeSetStatus, ProductVersion
 from apps.products.services.publish_change_set import PublishProductChangeSet
 
+pytestmark = pytest.mark.usefixtures("published_empty_material_requirements")
+
 
 def raise_database_error(*_args, **_kwargs) -> None:
     raise DatabaseError("simulated publication failure")

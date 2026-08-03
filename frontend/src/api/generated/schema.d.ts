@@ -3355,6 +3355,25 @@ export interface components {
             target_users_needs?: string;
             suggested_retail_price?: string | null;
         };
+        PilotBatchCompleteResponse: {
+            /** Format: uuid */
+            public_id: string;
+            name: string;
+            purpose: string;
+            status: string;
+            planned_participant_count: number;
+            planned_duration_days: number;
+            config_snapshot: {
+                [key: string]: unknown;
+            };
+            data_scope_note: string;
+            feedback_owner_note: string;
+            version_no: number;
+            /** Format: date-time */
+            started_at: string | null;
+            /** Format: date-time */
+            completed_at: string | null;
+        };
         PilotBatchCreateRequest: {
             name: string;
             planned_participant_count?: number;
@@ -3362,7 +3381,43 @@ export interface components {
             data_scope_note?: string;
             feedback_owner_note?: string;
         };
+        PilotBatchCreateResponse: {
+            /** Format: uuid */
+            public_id: string;
+            name: string;
+            purpose: string;
+            status: string;
+            planned_participant_count: number;
+            planned_duration_days: number;
+            config_snapshot: {
+                [key: string]: unknown;
+            };
+            data_scope_note: string;
+            feedback_owner_note: string;
+            version_no: number;
+            /** Format: date-time */
+            started_at: string | null;
+            /** Format: date-time */
+            completed_at: string | null;
+        };
         PilotBatchDetail: {
+            /** Format: uuid */
+            public_id: string;
+            name: string;
+            purpose: string;
+            status: string;
+            planned_participant_count: number;
+            planned_duration_days: number;
+            config_snapshot: {
+                [key: string]: unknown;
+            };
+            data_scope_note: string;
+            feedback_owner_note: string;
+            version_no: number;
+            /** Format: date-time */
+            started_at: string | null;
+            /** Format: date-time */
+            completed_at: string | null;
             participants: components["schemas"]["PilotParticipantItem"][];
         };
         PilotBatchItem: {
@@ -3387,11 +3442,53 @@ export interface components {
         PilotBatchList: {
             items: components["schemas"]["PilotBatchItem"][];
         };
+        PilotBatchStartResponse: {
+            /** Format: uuid */
+            public_id: string;
+            name: string;
+            purpose: string;
+            status: string;
+            planned_participant_count: number;
+            planned_duration_days: number;
+            config_snapshot: {
+                [key: string]: unknown;
+            };
+            data_scope_note: string;
+            feedback_owner_note: string;
+            version_no: number;
+            /** Format: date-time */
+            started_at: string | null;
+            /** Format: date-time */
+            completed_at: string | null;
+        };
         PilotFeedbackAssignRequest: {
             severity: string;
             /** Format: uuid */
             assignee_public_id: string;
             expected_version?: number;
+        };
+        PilotFeedbackAssignResponse: {
+            /** Format: uuid */
+            public_id: string;
+            /** Format: uuid */
+            batch_public_id: string;
+            title: string;
+            reproduction_summary: string;
+            severity: string;
+            status: string;
+            external_key: string;
+            /** Format: uuid */
+            evidence_document_version_public_id: string | null;
+            /** Format: uuid */
+            assignee_public_id: string | null;
+            target_version: string;
+            workaround: string;
+            /** Format: uuid */
+            accepted_by_public_id: string | null;
+            acceptance_note: string;
+            close_reason: string;
+            retest_result: string;
+            version_no: number;
         };
         PilotFeedbackCloseRequest: {
             reject?: boolean;
@@ -3403,6 +3500,29 @@ export interface components {
             acceptance_note?: string;
             expected_version?: number;
         };
+        PilotFeedbackCloseResponse: {
+            /** Format: uuid */
+            public_id: string;
+            /** Format: uuid */
+            batch_public_id: string;
+            title: string;
+            reproduction_summary: string;
+            severity: string;
+            status: string;
+            external_key: string;
+            /** Format: uuid */
+            evidence_document_version_public_id: string | null;
+            /** Format: uuid */
+            assignee_public_id: string | null;
+            target_version: string;
+            workaround: string;
+            /** Format: uuid */
+            accepted_by_public_id: string | null;
+            acceptance_note: string;
+            close_reason: string;
+            retest_result: string;
+            version_no: number;
+        };
         PilotFeedbackCreateRequest: {
             title: string;
             reproduction_summary: string;
@@ -3410,8 +3530,54 @@ export interface components {
             /** Format: uuid */
             evidence_document_version_public_id?: string;
         };
+        PilotFeedbackCreateResponse: {
+            /** Format: uuid */
+            public_id: string;
+            /** Format: uuid */
+            batch_public_id: string;
+            title: string;
+            reproduction_summary: string;
+            severity: string;
+            status: string;
+            external_key: string;
+            /** Format: uuid */
+            evidence_document_version_public_id: string | null;
+            /** Format: uuid */
+            assignee_public_id: string | null;
+            target_version: string;
+            workaround: string;
+            /** Format: uuid */
+            accepted_by_public_id: string | null;
+            acceptance_note: string;
+            close_reason: string;
+            retest_result: string;
+            version_no: number;
+        };
         PilotFeedbackHandleRequest: {
             expected_version?: number;
+        };
+        PilotFeedbackHandleResponse: {
+            /** Format: uuid */
+            public_id: string;
+            /** Format: uuid */
+            batch_public_id: string;
+            title: string;
+            reproduction_summary: string;
+            severity: string;
+            status: string;
+            external_key: string;
+            /** Format: uuid */
+            evidence_document_version_public_id: string | null;
+            /** Format: uuid */
+            assignee_public_id: string | null;
+            target_version: string;
+            workaround: string;
+            /** Format: uuid */
+            accepted_by_public_id: string | null;
+            acceptance_note: string;
+            close_reason: string;
+            retest_result: string;
+            version_no: number;
         };
         PilotFeedbackItem: {
             /** Format: uuid */
@@ -3443,9 +3609,55 @@ export interface components {
             passed: boolean;
             expected_version?: number;
         };
+        PilotFeedbackRetestResponse: {
+            /** Format: uuid */
+            public_id: string;
+            /** Format: uuid */
+            batch_public_id: string;
+            title: string;
+            reproduction_summary: string;
+            severity: string;
+            status: string;
+            external_key: string;
+            /** Format: uuid */
+            evidence_document_version_public_id: string | null;
+            /** Format: uuid */
+            assignee_public_id: string | null;
+            target_version: string;
+            workaround: string;
+            /** Format: uuid */
+            accepted_by_public_id: string | null;
+            acceptance_note: string;
+            close_reason: string;
+            retest_result: string;
+            version_no: number;
+        };
         PilotFeedbackSubmitRetestRequest: {
             target_version?: string;
             expected_version?: number;
+        };
+        PilotFeedbackSubmitRetestResponse: {
+            /** Format: uuid */
+            public_id: string;
+            /** Format: uuid */
+            batch_public_id: string;
+            title: string;
+            reproduction_summary: string;
+            severity: string;
+            status: string;
+            external_key: string;
+            /** Format: uuid */
+            evidence_document_version_public_id: string | null;
+            /** Format: uuid */
+            assignee_public_id: string | null;
+            target_version: string;
+            workaround: string;
+            /** Format: uuid */
+            accepted_by_public_id: string | null;
+            acceptance_note: string;
+            close_reason: string;
+            retest_result: string;
+            version_no: number;
         };
         PilotLoginRequest: {
             /** Format: uuid */
@@ -5907,12 +6119,13 @@ export interface operations {
             };
         };
         responses: {
-            /** @description No response body */
             201: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["PilotBatchCreateResponse"];
+                };
             };
         };
     };
@@ -5954,12 +6167,13 @@ export interface operations {
             };
         };
         responses: {
-            /** @description No response body */
             201: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["PilotFeedbackCreateResponse"];
+                };
             };
         };
     };
@@ -5995,12 +6209,13 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description No response body */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["PilotBatchCompleteResponse"];
+                };
             };
         };
     };
@@ -6042,12 +6257,13 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description No response body */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["PilotBatchStartResponse"];
+                };
             };
         };
     };
@@ -6068,12 +6284,13 @@ export interface operations {
             };
         };
         responses: {
-            /** @description No response body */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["PilotFeedbackAssignResponse"];
+                };
             };
         };
     };
@@ -6094,12 +6311,13 @@ export interface operations {
             };
         };
         responses: {
-            /** @description No response body */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["PilotFeedbackCloseResponse"];
+                };
             };
         };
     };
@@ -6120,12 +6338,13 @@ export interface operations {
             };
         };
         responses: {
-            /** @description No response body */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["PilotFeedbackHandleResponse"];
+                };
             };
         };
     };
@@ -6146,12 +6365,13 @@ export interface operations {
             };
         };
         responses: {
-            /** @description No response body */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["PilotFeedbackRetestResponse"];
+                };
             };
         };
     };
@@ -6172,12 +6392,13 @@ export interface operations {
             };
         };
         responses: {
-            /** @description No response body */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["PilotFeedbackSubmitRetestResponse"];
+                };
             };
         };
     };

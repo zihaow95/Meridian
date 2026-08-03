@@ -1857,7 +1857,11 @@ paths:
       - cookieAuth: []
       responses:
         '201':
-          description: No response body
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PilotBatchCreateResponse'
+          description: ''
   /api/v1/pilot/batches/{batch_public_id}/feedback:
     get:
       operationId: pilot_feedback_list
@@ -1906,7 +1910,11 @@ paths:
       - cookieAuth: []
       responses:
         '201':
-          description: No response body
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PilotFeedbackCreateResponse'
+          description: ''
   /api/v1/pilot/batches/{public_id}:
     get:
       operationId: pilot_batches_retrieve
@@ -1944,7 +1952,11 @@ paths:
       - cookieAuth: []
       responses:
         '200':
-          description: No response body
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PilotBatchCompleteResponse'
+          description: ''
   /api/v1/pilot/batches/{public_id}/participants:
     post:
       operationId: pilot_batches_add_participant
@@ -1994,7 +2006,11 @@ paths:
       - cookieAuth: []
       responses:
         '200':
-          description: No response body
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PilotBatchStartResponse'
+          description: ''
   /api/v1/pilot/feedback/{public_id}/assign:
     post:
       operationId: pilot_feedback_assign
@@ -2023,7 +2039,11 @@ paths:
       - cookieAuth: []
       responses:
         '200':
-          description: No response body
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PilotFeedbackAssignResponse'
+          description: ''
   /api/v1/pilot/feedback/{public_id}/close:
     post:
       operationId: pilot_feedback_close
@@ -2051,7 +2071,11 @@ paths:
       - cookieAuth: []
       responses:
         '200':
-          description: No response body
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PilotFeedbackCloseResponse'
+          description: ''
   /api/v1/pilot/feedback/{public_id}/handle:
     post:
       operationId: pilot_feedback_handle
@@ -2079,7 +2103,11 @@ paths:
       - cookieAuth: []
       responses:
         '200':
-          description: No response body
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PilotFeedbackHandleResponse'
+          description: ''
   /api/v1/pilot/feedback/{public_id}/retest:
     post:
       operationId: pilot_feedback_retest
@@ -2108,7 +2136,11 @@ paths:
       - cookieAuth: []
       responses:
         '200':
-          description: No response body
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PilotFeedbackRetestResponse'
+          description: ''
   /api/v1/pilot/feedback/{public_id}/submit-retest:
     post:
       operationId: pilot_feedback_submit_retest
@@ -2136,7 +2168,11 @@ paths:
       - cookieAuth: []
       responses:
         '200':
-          description: No response body
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PilotFeedbackSubmitRetestResponse'
+          description: ''
   /api/v1/plan-changes/{public_id}/confirm:
     post:
       operationId: plan_changes_confirm
@@ -6443,6 +6479,52 @@ components:
         suggested_retail_price:
           type: string
           nullable: true
+    PilotBatchCompleteResponse:
+      type: object
+      properties:
+        public_id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        purpose:
+          type: string
+        status:
+          type: string
+        planned_participant_count:
+          type: integer
+        planned_duration_days:
+          type: integer
+        config_snapshot:
+          type: object
+          additionalProperties: {}
+        data_scope_note:
+          type: string
+        feedback_owner_note:
+          type: string
+        version_no:
+          type: integer
+        started_at:
+          type: string
+          format: date-time
+          nullable: true
+        completed_at:
+          type: string
+          format: date-time
+          nullable: true
+      required:
+      - completed_at
+      - config_snapshot
+      - data_scope_note
+      - feedback_owner_note
+      - name
+      - planned_duration_days
+      - planned_participant_count
+      - public_id
+      - purpose
+      - started_at
+      - status
+      - version_no
     PilotBatchCreateRequest:
       type: object
       properties:
@@ -6458,15 +6540,103 @@ components:
           type: string
       required:
       - name
+    PilotBatchCreateResponse:
+      type: object
+      properties:
+        public_id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        purpose:
+          type: string
+        status:
+          type: string
+        planned_participant_count:
+          type: integer
+        planned_duration_days:
+          type: integer
+        config_snapshot:
+          type: object
+          additionalProperties: {}
+        data_scope_note:
+          type: string
+        feedback_owner_note:
+          type: string
+        version_no:
+          type: integer
+        started_at:
+          type: string
+          format: date-time
+          nullable: true
+        completed_at:
+          type: string
+          format: date-time
+          nullable: true
+      required:
+      - completed_at
+      - config_snapshot
+      - data_scope_note
+      - feedback_owner_note
+      - name
+      - planned_duration_days
+      - planned_participant_count
+      - public_id
+      - purpose
+      - started_at
+      - status
+      - version_no
     PilotBatchDetail:
       type: object
       properties:
+        public_id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        purpose:
+          type: string
+        status:
+          type: string
+        planned_participant_count:
+          type: integer
+        planned_duration_days:
+          type: integer
+        config_snapshot:
+          type: object
+          additionalProperties: {}
+        data_scope_note:
+          type: string
+        feedback_owner_note:
+          type: string
+        version_no:
+          type: integer
+        started_at:
+          type: string
+          format: date-time
+          nullable: true
+        completed_at:
+          type: string
+          format: date-time
+          nullable: true
         participants:
           type: array
           items:
             $ref: '#/components/schemas/PilotParticipantItem'
       required:
+      - completed_at
+      - config_snapshot
+      - data_scope_note
+      - feedback_owner_note
+      - name
       - participants
+      - planned_duration_days
+      - planned_participant_count
+      - public_id
+      - purpose
+      - started_at
+      - status
+      - version_no
     PilotBatchItem:
       type: object
       properties:
@@ -6522,6 +6692,52 @@ components:
             $ref: '#/components/schemas/PilotBatchItem'
       required:
       - items
+    PilotBatchStartResponse:
+      type: object
+      properties:
+        public_id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        purpose:
+          type: string
+        status:
+          type: string
+        planned_participant_count:
+          type: integer
+        planned_duration_days:
+          type: integer
+        config_snapshot:
+          type: object
+          additionalProperties: {}
+        data_scope_note:
+          type: string
+        feedback_owner_note:
+          type: string
+        version_no:
+          type: integer
+        started_at:
+          type: string
+          format: date-time
+          nullable: true
+        completed_at:
+          type: string
+          format: date-time
+          nullable: true
+      required:
+      - completed_at
+      - config_snapshot
+      - data_scope_note
+      - feedback_owner_note
+      - name
+      - planned_duration_days
+      - planned_participant_count
+      - public_id
+      - purpose
+      - started_at
+      - status
+      - version_no
     PilotFeedbackAssignRequest:
       type: object
       properties:
@@ -6535,6 +6751,66 @@ components:
       required:
       - assignee_public_id
       - severity
+    PilotFeedbackAssignResponse:
+      type: object
+      properties:
+        public_id:
+          type: string
+          format: uuid
+        batch_public_id:
+          type: string
+          format: uuid
+        title:
+          type: string
+        reproduction_summary:
+          type: string
+        severity:
+          type: string
+        status:
+          type: string
+        external_key:
+          type: string
+        evidence_document_version_public_id:
+          type: string
+          format: uuid
+          nullable: true
+        assignee_public_id:
+          type: string
+          format: uuid
+          nullable: true
+        target_version:
+          type: string
+        workaround:
+          type: string
+        accepted_by_public_id:
+          type: string
+          format: uuid
+          nullable: true
+        acceptance_note:
+          type: string
+        close_reason:
+          type: string
+        retest_result:
+          type: string
+        version_no:
+          type: integer
+      required:
+      - acceptance_note
+      - accepted_by_public_id
+      - assignee_public_id
+      - batch_public_id
+      - close_reason
+      - evidence_document_version_public_id
+      - external_key
+      - public_id
+      - reproduction_summary
+      - retest_result
+      - severity
+      - status
+      - target_version
+      - title
+      - version_no
+      - workaround
     PilotFeedbackCloseRequest:
       type: object
       properties:
@@ -6553,6 +6829,66 @@ components:
           type: string
         expected_version:
           type: integer
+    PilotFeedbackCloseResponse:
+      type: object
+      properties:
+        public_id:
+          type: string
+          format: uuid
+        batch_public_id:
+          type: string
+          format: uuid
+        title:
+          type: string
+        reproduction_summary:
+          type: string
+        severity:
+          type: string
+        status:
+          type: string
+        external_key:
+          type: string
+        evidence_document_version_public_id:
+          type: string
+          format: uuid
+          nullable: true
+        assignee_public_id:
+          type: string
+          format: uuid
+          nullable: true
+        target_version:
+          type: string
+        workaround:
+          type: string
+        accepted_by_public_id:
+          type: string
+          format: uuid
+          nullable: true
+        acceptance_note:
+          type: string
+        close_reason:
+          type: string
+        retest_result:
+          type: string
+        version_no:
+          type: integer
+      required:
+      - acceptance_note
+      - accepted_by_public_id
+      - assignee_public_id
+      - batch_public_id
+      - close_reason
+      - evidence_document_version_public_id
+      - external_key
+      - public_id
+      - reproduction_summary
+      - retest_result
+      - severity
+      - status
+      - target_version
+      - title
+      - version_no
+      - workaround
     PilotFeedbackCreateRequest:
       type: object
       properties:
@@ -6568,11 +6904,131 @@ components:
       required:
       - reproduction_summary
       - title
+    PilotFeedbackCreateResponse:
+      type: object
+      properties:
+        public_id:
+          type: string
+          format: uuid
+        batch_public_id:
+          type: string
+          format: uuid
+        title:
+          type: string
+        reproduction_summary:
+          type: string
+        severity:
+          type: string
+        status:
+          type: string
+        external_key:
+          type: string
+        evidence_document_version_public_id:
+          type: string
+          format: uuid
+          nullable: true
+        assignee_public_id:
+          type: string
+          format: uuid
+          nullable: true
+        target_version:
+          type: string
+        workaround:
+          type: string
+        accepted_by_public_id:
+          type: string
+          format: uuid
+          nullable: true
+        acceptance_note:
+          type: string
+        close_reason:
+          type: string
+        retest_result:
+          type: string
+        version_no:
+          type: integer
+      required:
+      - acceptance_note
+      - accepted_by_public_id
+      - assignee_public_id
+      - batch_public_id
+      - close_reason
+      - evidence_document_version_public_id
+      - external_key
+      - public_id
+      - reproduction_summary
+      - retest_result
+      - severity
+      - status
+      - target_version
+      - title
+      - version_no
+      - workaround
     PilotFeedbackHandleRequest:
       type: object
       properties:
         expected_version:
           type: integer
+    PilotFeedbackHandleResponse:
+      type: object
+      properties:
+        public_id:
+          type: string
+          format: uuid
+        batch_public_id:
+          type: string
+          format: uuid
+        title:
+          type: string
+        reproduction_summary:
+          type: string
+        severity:
+          type: string
+        status:
+          type: string
+        external_key:
+          type: string
+        evidence_document_version_public_id:
+          type: string
+          format: uuid
+          nullable: true
+        assignee_public_id:
+          type: string
+          format: uuid
+          nullable: true
+        target_version:
+          type: string
+        workaround:
+          type: string
+        accepted_by_public_id:
+          type: string
+          format: uuid
+          nullable: true
+        acceptance_note:
+          type: string
+        close_reason:
+          type: string
+        retest_result:
+          type: string
+        version_no:
+          type: integer
+      required:
+      - acceptance_note
+      - accepted_by_public_id
+      - assignee_public_id
+      - batch_public_id
+      - close_reason
+      - evidence_document_version_public_id
+      - external_key
+      - public_id
+      - reproduction_summary
+      - retest_result
+      - severity
+      - status
+      - target_version
+      - title
+      - version_no
+      - workaround
     PilotFeedbackItem:
       type: object
       properties:
@@ -6651,6 +7107,66 @@ components:
           type: integer
       required:
       - passed
+    PilotFeedbackRetestResponse:
+      type: object
+      properties:
+        public_id:
+          type: string
+          format: uuid
+        batch_public_id:
+          type: string
+          format: uuid
+        title:
+          type: string
+        reproduction_summary:
+          type: string
+        severity:
+          type: string
+        status:
+          type: string
+        external_key:
+          type: string
+        evidence_document_version_public_id:
+          type: string
+          format: uuid
+          nullable: true
+        assignee_public_id:
+          type: string
+          format: uuid
+          nullable: true
+        target_version:
+          type: string
+        workaround:
+          type: string
+        accepted_by_public_id:
+          type: string
+          format: uuid
+          nullable: true
+        acceptance_note:
+          type: string
+        close_reason:
+          type: string
+        retest_result:
+          type: string
+        version_no:
+          type: integer
+      required:
+      - acceptance_note
+      - accepted_by_public_id
+      - assignee_public_id
+      - batch_public_id
+      - close_reason
+      - evidence_document_version_public_id
+      - external_key
+      - public_id
+      - reproduction_summary
+      - retest_result
+      - severity
+      - status
+      - target_version
+      - title
+      - version_no
+      - workaround
     PilotFeedbackSubmitRetestRequest:
       type: object
       properties:
@@ -6658,6 +7174,66 @@ components:
           type: string
         expected_version:
           type: integer
+    PilotFeedbackSubmitRetestResponse:
+      type: object
+      properties:
+        public_id:
+          type: string
+          format: uuid
+        batch_public_id:
+          type: string
+          format: uuid
+        title:
+          type: string
+        reproduction_summary:
+          type: string
+        severity:
+          type: string
+        status:
+          type: string
+        external_key:
+          type: string
+        evidence_document_version_public_id:
+          type: string
+          format: uuid
+          nullable: true
+        assignee_public_id:
+          type: string
+          format: uuid
+          nullable: true
+        target_version:
+          type: string
+        workaround:
+          type: string
+        accepted_by_public_id:
+          type: string
+          format: uuid
+          nullable: true
+        acceptance_note:
+          type: string
+        close_reason:
+          type: string
+        retest_result:
+          type: string
+        version_no:
+          type: integer
+      required:
+      - acceptance_note
+      - accepted_by_public_id
+      - assignee_public_id
+      - batch_public_id
+      - close_reason
+      - evidence_document_version_public_id
+      - external_key
+      - public_id
+      - reproduction_summary
+      - retest_result
+      - severity
+      - status
+      - target_version
+      - title
+      - version_no
+      - workaround
     PilotLoginRequest:
       type: object
       properties:

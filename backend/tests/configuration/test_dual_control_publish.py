@@ -75,6 +75,7 @@ def catalog_draft(organization, active_user) -> ConfigurationVersion:
 @pytest.fixture
 def requester(active_user, grant_action):
     grant_action(active_user, REQUEST_ACTION, RESOURCE_TYPE)
+    grant_action(active_user, "configuration.version.publish", RESOURCE_TYPE)
     return active_user
 
 

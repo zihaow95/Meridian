@@ -92,8 +92,7 @@ def requirements(organization: Organization, active_user: User) -> Callable[...,
         return ConfigurationVersion.objects.create(
             organization=organization,
             definition=definition,
-            version_number=ConfigurationVersion.objects.filter(definition=definition).count()
-            + 1,
+            version_number=ConfigurationVersion.objects.filter(definition=definition).count() + 1,
             status=ConfigurationStatus.PUBLISHED,
             current_published_slot=1,
             content_json={

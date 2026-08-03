@@ -22,7 +22,10 @@ async function load(): Promise<void> {
   try {
     await products.fetchProductDetail(String(route.params.publicId))
   } catch (err: unknown) {
-    if (err instanceof ApiError) {
+    if (err instanceof ApiError && (err.status === 403 || err.status === 404)) {
+      // Real-time deep-link denial must match the shared access-denied copy.
+      errorText.value = '无权访问或内容不存在'
+    } else if (err instanceof ApiError) {
       errorText.value = `${err.code}: ${err.message}`
     } else {
       errorText.value = '加载产品详情失败'

@@ -86,6 +86,8 @@ class SettleOpenTodosForSource:
     source_id: UUID
     status: str
     close_reason: str
+    actor: User | None = None
+    trace_id: str = ""
 
     def execute(self) -> int:
         from apps.notifications.services.lifecycle import SynchronizeNotificationForSource
@@ -109,6 +111,8 @@ class SettleOpenTodosForSource:
                 source_type=self.source_type,
                 source_id=self.source_id,
                 close_reason=self.close_reason,
+                actor=self.actor,
+                trace_id=self.trace_id,
             ).execute()
             return updated
 
@@ -120,6 +124,8 @@ class CompleteOpenTodosForSource:
     organization_id: int
     source_type: str
     source_id: UUID
+    actor: User | None = None
+    trace_id: str = ""
 
     def execute(self) -> int:
         return SettleOpenTodosForSource(
@@ -128,4 +134,6 @@ class CompleteOpenTodosForSource:
             source_id=self.source_id,
             status=TodoStatus.COMPLETED,
             close_reason="SOURCE_COMPLETED",
+            actor=self.actor,
+            trace_id=self.trace_id,
         ).execute()

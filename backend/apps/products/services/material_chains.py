@@ -165,16 +165,19 @@ class CreateLegacyMaterialVersionChain:
                 "The current version must be one of the submissions in the chain."
             )
 
-        _require(
-            actor,
-            action="product_material.manage",
-            resource_type="product_material",
-            public_id=None,
-            organization_id=actor.organization_id,
-        )
-
         with transaction.atomic():
             submissions = self._locked_submissions(actor.organization_id)
+            # Re-authorize against the locked submissions' real sensitivity so a
+            # stale pre-lock grant cannot promote a higher-sensitivity file.
+            for submission in submissions:
+                _require(
+                    actor,
+                    action="product_material.manage",
+                    resource_type="product_material",
+                    public_id=None,
+                    organization_id=actor.organization_id,
+                    sensitivity_level=submission.document_version.sensitivity_level,
+                )
             previous, next_version = self._chain_tail(actor.organization_id)
             created: list[ProductMaterial] = []
             current: ProductMaterial | None = None
@@ -292,6 +295,7 @@ def _require(
     resource_type: str,
     public_id: UUID | None,
     organization_id: int,
+    sensitivity_level: str = "INTERNAL",
 ) -> None:
     decision = authorize(
         subject_for(actor),
@@ -300,6 +304,7 @@ def _require(
             resource_type=resource_type,
             public_id=public_id,
             organization_id=organization_id,
+            sensitivity_level=sensitivity_level,
         ),
         context=AuthorizationContext.current(),
     )

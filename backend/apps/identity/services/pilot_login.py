@@ -40,9 +40,7 @@ class AuthenticatePilotUser:
         if organization is None or organization.status != OrganizationStatus.ACTIVE:
             raise AuthenticationFailedError(message="Invalid login credentials.")
 
-        user = User.objects.filter(
-            organization=organization, employee_no=employee_no
-        ).first()
+        user = User.objects.filter(organization=organization, employee_no=employee_no).first()
         if user is None:
             raise AuthenticationFailedError(message="Invalid login credentials.")
 

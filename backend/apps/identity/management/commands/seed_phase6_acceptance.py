@@ -131,10 +131,11 @@ class Command(BaseCommand):
         self._ensure_inactive_pilot_user(organization)
         batch = self._ensure_pilot_batch(actor, pilot)
         self._ensure_sample_feedback_closed(actor, approver, batch)
-        self._ensure_notifications(actor)
         versions = self._ensure_document_volume(organization, actor)
         self._ensure_pending_triage(actor, versions)
         self._ensure_legacy_products(actor, versions)
+        # After products exist so ACTION_REQUIRED can deep-link a real product.
+        self._ensure_notifications(actor)
 
         self.stdout.write(
             self.style.SUCCESS(
@@ -366,7 +367,7 @@ class Command(BaseCommand):
             user.set_password(PHASE6_PILOT_PASSWORD)
             user.save()
 
-    def _ensure_pilot_batch(self, actor: User, pilot: User):
+    def _ensure_pilot_batch(self, actor: User, pilot: User) -> Any:
         ctx = CommandContext.for_actor(actor)
         from apps.pilot.models import PilotBatch
 
@@ -402,7 +403,7 @@ class Command(BaseCommand):
             batch = StartPilotBatch(context=ctx, batch_public_id=batch.public_id).execute()
         return batch
 
-    def _ensure_sample_feedback_closed(self, actor: User, approver: User, batch) -> None:
+    def _ensure_sample_feedback_closed(self, actor: User, approver: User, batch: Any) -> None:
         ctx = CommandContext.for_actor(actor)
         feedback = OpenPilotFeedback(
             context=ctx,
@@ -439,19 +440,40 @@ class Command(BaseCommand):
         ).execute()
 
     def _ensure_notifications(self, actor: User) -> None:
+        # Point one seeded deep link at a real product so E2E can prove realtime
+        # authorization denial for a limited user on an existing target.
+        first_product = (
+            ProductAsset.objects.filter(organization_id=actor.organization_id)
+            .order_by("id")
+            .first()
+        )
+        product_link = (
+            f"/products/{first_product.public_id}" if first_product is not None else "/todos"
+        )
+        from apps.notifications.models import Notification
+
         for category, level in _CATEGORY_LEVELS:
             template_code = f"phase6.{category.lower()}"
+            deep_link = (
+                product_link if category == NotificationCategory.ACTION_REQUIRED else "/todos"
+            )
+            dedup_key = f"phase6:notify:{category}:{level}"
             CreateInAppNotification(
                 recipient=actor,
                 template_code=template_code,
                 variables={"title": f"{category}-{level}"},
                 object_type="identity.user",
                 object_id=actor.public_id,
-                dedup_key=f"phase6:notify:{category}:{level}",
-                deep_link="/todos",
+                dedup_key=dedup_key,
+                deep_link=deep_link,
                 action_code="notification.read",
                 level=level,
             ).execute()
+            # Idempotent seed must refresh deep links so E2E denial stays on a
+            # real product even when the row was created before products existed.
+            Notification.objects.filter(recipient=actor, dedup_key=dedup_key).update(
+                deep_link=deep_link
+            )
 
     def _ensure_document_volume(
         self, organization: Organization, actor: User

@@ -10,8 +10,13 @@ from django.db import transaction
 from apps.audit.models import AuditResult
 from apps.audit.services.append_event import AuditRecord, append_event
 from apps.audit.services.snapshots import acting_roles_snapshot
-from apps.authorization.context import AuthorizationDecision
+from apps.authorization.context import (
+    AuthorizationContext,
+    AuthorizationDecision,
+    ResourceDescriptor,
+)
 from apps.authorization.models.admin_change import AdminChangeRequest, AdminChangeStatus
+from apps.authorization.policies.engine import authorize
 from apps.authorization.services.request_admin_change import (
     AdminChangeRequestDenied,
     RequestAdminChange,
@@ -21,6 +26,7 @@ from apps.authorization.services.review_admin_change import (
     AdminChangeReviewDenied,
     ReviewAdminChange,
 )
+from apps.authorization.services.subject import subject_for
 from apps.configuration.models import (
     ConfigurationDefinition,
     ConfigurationSnapshot,
@@ -36,6 +42,7 @@ from apps.configuration.schema_registry import (
     validate_content,
 )
 from apps.identity.models.user import User
+from apps.platform.api.errors import PermissionDeniedError
 from apps.platform.application.command import CommandContext
 from apps.platform.outbox.services import OutboxMessage, register_outbox_event
 
@@ -153,8 +160,20 @@ class PublishVersion:
             version = (
                 ConfigurationVersion.objects.select_for_update()
                 .select_related("definition")
-                .get(pk=self.version.pk)
+                .get(pk=self.version.pk, organization_id=self.actor.organization_id)
             )
+            auth_decision = authorize(
+                subject_for(self.actor),
+                action="configuration.version.publish",
+                resource=ResourceDescriptor(
+                    resource_type="configuration.version",
+                    public_id=version.public_id,
+                    organization_id=self.actor.organization_id,
+                ),
+                context=AuthorizationContext.current(),
+            )
+            if not auth_decision.allowed:
+                raise PermissionDeniedError()
             if version.status not in {ConfigurationStatus.DRAFT, ConfigurationStatus.FAILED}:
                 raise ConfigurationVersionNotPublishable(
                     f"Cannot publish version in status {version.status}"
@@ -166,7 +185,8 @@ class PublishVersion:
                     raise PublicationApprovalRequired(definition_code)
             else:
                 approved_request = AdminChangeRequest.objects.select_for_update().get(
-                    pk=self.approved_request.pk
+                    pk=self.approved_request.pk,
+                    proposed_by__organization_id=self.actor.organization_id,
                 )
                 self._assert_approval_authorizes_this_version(approved_request, version=version)
 
@@ -337,6 +357,7 @@ class ReviewConfigurationPublication:
             request = AdminChangeRequest.objects.select_for_update().get(
                 public_id=self.request_public_id,
                 action_type=PUBLICATION_ACTION_TYPE,
+                proposed_by__organization_id=self.context.actor.organization_id,
             )
             review = ReviewAdminChange(
                 actor=self.context.actor,

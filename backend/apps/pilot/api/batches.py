@@ -7,7 +7,7 @@ from uuid import UUID
 
 from drf_spectacular.utils import extend_schema, inline_serializer
 from rest_framework import serializers, status
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.permissions import BasePermission, IsAuthenticated
 from rest_framework.request import Request
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -34,24 +34,26 @@ BatchReadPermission = requires_action(
     resource_type="pilot.batch",
 )
 
-BATCH_FIELDS = {
-    "public_id": serializers.UUIDField(),
-    "name": serializers.CharField(),
-    "purpose": serializers.CharField(),
-    "status": serializers.CharField(),
-    "planned_participant_count": serializers.IntegerField(),
-    "planned_duration_days": serializers.IntegerField(),
-    "config_snapshot": serializers.DictField(),
-    "data_scope_note": serializers.CharField(),
-    "feedback_owner_note": serializers.CharField(),
-    "version_no": serializers.IntegerField(),
-    "started_at": serializers.DateTimeField(allow_null=True),
-    "completed_at": serializers.DateTimeField(allow_null=True),
-}
+
+def _batch_fields() -> dict[str, serializers.Field]:
+    return {
+        "public_id": serializers.UUIDField(),
+        "name": serializers.CharField(),
+        "purpose": serializers.CharField(),
+        "status": serializers.CharField(),
+        "planned_participant_count": serializers.IntegerField(),
+        "planned_duration_days": serializers.IntegerField(),
+        "config_snapshot": serializers.DictField(),
+        "data_scope_note": serializers.CharField(),
+        "feedback_owner_note": serializers.CharField(),
+        "version_no": serializers.IntegerField(),
+        "started_at": serializers.DateTimeField(allow_null=True),
+        "completed_at": serializers.DateTimeField(allow_null=True),
+    }
 
 
 class PilotBatchListCreateView(APIView):
-    def get_permissions(self):
+    def get_permissions(self) -> list[BasePermission]:
         if self.request.method == "POST":
             return [IsAuthenticated(), BatchManagePermission()]
         return [IsAuthenticated(), BatchReadPermission()]
@@ -62,7 +64,7 @@ class PilotBatchListCreateView(APIView):
             name="PilotBatchList",
             fields={
                 "items": serializers.ListField(
-                    child=inline_serializer(name="PilotBatchItem", fields=BATCH_FIELDS)
+                    child=inline_serializer(name="PilotBatchItem", fields=_batch_fields())
                 )
             },
         ),
@@ -84,7 +86,7 @@ class PilotBatchListCreateView(APIView):
                 "feedback_owner_note": serializers.CharField(required=False),
             },
         ),
-        responses={201: inline_serializer(name="PilotBatchCreateResponse", fields=BATCH_FIELDS)},
+        responses={201: inline_serializer(name="PilotBatchCreateResponse", fields=_batch_fields())},
     )
     def post(self, request: Request) -> Response:
         user = cast(User, request.user)
@@ -114,7 +116,7 @@ class PilotBatchDetailView(APIView):
         responses=inline_serializer(
             name="PilotBatchDetail",
             fields={
-                **BATCH_FIELDS,
+                **_batch_fields(),
                 "participants": serializers.ListField(
                     child=inline_serializer(
                         name="PilotParticipantItem",
@@ -196,7 +198,7 @@ class PilotBatchStartView(APIView):
     @extend_schema(
         operation_id="pilot_batches_start",
         request=None,
-        responses={200: inline_serializer(name="PilotBatchStartResponse", fields=BATCH_FIELDS)},
+        responses={200: inline_serializer(name="PilotBatchStartResponse", fields=_batch_fields())},
     )
     def post(self, request: Request, public_id: UUID) -> Response:
         user = cast(User, request.user)
@@ -216,7 +218,9 @@ class PilotBatchCompleteView(APIView):
     @extend_schema(
         operation_id="pilot_batches_complete",
         request=None,
-        responses={200: inline_serializer(name="PilotBatchCompleteResponse", fields=BATCH_FIELDS)},
+        responses={
+            200: inline_serializer(name="PilotBatchCompleteResponse", fields=_batch_fields())
+        },
     )
     def post(self, request: Request, public_id: UUID) -> Response:
         user = cast(User, request.user)

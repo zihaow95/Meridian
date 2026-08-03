@@ -62,9 +62,7 @@ if (env("ENABLE_DINGTALK_NOTIFICATIONS") or "false").lower() in {"1", "true", "y
 
 ENABLE_PILOT_PASSWORD_LOGIN = False
 if (env("ENABLE_PILOT_PASSWORD_LOGIN") or "false").lower() in {"1", "true", "yes"}:
-    raise ImproperlyConfigured(
-        "ENABLE_PILOT_PASSWORD_LOGIN must not be enabled in production."
-    )
+    raise ImproperlyConfigured("ENABLE_PILOT_PASSWORD_LOGIN must not be enabled in production.")
 
 # Pilot feedback APIs stay off in production until Phase 7 GO explicitly enables them.
 ENABLE_PILOT_API = False

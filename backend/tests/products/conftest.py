@@ -39,15 +39,19 @@ from apps.products.models import (
 from apps.products.services.attribute_schema import compute_attribute_content_hash
 from apps.products.services.create_change_set import compute_baseline_fingerprint
 from apps.projects.models import Project
+from apps.projects.services.create_project_from_candidate import ApproveAndCreateProject
+from tests.opportunities.factories import build_approval_ready_candidate
+from tests.products.schema_factories import build_published_product_schema
 
 
-@pytest.fixture(autouse=True)
+@pytest.fixture
 def published_empty_material_requirements(
     organization: Organization, active_user: User
 ) -> ConfigurationVersion:
-    """Satisfy fail-closed publication gates without imposing REQUIRED materials.
+    """Publish empty material requirements for tests that publish without materials.
 
-    Tests that need REQUIRED materials retire this version and publish their own.
+    Not autouse: products.conftest is a global pytest plugin and must not mutate
+    configuration state for unrelated suites.
     """
 
     definition, _ = ConfigurationDefinition.objects.get_or_create(
@@ -68,9 +72,6 @@ def published_empty_material_requirements(
         created_by=active_user,
         published_at=timezone.now(),
     )
-from apps.projects.services.create_project_from_candidate import ApproveAndCreateProject
-from tests.opportunities.factories import build_approval_ready_candidate
-from tests.products.schema_factories import build_published_product_schema
 
 
 @pytest.fixture

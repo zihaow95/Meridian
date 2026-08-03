@@ -10,9 +10,7 @@ from apps.identity.models.user import User
 
 
 @pytest.fixture(autouse=True)
-def _grant_pilot_write_actions(
-    active_user: User, grant_action: Callable[..., None]
-) -> None:
+def _grant_pilot_write_actions(active_user: User, grant_action: Callable[..., None]) -> None:
     for action, resource in (
         ("pilot.batch.manage", "pilot.batch"),
         ("pilot.batch.read", "pilot.batch"),

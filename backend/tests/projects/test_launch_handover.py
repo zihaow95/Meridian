@@ -34,6 +34,8 @@ from apps.stage_gates.services.record_first_launch_decision import (
 from tests.products.schema_factories import build_published_product_schema
 from tests.stage_gates.first_launch_fixtures import prepare_submitted_first_launch_gate
 
+pytestmark = pytest.mark.usefixtures("published_empty_material_requirements")
+
 
 @pytest.fixture
 def published_product_schema(organization: Organization, project: Project) -> object:

@@ -22,11 +22,14 @@ from apps.authorization.context import AuthorizationContext, ResourceDescriptor
 from apps.authorization.policies.engine import authorize
 from apps.authorization.services.subject import subject_for
 from apps.identity.models.user import User, UserStatus
-from apps.notifications.consumers import TodoProjectionConsumer
 from apps.notifications.services.todos import CompleteOpenTodosForSource
 from apps.platform.api.errors import PermissionDeniedError
 from apps.platform.application.command import CommandContext
-from apps.platform.outbox.services import OutboxMessage, register_outbox_event
+from apps.platform.outbox.services import (
+    OutboxMessage,
+    register_outbox_event,
+    schedule_local_dispatch_after_commit,
+)
 from apps.products.models import (
     MaterialConfirmation,
     MaterialConfirmationDecision,
@@ -177,8 +180,8 @@ class SubmitMaterialConfirmation:
                     occurred_at=self.context.occurred_at or timezone.now(),
                 )
             )
-            # Request-path projection so E2E/API callers do not wait on Celery.
-            TodoProjectionConsumer().consume(outbox_event)
+            # After commit only: notification/todo failure must not unwind confirmation.
+            schedule_local_dispatch_after_commit(outbox_event)
         return confirmation
 
 
@@ -253,6 +256,8 @@ class DecideMaterialConfirmation:
                 organization_id=confirmation.organization_id,
                 source_type="product_material",
                 source_id=material.public_id,
+                actor=actor,
+                trace_id=self.context.trace_id,
             ).execute()
         return confirmation
 

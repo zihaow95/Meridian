@@ -74,12 +74,23 @@ class CreateLegacyBaselineDraft:
             )
 
         with transaction.atomic():
+            # Import-batch confirmation already holds migration.confirm; the
+            # item-by-item form uses legacy_baseline.draft.create. Either path
+            # must re-check inside the writer so an internal call cannot widen.
+            if self.migration_batch_id is not None:
+                action = "migration.confirm"
+                resource_type = "migration"
+                public_id = None
+            else:
+                action = "legacy_baseline.draft.create"
+                resource_type = "product_change_set"
+                public_id = self.existing_product.public_id if self.existing_product else None
             decision = authorize(
                 subject_for(actor),
-                action="legacy_baseline.draft.create",
+                action=action,
                 resource=ResourceDescriptor(
-                    resource_type="product",
-                    public_id=(self.existing_product.public_id if self.existing_product else None),
+                    resource_type=resource_type,
+                    public_id=public_id,
                     organization_id=actor.organization_id,
                 ),
                 context=AuthorizationContext.current(),

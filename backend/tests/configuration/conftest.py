@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
+
 import pytest
 
 from apps.configuration.models import (
@@ -12,6 +14,11 @@ from apps.configuration.schema_registry import FILE_UPLOAD_DEFINITION_CODE
 from apps.configuration.services import CreateDraft, PublishVersion
 from apps.identity.models.organization import Organization
 from apps.identity.models.user import User
+
+
+@pytest.fixture(autouse=True)
+def _grant_configuration_publish(active_user: User, grant_action: Callable[..., None]) -> None:
+    grant_action(active_user, "configuration.version.publish", "configuration.version")
 
 
 @pytest.fixture

@@ -41,9 +41,7 @@ def pilot_user(organization, pilot_role) -> User:
         role=pilot_role,
         scope_type=ScopeType.ORGANIZATION,
         scope_id=organization.id,
-        scope_key=build_scope_key(
-            scope_type=ScopeType.ORGANIZATION, scope_id=organization.id
-        ),
+        scope_key=build_scope_key(scope_type=ScopeType.ORGANIZATION, scope_id=organization.id),
         effective_from=timezone.now(),
         configured_by=user,
         status="ACTIVE",
@@ -85,9 +83,7 @@ def test_pilot_login_establishes_the_same_session_helper(
     assert me.json()["display_name"] == "Pilot Participant"
 
 
-def test_pilot_login_is_absent_when_the_switch_is_off(
-    client: Client, settings, pilot_user
-) -> None:
+def test_pilot_login_is_absent_when_the_switch_is_off(client: Client, settings, pilot_user) -> None:
     settings.ENABLE_PILOT_PASSWORD_LOGIN = False
 
     response = client.post(

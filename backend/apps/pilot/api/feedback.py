@@ -7,7 +7,7 @@ from uuid import UUID
 
 from drf_spectacular.utils import extend_schema, inline_serializer
 from rest_framework import serializers, status
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.permissions import BasePermission, IsAuthenticated
 from rest_framework.request import Request
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -53,24 +53,26 @@ FeedbackClosePermission = requires_action(
     resource_type="pilot.feedback",
 )
 
-FEEDBACK_FIELDS = {
-    "public_id": serializers.UUIDField(),
-    "batch_public_id": serializers.UUIDField(),
-    "title": serializers.CharField(),
-    "reproduction_summary": serializers.CharField(),
-    "severity": serializers.CharField(allow_blank=True),
-    "status": serializers.CharField(),
-    "external_key": serializers.CharField(allow_blank=True),
-    "evidence_document_version_public_id": serializers.UUIDField(allow_null=True),
-    "assignee_public_id": serializers.UUIDField(allow_null=True),
-    "target_version": serializers.CharField(allow_blank=True),
-    "workaround": serializers.CharField(allow_blank=True),
-    "accepted_by_public_id": serializers.UUIDField(allow_null=True),
-    "acceptance_note": serializers.CharField(allow_blank=True),
-    "close_reason": serializers.CharField(allow_blank=True),
-    "retest_result": serializers.CharField(allow_blank=True),
-    "version_no": serializers.IntegerField(),
-}
+
+def _feedback_fields() -> dict[str, serializers.Field]:
+    return {
+        "public_id": serializers.UUIDField(),
+        "batch_public_id": serializers.UUIDField(),
+        "title": serializers.CharField(),
+        "reproduction_summary": serializers.CharField(),
+        "severity": serializers.CharField(allow_blank=True),
+        "status": serializers.CharField(),
+        "external_key": serializers.CharField(allow_blank=True),
+        "evidence_document_version_public_id": serializers.UUIDField(allow_null=True),
+        "assignee_public_id": serializers.UUIDField(allow_null=True),
+        "target_version": serializers.CharField(allow_blank=True),
+        "workaround": serializers.CharField(allow_blank=True),
+        "accepted_by_public_id": serializers.UUIDField(allow_null=True),
+        "acceptance_note": serializers.CharField(allow_blank=True),
+        "close_reason": serializers.CharField(allow_blank=True),
+        "retest_result": serializers.CharField(allow_blank=True),
+        "version_no": serializers.IntegerField(),
+    }
 
 
 def _optional_uuid(raw: object | None) -> UUID | None:
@@ -83,7 +85,7 @@ def _optional_uuid(raw: object | None) -> UUID | None:
 
 
 class PilotFeedbackListCreateView(APIView):
-    def get_permissions(self):
+    def get_permissions(self) -> list[BasePermission]:
         if self.request.method == "POST":
             return [IsAuthenticated(), FeedbackCreatePermission()]
         return [IsAuthenticated(), FeedbackReadPermission()]
@@ -97,7 +99,7 @@ class PilotFeedbackListCreateView(APIView):
             name="PilotFeedbackList",
             fields={
                 "items": serializers.ListField(
-                    child=inline_serializer(name="PilotFeedbackItem", fields=FEEDBACK_FIELDS)
+                    child=inline_serializer(name="PilotFeedbackItem", fields=_feedback_fields())
                 )
             },
         ),
@@ -121,7 +123,7 @@ class PilotFeedbackListCreateView(APIView):
             },
         ),
         responses={
-            201: inline_serializer(name="PilotFeedbackCreateResponse", fields=FEEDBACK_FIELDS)
+            201: inline_serializer(name="PilotFeedbackCreateResponse", fields=_feedback_fields())
         },
     )
     def post(self, request: Request, batch_public_id: UUID) -> Response:
@@ -161,7 +163,7 @@ class PilotFeedbackAssignView(APIView):
             },
         ),
         responses={
-            200: inline_serializer(name="PilotFeedbackAssignResponse", fields=FEEDBACK_FIELDS)
+            200: inline_serializer(name="PilotFeedbackAssignResponse", fields=_feedback_fields())
         },
     )
     def post(self, request: Request, public_id: UUID) -> Response:
@@ -197,7 +199,7 @@ class PilotFeedbackHandleView(APIView):
             fields={"expected_version": serializers.IntegerField(required=False)},
         ),
         responses={
-            200: inline_serializer(name="PilotFeedbackHandleResponse", fields=FEEDBACK_FIELDS)
+            200: inline_serializer(name="PilotFeedbackHandleResponse", fields=_feedback_fields())
         },
     )
     def post(self, request: Request, public_id: UUID) -> Response:
@@ -227,7 +229,9 @@ class PilotFeedbackRetestSubmitView(APIView):
             },
         ),
         responses={
-            200: inline_serializer(name="PilotFeedbackSubmitRetestResponse", fields=FEEDBACK_FIELDS)
+            200: inline_serializer(
+                name="PilotFeedbackSubmitRetestResponse", fields=_feedback_fields()
+            )
         },
     )
     def post(self, request: Request, public_id: UUID) -> Response:
@@ -258,7 +262,7 @@ class PilotFeedbackRetestView(APIView):
             },
         ),
         responses={
-            200: inline_serializer(name="PilotFeedbackRetestResponse", fields=FEEDBACK_FIELDS)
+            200: inline_serializer(name="PilotFeedbackRetestResponse", fields=_feedback_fields())
         },
     )
     def post(self, request: Request, public_id: UUID) -> Response:
@@ -296,7 +300,7 @@ class PilotFeedbackCloseView(APIView):
             },
         ),
         responses={
-            200: inline_serializer(name="PilotFeedbackCloseResponse", fields=FEEDBACK_FIELDS)
+            200: inline_serializer(name="PilotFeedbackCloseResponse", fields=_feedback_fields())
         },
     )
     def post(self, request: Request, public_id: UUID) -> Response:
