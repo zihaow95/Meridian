@@ -12,7 +12,10 @@ from django.utils import timezone
 
 from apps.audit.models import AuditResult
 from apps.audit.services.append_event import AuditRecord, append_event
+from apps.authorization.context import AuthorizationContext, ResourceDescriptor
 from apps.authorization.models.assignment import AssignmentStatus, RoleAssignment
+from apps.authorization.policies.engine import authorize
+from apps.authorization.services.subject import subject_for
 from apps.identity.models.user import User, UserStatus
 from apps.pilot.errors import BatchCompletionBlocked, PilotValidationError
 from apps.pilot.models import (
@@ -23,7 +26,23 @@ from apps.pilot.models import (
     PilotFeedbackStatus,
     PilotParticipant,
 )
+from apps.platform.api.errors import PermissionDeniedError
 from apps.platform.application.command import CommandContext
+
+
+def _require_batch_manage(*, actor: User, batch_public_id: UUID | None) -> None:
+    decision = authorize(
+        subject_for(actor),
+        action="pilot.batch.manage",
+        resource=ResourceDescriptor(
+            resource_type="pilot.batch",
+            public_id=batch_public_id,
+            organization_id=actor.organization_id,
+        ),
+        context=AuthorizationContext.current(),
+    )
+    if not decision.allowed:
+        raise PermissionDeniedError()
 
 
 def _active_role_codes(user: User) -> list[str]:
@@ -65,11 +84,10 @@ class CreatePilotBatch:
         # Phase 6 must not mark a real business pilot as complete; creating one
         # is allowed only as INTERNAL_ACCEPTANCE for the acceptance path.
         if self.purpose != PilotBatchPurpose.INTERNAL_ACCEPTANCE:
-            raise PilotValidationError(
-                message="Phase 6 only allows INTERNAL_ACCEPTANCE batches."
-            )
+            raise PilotValidationError(message="Phase 6 only allows INTERNAL_ACCEPTANCE batches.")
 
         with transaction.atomic():
+            _require_batch_manage(actor=actor, batch_public_id=None)
             batch = PilotBatch.objects.create(
                 organization_id=actor.organization_id,
                 name=name,
@@ -118,6 +136,7 @@ class AddPilotParticipant:
             )
             if batch is None:
                 raise PilotValidationError(message="batch was not found.")
+            _require_batch_manage(actor=actor, batch_public_id=batch.public_id)
             if batch.status != PilotBatchStatus.DRAFT:
                 raise PilotValidationError(
                     message="Participants can only be added while the batch is DRAFT."
@@ -183,6 +202,7 @@ class StartPilotBatch:
             )
             if batch is None:
                 raise PilotValidationError(message="batch was not found.")
+            _require_batch_manage(actor=actor, batch_public_id=batch.public_id)
             if batch.status == PilotBatchStatus.OPEN:
                 return batch
             if batch.status != PilotBatchStatus.DRAFT:
@@ -258,6 +278,7 @@ class CompletePilotBatch:
             )
             if batch is None:
                 raise PilotValidationError(message="batch was not found.")
+            _require_batch_manage(actor=actor, batch_public_id=batch.public_id)
             if batch.status == PilotBatchStatus.COMPLETED:
                 return batch
             if batch.status != PilotBatchStatus.OPEN:
@@ -269,9 +290,7 @@ class CompletePilotBatch:
 
             blocking = batch.feedback_items.filter(
                 severity__in=[PilotFeedbackSeverity.P0, PilotFeedbackSeverity.P1],
-            ).exclude(
-                status__in=[PilotFeedbackStatus.CLOSED, PilotFeedbackStatus.REJECTED]
-            )
+            ).exclude(status__in=[PilotFeedbackStatus.CLOSED, PilotFeedbackStatus.REJECTED])
             if blocking.exists():
                 raise BatchCompletionBlocked()
 
@@ -279,9 +298,7 @@ class CompletePilotBatch:
             batch.status = PilotBatchStatus.COMPLETED
             batch.completed_at = now
             batch.version_no += 1
-            batch.save(
-                update_fields=["status", "completed_at", "version_no", "updated_at"]
-            )
+            batch.save(update_fields=["status", "completed_at", "version_no", "updated_at"])
             append_event(
                 AuditRecord(
                     actor=actor,

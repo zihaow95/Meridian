@@ -11,6 +11,9 @@ from rest_framework.request import Request
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from apps.authorization.context import AuthorizationContext, ResourceDescriptor
+from apps.authorization.policies.engine import authorize
+from apps.authorization.services.subject import subject_for
 from apps.identity.models.user import User
 from apps.platform.api.errors import ResourceNotFoundError, ValidationFailedError
 from apps.platform.api.permissions import requires_action
@@ -78,45 +81,103 @@ def _product_or_404(user: User, public_id: UUID) -> ProductAsset:
     return product
 
 
-def _serialize_submission(submission: LegacyMaterialSubmission) -> dict[str, Any]:
-    return {
+def _may_read_sensitive_material_fields(user: User, material: ProductMaterial) -> bool:
+    """Completeness-read alone must not disclose high-sensitivity file details."""
+
+    return authorize(
+        subject_for(user),
+        action="document.version.download",
+        resource=ResourceDescriptor(
+            resource_type="document.version",
+            public_id=material.document_version.public_id,
+            organization_id=user.organization_id,
+            sensitivity_level=material.sensitivity_level
+            or material.document_version.sensitivity_level,
+        ),
+        context=AuthorizationContext.current(),
+    ).allowed
+
+
+def _may_read_sensitive_submission_fields(user: User, submission: LegacyMaterialSubmission) -> bool:
+    return authorize(
+        subject_for(user),
+        action="document.version.download",
+        resource=ResourceDescriptor(
+            resource_type="document.version",
+            public_id=submission.document_version.public_id,
+            organization_id=user.organization_id,
+            sensitivity_level=submission.document_version.sensitivity_level,
+        ),
+        context=AuthorizationContext.current(),
+    ).allowed
+
+
+def _serialize_submission(
+    submission: LegacyMaterialSubmission, *, viewer: User | None = None
+) -> dict[str, Any]:
+    disclose = viewer is None or _may_read_sensitive_submission_fields(viewer, submission)
+    payload: dict[str, Any] = {
         "public_id": str(submission.public_id),
-        "document_version_public_id": str(submission.document_version.public_id),
         "processing_status": submission.processing_status,
-        "source_note": submission.source_note,
-        "original_file_date": (
-            submission.original_file_date.isoformat() if submission.original_file_date else None
-        ),
-        "claimed_version": submission.claimed_version,
-        "claimed_effective_from": (
-            submission.claimed_effective_from.isoformat()
-            if submission.claimed_effective_from
-            else None
-        ),
-        "sha256": submission.sha256,
-        "submitted_by_public_id": str(submission.submitted_by.public_id),
-        "verified_by_public_id": (
-            str(submission.verified_by.public_id) if submission.verified_by is not None else None
-        ),
-        "verification_note": submission.verification_note,
+        "material_type_code": submission.document_version.catalog_item_code or None,
     }
+    if not disclose:
+        return payload
+    payload.update(
+        {
+            "document_version_public_id": str(submission.document_version.public_id),
+            "source_note": submission.source_note,
+            "original_file_date": (
+                submission.original_file_date.isoformat() if submission.original_file_date else None
+            ),
+            "claimed_version": submission.claimed_version,
+            "claimed_effective_from": (
+                submission.claimed_effective_from.isoformat()
+                if submission.claimed_effective_from
+                else None
+            ),
+            "sha256": submission.sha256,
+            "submitted_by_public_id": str(submission.submitted_by.public_id),
+            "verified_by_public_id": (
+                str(submission.verified_by.public_id)
+                if submission.verified_by is not None
+                else None
+            ),
+            "verification_note": submission.verification_note,
+        }
+    )
+    return payload
 
 
-def _serialize_material(material: ProductMaterial) -> dict[str, Any]:
+def _serialize_material(material: ProductMaterial, *, viewer: User | None = None) -> dict[str, Any]:
     live = next(
         (item for item in material.confirmations.all() if item.live_slot == 1),
         None,
     )
-    return {
+    disclose = viewer is None or _may_read_sensitive_material_fields(viewer, material)
+    payload: dict[str, Any] = {
         "public_id": str(material.public_id),
         "material_type_code": material.material_type_code,
         "version_no": material.version_no,
         "material_status": material.material_status,
         "is_current": material.current_slot == 1,
-        "document_version_public_id": str(material.document_version.public_id),
-        "original_filename": material.document_version.original_filename,
-        "confirmation": _serialize_confirmation(live) if live is not None else None,
+        "sensitivity_level": material.sensitivity_level,
     }
+    if not disclose:
+        payload["confirmation"] = (
+            {"decision": live.decision, "public_id": str(live.public_id)}
+            if live is not None
+            else None
+        )
+        return payload
+    payload.update(
+        {
+            "document_version_public_id": str(material.document_version.public_id),
+            "original_filename": material.document_version.original_filename,
+            "confirmation": _serialize_confirmation(live) if live is not None else None,
+        }
+    )
+    return payload
 
 
 def _serialize_confirmation(confirmation: MaterialConfirmation) -> dict[str, Any]:
@@ -156,7 +217,12 @@ class ProductLegacyMaterialListView(APIView):
         if status_filter:
             submissions = submissions.filter(processing_status=status_filter)
         return Response(
-            {"items": [_serialize_submission(item) for item in submissions.order_by("created_at")]}
+            {
+                "items": [
+                    _serialize_submission(item, viewer=user)
+                    for item in submissions.order_by("created_at")
+                ]
+            }
         )
 
 
@@ -189,7 +255,7 @@ class ProductLegacyMaterialCreateView(APIView):
         except LegacyMaterialIntakeFailed as exc:
             raise ValidationFailedError(message=str(exc)) from exc
 
-        payload = _serialize_submission(result.submission)
+        payload = _serialize_submission(result.submission, viewer=user)
         payload["duplicate_candidates"] = [
             {
                 "public_id": str(candidate.public_id),
@@ -220,7 +286,7 @@ class LegacyMaterialVerifyView(APIView):
             ).execute()
         except MaterialChainRejected as exc:
             raise ValidationFailedError(message=str(exc)) from exc
-        return Response(_serialize_submission(submission))
+        return Response(_serialize_submission(submission, viewer=user))
 
 
 class ProductMaterialChainCreateView(APIView):
@@ -253,7 +319,8 @@ class ProductMaterialChainCreateView(APIView):
         for material in materials:
             material.refresh_from_db()
         return Response(
-            {"items": [_serialize_material(material) for material in materials]}, status=201
+            {"items": [_serialize_material(material, viewer=user) for material in materials]},
+            status=201,
         )
 
 
@@ -288,7 +355,7 @@ class ProductMaterialListView(APIView):
                     "history": [],
                 },
             )
-            payload = _serialize_material(material)
+            payload = _serialize_material(material, viewer=user)
             if material.current_slot == 1:
                 group["current"] = payload
             else:

@@ -25,6 +25,7 @@ from apps.pilot.services.feedback import (
 )
 from apps.platform.api.errors import ResourceNotFoundError, ValidationFailedError
 from apps.platform.api.permissions import requires_action
+from apps.platform.api.request_parsing import parse_request_bool
 from apps.platform.application.command import CommandContext
 
 FeedbackCreatePermission = requires_action(
@@ -119,7 +120,9 @@ class PilotFeedbackListCreateView(APIView):
                 "evidence_document_version_public_id": serializers.UUIDField(required=False),
             },
         ),
-        responses={201: inline_serializer(name="PilotFeedbackCreateResponse", fields=FEEDBACK_FIELDS)},
+        responses={
+            201: inline_serializer(name="PilotFeedbackCreateResponse", fields=FEEDBACK_FIELDS)
+        },
     )
     def post(self, request: Request, batch_public_id: UUID) -> Response:
         user = cast(User, request.user)
@@ -224,9 +227,7 @@ class PilotFeedbackRetestSubmitView(APIView):
             },
         ),
         responses={
-            200: inline_serializer(
-                name="PilotFeedbackSubmitRetestResponse", fields=FEEDBACK_FIELDS
-            )
+            200: inline_serializer(name="PilotFeedbackSubmitRetestResponse", fields=FEEDBACK_FIELDS)
         },
     )
     def post(self, request: Request, public_id: UUID) -> Response:
@@ -268,7 +269,7 @@ class PilotFeedbackRetestView(APIView):
         feedback = RetestPilotFeedback(
             context=CommandContext.for_actor(user),
             feedback_public_id=public_id,
-            passed=bool(request.data["passed"]),
+            passed=parse_request_bool(request.data["passed"], field="passed"),
             expected_version=int(expected) if expected is not None else None,
         ).execute()
         return Response(serialize_feedback(feedback))
@@ -301,10 +302,11 @@ class PilotFeedbackCloseView(APIView):
     def post(self, request: Request, public_id: UUID) -> Response:
         user = cast(User, request.user)
         expected = request.data.get("expected_version")
+        reject_raw = request.data.get("reject", False)
         feedback = ClosePilotFeedback(
             context=CommandContext.for_actor(user),
             feedback_public_id=public_id,
-            reject=bool(request.data.get("reject") or False),
+            reject=parse_request_bool(reject_raw, field="reject"),
             close_reason=str(request.data.get("close_reason") or ""),
             workaround=str(request.data.get("workaround") or ""),
             target_version=str(request.data.get("target_version") or ""),

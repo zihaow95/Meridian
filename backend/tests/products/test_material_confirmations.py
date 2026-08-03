@@ -16,6 +16,15 @@ from django.db import IntegrityError, transaction
 from django.utils import timezone
 
 from apps.audit.models import AuditEvent
+from apps.configuration.models import (
+    ConfigurationDefinition,
+    ConfigurationStatus,
+    ConfigurationVersion,
+)
+from apps.configuration.schema_registry import (
+    NOTIFICATION_DELIVERY_POLICY_CODE,
+    NOTIFICATION_TEMPLATE_CATALOG_CODE,
+)
 from apps.identity.models.user import User, UserStatus
 from apps.platform.api.errors import PermissionDeniedError
 from apps.platform.application.command import CommandContext
@@ -38,6 +47,58 @@ governed_materials = importlib.import_module(
 )
 
 pytestmark = pytest.mark.django_db
+
+
+@pytest.fixture(autouse=True)
+def _publish_todo_notification_catalog(organization, active_user) -> None:
+    """Material confirmation emits todo.requested → in-app notification."""
+
+    for code, content in (
+        (
+            NOTIFICATION_TEMPLATE_CATALOG_CODE,
+            {
+                "templates": [
+                    {
+                        "template_code": "todo.created",
+                        "category": "ACTION_REQUIRED",
+                        "default_level": "IMPORTANT",
+                        "summary_template": "待办 {title} 需要处理",
+                        "allowed_variables": ["title"],
+                    }
+                ]
+            },
+        ),
+        (
+            NOTIFICATION_DELIVERY_POLICY_CODE,
+            {
+                "rules": [
+                    {
+                        "category": "ACTION_REQUIRED",
+                        "level": "IMPORTANT",
+                        "channels": ["IN_APP"],
+                    }
+                ]
+            },
+        ),
+    ):
+        definition, _ = ConfigurationDefinition.objects.get_or_create(
+            organization=organization,
+            definition_code=code,
+            defaults={"name": code, "description": ""},
+        )
+        ConfigurationVersion.objects.filter(
+            definition=definition, status=ConfigurationStatus.PUBLISHED
+        ).update(status=ConfigurationStatus.RETIRED, current_published_slot=None)
+        ConfigurationVersion.objects.create(
+            organization=organization,
+            definition=definition,
+            version_number=ConfigurationVersion.objects.filter(definition=definition).count() + 1,
+            status=ConfigurationStatus.PUBLISHED,
+            current_published_slot=1,
+            content_json=content,
+            created_by=active_user,
+            published_at=timezone.now(),
+        )
 
 
 @pytest.fixture

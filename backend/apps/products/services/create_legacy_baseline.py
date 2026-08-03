@@ -12,7 +12,10 @@ from typing import Any
 
 from django.db import transaction
 
-from apps.platform.api.errors import ValidationFailedError
+from apps.authorization.context import AuthorizationContext, ResourceDescriptor
+from apps.authorization.policies.engine import authorize
+from apps.authorization.services.subject import subject_for
+from apps.platform.api.errors import PermissionDeniedError, ValidationFailedError
 from apps.platform.application.command import CommandContext
 from apps.products.models import (
     ChangeSetStatus,
@@ -71,6 +74,19 @@ class CreateLegacyBaselineDraft:
             )
 
         with transaction.atomic():
+            decision = authorize(
+                subject_for(actor),
+                action="legacy_baseline.draft.create",
+                resource=ResourceDescriptor(
+                    resource_type="product",
+                    public_id=(self.existing_product.public_id if self.existing_product else None),
+                    organization_id=actor.organization_id,
+                ),
+                context=AuthorizationContext.current(),
+            )
+            if not decision.allowed:
+                raise PermissionDeniedError()
+
             if self.idempotency_key:
                 replay = find_draft_by_idempotency_key(
                     organization_id=actor.organization_id,

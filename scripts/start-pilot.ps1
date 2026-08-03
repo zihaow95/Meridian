@@ -43,8 +43,11 @@ if (Test-Path $EnvFile) {
 
 $FrontendOrigin = "http://${PilotHost}:${FrontendPort}"
 $env:DJANGO_SETTINGS_MODULE = 'config.settings.development'
+# Pilot sessions keep password login and must not expose the E2E login_key path.
+$env:ENABLE_DEV_LOGIN = 'false'
 $env:ENABLE_PILOT_PASSWORD_LOGIN = 'true'
 $env:VITE_ENABLE_PILOT_PASSWORD_LOGIN = 'true'
+$env:VITE_ENABLE_DEV_LOGIN = 'false'
 $env:DJANGO_ALLOWED_HOSTS = (@('localhost', '127.0.0.1', $PilotHost) -join ',')
 $env:DJANGO_CSRF_TRUSTED_ORIGINS = (@(
         'http://localhost:5173',

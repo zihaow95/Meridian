@@ -59,9 +59,7 @@ def test_start_freezes_participant_snapshot_against_later_template_edits(
     assert batch.config_snapshot["planned_participant_count"] == 8
 
 
-def test_complete_blocked_while_p0_open(
-    active_user, another_active_user
-) -> None:
+def test_complete_blocked_while_p0_open(active_user, another_active_user) -> None:
     ctx = CommandContext.for_actor(active_user)
     batch = CreatePilotBatch(context=ctx, name="Block").execute()
     AddPilotParticipant(

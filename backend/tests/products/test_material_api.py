@@ -23,7 +23,11 @@ from apps.configuration.models import (
     ConfigurationStatus,
     ConfigurationVersion,
 )
-from apps.configuration.schema_registry import PRODUCT_MATERIAL_REQUIREMENTS_CODE
+from apps.configuration.schema_registry import (
+    NOTIFICATION_DELIVERY_POLICY_CODE,
+    NOTIFICATION_TEMPLATE_CATALOG_CODE,
+    PRODUCT_MATERIAL_REQUIREMENTS_CODE,
+)
 from apps.documents.models import DocumentSource, DocumentVersion
 from apps.documents.services.ingest import activate_staged_content, stage_controlled_content
 from apps.documents.storage.factory import get_file_storage
@@ -80,6 +84,7 @@ def workbench_user(active_user: User, grant_action: Callable[..., None]) -> User
         grant_action(active_user, action, "legacy_material_submission")
     for action in ("product_material.manage", "product_material.completeness.read"):
         grant_action(active_user, action, "product_material")
+    grant_action(active_user, "document.version.download", "document.version")
     return active_user
 
 
@@ -87,6 +92,57 @@ def workbench_user(active_user: User, grant_action: Callable[..., None]) -> User
 def confirmer(another_active_user: User, grant_action: Callable[..., None]) -> User:
     grant_action(another_active_user, "product_material.confirm", "product_material")
     return another_active_user
+
+
+@pytest.fixture(autouse=True)
+def _publish_todo_notification_catalog(organization: Organization, active_user: User) -> None:
+    for code, content in (
+        (
+            NOTIFICATION_TEMPLATE_CATALOG_CODE,
+            {
+                "templates": [
+                    {
+                        "template_code": "todo.created",
+                        "category": "ACTION_REQUIRED",
+                        "default_level": "IMPORTANT",
+                        "summary_template": "待办 {title} 需要处理",
+                        "allowed_variables": ["title"],
+                    }
+                ]
+            },
+        ),
+        (
+            NOTIFICATION_DELIVERY_POLICY_CODE,
+            {
+                "rules": [
+                    {
+                        "category": "ACTION_REQUIRED",
+                        "level": "IMPORTANT",
+                        "channels": ["IN_APP"],
+                    }
+                ]
+            },
+        ),
+    ):
+        definition, _ = ConfigurationDefinition.objects.get_or_create(
+            organization=organization,
+            definition_code=code,
+            defaults={"name": code, "description": ""},
+        )
+        ConfigurationVersion.objects.filter(
+            definition=definition, status=ConfigurationStatus.PUBLISHED
+        ).update(status=ConfigurationStatus.RETIRED, current_published_slot=None)
+        ConfigurationVersion.objects.create(
+            organization=organization,
+            definition=definition,
+            version_number=ConfigurationVersion.objects.filter(definition=definition).count()
+            + 1,
+            status=ConfigurationStatus.PUBLISHED,
+            current_published_slot=1,
+            content_json=content,
+            created_by=active_user,
+            published_at=timezone.now(),
+        )
 
 
 @pytest.fixture
@@ -103,10 +159,13 @@ def published_requirements(organization: Organization, active_user: User) -> Con
         definition_code=PRODUCT_MATERIAL_REQUIREMENTS_CODE,
         defaults={"name": "产品材料要求", "description": ""},
     )
+    ConfigurationVersion.objects.filter(
+        definition=definition, status=ConfigurationStatus.PUBLISHED
+    ).update(status=ConfigurationStatus.RETIRED, current_published_slot=None)
     return ConfigurationVersion.objects.create(
         organization=organization,
         definition=definition,
-        version_number=1,
+        version_number=ConfigurationVersion.objects.filter(definition=definition).count() + 1,
         status=ConfigurationStatus.PUBLISHED,
         current_published_slot=1,
         content_json={
@@ -312,8 +371,13 @@ def test_completeness_is_refused_without_the_read_action(
 
 
 def test_completeness_says_so_when_no_requirements_are_published(
-    client: APIClient, product: ProductAsset
+    client: APIClient, product: ProductAsset, organization: Organization
 ) -> None:
+    ConfigurationVersion.objects.filter(
+        organization=organization,
+        definition__definition_code=PRODUCT_MATERIAL_REQUIREMENTS_CODE,
+        status=ConfigurationStatus.PUBLISHED,
+    ).update(status=ConfigurationStatus.RETIRED, current_published_slot=None)
     response = client.get(
         reverse("product-material-completeness", args=[product.public_id]),
         {"lifecycle_state": "ON_SALE"},

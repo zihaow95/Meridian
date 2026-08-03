@@ -16,9 +16,7 @@ def get_batch(*, organization_id: int, public_id: UUID) -> PilotBatch | None:
 
 
 def list_batches(*, organization_id: int) -> list[PilotBatch]:
-    return list(
-        PilotBatch.objects.filter(organization_id=organization_id).order_by("-created_at")
-    )
+    return list(PilotBatch.objects.filter(organization_id=organization_id).order_by("-created_at"))
 
 
 def list_participants(*, batch: PilotBatch) -> list[PilotParticipant]:

@@ -49,9 +49,7 @@ def serialize_feedback(feedback: PilotFeedback) -> dict[str, Any]:
             if feedback.evidence_document_version_public_id
             else None
         ),
-        "assignee_public_id": (
-            str(feedback.assignee.public_id) if feedback.assignee_id else None
-        ),
+        "assignee_public_id": (str(feedback.assignee.public_id) if feedback.assignee_id else None),
         "target_version": feedback.target_version,
         "workaround": feedback.workaround,
         "accepted_by_public_id": (

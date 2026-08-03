@@ -9,23 +9,27 @@ const auth = useAuthStore()
 const router = useRouter()
 const route = useRoute()
 
-const showDevLogin = import.meta.env.DEV && import.meta.env.VITE_ENABLE_DEV_LOGIN === 'true'
 const nonProduction = !import.meta.env.PROD
 // Optional extra gate for builds that still want to hide the form while the
 // backend capability remains on. Production builds never show this path.
-const vitePilotEnabled =
-  import.meta.env.VITE_ENABLE_PILOT_PASSWORD_LOGIN !== 'false'
+const vitePilotEnabled = import.meta.env.VITE_ENABLE_PILOT_PASSWORD_LOGIN !== 'false'
 const loginKey = ref('active-user')
 const organizationPublicId = ref('')
 const employeeNo = ref('')
 const password = ref('')
 const errorText = ref('')
 
-const showPilotLogin = computed(
+// Backend capability is authoritative: LAN pilot sets ENABLE_DEV_LOGIN=false so
+// the login_key route stays unavailable even if a Vite env flag is left on.
+const showDevLogin = computed(
   () =>
-    nonProduction &&
-    vitePilotEnabled &&
-    auth.capabilities?.pilot_password_login === true,
+    import.meta.env.DEV &&
+    import.meta.env.VITE_ENABLE_DEV_LOGIN === 'true' &&
+    auth.capabilities?.dev_login === true,
+)
+
+const showPilotLogin = computed(
+  () => nonProduction && vitePilotEnabled && auth.capabilities?.pilot_password_login === true,
 )
 
 async function onDevLogin(): Promise<void> {

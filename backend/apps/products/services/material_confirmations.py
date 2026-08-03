@@ -22,8 +22,11 @@ from apps.authorization.context import AuthorizationContext, ResourceDescriptor
 from apps.authorization.policies.engine import authorize
 from apps.authorization.services.subject import subject_for
 from apps.identity.models.user import User, UserStatus
+from apps.notifications.consumers import TodoProjectionConsumer
+from apps.notifications.services.todos import CompleteOpenTodosForSource
 from apps.platform.api.errors import PermissionDeniedError
 from apps.platform.application.command import CommandContext
+from apps.platform.outbox.services import OutboxMessage, register_outbox_event
 from apps.products.models import (
     MaterialConfirmation,
     MaterialConfirmationDecision,
@@ -150,6 +153,32 @@ class SubmitMaterialConfirmation:
                     },
                 )
             )
+            title = f"Confirm material {material.material_type_code}"
+            dedup_key = f"material_confirmation:{confirmation.public_id}"
+            outbox_event = register_outbox_event(
+                OutboxMessage(
+                    event_type="todo.requested",
+                    aggregate_type="material_confirmation",
+                    aggregate_id=confirmation.public_id,
+                    payload={
+                        "assignee_id": confirmer.id,
+                        "organization_id": material.organization_id,
+                        "todo_type": "material_confirmation",
+                        # Authorize the confirmer against the material they must review.
+                        "source_type": "product_material",
+                        "source_id": str(material.public_id),
+                        "action_code": "product_material.confirm",
+                        "dedup_key": dedup_key,
+                        "deep_link": f"/products?confirm={confirmation.public_id}",
+                        "title": title,
+                        "template_code": "todo.created",
+                        "level": "IMPORTANT",
+                    },
+                    occurred_at=self.context.occurred_at or timezone.now(),
+                )
+            )
+            # Request-path projection so E2E/API callers do not wait on Celery.
+            TodoProjectionConsumer().consume(outbox_event)
         return confirmation
 
 
@@ -220,6 +249,11 @@ class DecideMaterialConfirmation:
                     after_summary=self._audit_summary(confirmation, material),
                 )
             )
+            CompleteOpenTodosForSource(
+                organization_id=confirmation.organization_id,
+                source_type="product_material",
+                source_id=material.public_id,
+            ).execute()
         return confirmation
 
     def _audit_summary(

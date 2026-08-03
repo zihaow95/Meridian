@@ -27,6 +27,8 @@ NO_LOCAL_SUBSCRIBER_EVENT_TYPES = frozenset(
         "data_source.configured",
         "metric_definition.published",
         "monitoring_assignment.updated",
+        # Published for audit/downstream; phase 6 has no local side effect.
+        "configuration.published",
     }
 )
 

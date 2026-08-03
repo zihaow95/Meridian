@@ -2,7 +2,7 @@
 
 日期：2026-08-03
 
-状态：**条件 GO（实现与纵向 E2E / 冷启动种子已闭环；全量 `scripts\check.cmd` 与双轴代码审阅结果见测试矩阵本轮栏）**
+状态：**条件 GO（NO-GO 审阅后的 P1 整改已提交待复验；不得改为正式 GO，直至双轴 P0/P1=0 且全量门禁通过）**
 
 对应计划：`docs/superpowers/plans/2026-07-30-phase-6-controlled-files-notifications-pilot-readiness.md`
 
@@ -16,20 +16,19 @@
 - `pilot` 域完成内部验收批次与反馈闭环；阶段6 **不**标记真实业务试用完成。
 - 阶段6 GO **不**等于真实用户试用开始；下一步只能是阶段7生产化收尾。
 
-## 本轮已执行验证（2026-08-03）
+## 本轮已执行验证（2026-08-03 P1 整改）
 
 ```text
 Branch: codex/phase-6-controlled-files-notifications-pilot-readiness
-Clean Phase 6 seed: 20 products, 120 document versions, 12 stable fixture groups (twice-stable)
-Playwright: controlled-files-notifications-pilot-readiness.spec.ts — 4 passed
-Focused: backend/tests/pilot (prior), identity pilot/auth suites (prior), LoginView.spec 3 passed
+Focused pytest: products + pilot + notifications + dual-control/publish + request_parsing
+Frontend: LoginView.spec (4 passed); Prettier on LoginView / PilotBatchView
 ```
 
 ## 本轮未在检查点正文宣称通过（见矩阵分栏）
 
 - 完整 `scripts\check.cmd`（含全量 pytest / 前端门禁 / 全套 Playwright / Docker）
-- `scripts\verify-trd.ps1`
-- Standards / Spec 双轴 `/code-review` 终审结论（若矩阵本轮已补填则以矩阵为准）
+- `scripts\verify-trd.ps1`（整改前审阅方曾通过；本轮整改后需重跑）
+- Standards / Spec 双轴复审（P1 整改后待验收）
 
 ## GO 条件
 

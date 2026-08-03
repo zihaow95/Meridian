@@ -65,6 +65,7 @@ describe('LoginView pilot password login', () => {
     vi.stubEnv('DEV', true)
     vi.stubEnv('PROD', false)
     vi.stubEnv('VITE_ENABLE_PILOT_PASSWORD_LOGIN', 'true')
+    vi.stubEnv('VITE_ENABLE_DEV_LOGIN', 'true')
   })
 
   it('shows the pilot form only when the backend capability is on', async () => {
@@ -78,6 +79,19 @@ describe('LoginView pilot password login', () => {
 
     expect(wrapper.get('[data-test="pilot-login"]').exists()).toBe(true)
     expect(wrapper.text()).toContain('非生产')
+    expect(wrapper.text()).not.toContain('开发登录')
+  })
+
+  it('hides the development login when the backend capability is off', async () => {
+    vi.mocked(apiFetch).mockResolvedValue({
+      pilot_password_login: false,
+      dev_login: false,
+    })
+
+    const wrapper = mount(LoginView, { global: { stubs } })
+    await flushPromises()
+
+    expect(wrapper.text()).not.toContain('开发登录')
   })
 
   it('hides the pilot form when the backend capability is off', async () => {

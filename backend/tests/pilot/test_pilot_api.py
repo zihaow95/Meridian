@@ -65,7 +65,8 @@ def test_create_batch_and_list(client, manager, another_active_user, grant_actio
     assert any(item["public_id"] == public_id for item in listed.json()["items"])
 
 
-def test_unprivileged_user_sees_404(client, active_user):
-    client.force_login(active_user)
+def test_unprivileged_user_sees_404(client, another_active_user):
+    # another_active_user does not receive the package autouse pilot grants.
+    client.force_login(another_active_user)
     response = client.get("/api/v1/pilot/batches")
     assert response.status_code == 404

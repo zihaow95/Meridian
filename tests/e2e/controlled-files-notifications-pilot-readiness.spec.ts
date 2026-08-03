@@ -1,5 +1,5 @@
 /**
- * Phase 6 E2E: legacy products, in-app notifications, pilot auth, feedback loop.
+ * Phase 6 E2E: legacy materials, real notification projection, pilot auth, feedback.
  *
  * Requires `seed_phase6_acceptance` (includes seed_e2e_user).
  */
@@ -52,18 +52,55 @@ async function reloginAs(page: Page, loginKey: string, next = '/todos'): Promise
   await devLogin(page, next, loginKey)
 }
 
+async function uploadControlledLabel(page: Page, filename: string): Promise<string> {
+  const headers = await csrfHeaders(page)
+  const buffer = Buffer.from(`%PDF-1.4 phase6-e2e-${filename}-${Date.now()}`)
+  const upload = await page.request.post('/api/v1/documents/uploads', {
+    headers,
+    multipart: {
+      file: {
+        name: filename,
+        mimeType: 'application/pdf',
+        buffer,
+      },
+      original_filename: filename,
+      declared_mime_type: 'application/pdf',
+      catalog_item_code: 'PRODUCT_LABEL',
+    },
+  })
+  expect(upload.status()).toBe(201)
+  const session = await upload.json()
+
+  const complete = await authedJson(
+    page,
+    'POST',
+    `/api/v1/documents/uploads/${session.public_id}/complete`,
+    {
+      document_code: `E2E-P6-${Date.now()}`,
+      title: 'E2E Phase6 Label',
+    },
+  )
+  expect(complete.ok()).toBeTruthy()
+  const body = await complete.json()
+  expect(body.status).toBe('CONTROLLED')
+  return body.version_public_id as string
+}
+
 test.describe('Phase 6 controlled files / notifications / pilot readiness', () => {
-  test('legacy baseline create is idempotent and publishable', async ({ page }) => {
+  test('legacy material chain, confirmation, and missing-material publish reject', async ({
+    page,
+  }) => {
     await devLogin(page, '/products')
-    const idem = `e2e-p6-legacy-${Date.now()}`
+    const stamp = Date.now()
+    const idem = `e2e-p6-legacy-${stamp}`
     const payload = {
       name: 'E2E Phase6 酸奶',
       category_code: 'YOGURT',
       brand_code: 'MERIDIAN',
-      business_no: `E2E-P6-${Date.now()}`,
+      business_no: `E2E-P6-${stamp}`,
       specification: '180g',
-      sku_code: `SKU-E2E-P6-${Date.now()}`,
-      barcode: `692${String(Date.now()).slice(-10)}`,
+      sku_code: `SKU-E2E-P6-${stamp}`,
+      barcode: `692${String(stamp).slice(-10)}`,
     }
 
     const first = await authedJson(page, 'POST', '/api/v1/legacy-baselines', {
@@ -73,39 +110,113 @@ test.describe('Phase 6 controlled files / notifications / pilot readiness', () =
     expect(first.status()).toBe(201)
     const firstBody = await first.json()
     expect(firstBody.created).toBe(true)
+    const productPublicId = firstBody.product_public_id as string
+    const changeSetPublicId = firstBody.change_set_public_id as string
 
     const replay = await authedJson(page, 'POST', '/api/v1/legacy-baselines', {
       idempotency_key: idem,
       payload,
     })
     expect([200, 201]).toContain(replay.status())
-    const replayBody = await replay.json()
-    expect(replayBody.change_set_public_id).toBe(firstBody.change_set_public_id)
-    expect(replayBody.created).toBe(false)
+    expect((await replay.json()).change_set_public_id).toBe(changeSetPublicId)
+
+    const blocked = await authedJson(
+      page,
+      'POST',
+      `/api/v1/legacy-baselines/${changeSetPublicId}/publish`,
+      { idempotency_key: `${idem}-publish-blocked` },
+    )
+    expect(blocked.status()).toBe(400)
+    const blockedBody = await blocked.json()
+    const blocks = blockedBody.details?.blocks ?? []
+    expect(
+      blocks.some((code: string) =>
+        ['PRODUCT_MATERIAL_INCOMPLETE', 'PRODUCT_MATERIAL_NOT_CONFIRMED'].includes(code),
+      ),
+    ).toBeTruthy()
+
+    const versionPublicId = await uploadControlledLabel(page, `label-${stamp}.pdf`)
+    const submission = await authedJson(
+      page,
+      'POST',
+      `/api/v1/products/${productPublicId}/legacy-material-submissions`,
+      {
+        document_version_public_id: versionPublicId,
+        idempotency_key: `e2e-sub-${stamp}`,
+        source_note: 'E2E historical label',
+        claimed_version: 'V1',
+      },
+    )
+    expect(submission.status()).toBe(201)
+    const submissionBody = await submission.json()
+
+    const verified = await authedJson(
+      page,
+      'POST',
+      `/api/v1/legacy-materials/${submissionBody.public_id}/verify`,
+      { decision: 'VERIFIED', note: 'E2E verified' },
+    )
+    expect(verified.status()).toBe(200)
+
+    const chain = await authedJson(
+      page,
+      'POST',
+      `/api/v1/products/${productPublicId}/material-chains`,
+      {
+        material_type_code: 'PRODUCT_LABEL',
+        ordered_submission_ids: [submissionBody.public_id],
+        current_submission_id: submissionBody.public_id,
+      },
+    )
+    expect(chain.status()).toBe(201)
+    const material = (await chain.json()).items[0]
+    expect(material.sensitivity_level).toBeTruthy()
+
+    const me = await (await page.request.get('/api/v1/me')).json()
+    const confirmation = await authedJson(
+      page,
+      'POST',
+      `/api/v1/product-materials/${material.public_id}/confirmations`,
+      { confirmer_public_id: me.public_id, comment: 'E2E confirm' },
+    )
+    expect(confirmation.status()).toBe(201)
+    const confirmationBody = await confirmation.json()
+
+    const notifications = await authedJson(
+      page,
+      'GET',
+      '/api/v1/notifications/my?page_size=50',
+    )
+    expect(notifications.status()).toBe(200)
+    const notifyBody = await notifications.json()
+    expect(
+      notifyBody.items.some(
+        (row: { summary: string; category: string }) =>
+          row.category === 'ACTION_REQUIRED' && String(row.summary).includes('Confirm material'),
+      ),
+    ).toBeTruthy()
+
+    const decided = await authedJson(
+      page,
+      'POST',
+      `/api/v1/material-confirmations/${confirmationBody.public_id}/decide`,
+      { decision: 'APPROVED', comment: 'E2E approved' },
+    )
+    expect(decided.status()).toBe(200)
 
     const published = await authedJson(
       page,
       'POST',
-      `/api/v1/legacy-baselines/${firstBody.change_set_public_id}/publish`,
+      `/api/v1/legacy-baselines/${changeSetPublicId}/publish`,
       { idempotency_key: `${idem}-publish` },
     )
     expect(published.status()).toBe(200)
-    const publishedBody = await published.json()
-    expect(publishedBody.product_public_id).toBeTruthy()
-
-    const republish = await authedJson(
-      page,
-      'POST',
-      `/api/v1/legacy-baselines/${firstBody.change_set_public_id}/publish`,
-      { idempotency_key: `${idem}-publish` },
-    )
-    expect(republish.status()).toBe(200)
-    expect((await republish.json()).product_version_public_id).toBe(
-      publishedBody.product_version_public_id,
-    )
+    expect((await published.json()).product_public_id).toBeTruthy()
   })
 
-  test('six notification categories, read/close, and deep-link allowlist', async ({ page }) => {
+  test('business-event notification read/close, todo sync, and deep-link deny', async ({
+    page,
+  }) => {
     await devLogin(page, '/notifications')
     await expect(page.getByRole('heading', { name: '站内通知' })).toBeVisible()
 
@@ -126,9 +237,13 @@ test.describe('Phase 6 controlled files / notifications / pilot readiness', () =
     ]) {
       expect(categories.has(category)).toBe(true)
     }
-    // Response stays summary-only (no object body).
     expect(body.items[0]).not.toHaveProperty('object_id')
     expect(body.items[0]).toHaveProperty('summary')
+
+    const levels = new Set(
+      body.items.map((row: { level: string }) => row.level).filter(Boolean),
+    )
+    expect(levels.has('URGENT') || levels.has('IMPORTANT') || levels.has('NORMAL')).toBeTruthy()
 
     const target = body.items.find((row: { status: string }) => row.status === 'UNREAD')
     expect(target?.public_id).toBeTruthy()
@@ -150,10 +265,14 @@ test.describe('Phase 6 controlled files / notifications / pilot readiness', () =
     expect(closed.status()).toBe(200)
     expect((await closed.json()).status).toBe('CLOSED')
 
-    // Limited user must not see the active user's notification rows.
+    const forbiddenDeepLink = await page.goto('/products/00000000-0000-4000-8000-000000000099')
+    expect(forbiddenDeepLink?.status() ?? 200).toBeLessThan(500)
+    await expect(page.getByText(/无权访问或内容不存在|404|Not Found|登录/)).toBeVisible({
+      timeout: 10_000,
+    })
+
     await reloginAs(page, E2E_LIMITED_LOGIN_KEY, '/notifications')
     const limited = await authedJson(page, 'GET', '/api/v1/notifications/my')
-    // Either no permission (404) or empty list — never the seeded phase6 rows.
     if (limited.status() === 200) {
       const limitedBody = await limited.json()
       expect(
@@ -177,7 +296,11 @@ test.describe('Phase 6 controlled files / notifications / pilot readiness', () =
     await capsWait
     const caps = await page.request.get('/api/v1/auth/capabilities')
     expect(caps.status()).toBe(200)
-    expect((await caps.json()).pilot_password_login).toBe(true)
+    const capsBody = await caps.json()
+    expect(capsBody.pilot_password_login).toBe(true)
+    // E2E keeps DEV login; LAN pilot scripts force this false.
+    expect(capsBody).toHaveProperty('dev_login')
+
     await expect(page.locator('[data-test="pilot-login"]')).toBeVisible()
     await expect(page.locator('[data-test="pilot-login"]')).toContainText('非生产')
 

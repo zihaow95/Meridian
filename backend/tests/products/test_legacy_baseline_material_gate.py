@@ -86,10 +86,14 @@ def requirements(organization: Organization, active_user: User) -> Callable[...,
     )
 
     def _publish(requirement: str = "REQUIRED") -> ConfigurationVersion:
+        ConfigurationVersion.objects.filter(
+            definition=definition, status=ConfigurationStatus.PUBLISHED
+        ).update(status=ConfigurationStatus.RETIRED, current_published_slot=None)
         return ConfigurationVersion.objects.create(
             organization=organization,
             definition=definition,
-            version_number=1,
+            version_number=ConfigurationVersion.objects.filter(definition=definition).count()
+            + 1,
             status=ConfigurationStatus.PUBLISHED,
             current_published_slot=1,
             content_json={
@@ -238,15 +242,22 @@ def test_an_optional_material_does_not_block_the_baseline(
     assert result.product_version.pk is not None
 
 
-def test_without_published_requirements_there_is_nothing_to_enforce(
-    director: User, baseline: ProductChangeSet
+def test_without_published_requirements_publication_fails_closed(
+    director: User, baseline: ProductChangeSet, organization: Organization
 ) -> None:
-    """Absence of configuration means no requirement was declared, not a silent pass."""
+    """Missing published requirements must block publication, not silently pass."""
 
-    result = publish(director, baseline)
+    ConfigurationVersion.objects.filter(
+        organization=organization,
+        definition__definition_code=PRODUCT_MATERIAL_REQUIREMENTS_CODE,
+        status=ConfigurationStatus.PUBLISHED,
+    ).update(status=ConfigurationStatus.RETIRED, current_published_slot=None)
 
-    assert result.product_version.pk is not None
-    assert not any(code.startswith("PRODUCT_MATERIAL") for code in block_codes(director, baseline))
+    with pytest.raises(ValidationFailedError) as excinfo:
+        publish(director, baseline)
+
+    assert "PRODUCT_MATERIAL_REQUIREMENTS_UNAVAILABLE" in excinfo.value.details["blocks"]
+    assert ProductVersion.objects.count() == 0
 
 
 def test_the_legacy_path_uses_the_shared_validator_for_core_fields(

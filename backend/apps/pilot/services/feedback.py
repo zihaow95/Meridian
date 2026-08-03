@@ -13,7 +13,7 @@ from apps.audit.services.append_event import AuditRecord, append_event
 from apps.authorization.context import AuthorizationContext, ResourceDescriptor
 from apps.authorization.policies.engine import authorize
 from apps.authorization.services.subject import subject_for
-from apps.documents.models import DocumentVersion
+from apps.documents.models import DocumentVersion, StorageStatus, VersionStatus
 from apps.identity.models.user import User, UserStatus
 from apps.pilot.errors import FeedbackVersionConflict, PilotValidationError
 from apps.pilot.models import (
@@ -32,6 +32,29 @@ _OPEN_STATUSES = {
     PilotFeedbackStatus.IN_PROGRESS,
     PilotFeedbackStatus.READY_FOR_RETEST,
 }
+
+
+def _require_action(
+    *,
+    actor: User,
+    action: str,
+    resource_type: str,
+    public_id: UUID | None,
+    sensitivity_level: str = "INTERNAL",
+) -> None:
+    decision = authorize(
+        subject_for(actor),
+        action=action,
+        resource=ResourceDescriptor(
+            resource_type=resource_type,
+            public_id=public_id,
+            organization_id=actor.organization_id,
+            sensitivity_level=sensitivity_level,
+        ),
+        context=AuthorizationContext.current(),
+    )
+    if not decision.allowed:
+        raise PermissionDeniedError()
 
 
 def _lock_feedback(
@@ -54,12 +77,20 @@ def _lock_feedback(
 
 
 def _authorize_evidence(*, actor: User, version_public_id: UUID) -> DocumentVersion:
-    version = DocumentVersion.objects.filter(
-        public_id=version_public_id,
-        organization_id=actor.organization_id,
-    ).first()
+    version = (
+        DocumentVersion.objects.select_related("file_object")
+        .filter(
+            public_id=version_public_id,
+            organization_id=actor.organization_id,
+        )
+        .first()
+    )
     if version is None:
         raise PilotValidationError(message="evidence document version was not found.")
+    if version.status != VersionStatus.CONTROLLED:
+        raise PilotValidationError(message="evidence must be a CONTROLLED document version.")
+    if version.file_object.storage_status != StorageStatus.ACTIVE:
+        raise PilotValidationError(message="evidence storage is not ACTIVE.")
     decision = authorize(
         subject_for(actor),
         action="document.version.download",
@@ -67,6 +98,7 @@ def _authorize_evidence(*, actor: User, version_public_id: UUID) -> DocumentVers
             resource_type="document.version",
             public_id=version.public_id,
             organization_id=actor.organization_id,
+            sensitivity_level=version.sensitivity_level,
         ),
         context=AuthorizationContext.current(),
     )
@@ -131,6 +163,12 @@ class OpenPilotFeedback:
             raise PilotValidationError(message="reproduction_summary is required.")
 
         with transaction.atomic():
+            _require_action(
+                actor=actor,
+                action="pilot.feedback.create",
+                resource_type="pilot.feedback",
+                public_id=None,
+            )
             batch = (
                 PilotBatch.objects.select_for_update()
                 .filter(
@@ -195,13 +233,17 @@ class AssignPilotFeedback:
                 organization_id=actor.organization_id,
                 expected_version=self.expected_version,
             )
+            _require_action(
+                actor=actor,
+                action="pilot.feedback.assign",
+                resource_type="pilot.feedback",
+                public_id=feedback.public_id,
+            )
             if feedback.status not in {
                 PilotFeedbackStatus.OPEN,
                 PilotFeedbackStatus.TRIAGED,
             }:
-                raise PilotValidationError(
-                    message="Only OPEN or TRIAGED feedback can be assigned."
-                )
+                raise PilotValidationError(message="Only OPEN or TRIAGED feedback can be assigned.")
 
             assignee = User.objects.filter(
                 public_id=self.assignee_public_id,
@@ -241,12 +283,16 @@ class StartFeedbackHandling:
                 organization_id=actor.organization_id,
                 expected_version=self.expected_version,
             )
+            _require_action(
+                actor=actor,
+                action="pilot.feedback.handle",
+                resource_type="pilot.feedback",
+                public_id=feedback.public_id,
+            )
             if feedback.status == PilotFeedbackStatus.IN_PROGRESS:
                 return feedback
             if feedback.status != PilotFeedbackStatus.TRIAGED:
-                raise PilotValidationError(
-                    message="Only TRIAGED feedback can move to IN_PROGRESS."
-                )
+                raise PilotValidationError(message="Only TRIAGED feedback can move to IN_PROGRESS.")
             feedback = _bump(feedback, status=PilotFeedbackStatus.IN_PROGRESS)
             _audit(
                 context=self.context,
@@ -271,6 +317,12 @@ class SubmitFeedbackRetest:
                 public_id=self.feedback_public_id,
                 organization_id=actor.organization_id,
                 expected_version=self.expected_version,
+            )
+            _require_action(
+                actor=actor,
+                action="pilot.feedback.handle",
+                resource_type="pilot.feedback",
+                public_id=feedback.public_id,
             )
             if feedback.status == PilotFeedbackStatus.READY_FOR_RETEST:
                 return feedback
@@ -306,6 +358,12 @@ class RetestPilotFeedback:
                 public_id=self.feedback_public_id,
                 organization_id=actor.organization_id,
                 expected_version=self.expected_version,
+            )
+            _require_action(
+                actor=actor,
+                action="pilot.feedback.retest",
+                resource_type="pilot.feedback",
+                public_id=feedback.public_id,
             )
             if feedback.status != PilotFeedbackStatus.READY_FOR_RETEST:
                 raise PilotValidationError(
@@ -350,6 +408,12 @@ class ClosePilotFeedback:
                 public_id=self.feedback_public_id,
                 organization_id=actor.organization_id,
                 expected_version=self.expected_version,
+            )
+            _require_action(
+                actor=actor,
+                action="pilot.feedback.close",
+                resource_type="pilot.feedback",
+                public_id=feedback.public_id,
             )
             if feedback.status in {
                 PilotFeedbackStatus.CLOSED,
@@ -402,13 +466,9 @@ class ClosePilotFeedback:
                     )
                 else:
                     if not self.workaround.strip():
-                        raise PilotValidationError(
-                            message="P2 leftover requires a workaround."
-                        )
+                        raise PilotValidationError(message="P2 leftover requires a workaround.")
                     if not self.target_version.strip():
-                        raise PilotValidationError(
-                            message="P2 leftover requires a target_version."
-                        )
+                        raise PilotValidationError(message="P2 leftover requires a target_version.")
                     if self.accepted_by_public_id is None:
                         raise PilotValidationError(
                             message="P2 leftover requires an accepted_by user."

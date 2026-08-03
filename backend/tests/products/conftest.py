@@ -15,6 +15,7 @@ from apps.configuration.models import (
     ConfigurationStatus,
     ConfigurationVersion,
 )
+from apps.configuration.schema_registry import PRODUCT_MATERIAL_REQUIREMENTS_CODE
 from apps.identity.models.department import Department, DepartmentStatus
 from apps.identity.models.organization import Organization
 from apps.identity.models.user import User, UserStatus
@@ -38,6 +39,35 @@ from apps.products.models import (
 from apps.products.services.attribute_schema import compute_attribute_content_hash
 from apps.products.services.create_change_set import compute_baseline_fingerprint
 from apps.projects.models import Project
+
+
+@pytest.fixture(autouse=True)
+def published_empty_material_requirements(
+    organization: Organization, active_user: User
+) -> ConfigurationVersion:
+    """Satisfy fail-closed publication gates without imposing REQUIRED materials.
+
+    Tests that need REQUIRED materials retire this version and publish their own.
+    """
+
+    definition, _ = ConfigurationDefinition.objects.get_or_create(
+        organization=organization,
+        definition_code=PRODUCT_MATERIAL_REQUIREMENTS_CODE,
+        defaults={"name": PRODUCT_MATERIAL_REQUIREMENTS_CODE, "description": ""},
+    )
+    ConfigurationVersion.objects.filter(
+        definition=definition, status=ConfigurationStatus.PUBLISHED
+    ).update(status=ConfigurationStatus.RETIRED, current_published_slot=None)
+    return ConfigurationVersion.objects.create(
+        organization=organization,
+        definition=definition,
+        version_number=ConfigurationVersion.objects.filter(definition=definition).count() + 1,
+        status=ConfigurationStatus.PUBLISHED,
+        current_published_slot=1,
+        content_json={"requirements": []},
+        created_by=active_user,
+        published_at=timezone.now(),
+    )
 from apps.projects.services.create_project_from_candidate import ApproveAndCreateProject
 from tests.opportunities.factories import build_approval_ready_candidate
 from tests.products.schema_factories import build_published_product_schema
@@ -137,6 +167,12 @@ def product_director(another_active_user: User, grant_action: Callable[..., None
         "candidate.submit_review",
     ):
         grant_action(another_active_user, action, "project_candidate", role_code="PRODUCT_DIRECTOR")
+    grant_action(
+        another_active_user,
+        "legacy_baseline.draft.create",
+        "product",
+        role_code="PRODUCT_DIRECTOR",
+    )
     return another_active_user
 
 

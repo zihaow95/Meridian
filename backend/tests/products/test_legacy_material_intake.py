@@ -31,6 +31,11 @@ pytestmark = pytest.mark.django_db
 PDF_BYTES = b"%PDF-1.4 legacy"
 
 
+@pytest.fixture(autouse=True)
+def _grant_intake(active_user: User, grant_action) -> None:
+    grant_action(active_user, "legacy_material.submission.create", "legacy_material_submission")
+
+
 @pytest.fixture
 def controlled_version(organization: Organization, active_user: User):
     storage = get_file_storage()

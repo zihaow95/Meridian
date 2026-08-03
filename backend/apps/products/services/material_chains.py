@@ -181,12 +181,16 @@ class CreateLegacyMaterialVersionChain:
 
             for submission in submissions:
                 is_current = submission.public_id == self.current_submission_id
+                document_version = submission.document_version
                 material = ProductMaterial.objects.create(
                     organization_id=actor.organization_id,
                     owner_type=self.owner.owner_type,
                     owner_id=self.owner.owner_id,
                     material_type_code=self.material_type_code,
-                    document_version=submission.document_version,
+                    document_version=document_version,
+                    # Inherit the controlled file's sensitivity so later confirm
+                    # and download checks cannot silently downgrade HIGHLY_SENSITIVE.
+                    sensitivity_level=document_version.sensitivity_level,
                     material_status=(
                         MaterialStatus.DRAFT if is_current else MaterialStatus.INACTIVE
                     ),

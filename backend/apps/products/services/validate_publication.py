@@ -476,9 +476,9 @@ _COMPLETENESS_BLOCK_CODES: dict[str, str] = {
 def _material_completeness_blocks(change_set: ProductChangeSet) -> list[PublicationBlock]:
     """Block on the requirements configuration, evaluated for the state we publish into.
 
-    An organization with no published requirements has declared no material
-    obligation, so there is nothing to block on. Whether that should instead
-    refuse publication outright is registered as D-5 in the phase 6 plan.
+    Missing a published PRODUCT_MATERIAL_REQUIREMENTS version is fail-closed:
+    phase 6 requires governed material rules before an existing product can be
+    published, including for a brand-new organization.
     """
 
     try:
@@ -490,7 +490,15 @@ def _material_completeness_blocks(change_set: ProductChangeSet) -> list[Publicat
             lifecycle_state=ProductLifecycleStatus.ACTIVE,
         )
     except MaterialRequirementsUnavailable:
-        return []
+        return [
+            PublicationBlock(
+                code="PRODUCT_MATERIAL_REQUIREMENTS_UNAVAILABLE",
+                message=(
+                    "Published product material requirements are required before publication."
+                ),
+                details={},
+            )
+        ]
 
     blocks: list[PublicationBlock] = []
     for item in result.items:

@@ -60,9 +60,11 @@ class PilotBatchListCreateView(APIView):
         operation_id="pilot_batches_list",
         responses=inline_serializer(
             name="PilotBatchList",
-            fields={"items": serializers.ListField(child=inline_serializer(
-                name="PilotBatchItem", fields=BATCH_FIELDS
-            ))},
+            fields={
+                "items": serializers.ListField(
+                    child=inline_serializer(name="PilotBatchItem", fields=BATCH_FIELDS)
+                )
+            },
         ),
     )
     def get(self, request: Request) -> Response:
@@ -93,9 +95,7 @@ class PilotBatchListCreateView(APIView):
         batch = CreatePilotBatch(
             context=CommandContext.for_actor(user),
             name=name,
-            planned_participant_count=int(
-                request.data.get("planned_participant_count") or 8
-            ),
+            planned_participant_count=int(request.data.get("planned_participant_count") or 8),
             planned_duration_days=int(request.data.get("planned_duration_days") or 14),
             data_scope_note=str(request.data.get("data_scope_note") or ""),
             feedback_owner_note=str(request.data.get("feedback_owner_note") or ""),
@@ -139,9 +139,7 @@ class PilotBatchDetailView(APIView):
         if batch is None:
             raise ResourceNotFoundError()
         payload = serialize_batch(batch)
-        payload["participants"] = [
-            serialize_participant(p) for p in list_participants(batch=batch)
-        ]
+        payload["participants"] = [serialize_participant(p) for p in list_participants(batch=batch)]
         return Response(payload)
 
 
@@ -160,17 +158,19 @@ class PilotBatchParticipantView(APIView):
                 "department_snapshot": serializers.CharField(required=False),
             },
         ),
-        responses={201: inline_serializer(
-            name="PilotParticipantCreateResponse",
-            fields={
-                "public_id": serializers.UUIDField(),
-                "user_public_id": serializers.UUIDField(),
-                "display_name_snapshot": serializers.CharField(),
-                "employee_no_snapshot": serializers.CharField(),
-                "department_snapshot": serializers.CharField(),
-                "role_codes_snapshot": serializers.ListField(child=serializers.CharField()),
-            },
-        )},
+        responses={
+            201: inline_serializer(
+                name="PilotParticipantCreateResponse",
+                fields={
+                    "public_id": serializers.UUIDField(),
+                    "user_public_id": serializers.UUIDField(),
+                    "display_name_snapshot": serializers.CharField(),
+                    "employee_no_snapshot": serializers.CharField(),
+                    "department_snapshot": serializers.CharField(),
+                    "role_codes_snapshot": serializers.ListField(child=serializers.CharField()),
+                },
+            )
+        },
     )
     def post(self, request: Request, public_id: UUID) -> Response:
         user = cast(User, request.user)
@@ -196,9 +196,7 @@ class PilotBatchStartView(APIView):
     @extend_schema(
         operation_id="pilot_batches_start",
         request=None,
-        responses={
-            200: inline_serializer(name="PilotBatchStartResponse", fields=BATCH_FIELDS)
-        },
+        responses={200: inline_serializer(name="PilotBatchStartResponse", fields=BATCH_FIELDS)},
     )
     def post(self, request: Request, public_id: UUID) -> Response:
         user = cast(User, request.user)
@@ -218,9 +216,7 @@ class PilotBatchCompleteView(APIView):
     @extend_schema(
         operation_id="pilot_batches_complete",
         request=None,
-        responses={
-            200: inline_serializer(name="PilotBatchCompleteResponse", fields=BATCH_FIELDS)
-        },
+        responses={200: inline_serializer(name="PilotBatchCompleteResponse", fields=BATCH_FIELDS)},
     )
     def post(self, request: Request, public_id: UUID) -> Response:
         user = cast(User, request.user)

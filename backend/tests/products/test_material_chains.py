@@ -213,6 +213,20 @@ def test_promotion_never_marks_a_material_approved_on_its_own(
     assert materials[0].confirmations.count() == 0
 
 
+def test_promoted_material_inherits_document_version_sensitivity(
+    submissions, verifier: User, submitter: User
+) -> None:
+    newest = verify(verifier, submissions("V1", date(2019, 1, 1)))
+    DocumentVersion.objects.filter(pk=newest.document_version_id).update(
+        sensitivity_level="HIGHLY_SENSITIVE"
+    )
+    newest.document_version.refresh_from_db()
+
+    materials = build_chain(submitter, [newest], newest)
+
+    assert materials[0].sensitivity_level == "HIGHLY_SENSITIVE"
+
+
 def test_a_submission_still_in_triage_cannot_be_promoted(submissions, submitter: User) -> None:
     pending = submissions("V1", date(2019, 1, 1))
 

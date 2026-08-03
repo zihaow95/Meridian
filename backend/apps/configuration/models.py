@@ -95,18 +95,25 @@ class ConfigurationVersion(OrganizationOwnedModel):
         ]
 
     def replace_content(self, content: dict) -> None:
-        if self.status == ConfigurationStatus.PUBLISHED:
-            raise PublishedConfigurationImmutable("Published configuration cannot be edited.")
+        if self.status in {
+            ConfigurationStatus.PUBLISHED,
+            ConfigurationStatus.RETIRED,
+        }:
+            raise PublishedConfigurationImmutable(
+                "Published or retired configuration cannot be edited."
+            )
         self.content_json = content
         self.content_digest = compute_content_digest(content)
 
     def save(self, *args: Any, **kwargs: Any) -> None:
-        if self.status == ConfigurationStatus.PUBLISHED and self.pk:
+        if self.status in {ConfigurationStatus.PUBLISHED, ConfigurationStatus.RETIRED} and self.pk:
             previous = (
                 ConfigurationVersion.objects.filter(pk=self.pk).values("content_json").first()
             )
             if previous and previous["content_json"] != self.content_json:
-                raise PublishedConfigurationImmutable("Published configuration cannot be edited.")
+                raise PublishedConfigurationImmutable(
+                    "Published or retired configuration cannot be edited."
+                )
         if not self.content_digest and self.content_json:
             self.content_digest = compute_content_digest(self.content_json)
         super().save(*args, **kwargs)

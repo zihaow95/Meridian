@@ -13,7 +13,11 @@ from django.utils import timezone
 from apps.audit.models import AuditResult
 from apps.audit.services.append_event import AuditRecord, append_event
 from apps.audit.services.snapshots import acting_roles_snapshot
+from apps.authorization.context import AuthorizationContext, ResourceDescriptor
+from apps.authorization.policies.engine import authorize
+from apps.authorization.services.subject import subject_for
 from apps.documents.models import DocumentVersion
+from apps.platform.api.errors import PermissionDeniedError
 from apps.platform.application.command import CommandContext
 from apps.products.models import LegacyMaterialSubmission
 
@@ -56,6 +60,20 @@ class CreateLegacyMaterialSubmission:
             raise LegacyMaterialIntakeFailed("The document version does not exist.")
 
         with transaction.atomic():
+            decision = authorize(
+                subject_for(actor),
+                action="legacy_material.submission.create",
+                resource=ResourceDescriptor(
+                    resource_type="legacy_material_submission",
+                    public_id=None,
+                    organization_id=actor.organization_id,
+                    sensitivity_level=version.sensitivity_level,
+                ),
+                context=AuthorizationContext.current(),
+            )
+            if not decision.allowed:
+                raise PermissionDeniedError()
+
             existing = LegacyMaterialSubmission.objects.filter(
                 organization_id=actor.organization_id,
                 idempotency_key=self.idempotency_key,

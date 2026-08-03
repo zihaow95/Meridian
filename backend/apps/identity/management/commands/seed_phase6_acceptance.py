@@ -35,6 +35,8 @@ from apps.configuration.schema_registry import (
     FILE_UPLOAD_DEFINITION_CODE,
     NOTIFICATION_DELIVERY_POLICY_CODE,
     NOTIFICATION_TEMPLATE_CATALOG_CODE,
+    PRODUCT_MATERIAL_REQUIREMENTS_CODE,
+    TECHNICAL_FILE_CATALOG_CODE,
 )
 from apps.documents.models import (
     Document,
@@ -69,7 +71,14 @@ from apps.pilot.services.feedback import (
     SubmitFeedbackRetest,
 )
 from apps.platform.application.command import CommandContext
-from apps.products.models import ProductAsset
+from apps.products.models import (
+    AttributeOwnerType,
+    MaterialConfirmation,
+    MaterialConfirmationDecision,
+    MaterialStatus,
+    ProductAsset,
+    ProductMaterial,
+)
 from apps.products.services.create_legacy_baseline import CreateLegacyBaselineDraft
 from apps.products.services.legacy_material_intake import CreateLegacyMaterialSubmission
 from apps.products.services.publish_legacy_baseline import PublishLegacyBaseline
@@ -102,9 +111,7 @@ class Command(BaseCommand):
         call_command("seed_e2e_user")
         organization = Organization.objects.get(name=E2E_ORG_NAME)
         if organization.public_id != PHASE6_ORG_PUBLIC_ID:
-            Organization.objects.filter(pk=organization.pk).update(
-                public_id=PHASE6_ORG_PUBLIC_ID
-            )
+            Organization.objects.filter(pk=organization.pk).update(public_id=PHASE6_ORG_PUBLIC_ID)
             organization.refresh_from_db()
         actor = User.objects.get(login_key=E2E_LOGIN_KEY, organization=organization)
         approver = User.objects.get(login_key=E2E_APPROVER_LOGIN_KEY, organization=organization)
@@ -117,6 +124,8 @@ class Command(BaseCommand):
         self._grant_action(approver, "configuration.publication.review", "configuration.version")
 
         self._publish_file_upload_limit(organization, actor)
+        self._publish_technical_catalog(organization, actor)
+        self._publish_material_requirements(organization, actor)
         self._publish_notification_catalogs(organization, actor)
         pilot = self._ensure_pilot_user(organization, actor)
         self._ensure_inactive_pilot_user(organization)
@@ -125,7 +134,7 @@ class Command(BaseCommand):
         self._ensure_notifications(actor)
         versions = self._ensure_document_volume(organization, actor)
         self._ensure_pending_triage(actor, versions)
-        self._ensure_legacy_products(actor)
+        self._ensure_legacy_products(actor, versions)
 
         self.stdout.write(
             self.style.SUCCESS(
@@ -222,16 +231,66 @@ class Command(BaseCommand):
             },
         )
 
+    def _publish_technical_catalog(self, organization: Organization, actor: User) -> None:
+        self._publish_config(
+            organization=organization,
+            actor=actor,
+            definition_code=TECHNICAL_FILE_CATALOG_CODE,
+            content={
+                "catalog_items": [
+                    {
+                        "item_code": "PRODUCT_LABEL",
+                        "name": "Product label",
+                        "allowed_mime_types": ["application/pdf", "text/plain", "image/png"],
+                        "max_bytes": PHASE6_MAX_UPLOAD_BYTES,
+                        "preview_enabled": True,
+                        "default_sensitivity_level": "SENSITIVE_CONTROLLED",
+                        "retention_years": 5,
+                    }
+                ]
+            },
+        )
+
+    def _publish_material_requirements(self, organization: Organization, actor: User) -> None:
+        self._publish_config(
+            organization=organization,
+            actor=actor,
+            definition_code=PRODUCT_MATERIAL_REQUIREMENTS_CODE,
+            content={
+                "requirements": [
+                    {
+                        "product_category_code": "YOGURT",
+                        "lifecycle_state": "ACTIVE",
+                        "materials": [
+                            {
+                                "material_type_code": "PRODUCT_LABEL",
+                                "requirement": "REQUIRED",
+                            }
+                        ],
+                    }
+                ]
+            },
+        )
+
     def _publish_notification_catalogs(self, organization: Organization, actor: User) -> None:
         templates = [
             {
-                "template_code": f"phase6.{category.lower()}",
-                "category": category,
-                "default_level": level,
-                "summary_template": f"[{category}] {{title}}",
+                "template_code": "todo.created",
+                "category": NotificationCategory.ACTION_REQUIRED,
+                "default_level": NotificationLevel.IMPORTANT,
+                "summary_template": "待办 {title} 需要处理",
                 "allowed_variables": ["title"],
-            }
-            for category, level in _CATEGORY_LEVELS
+            },
+            *[
+                {
+                    "template_code": f"phase6.{category.lower()}",
+                    "category": category,
+                    "default_level": level,
+                    "summary_template": f"[{category}] {{title}}",
+                    "allowed_variables": ["title"],
+                }
+                for category, level in _CATEGORY_LEVELS
+            ],
         ]
         self._publish_config(
             organization=organization,
@@ -240,8 +299,15 @@ class Command(BaseCommand):
             content={"templates": templates},
         )
         rules = [
-            {"category": category, "level": level, "channels": ["IN_APP"]}
-            for category, level in _CATEGORY_LEVELS
+            {
+                "category": NotificationCategory.ACTION_REQUIRED,
+                "level": NotificationLevel.IMPORTANT,
+                "channels": ["IN_APP"],
+            },
+            *[
+                {"category": category, "level": level, "channels": ["IN_APP"]}
+                for category, level in _CATEGORY_LEVELS
+            ],
         ]
         # Cover every category×level cell used by the six templates.
         self._publish_config(
@@ -503,7 +569,7 @@ class Command(BaseCommand):
                 source_note=f"Phase6 pending triage {index + 1}",
             ).execute()
 
-    def _ensure_legacy_products(self, actor: User) -> None:
+    def _ensure_legacy_products(self, actor: User, versions: list[DocumentVersion]) -> None:
         ctx = CommandContext.for_actor(actor)
         for index in range(1, PHASE6_PRODUCT_COUNT + 1):
             business_no = f"P6-PRD-{index:04d}"
@@ -526,6 +592,30 @@ class Command(BaseCommand):
                 },
                 idempotency_key=idem,
             ).execute()
+            version = versions[(index - 1) % len(versions)]
+            material = ProductMaterial.objects.create(
+                organization_id=actor.organization_id,
+                owner_type=AttributeOwnerType.PRODUCT,
+                owner_id=draft.product.id,
+                material_type_code="PRODUCT_LABEL",
+                document_version=version,
+                sensitivity_level=version.sensitivity_level or "INTERNAL",
+                material_status=MaterialStatus.APPROVED,
+                version_no=1,
+                current_slot=1,
+            )
+            MaterialConfirmation.objects.create(
+                organization_id=actor.organization_id,
+                material=material,
+                document_version=version,
+                content_hash=version.file_object.sha256,
+                requested_by=actor,
+                requested_at=timezone.now(),
+                confirmer=actor,
+                decision=MaterialConfirmationDecision.APPROVED,
+                decided_at=timezone.now(),
+                live_slot=1,
+            )
             PublishLegacyBaseline(
                 context=ctx,
                 baseline_public_id=draft.change_set.public_id,

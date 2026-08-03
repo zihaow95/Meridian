@@ -6,6 +6,8 @@ stores what Phase 6 needs to prove a governed create→assign→retest→close l
 
 from __future__ import annotations
 
+from typing import Any
+
 from django.db import models
 
 from apps.identity.models.user import User
@@ -78,9 +80,7 @@ class PilotBatch(OrganizationOwnedModel):
 
 
 class PilotParticipant(OrganizationOwnedModel):
-    batch = models.ForeignKey(
-        PilotBatch, on_delete=models.PROTECT, related_name="participants"
-    )
+    batch = models.ForeignKey(PilotBatch, on_delete=models.PROTECT, related_name="participants")
     user = models.ForeignKey(User, on_delete=models.PROTECT, related_name="pilot_participations")
     display_name_snapshot = models.CharField(max_length=128)
     employee_no_snapshot = models.CharField(max_length=64, blank=True)
@@ -157,7 +157,7 @@ class PilotFeedback(OrganizationOwnedModel):
             models.Index(fields=["batch", "severity"]),
         ]
 
-    def save(self, *args, **kwargs):
+    def save(self, *args: Any, **kwargs: Any) -> None:
         key = (self.external_key or "").strip()
         self.external_key = key
         self.external_key_slot = 1 if key else None

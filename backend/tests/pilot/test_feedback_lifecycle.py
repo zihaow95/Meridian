@@ -159,9 +159,7 @@ def test_stale_version_on_assign_conflicts(active_user, another_active_user, ope
         ).execute()
 
 
-def test_p2_leftover_requires_acceptance_fields(
-    active_user, another_active_user, open_batch
-):
+def test_p2_leftover_requires_acceptance_fields(active_user, another_active_user, open_batch):
     ctx = CommandContext.for_actor(active_user)
     feedback = OpenPilotFeedback(
         context=ctx,

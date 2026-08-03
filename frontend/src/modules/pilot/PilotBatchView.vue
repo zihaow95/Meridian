@@ -108,7 +108,9 @@ onMounted(load)
 
     <section v-if="pilot.selected" class="pilot__detail" data-test="pilot-batch-detail">
       <h2>{{ pilot.selected.name }}</h2>
-      <p>状态：{{ pilot.selected.status }} · 计划人数 {{ pilot.selected.planned_participant_count }}</p>
+      <p>
+        状态：{{ pilot.selected.status }} · 计划人数 {{ pilot.selected.planned_participant_count }}
+      </p>
 
       <h3>反馈</h3>
       <ul data-test="pilot-feedback-list">

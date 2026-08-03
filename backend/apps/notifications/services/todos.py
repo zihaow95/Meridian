@@ -97,19 +97,20 @@ class SettleOpenTodosForSource:
         }:
             raise ValueError(f"Cannot settle open todos into {self.status}.")
 
-        updated = Todo.objects.filter(
-            organization_id=self.organization_id,
-            source_type=self.source_type,
-            source_id=self.source_id,
-            status=TodoStatus.OPEN,
-        ).update(status=self.status, open_slot=None)
-        SynchronizeNotificationForSource(
-            organization_id=self.organization_id,
-            source_type=self.source_type,
-            source_id=self.source_id,
-            close_reason=self.close_reason,
-        ).execute()
-        return updated
+        with transaction.atomic():
+            updated = Todo.objects.filter(
+                organization_id=self.organization_id,
+                source_type=self.source_type,
+                source_id=self.source_id,
+                status=TodoStatus.OPEN,
+            ).update(status=self.status, open_slot=None)
+            SynchronizeNotificationForSource(
+                organization_id=self.organization_id,
+                source_type=self.source_type,
+                source_id=self.source_id,
+                close_reason=self.close_reason,
+            ).execute()
+            return updated
 
 
 @dataclass(frozen=True)

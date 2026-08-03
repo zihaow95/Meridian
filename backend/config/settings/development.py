@@ -12,9 +12,7 @@ SECRET_KEY = env("DJANGO_SECRET_KEY", "dev-insecure-secret-key-do-not-use-in-pro
 # Loopback defaults plus any explicit pilot LAN hosts from the environment.
 # start-pilot.ps1 sets DJANGO_ALLOWED_HOSTS / DJANGO_CSRF_TRUSTED_ORIGINS.
 ALLOWED_HOSTS = list(
-    dict.fromkeys(
-        ["localhost", "127.0.0.1", "[::1]", *env_list("DJANGO_ALLOWED_HOSTS")]
-    )
+    dict.fromkeys(["localhost", "127.0.0.1", "[::1]", *env_list("DJANGO_ALLOWED_HOSTS")])
 )
 
 CSRF_TRUSTED_ORIGINS = list(
@@ -35,7 +33,9 @@ DATABASES["default"]["HOST"] = env("MYSQL_HOST", "127.0.0.1")
 DATABASES["default"]["PORT"] = env("MYSQL_PORT", "3306")
 
 ENABLE_IDENTITY_API = True
-ENABLE_DEV_LOGIN = True
+# Default on for local/E2E; start-pilot.ps1 sets ENABLE_DEV_LOGIN=false so LAN
+# pilot sessions cannot use the known login_key path.
+ENABLE_DEV_LOGIN = (env("ENABLE_DEV_LOGIN") or "true").lower() in {"1", "true", "yes"}
 ENABLE_AUTHORIZATION_API = True
 ENABLE_AUDIT_API = True
 ENABLE_CONFIGURATION_API = True
@@ -49,7 +49,11 @@ ENABLE_PRODUCTS_API = True
 ENABLE_OPERATIONS_API = True
 # Phase 6: in-app only. An unset DINGTALK_NOTIFIER is not a decision; this is.
 ENABLE_DINGTALK_NOTIFICATIONS = False
-ENABLE_PILOT_PASSWORD_LOGIN = True
+ENABLE_PILOT_PASSWORD_LOGIN = (env("ENABLE_PILOT_PASSWORD_LOGIN") or "true").lower() in {
+    "1",
+    "true",
+    "yes",
+}
 ENABLE_PILOT_API = True
 
 FILE_STORAGE_ROOT = BASE_DIR / "var" / "files"  # noqa: F405

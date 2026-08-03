@@ -148,62 +148,72 @@ class PublishVersion:
 
     def execute(self) -> ConfigurationVersion:
         command_context = self.context or CommandContext.for_actor(self.actor)
-        if self.version.status not in {ConfigurationStatus.DRAFT, ConfigurationStatus.FAILED}:
-            raise ConfigurationVersionNotPublishable(
-                f"Cannot publish version in status {self.version.status}"
-            )
-        definition_code = self.version.definition.definition_code
-        if self.approved_request is None:
-            if requires_dual_control(definition_code):
-                raise PublicationApprovalRequired(definition_code)
-        else:
-            self._assert_approval_authorizes_this_version(self.approved_request)
-
-        errors = validate_content(
-            self.version.definition.definition_code, self.version.content_json
-        )
-        if errors:
-            self.version.status = ConfigurationStatus.FAILED
-            self.version.validation_errors = errors
-            self.version.save(update_fields=["status", "validation_errors", "updated_at"])
-            raise ConfigurationValidationFailed(errors)
-
-        previous_published = (
-            ConfigurationVersion.objects.filter(
-                definition=self.version.definition,
-                status=ConfigurationStatus.PUBLISHED,
-            )
-            .order_by("-version_number")
-            .first()
-        )
-        diff_summary: dict[str, Any] = {}
-        if previous_published is not None:
-            diff_summary = {
-                "previous_version_number": previous_published.version_number,
-                "previous_digest": previous_published.content_digest,
-                "new_digest": self.version.content_digest,
-            }
-
         now = command_context.occurred_at
         with transaction.atomic():
+            version = (
+                ConfigurationVersion.objects.select_for_update()
+                .select_related("definition")
+                .get(pk=self.version.pk)
+            )
+            if version.status not in {ConfigurationStatus.DRAFT, ConfigurationStatus.FAILED}:
+                raise ConfigurationVersionNotPublishable(
+                    f"Cannot publish version in status {version.status}"
+                )
+            definition_code = version.definition.definition_code
+            approved_request: AdminChangeRequest | None = None
+            if self.approved_request is None:
+                if requires_dual_control(definition_code):
+                    raise PublicationApprovalRequired(definition_code)
+            else:
+                approved_request = AdminChangeRequest.objects.select_for_update().get(
+                    pk=self.approved_request.pk
+                )
+                self._assert_approval_authorizes_this_version(approved_request, version=version)
+
+            errors = validate_content(definition_code, version.content_json)
+            if errors:
+                version.status = ConfigurationStatus.FAILED
+                version.validation_errors = errors
+                version.save(update_fields=["status", "validation_errors", "updated_at"])
+                raise ConfigurationValidationFailed(errors)
+
+            previous_published = (
+                ConfigurationVersion.objects.select_for_update()
+                .filter(
+                    definition=version.definition,
+                    status=ConfigurationStatus.PUBLISHED,
+                )
+                .order_by("-version_number")
+                .first()
+            )
+            diff_summary: dict[str, Any] = {}
             if previous_published is not None:
+                diff_summary = {
+                    "previous_version_number": previous_published.version_number,
+                    "previous_digest": previous_published.content_digest,
+                    "new_digest": version.content_digest,
+                }
                 previous_published.status = ConfigurationStatus.RETIRED
                 previous_published.current_published_slot = None
                 previous_published.save(
                     update_fields=["status", "current_published_slot", "updated_at"]
                 )
 
-            if self.approved_request is not None:
-                self.approved_request.status = AdminChangeStatus.APPLIED
-                self.approved_request.save(update_fields=["status", "updated_at"])
+            if approved_request is not None:
+                if approved_request.status != AdminChangeStatus.APPROVED:
+                    raise PublicationApprovalInvalid(
+                        f"Approval is {approved_request.status}, not APPROVED."
+                    )
+                approved_request.status = AdminChangeStatus.APPLIED
+                approved_request.save(update_fields=["status", "updated_at"])
 
-            self.version.status = ConfigurationStatus.PUBLISHED
-            self.version.current_published_slot = 1
-            self.version.published_by = self.actor
-            self.version.published_at = now
-            self.version.diff_summary = diff_summary
-            self.version.validation_errors = []
-            self.version.save(
+            version.status = ConfigurationStatus.PUBLISHED
+            version.current_published_slot = 1
+            version.published_by = self.actor
+            version.published_at = now
+            version.diff_summary = diff_summary
+            version.validation_errors = []
+            version.save(
                 update_fields=[
                     "status",
                     "current_published_slot",
@@ -220,14 +230,14 @@ class PublishVersion:
                     actor=command_context.actor,
                     action_code="configuration.version.publish",
                     resource_type="configuration.version",
-                    resource_public_id=self.version.public_id,
+                    resource_public_id=version.public_id,
                     result=AuditResult.SUCCESS,
                     trace_id=command_context.trace_id,
                     occurred_at=command_context.occurred_at,
                     acting_roles_snapshot=acting_roles_snapshot(command_context.actor),
                     after_summary={
-                        "definition_code": self.version.definition.definition_code,
-                        "version_number": self.version.version_number,
+                        "definition_code": version.definition.definition_code,
+                        "version_number": version.version_number,
                     },
                 )
             )
@@ -235,19 +245,24 @@ class PublishVersion:
                 OutboxMessage(
                     event_type="configuration.published",
                     aggregate_type="configuration.version",
-                    aggregate_id=self.version.public_id,
+                    aggregate_id=version.public_id,
                     payload={
-                        "definition_code": self.version.definition.definition_code,
-                        "version_number": self.version.version_number,
-                        "content_digest": self.version.content_digest,
+                        "definition_code": version.definition.definition_code,
+                        "version_number": version.version_number,
+                        "content_digest": version.content_digest,
                     },
                     occurred_at=command_context.occurred_at,
                 )
             )
+            return version
 
-        return self.version
-
-    def _assert_approval_authorizes_this_version(self, request: AdminChangeRequest) -> None:
+    def _assert_approval_authorizes_this_version(
+        self,
+        request: AdminChangeRequest,
+        *,
+        version: ConfigurationVersion | None = None,
+    ) -> None:
+        target = version or self.version
         if request.status != AdminChangeStatus.APPROVED:
             raise PublicationApprovalInvalid(f"Approval is {request.status}, not APPROVED.")
         if request.action_type != PUBLICATION_ACTION_TYPE:
@@ -255,9 +270,9 @@ class PublishVersion:
                 f"Approval covers {request.action_type}, not a configuration publication."
             )
         approved_version = request.target_summary.get("version_public_id")
-        if str(approved_version) != str(self.version.public_id):
+        if str(approved_version) != str(target.public_id):
             raise PublicationApprovalInvalid(
-                f"Approval covers version {approved_version}, not {self.version.public_id}."
+                f"Approval covers version {approved_version}, not {target.public_id}."
             )
 
 
@@ -269,37 +284,44 @@ class RequestConfigurationPublication:
     version_public_id: Any
 
     def execute(self) -> AdminChangeRequest:
-        version = ConfigurationVersion.objects.select_related("definition").get(
-            organization_id=self.context.actor.organization_id,
-            public_id=self.version_public_id,
-        )
-        if version.status not in {ConfigurationStatus.DRAFT, ConfigurationStatus.FAILED}:
-            raise ValueError(f"Cannot request publication for version in status {version.status}")
-
-        current = (
-            ConfigurationVersion.objects.filter(
-                definition=version.definition,
-                current_published_slot=1,
+        with transaction.atomic():
+            version = (
+                ConfigurationVersion.objects.select_for_update()
+                .select_related("definition")
+                .get(
+                    organization_id=self.context.actor.organization_id,
+                    public_id=self.version_public_id,
+                )
             )
-            .values("version_number", "content_digest")
-            .first()
-        )
-        try:
-            return RequestAdminChange(
-                context=self.context,
-                action_type=PUBLICATION_ACTION_TYPE,
-                target_summary={
-                    "version_public_id": str(version.public_id),
-                    "definition_code": version.definition.definition_code,
-                    "version_number": version.version_number,
-                },
-                before_summary=dict(current) if current else {},
-                after_summary={"content_digest": version.content_digest},
-                action_code=PUBLICATION_REQUEST_ACTION,
-                resource_type=PUBLICATION_RESOURCE_TYPE,
-            ).execute()
-        except AdminChangeRequestDenied as denied:
-            raise ConfigurationPublicationDenied(denied.decision) from denied
+            if version.status not in {ConfigurationStatus.DRAFT, ConfigurationStatus.FAILED}:
+                raise ValueError(
+                    f"Cannot request publication for version in status {version.status}"
+                )
+
+            current = (
+                ConfigurationVersion.objects.filter(
+                    definition=version.definition,
+                    current_published_slot=1,
+                )
+                .values("version_number", "content_digest")
+                .first()
+            )
+            try:
+                return RequestAdminChange(
+                    context=self.context,
+                    action_type=PUBLICATION_ACTION_TYPE,
+                    target_summary={
+                        "version_public_id": str(version.public_id),
+                        "definition_code": version.definition.definition_code,
+                        "version_number": version.version_number,
+                    },
+                    before_summary=dict(current) if current else {},
+                    after_summary={"content_digest": version.content_digest},
+                    action_code=PUBLICATION_REQUEST_ACTION,
+                    resource_type=PUBLICATION_RESOURCE_TYPE,
+                ).execute()
+            except AdminChangeRequestDenied as denied:
+                raise ConfigurationPublicationDenied(denied.decision) from denied
 
 
 @dataclass(frozen=True)
@@ -311,25 +333,26 @@ class ReviewConfigurationPublication:
     decision: str
 
     def execute(self) -> AdminChangeRequest:
-        request = AdminChangeRequest.objects.get(
-            public_id=self.request_public_id,
-            action_type=PUBLICATION_ACTION_TYPE,
-        )
-        review = ReviewAdminChange(
-            actor=self.context.actor,
-            request=request,
-            context=self.context,
-            action_code=PUBLICATION_REVIEW_ACTION,
-            resource_type=PUBLICATION_RESOURCE_TYPE,
-        )
-        try:
-            if self.decision == AdminChangeStatus.APPROVED:
-                return review.approve()
-            if self.decision == AdminChangeStatus.REJECTED:
-                return review.reject()
-        except AdminChangeReviewDenied as denied:
-            raise ConfigurationPublicationDenied(denied.decision) from denied
-        raise ValueError(f"Unsupported review decision: {self.decision}")
+        with transaction.atomic():
+            request = AdminChangeRequest.objects.select_for_update().get(
+                public_id=self.request_public_id,
+                action_type=PUBLICATION_ACTION_TYPE,
+            )
+            review = ReviewAdminChange(
+                actor=self.context.actor,
+                request=request,
+                context=self.context,
+                action_code=PUBLICATION_REVIEW_ACTION,
+                resource_type=PUBLICATION_RESOURCE_TYPE,
+            )
+            try:
+                if self.decision == AdminChangeStatus.APPROVED:
+                    return review.approve()
+                if self.decision == AdminChangeStatus.REJECTED:
+                    return review.reject()
+            except AdminChangeReviewDenied as denied:
+                raise ConfigurationPublicationDenied(denied.decision) from denied
+            raise ValueError(f"Unsupported review decision: {self.decision}")
 
 
 @dataclass(frozen=True)

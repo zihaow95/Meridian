@@ -14,6 +14,9 @@ from django.db import transaction
 from django.db.models import Q
 from django.utils import timezone
 
+from apps.audit.models import AuditResult
+from apps.audit.services.append_event import AuditRecord, append_event
+from apps.audit.services.snapshots import acting_roles_snapshot
 from apps.notifications.models import Notification, NotificationStatus
 from apps.platform.api.errors import PermissionDeniedError, ResourceNotFoundError
 from apps.platform.application.command import CommandContext
@@ -45,11 +48,25 @@ class MarkNotificationRead:
                 return notification
 
             now = self.context.occurred_at or timezone.now()
-            Notification.objects.filter(
+            updated = Notification.objects.filter(
                 pk=notification.pk,
                 status=NotificationStatus.UNREAD,
             ).update(status=NotificationStatus.READ, read_at=now)
             notification.refresh_from_db()
+            if updated:
+                append_event(
+                    AuditRecord(
+                        actor=actor,
+                        action_code="notification.message.mark_read",
+                        resource_type="notification.message",
+                        resource_public_id=notification.public_id,
+                        result=AuditResult.SUCCESS,
+                        trace_id=self.context.trace_id,
+                        occurred_at=now,
+                        acting_roles_snapshot=acting_roles_snapshot(actor),
+                        after_summary={"status": notification.status},
+                    )
+                )
             return notification
 
 
@@ -79,14 +96,33 @@ class CloseNotification:
                 return notification
 
             now = self.context.occurred_at or timezone.now()
-            Notification.objects.filter(pk=notification.pk).exclude(
-                status=NotificationStatus.CLOSED
-            ).update(
-                status=NotificationStatus.CLOSED,
-                closed_at=now,
-                close_reason=self.close_reason,
+            updated = (
+                Notification.objects.filter(pk=notification.pk)
+                .exclude(status=NotificationStatus.CLOSED)
+                .update(
+                    status=NotificationStatus.CLOSED,
+                    closed_at=now,
+                    close_reason=self.close_reason,
+                )
             )
             notification.refresh_from_db()
+            if updated:
+                append_event(
+                    AuditRecord(
+                        actor=actor,
+                        action_code="notification.message.close",
+                        resource_type="notification.message",
+                        resource_public_id=notification.public_id,
+                        result=AuditResult.SUCCESS,
+                        trace_id=self.context.trace_id,
+                        occurred_at=now,
+                        acting_roles_snapshot=acting_roles_snapshot(actor),
+                        after_summary={
+                            "status": notification.status,
+                            "close_reason": notification.close_reason,
+                        },
+                    )
+                )
             return notification
 
 

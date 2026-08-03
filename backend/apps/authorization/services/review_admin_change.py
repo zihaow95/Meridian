@@ -53,23 +53,24 @@ class ReviewAdminChange:
         return self._review(decision=AdminChangeStatus.REJECTED)
 
     def _review(self, *, decision: str) -> AdminChangeRequest:
-        if self.request.proposed_by_id == self.actor.pk:
-            raise ReviewerMustDiffer()
-        if self.request.status != AdminChangeStatus.PENDING:
-            raise AdminChangeNotPending()
-        if self.request.expires_at <= timezone.now():
-            self.request.status = AdminChangeStatus.EXPIRED
-            self.request.save(update_fields=["status", "updated_at"])
-            raise AdminChangeNotPending()
-
         command_context = self.context or CommandContext.for_actor(self.actor)
         with transaction.atomic():
+            request = AdminChangeRequest.objects.select_for_update().get(pk=self.request.pk)
+            if request.proposed_by_id == self.actor.pk:
+                raise ReviewerMustDiffer()
+            if request.status != AdminChangeStatus.PENDING:
+                raise AdminChangeNotPending()
+            if request.expires_at <= timezone.now():
+                request.status = AdminChangeStatus.EXPIRED
+                request.save(update_fields=["status", "updated_at"])
+                raise AdminChangeNotPending()
+
             auth_decision = authorize(
                 subject_for(self.actor),
                 action=self.action_code,
                 resource=ResourceDescriptor(
                     resource_type=self.resource_type,
-                    public_id=self.request.public_id,
+                    public_id=request.public_id,
                     organization_id=self.actor.organization_id,
                 ),
                 context=AuthorizationContext.current(),
@@ -77,21 +78,21 @@ class ReviewAdminChange:
             if not auth_decision.allowed:
                 raise AdminChangeReviewDenied(auth_decision)
 
-            self.request.status = decision
-            self.request.reviewed_by = self.actor
-            self.request.reviewed_at = command_context.occurred_at
-            self.request.save(update_fields=["status", "reviewed_by", "reviewed_at", "updated_at"])
+            request.status = decision
+            request.reviewed_by = self.actor
+            request.reviewed_at = command_context.occurred_at
+            request.save(update_fields=["status", "reviewed_by", "reviewed_at", "updated_at"])
             append_event(
                 AuditRecord(
                     actor=command_context.actor,
                     action_code=self.action_code,
                     resource_type=self.resource_type,
-                    resource_public_id=self.request.public_id,
+                    resource_public_id=request.public_id,
                     result=AuditResult.SUCCESS,
                     trace_id=command_context.trace_id,
                     occurred_at=command_context.occurred_at,
                     acting_roles_snapshot=acting_roles_snapshot(command_context.actor),
-                    after_summary={"status": self.request.status},
+                    after_summary={"status": request.status},
                 )
             )
-            return self.request
+            return request

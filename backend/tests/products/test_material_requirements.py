@@ -45,17 +45,15 @@ def requirements(organization, active_user) -> Any:
         definition_code=PRODUCT_MATERIAL_REQUIREMENTS_CODE,
         defaults={"name": "产品材料要求", "description": ""},
     )
-    counter = {"version": 0}
-
     def _publish(materials: list[dict[str, str]]) -> ConfigurationVersion:
         ConfigurationVersion.objects.filter(
             definition=definition, status=ConfigurationStatus.PUBLISHED
         ).update(status=ConfigurationStatus.RETIRED, current_published_slot=None)
-        counter["version"] += 1
+        next_number = ConfigurationVersion.objects.filter(definition=definition).count() + 1
         return ConfigurationVersion.objects.create(
             organization=organization,
             definition=definition,
-            version_number=counter["version"],
+            version_number=next_number,
             status=ConfigurationStatus.PUBLISHED,
             current_published_slot=1,
             content_json={
@@ -251,6 +249,11 @@ def test_a_category_without_requirements_yields_nothing_to_check(
 def test_evaluation_refuses_to_guess_when_no_requirements_are_published(
     organization,
 ) -> None:
+    ConfigurationVersion.objects.filter(
+        organization=organization,
+        definition__definition_code=PRODUCT_MATERIAL_REQUIREMENTS_CODE,
+        status=ConfigurationStatus.PUBLISHED,
+    ).update(status=ConfigurationStatus.RETIRED, current_published_slot=None)
     with pytest.raises(MaterialRequirementsUnavailable):
         evaluate(organization)
 

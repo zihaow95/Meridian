@@ -15,6 +15,26 @@ def test_published_configuration_cannot_be_edited(published_version) -> None:
 
 
 @pytest.mark.django_db
+def test_retired_configuration_cannot_be_edited(
+    published_version, file_upload_definition, active_user
+) -> None:
+    from apps.configuration.models import ConfigurationStatus
+    from apps.configuration.services import CreateDraft, PublishVersion
+
+    next_draft = CreateDraft(
+        actor=active_user,
+        definition=file_upload_definition,
+        content={"allowed_mime_types": ["image/png"], "max_bytes": 2_097_152},
+    ).execute()
+    PublishVersion(version=next_draft, actor=active_user).execute()
+    published_version.refresh_from_db()
+    assert published_version.status == ConfigurationStatus.RETIRED
+
+    with pytest.raises(PublishedConfigurationImmutable):
+        published_version.replace_content({"changed": True})
+
+
+@pytest.mark.django_db
 def test_publish_registers_outbox_event(published_version) -> None:
     from apps.platform.outbox.models import OutboxEvent
 
