@@ -51,6 +51,7 @@ INSTALLED_APPS = [
     "apps.products",
     "apps.work_items",
     "apps.operations",
+    "apps.pilot",
 ]
 
 AUTH_USER_MODEL = "identity.User"
@@ -135,6 +136,7 @@ SPECTACULAR_SETTINGS: dict[str, Any] = {
 ENABLE_NOTIFICATIONS_API = False
 ENABLE_DINGTALK_NOTIFICATIONS = False
 ENABLE_PILOT_PASSWORD_LOGIN = False
+ENABLE_PILOT_API = False
 
 CELERY_BROKER_URL = env("CELERY_BROKER_URL", "redis://127.0.0.1:6379/0")
 CELERY_RESULT_BACKEND = env("CELERY_RESULT_BACKEND", CELERY_BROKER_URL)

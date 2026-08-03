@@ -282,7 +282,7 @@ notifications.Todo: (models.W036) MySQL does not support unique constraints with
 - [x] 启动脚本显式绑定批准的局域网地址，配置ALLOWED_HOSTS/CSRF来源并打印访问地址；不自动开放防火墙或公网端口。
 - [x] 每位参与人必须使用独立账号，禁止公共演示账号或共享凭据。
 - [x] 钉钉完成后是否保留只记录为后续评估项，阶段6不自动删除本地认证代码。
-- [ ] 提交：`feat: enable controlled non-production pilot access`。
+- [x] 提交：`feat: enable controlled non-production pilot access`。
 
 ## 15. Task 6.8：试用批次、反馈闭环与启动准备
 
@@ -290,15 +290,15 @@ notifications.Todo: (models.W036) MySQL does not support unique constraints with
 
 **Interfaces:** `CreatePilotBatch(...)`, `AddPilotParticipant(...)`, `OpenPilotFeedback(...)`, `AssignPilotFeedback(...)`, `SubmitFeedbackRetest(...)`, `ClosePilotFeedback(...)`。
 
-- [ ] 模型只保存试用批次、参与人快照、反馈、严重程度、复现摘要、受控证据引用、责任人、状态、目标版本和验收结果。
-- [ ] 默认约8人/2周作为可编辑配置，不写死；开始后的批次保存快照，后续模板调整不改写历史。
-- [ ] 反馈状态最小为OPEN/TRIAGED/IN_PROGRESS/READY_FOR_RETEST/CLOSED/REJECTED，且只通过应用服务迁移。
-- [ ] P0/P1关闭前不得完成批次；P2遗留必须填写规避、责任人、目标版本和书面接受人；P3可转后续清单。
-- [ ] 证据附件必须是获授权受控文件版本；反馈摘要不复制敏感产品正文。
-- [ ] 同一批次/外部反馈键和重复提交幂等；并发分派、复测和关闭使用version_no或条件更新。
-- [ ] 权限区分批次管理、反馈创建、分派、处理、复测和关闭；系统管理员不因环境支持权获得敏感反馈读取权。
-- [ ] 阶段6只用内部验收数据走通完整反馈链，不把批次标记为真实业务试用完成。
-- [ ] 生成阶段7后试用启动清单：账号、人员、周期、数据范围、反馈R/A、已知限制和停止条件。
+- [x] 模型只保存试用批次、参与人快照、反馈、严重程度、复现摘要、受控证据引用、责任人、状态、目标版本和验收结果。
+- [x] 默认约8人/2周作为可编辑配置，不写死；开始后的批次保存快照，后续模板调整不改写历史。
+- [x] 反馈状态最小为OPEN/TRIAGED/IN_PROGRESS/READY_FOR_RETEST/CLOSED/REJECTED，且只通过应用服务迁移。
+- [x] P0/P1关闭前不得完成批次；P2遗留必须填写规避、责任人、目标版本和书面接受人；P3可转后续清单。
+- [x] 证据附件必须是获授权受控文件版本；反馈摘要不复制敏感产品正文。
+- [x] 同一批次/外部反馈键和重复提交幂等；并发分派、复测和关闭使用version_no或条件更新。
+- [x] 权限区分批次管理、反馈创建、分派、处理、复测和关闭；系统管理员不因环境支持权获得敏感反馈读取权。
+- [x] 阶段6只用内部验收数据走通完整反馈链，不把批次标记为真实业务试用完成。
+- [x] 生成阶段7后试用启动清单：账号、人员、周期、数据范围、反馈R/A、已知限制和停止条件。
 - [ ] 提交：`feat: prepare governed pilot feedback`。
 
 ## 16. Task 6.9：纵向E2E、全量门禁、代码审阅与阶段GO

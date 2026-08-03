@@ -1113,6 +1113,182 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/pilot/batches": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["pilot_batches_list"];
+        put?: never;
+        post: operations["pilot_batches_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/pilot/batches/{batch_public_id}/feedback": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["pilot_feedback_list"];
+        put?: never;
+        post: operations["pilot_feedback_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/pilot/batches/{public_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["pilot_batches_retrieve"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/pilot/batches/{public_id}/complete": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["pilot_batches_complete"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/pilot/batches/{public_id}/participants": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["pilot_batches_add_participant"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/pilot/batches/{public_id}/start": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["pilot_batches_start"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/pilot/feedback/{public_id}/assign": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["pilot_feedback_assign"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/pilot/feedback/{public_id}/close": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["pilot_feedback_close"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/pilot/feedback/{public_id}/handle": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["pilot_feedback_handle"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/pilot/feedback/{public_id}/retest": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["pilot_feedback_retest"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/pilot/feedback/{public_id}/submit-retest": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["pilot_feedback_submit_retest"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/plan-changes/{public_id}/confirm": {
         parameters: {
             query?: never;
@@ -3179,6 +3355,98 @@ export interface components {
             target_users_needs?: string;
             suggested_retail_price?: string | null;
         };
+        PilotBatchCreateRequest: {
+            name: string;
+            planned_participant_count?: number;
+            planned_duration_days?: number;
+            data_scope_note?: string;
+            feedback_owner_note?: string;
+        };
+        PilotBatchDetail: {
+            participants: components["schemas"]["PilotParticipantItem"][];
+        };
+        PilotBatchItem: {
+            /** Format: uuid */
+            public_id: string;
+            name: string;
+            purpose: string;
+            status: string;
+            planned_participant_count: number;
+            planned_duration_days: number;
+            config_snapshot: {
+                [key: string]: unknown;
+            };
+            data_scope_note: string;
+            feedback_owner_note: string;
+            version_no: number;
+            /** Format: date-time */
+            started_at: string | null;
+            /** Format: date-time */
+            completed_at: string | null;
+        };
+        PilotBatchList: {
+            items: components["schemas"]["PilotBatchItem"][];
+        };
+        PilotFeedbackAssignRequest: {
+            severity: string;
+            /** Format: uuid */
+            assignee_public_id: string;
+            expected_version?: number;
+        };
+        PilotFeedbackCloseRequest: {
+            reject?: boolean;
+            close_reason?: string;
+            workaround?: string;
+            target_version?: string;
+            /** Format: uuid */
+            accepted_by_public_id?: string;
+            acceptance_note?: string;
+            expected_version?: number;
+        };
+        PilotFeedbackCreateRequest: {
+            title: string;
+            reproduction_summary: string;
+            external_key?: string;
+            /** Format: uuid */
+            evidence_document_version_public_id?: string;
+        };
+        PilotFeedbackHandleRequest: {
+            expected_version?: number;
+        };
+        PilotFeedbackItem: {
+            /** Format: uuid */
+            public_id: string;
+            /** Format: uuid */
+            batch_public_id: string;
+            title: string;
+            reproduction_summary: string;
+            severity: string;
+            status: string;
+            external_key: string;
+            /** Format: uuid */
+            evidence_document_version_public_id: string | null;
+            /** Format: uuid */
+            assignee_public_id: string | null;
+            target_version: string;
+            workaround: string;
+            /** Format: uuid */
+            accepted_by_public_id: string | null;
+            acceptance_note: string;
+            close_reason: string;
+            retest_result: string;
+            version_no: number;
+        };
+        PilotFeedbackList: {
+            items: components["schemas"]["PilotFeedbackItem"][];
+        };
+        PilotFeedbackRetestRequest: {
+            passed: boolean;
+            expected_version?: number;
+        };
+        PilotFeedbackSubmitRetestRequest: {
+            target_version?: string;
+            expected_version?: number;
+        };
         PilotLoginRequest: {
             /** Format: uuid */
             organization_public_id: string;
@@ -3188,6 +3456,31 @@ export interface components {
         PilotLoginResponse: {
             public_id: string;
             display_name: string;
+        };
+        PilotParticipantCreateRequest: {
+            /** Format: uuid */
+            user_public_id: string;
+            department_snapshot?: string;
+        };
+        PilotParticipantCreateResponse: {
+            /** Format: uuid */
+            public_id: string;
+            /** Format: uuid */
+            user_public_id: string;
+            display_name_snapshot: string;
+            employee_no_snapshot: string;
+            department_snapshot: string;
+            role_codes_snapshot: string[];
+        };
+        PilotParticipantItem: {
+            /** Format: uuid */
+            public_id: string;
+            /** Format: uuid */
+            user_public_id: string;
+            display_name_snapshot: string;
+            employee_no_snapshot: string;
+            department_snapshot: string;
+            role_codes_snapshot: string[];
         };
         PlanChangeRequest: {
             change_type: string;
@@ -5577,6 +5870,314 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["OpportunitySummaryList"][];
                 };
+            };
+        };
+    };
+    pilot_batches_list: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PilotBatchList"];
+                };
+            };
+        };
+    };
+    pilot_batches_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PilotBatchCreateRequest"];
+                "application/x-www-form-urlencoded": components["schemas"]["PilotBatchCreateRequest"];
+                "multipart/form-data": components["schemas"]["PilotBatchCreateRequest"];
+            };
+        };
+        responses: {
+            /** @description No response body */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    pilot_feedback_list: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                batch_public_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PilotFeedbackList"];
+                };
+            };
+        };
+    };
+    pilot_feedback_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                batch_public_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PilotFeedbackCreateRequest"];
+                "application/x-www-form-urlencoded": components["schemas"]["PilotFeedbackCreateRequest"];
+                "multipart/form-data": components["schemas"]["PilotFeedbackCreateRequest"];
+            };
+        };
+        responses: {
+            /** @description No response body */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    pilot_batches_retrieve: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                public_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PilotBatchDetail"];
+                };
+            };
+        };
+    };
+    pilot_batches_complete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                public_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No response body */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    pilot_batches_add_participant: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                public_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PilotParticipantCreateRequest"];
+                "application/x-www-form-urlencoded": components["schemas"]["PilotParticipantCreateRequest"];
+                "multipart/form-data": components["schemas"]["PilotParticipantCreateRequest"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PilotParticipantCreateResponse"];
+                };
+            };
+        };
+    };
+    pilot_batches_start: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                public_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No response body */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    pilot_feedback_assign: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                public_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PilotFeedbackAssignRequest"];
+                "application/x-www-form-urlencoded": components["schemas"]["PilotFeedbackAssignRequest"];
+                "multipart/form-data": components["schemas"]["PilotFeedbackAssignRequest"];
+            };
+        };
+        responses: {
+            /** @description No response body */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    pilot_feedback_close: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                public_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["PilotFeedbackCloseRequest"];
+                "application/x-www-form-urlencoded": components["schemas"]["PilotFeedbackCloseRequest"];
+                "multipart/form-data": components["schemas"]["PilotFeedbackCloseRequest"];
+            };
+        };
+        responses: {
+            /** @description No response body */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    pilot_feedback_handle: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                public_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["PilotFeedbackHandleRequest"];
+                "application/x-www-form-urlencoded": components["schemas"]["PilotFeedbackHandleRequest"];
+                "multipart/form-data": components["schemas"]["PilotFeedbackHandleRequest"];
+            };
+        };
+        responses: {
+            /** @description No response body */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    pilot_feedback_retest: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                public_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PilotFeedbackRetestRequest"];
+                "application/x-www-form-urlencoded": components["schemas"]["PilotFeedbackRetestRequest"];
+                "multipart/form-data": components["schemas"]["PilotFeedbackRetestRequest"];
+            };
+        };
+        responses: {
+            /** @description No response body */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    pilot_feedback_submit_retest: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                public_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["PilotFeedbackSubmitRetestRequest"];
+                "application/x-www-form-urlencoded": components["schemas"]["PilotFeedbackSubmitRetestRequest"];
+                "multipart/form-data": components["schemas"]["PilotFeedbackSubmitRetestRequest"];
+            };
+        };
+        responses: {
+            /** @description No response body */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };

@@ -29,6 +29,7 @@ import OperatingDataBatchPage from '@/modules/operations/OperatingDataBatchPage.
 import RiskSignalCenterPage from '@/modules/operations/RiskSignalCenterPage.vue'
 import OperatingIssuePage from '@/modules/operations/OperatingIssuePage.vue'
 import RetirementPlanPage from '@/modules/operations/RetirementPlanPage.vue'
+import PilotBatchView from '@/modules/pilot/PilotBatchView.vue'
 
 const routes: RouteRecordRaw[] = [
   { path: '/', redirect: '/todos' },
@@ -38,6 +39,11 @@ const routes: RouteRecordRaw[] = [
   {
     path: '/notifications',
     component: NotificationCenterView,
+    meta: { requiresAuth: true },
+  },
+  {
+    path: '/pilot/batches',
+    component: PilotBatchView,
     meta: { requiresAuth: true },
   },
   { path: '/opportunities', component: OpportunityListView, meta: { requiresAuth: true } },
