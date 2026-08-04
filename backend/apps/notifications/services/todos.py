@@ -119,6 +119,76 @@ class SettleOpenTodosForSource:
             return updated
 
 
+class TodoNotProjectedYet(Exception):
+    """The todo this settlement targets has not been projected at all yet.
+
+    Raised so the caller can stay retryable instead of recording a settlement
+    that silently settled nothing.
+    """
+
+
+@dataclass(frozen=True)
+class SettleOneOpenTodo:
+    """Settle exactly the todo a dedup key names, with its own notifications.
+
+    Settling by source would let a replayed or delayed event close a newer
+    request for the same object. Settling by dedup key keeps each ask separate,
+    and a missing todo is reported rather than treated as success.
+    """
+
+    organization_id: int
+    assignee_id: int
+    dedup_key: str
+    status: str
+    close_reason: str
+    actor: User
+    trace_id: str = ""
+
+    def execute(self) -> int:
+        from apps.notifications.services.lifecycle import SynchronizeNotificationForTodo
+
+        if self.actor is None:
+            raise ValueError("SettleOneOpenTodo requires an actor.")
+        if self.status not in {
+            TodoStatus.COMPLETED,
+            TodoStatus.CANCELLED,
+            TodoStatus.EXPIRED,
+        }:
+            raise ValueError(f"Cannot settle a todo into {self.status}.")
+
+        with transaction.atomic():
+            todos = list(
+                Todo.objects.select_for_update()
+                .filter(
+                    organization_id=self.organization_id,
+                    assignee_id=self.assignee_id,
+                    dedup_key=self.dedup_key,
+                )
+                .order_by("pk")
+            )
+            if not todos:
+                raise TodoNotProjectedYet(self.dedup_key)
+
+            settled = 0
+            for todo in todos:
+                if todo.status == TodoStatus.OPEN:
+                    Todo.objects.filter(pk=todo.pk, status=TodoStatus.OPEN).update(
+                        status=self.status, open_slot=None
+                    )
+                    settled += 1
+                # Notices of an already-settled todo may still be open when an
+                # earlier attempt died between the two writes.
+                SynchronizeNotificationForTodo(
+                    organization_id=self.organization_id,
+                    todo_id=todo.pk,
+                    todo_public_id=todo.public_id,
+                    actor=self.actor,
+                    close_reason=self.close_reason,
+                    trace_id=self.trace_id,
+                ).execute()
+            return settled
+
+
 @dataclass(frozen=True)
 class CompleteOpenTodosForSource:
     """Idempotently complete open todos that point at a domain source."""

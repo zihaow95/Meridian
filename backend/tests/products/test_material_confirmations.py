@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import importlib
 from typing import Any
+from uuid import uuid4
 
 import pytest
 from django.db import IntegrityError, transaction
@@ -455,6 +456,156 @@ def test_deciding_inside_the_requesting_transaction_still_settles_the_todo(
     assert todo.open_slot is None
     notification = Notification.objects.get(todo=todo)
     assert notification.status == NotificationStatus.CLOSED
+
+
+def test_a_decision_that_reaches_the_consumer_before_its_todo_stays_retryable(
+    django_capture_on_commit_callbacks, monkeypatch, requester, confirmer, current_material
+) -> None:
+    """Retries arrive in any order, so the settlement must converge in any order.
+
+    A settlement that "succeeds" by settling nothing would take its receipt and
+    never run again, and the recovered request projection would then leave an
+    OPEN todo behind an APPROVED material forever.
+    """
+
+    from apps.notifications import consumers as notification_consumers
+    from apps.notifications.models import Notification, NotificationStatus, Todo, TodoStatus
+    from apps.platform.outbox.models import ConsumerReceipt, OutboxEvent, OutboxStatus
+    from apps.platform.outbox.tasks import LocalOutboxPublisher
+
+    def _boom(self: Any, event: Any) -> None:
+        raise RuntimeError("projection unavailable")
+
+    monkeypatch.setattr(notification_consumers.TodoProjectionConsumer, "consume", _boom)
+    with django_capture_on_commit_callbacks(execute=True):
+        confirmation = submit(requester, current_material, confirmer)
+    assert not Todo.objects.filter(source_id=current_material.public_id).exists()
+    request_event = OutboxEvent.objects.get(
+        event_type="todo.requested",
+        aggregate_id=confirmation.public_id,
+    )
+    assert request_event.status == OutboxStatus.PENDING
+
+    with django_capture_on_commit_callbacks(execute=True):
+        decide(confirmer, confirmation, MaterialConfirmationDecision.APPROVED)
+
+    decided_event = OutboxEvent.objects.get(
+        event_type="material_confirmation.decided",
+        aggregate_id=confirmation.public_id,
+    )
+    assert decided_event.status == OutboxStatus.PENDING
+    assert decided_event.attempt_count == 1
+    assert not ConsumerReceipt.objects.filter(event=decided_event).exists()
+
+    monkeypatch.undo()
+    LocalOutboxPublisher().publish(request_event)
+    todo = Todo.objects.get(source_id=current_material.public_id)
+    assert todo.status == TodoStatus.OPEN
+
+    LocalOutboxPublisher().publish(decided_event)
+
+    todo.refresh_from_db()
+    assert todo.status == TodoStatus.COMPLETED
+    assert todo.open_slot is None
+    assert Notification.objects.get(todo=todo).status == NotificationStatus.CLOSED
+
+
+def test_a_stale_decision_event_does_not_settle_a_later_requests_todo(
+    django_capture_on_commit_callbacks, requester, confirmer, current_material
+) -> None:
+    """A returned material is requested again; the old event must not close it."""
+
+    from apps.notifications.models import Todo, TodoStatus
+    from apps.platform.outbox.models import OutboxEvent
+    from apps.products.consumers import MaterialConfirmationDecidedConsumer
+
+    with django_capture_on_commit_callbacks(execute=True):
+        first = submit(requester, current_material, confirmer)
+    with django_capture_on_commit_callbacks(execute=True):
+        decide(confirmer, first, MaterialConfirmationDecision.RETURNED)
+    with django_capture_on_commit_callbacks(execute=True):
+        second = submit(requester, current_material, confirmer)
+
+    later_todo = Todo.objects.get(dedup_key=f"material_confirmation:{second.public_id}")
+    assert later_todo.status == TodoStatus.OPEN
+
+    stale_event = OutboxEvent.objects.get(
+        event_type="material_confirmation.decided",
+        aggregate_id=first.public_id,
+    )
+    MaterialConfirmationDecidedConsumer().consume(stale_event)
+
+    later_todo.refresh_from_db()
+    assert later_todo.status == TodoStatus.OPEN
+    assert (
+        Todo.objects.get(dedup_key=f"material_confirmation:{first.public_id}").status
+        == TodoStatus.COMPLETED
+    )
+
+
+@pytest.mark.parametrize(
+    "tamper",
+    [
+        pytest.param({"actor_user_id": "foreign"}, id="actor-from-another-organization"),
+        pytest.param({"actor_user_id": "requester"}, id="actor-is-not-the-confirmer"),
+        pytest.param({"material_public_id": str(uuid4())}, id="material-does-not-match"),
+        pytest.param({"decision": "RETURNED"}, id="decision-does-not-match"),
+        pytest.param({"confirmation_public_id": str(uuid4())}, id="confirmation-does-not-resolve"),
+    ],
+)
+def test_a_decision_event_that_contradicts_the_database_settles_nothing(
+    django_capture_on_commit_callbacks,
+    requester,
+    confirmer,
+    current_material,
+    organization,
+    tamper,
+) -> None:
+    """A malformed or foreign event must not close todos or take a receipt."""
+
+    from apps.identity.models.organization import Organization
+    from apps.notifications.models import Todo, TodoStatus
+    from apps.platform.outbox.models import ConsumerReceipt, OutboxEvent
+    from apps.platform.outbox.tasks import LocalOutboxPublisher
+    from apps.products.consumers import MaterialConfirmationEventRejected
+
+    with django_capture_on_commit_callbacks(execute=True):
+        confirmation = submit(requester, current_material, confirmer)
+
+    todo = Todo.objects.get(dedup_key=f"material_confirmation:{confirmation.public_id}")
+    event = OutboxEvent.objects.create(
+        event_type="material_confirmation.decided",
+        aggregate_type="material_confirmation",
+        aggregate_id=confirmation.public_id,
+        payload_json={
+            "confirmation_public_id": str(confirmation.public_id),
+            "material_public_id": str(current_material.public_id),
+            "decision": MaterialConfirmationDecision.APPROVED,
+            "actor_user_id": confirmer.id,
+        },
+        occurred_at=timezone.now(),
+    )
+    actors = {
+        "requester": requester.id,
+        "foreign": User.objects.create_user(
+            organization=Organization.objects.create(name="Foreign Notifier"),
+            display_name="Foreign Notifier",
+            status=UserStatus.ACTIVE,
+            activated_at=timezone.now(),
+        ).id,
+    }
+    payload = dict(event.payload_json)
+    for key, value in tamper.items():
+        payload[key] = actors.get(str(value), value)
+    OutboxEvent.objects.filter(pk=event.pk).update(payload_json=payload)
+    event.refresh_from_db()
+
+    with pytest.raises(MaterialConfirmationEventRejected):
+        LocalOutboxPublisher().publish(event)
+
+    todo.refresh_from_db()
+    assert todo.status == TodoStatus.OPEN
+    assert not ConsumerReceipt.objects.filter(event=event).exists()
 
 
 def test_the_decision_settlement_event_can_be_replayed_without_reopening(

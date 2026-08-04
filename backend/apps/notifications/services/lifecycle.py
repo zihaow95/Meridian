@@ -128,6 +128,70 @@ class CloseNotification:
 
 
 @dataclass(frozen=True)
+class SynchronizeNotificationForTodo:
+    """Close the notifications one todo owns, not every notice of its source.
+
+    A source can be asked about more than once — a returned confirmation is
+    followed by a fresh request — so closing by source would silence the newer
+    ask as well.
+    """
+
+    organization_id: int
+    todo_id: int
+    todo_public_id: UUID
+    actor: User
+    close_reason: str = "SOURCE_SETTLED"
+    trace_id: str = ""
+
+    def execute(self) -> int:
+        if self.actor is None:
+            raise ValueError(
+                "SynchronizeNotificationForTodo requires an actor so every "
+                "automatic close leaves an audit fact."
+            )
+        now = timezone.now()
+        with transaction.atomic():
+            open_rows = list(
+                Notification.objects.select_for_update()
+                .filter(organization_id=self.organization_id, todo_id=self.todo_id)
+                .filter(Q(status=NotificationStatus.UNREAD) | Q(status=NotificationStatus.READ))
+                .order_by("pk")
+                .values_list("public_id", flat=True)
+            )
+            if not open_rows:
+                return 0
+            updated = (
+                Notification.objects.filter(public_id__in=list(open_rows))
+                .filter(Q(status=NotificationStatus.UNREAD) | Q(status=NotificationStatus.READ))
+                .update(
+                    status=NotificationStatus.CLOSED,
+                    closed_at=now,
+                    close_reason=self.close_reason,
+                )
+            )
+            if updated:
+                append_event(
+                    AuditRecord(
+                        actor=self.actor,
+                        action_code="notification.message.close",
+                        resource_type="notifications.todo",
+                        resource_public_id=self.todo_public_id,
+                        result=AuditResult.SUCCESS,
+                        trace_id=self.trace_id,
+                        occurred_at=now,
+                        acting_roles_snapshot=acting_roles_snapshot(self.actor),
+                        after_summary={
+                            "closed_count": updated,
+                            "close_reason": self.close_reason,
+                            "notification_public_ids": [str(pid) for pid in open_rows],
+                        },
+                        reason="SOURCE_SETTLED",
+                    )
+                )
+            return updated
+
+
+@dataclass(frozen=True)
 class SynchronizeNotificationForSource:
     """Close open notifications that point at a settled domain source.
 

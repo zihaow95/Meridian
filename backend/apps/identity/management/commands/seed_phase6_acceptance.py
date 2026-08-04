@@ -59,6 +59,7 @@ from apps.notifications.models import (
     NotificationLevel,
     NotificationStatus,
 )
+from apps.notifications.services.lifecycle import CloseNotification
 from apps.notifications.services.notifications import CreateInAppNotification
 from apps.pilot.models import PilotBatchPurpose, PilotBatchStatus, PilotFeedbackSeverity
 from apps.pilot.services.batches import (
@@ -466,15 +467,23 @@ class Command(BaseCommand):
             # row is a fact a run already consumed: keep it as history and add a
             # fresh unread sibling instead of reopening it. Reusing the existing
             # UNREAD row keeps at most one live fixture per category.
-            reusable = (
+            unread = list(
                 Notification.objects.filter(
                     recipient=actor,
                     dedup_key__startswith=base_key,
                     status=NotificationStatus.UNREAD,
-                )
-                .order_by("-id")
-                .first()
+                ).order_by("-id")
             )
+            reusable = unread[0] if unread else None
+            # A database seeded by the older algorithm can already carry rival
+            # unread facts for one category. Retire the extras through the
+            # governed lifecycle: history stays readable, nothing is rewritten.
+            for superseded in unread[1:]:
+                CloseNotification(
+                    context=CommandContext.for_actor(actor),
+                    notification_public_id=superseded.public_id,
+                    close_reason="SEED_FIXTURE_SUPERSEDED",
+                ).execute()
             if reusable is not None:
                 Notification.objects.filter(pk=reusable.pk).update(deep_link=deep_link)
                 continue

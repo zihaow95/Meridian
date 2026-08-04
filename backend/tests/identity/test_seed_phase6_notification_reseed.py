@@ -90,6 +90,51 @@ def test_phase6_notification_seed_reseeds_after_a_run_stops_between_read_and_clo
     ).count() == len(read_ids)
 
 
+def test_phase6_notification_seed_retires_duplicate_unread_left_by_older_seeds(
+    organization: Organization,
+    active_user: User,
+    grant_action: Callable[..., None],
+) -> None:
+    """An upgraded database can already hold rival unread facts for one category."""
+
+    from apps.notifications.services.notifications import CreateInAppNotification
+
+    grant_action(active_user, "notification.read", "identity.user")
+    command = SeedPhase6Command()
+    command._publish_notification_catalogs(organization, active_user)
+
+    category, level = _CATEGORY_LEVELS[0]
+    base = f"phase6:notify:{category}:{level}"
+    legacy_keys = (base, f"{base}:open", f"{base}:open:2")
+    for key in legacy_keys:
+        CreateInAppNotification(
+            recipient=active_user,
+            template_code=f"phase6.{category.lower()}",
+            variables={"title": f"{category}-{level}"},
+            object_type="identity.user",
+            object_id=active_user.public_id,
+            dedup_key=key,
+            deep_link="/todos",
+            action_code="notification.read",
+            level=level,
+        ).execute()
+
+    command._ensure_notifications(active_user)
+
+    rows = list(
+        Notification.objects.filter(recipient=active_user, dedup_key__startswith=base).order_by(
+            "id"
+        )
+    )
+    assert [row.dedup_key for row in rows] == list(legacy_keys)
+    unread = [row for row in rows if row.status == NotificationStatus.UNREAD]
+    assert [row.dedup_key for row in unread] == [f"{base}:open:2"]
+    retired = [row for row in rows if row.status == NotificationStatus.CLOSED]
+    assert len(retired) == 2
+    assert all(row.close_reason == "SEED_FIXTURE_SUPERSEDED" for row in retired)
+    assert all(row.closed_at is not None for row in retired)
+
+
 def test_phase6_notification_seed_reuses_the_unread_fixture_instead_of_appending(
     organization: Organization,
     active_user: User,

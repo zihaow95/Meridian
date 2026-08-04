@@ -48,6 +48,16 @@ class MaterialConfirmationRejected(Exception):
     """The confirmation step cannot proceed as asked."""
 
 
+def confirmation_todo_dedup_key(confirmation_public_id: UUID) -> str:
+    """Name the todo one confirmation request owns.
+
+    Requesting and settling must agree on this key, otherwise a settlement can
+    only work by source and would reach a later request for the same material.
+    """
+
+    return f"material_confirmation:{confirmation_public_id}"
+
+
 def _may_confirm(user: User, material: ProductMaterial) -> bool:
     return authorize(
         subject_for(user),
@@ -250,7 +260,7 @@ class SubmitMaterialConfirmation:
                 )
             )
             title = f"Confirm material {material.material_type_code}"
-            dedup_key = f"material_confirmation:{confirmation.public_id}"
+            dedup_key = confirmation_todo_dedup_key(confirmation.public_id)
             outbox_event = register_outbox_event(
                 OutboxMessage(
                     event_type="todo.requested",
@@ -353,8 +363,11 @@ class DecideMaterialConfirmation:
                     payload={
                         "confirmation_public_id": str(confirmation.public_id),
                         "material_public_id": str(material.public_id),
+                        "organization_id": material.organization_id,
                         "decision": confirmation.decision,
                         "actor_user_id": actor.id,
+                        "assignee_id": confirmation.confirmer_id,
+                        "todo_dedup_key": confirmation_todo_dedup_key(confirmation.public_id),
                     },
                     occurred_at=self.context.occurred_at or timezone.now(),
                 )
