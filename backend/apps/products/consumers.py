@@ -106,9 +106,6 @@ class MaterialConfirmationDecidedConsumer:
             dedup_key=dedup_key,
             status=TodoStatus.COMPLETED,
             close_reason="SOURCE_COMPLETED",
-            # The settle command re-judges the actor on the material's own
-            # sensitivity, not a default.
-            sensitivity_level=material.sensitivity_level,
         ).execute()
 
 

@@ -6,7 +6,13 @@ allowed to bring the next attempt forward instead, because "PENDING and therefor
 retryable" is not a closed loop when nothing is running to retry it.
 
 The attempt budget is never refilled: forcing an earlier attempt must not let a
-genuinely broken event escape becoming FAILED and queryable.
+genuinely broken event escape becoming FAILED and queryable. Convergence keeps
+attempting until every event in scope leaves PENDING, so a bad event spends its
+whole budget here rather than being handed back as "still retryable, one day".
+
+Scope is mandatory. Draining every row of a given type across the database would
+let one organization's operator step publish another organization's business
+events, and would let a stranger's failing event block the caller's own loop.
 """
 
 from __future__ import annotations
@@ -19,8 +25,11 @@ from django.utils import timezone
 
 from apps.platform.outbox.dispatcher import OutboxPublisher, dispatch_pending_events
 from apps.platform.outbox.models import OutboxEvent, OutboxStatus
+from apps.platform.outbox.retry import MAX_ATTEMPTS
 
-DEFAULT_MAX_ROUNDS = 6
+# Enough rounds for one event to spend its whole retry budget, plus room for a
+# chain where each success unblocks the next event.
+DEFAULT_MAX_ROUNDS = MAX_ATTEMPTS + 4
 
 
 @dataclass(frozen=True)
@@ -53,35 +62,50 @@ class ConvergenceReport:
 def converge_pending_events(
     *,
     publisher: OutboxPublisher,
+    event_ids: Collection[int] | None = None,
     event_types: Collection[str] | None = None,
     max_rounds: int = DEFAULT_MAX_ROUNDS,
     limit: int = 200,
 ) -> ConvergenceReport:
-    """Dispatch pending events, including backed-off retries, until nothing moves.
+    """Attempt every pending event in scope until none is left PENDING.
 
     Rounds matter because one event can unblock another: a settlement whose todo
     is not projected yet only succeeds after the projection event ahead of it does.
 
-    `event_types` keeps a caller to the loop it owns. A seed that must settle its own
-    todos has no business draining an unrelated backlog, and would in any case be
-    pushed off the end of the dispatch window by it.
+    A round that publishes nothing is not the end of the loop - a rejected event
+    that spent an attempt is progress, and the next round must take the following
+    attempt so the event can reach FAILED inside this call. Only a round that
+    neither publishes nor attempts anything ends the loop.
+
+    `event_ids` names the exact rows a caller owns; `event_types` narrows a
+    deliberate sweep. At least one is required.
     """
 
+    if event_ids is None and event_types is None:
+        raise ValueError("Convergence needs an explicit scope: event_ids and/or event_types.")
+    if event_ids is not None and not event_ids:
+        return ConvergenceReport(dispatched=0, rounds=0, undelivered=())
+
+    scope = _ScopedEvents(event_ids=event_ids, event_types=event_types)
     dispatched = 0
     rounds = 0
-    while rounds < max_rounds:
+    while rounds < max_rounds and scope.pending().exists():
         rounds += 1
-        if not _undecided(event_types).filter(status=OutboxStatus.PENDING).exists():
-            break
+        before = scope.progress_marker()
         now = timezone.now()
         # A PENDING row with no scheduled attempt, or one scheduled for later, is
         # invisible to the dispatcher; bring both into this attempt.
-        _undecided(event_types).filter(status=OutboxStatus.PENDING).filter(
-            Q(next_attempt_at__gt=now) | Q(next_attempt_at__isnull=True)
-        ).update(next_attempt_at=now, updated_at=now)
-        moved = dispatch_pending_events(publisher=publisher, limit=limit, event_types=event_types)
+        scope.pending().filter(Q(next_attempt_at__gt=now) | Q(next_attempt_at__isnull=True)).update(
+            next_attempt_at=now, updated_at=now
+        )
+        moved = dispatch_pending_events(
+            publisher=publisher,
+            limit=limit,
+            event_types=event_types,
+            event_ids=event_ids,
+        )
         dispatched += moved
-        if moved == 0:
+        if moved == 0 and scope.progress_marker() == before:
             break
 
     undelivered = tuple(
@@ -92,7 +116,7 @@ def converge_pending_events(
             attempt_count=event.attempt_count,
             last_error_code=event.last_error_code,
         )
-        for event in _undecided(event_types)
+        for event in scope.all()
         .filter(
             status__in=[OutboxStatus.PENDING, OutboxStatus.PROCESSING, OutboxStatus.FAILED],
         )
@@ -101,8 +125,29 @@ def converge_pending_events(
     return ConvergenceReport(dispatched=dispatched, rounds=rounds, undelivered=undelivered)
 
 
-def _undecided(event_types: Collection[str] | None) -> QuerySet[OutboxEvent]:
-    events = OutboxEvent.objects.all()
-    if event_types is not None:
-        events = events.filter(event_type__in=list(event_types))
-    return events
+@dataclass(frozen=True)
+class _ScopedEvents:
+    event_ids: Collection[int] | None
+    event_types: Collection[str] | None
+
+    def all(self) -> QuerySet[OutboxEvent]:
+        events = OutboxEvent.objects.all()
+        if self.event_ids is not None:
+            events = events.filter(pk__in=list(self.event_ids))
+        if self.event_types is not None:
+            events = events.filter(event_type__in=list(self.event_types))
+        return events
+
+    def pending(self) -> QuerySet[OutboxEvent]:
+        return self.all().filter(status=OutboxStatus.PENDING)
+
+    def progress_marker(self) -> tuple[int, int]:
+        """What changed in a round: rows still pending, and attempts spent so far."""
+
+        spent = 0
+        remaining = 0
+        for status, attempt_count in self.all().values_list("status", "attempt_count"):
+            spent += attempt_count
+            if status == OutboxStatus.PENDING:
+                remaining += 1
+        return remaining, spent

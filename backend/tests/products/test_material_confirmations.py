@@ -34,6 +34,7 @@ from apps.products.models import (
     AttributeOwnerType,
     MaterialConfirmation,
     MaterialConfirmationDecision,
+    MaterialConfirmationSettlementRepair,
     MaterialStatus,
     ProductMaterial,
 )
@@ -880,7 +881,8 @@ def test_a_receipt_from_an_earlier_build_no_longer_strands_an_open_todo(
 
     with django_capture_on_commit_callbacks(execute=True):
         reissued = ReissueSettlementForDecidedConfirmations(
-            context=CommandContext.for_actor(requester)
+            context=CommandContext.for_actor(requester),
+            confirmation_public_ids=[undelivered_decision.confirmation.public_id],
         ).execute()
 
     assert reissued == [undelivered_decision.confirmation.public_id]
@@ -903,6 +905,11 @@ def test_a_receipt_from_an_earlier_build_no_longer_strands_an_open_todo(
         resource_public_id=undelivered_decision.confirmation.public_id,
         actor_user=requester,
     ).exists()
+    repairs = MaterialConfirmationSettlementRepair.objects.filter(
+        confirmation=undelivered_decision.confirmation
+    )
+    assert repairs.count() == 1
+    assert repairs.get().todo_public_id == undelivered_decision.todo.public_id
 
 
 def test_the_repair_leaves_an_undelivered_settlement_to_converge_on_its_own(
@@ -916,7 +923,8 @@ def test_the_repair_leaves_an_undelivered_settlement_to_converge_on_its_own(
     )
 
     reissued = ReissueSettlementForDecidedConfirmations(
-        context=CommandContext.for_actor(requester)
+        context=CommandContext.for_actor(requester),
+        confirmation_public_ids=[undelivered_decision.confirmation.public_id],
     ).execute()
 
     assert reissued == []
@@ -941,13 +949,322 @@ def test_the_repair_refuses_an_actor_without_the_manage_action(
 
     with pytest.raises(PermissionDeniedError):
         ReissueSettlementForDecidedConfirmations(
-            context=CommandContext.for_actor(confirmer)
+            context=CommandContext.for_actor(confirmer),
+            confirmation_public_ids=[undelivered_decision.confirmation.public_id],
         ).execute()
 
     assert not OutboxEvent.objects.filter(
         event_type="material_confirmation.decided",
         aggregate_id=undelivered_decision.confirmation.public_id,
     ).exists()
+    assert not MaterialConfirmationSettlementRepair.objects.exists()
+
+
+def _strand_settlement(material, requester, confirmer, capture, monkeypatch) -> Any:
+    """Reproduce an older build's fact: receipted settlement, still-open todo.
+
+    That build settled inside the deciding transaction, so its consumer closed
+    nothing while still earning a receipt. A consumer that does nothing reproduces
+    exactly that, without hand-writing the receipt the repair has to work around.
+    """
+
+    from apps.notifications.models import Todo, TodoStatus
+    from apps.platform.outbox.models import ConsumerReceipt, OutboxEvent, OutboxStatus
+    from apps.products.consumers import MaterialConfirmationDecidedConsumer
+
+    with capture(execute=True):
+        confirmation = submit(requester, material, confirmer)
+    monkeypatch.setattr(
+        MaterialConfirmationDecidedConsumer, "consume", lambda self, event: None, raising=True
+    )
+    with capture(execute=True):
+        decide(confirmer, confirmation, MaterialConfirmationDecision.APPROVED)
+    monkeypatch.undo()
+
+    event = OutboxEvent.objects.get(
+        event_type="material_confirmation.decided",
+        aggregate_id=confirmation.public_id,
+    )
+    assert event.status == OutboxStatus.PUBLISHED
+    assert ConsumerReceipt.objects.filter(event=event).exists()
+    todo = Todo.objects.get(dedup_key=f"material_confirmation:{confirmation.public_id}")
+    assert todo.status == TodoStatus.OPEN
+    return confirmation, todo
+
+
+def test_the_repair_leaves_alone_the_stranded_todo_it_was_not_asked_about(
+    django_capture_on_commit_callbacks,
+    monkeypatch,
+    requester,
+    confirmer,
+    current_material,
+    organization,
+    change_set,
+    controlled_document_version,
+) -> None:
+    """A repair moves real business facts, so its scope is the caller's, not a scan.
+
+    Reporting candidates is read-only and may look at everything open; deciding to
+    reissue is a named list, so a seed or an operator can answer for exactly what it
+    touched instead of dragging along work nobody asked about.
+    """
+
+    from apps.notifications.models import TodoStatus
+    from apps.products.services.material_confirmation_repair import (
+        ReissueSettlementForDecidedConfirmations,
+        stranded_settlement_candidates,
+    )
+
+    named, named_todo = _strand_settlement(
+        current_material, requester, confirmer, django_capture_on_commit_callbacks, monkeypatch
+    )
+    other_material = ProductMaterial.objects.create(
+        organization=organization,
+        change_set=change_set,
+        owner_type=AttributeOwnerType.PRODUCT,
+        owner_id=change_set.product_id,
+        material_type_code="PRODUCT_MANUAL",
+        document_version=controlled_document_version(content=b"%PDF-1.4 manual"),
+        version_no=1,
+        current_slot=1,
+    )
+    unnamed, unnamed_todo = _strand_settlement(
+        other_material, requester, confirmer, django_capture_on_commit_callbacks, monkeypatch
+    )
+
+    candidates = stranded_settlement_candidates(organization_id=requester.organization_id)
+    assert set(candidates) == {named.public_id, unnamed.public_id}
+
+    with django_capture_on_commit_callbacks(execute=True):
+        reissued = ReissueSettlementForDecidedConfirmations(
+            context=CommandContext.for_actor(requester),
+            confirmation_public_ids=[named.public_id],
+        ).execute()
+
+    named_todo.refresh_from_db()
+    unnamed_todo.refresh_from_db()
+    assert reissued == [named.public_id]
+    assert named_todo.status == TodoStatus.COMPLETED
+    assert unnamed_todo.status == TodoStatus.OPEN
+    assert not MaterialConfirmationSettlementRepair.objects.filter(confirmation=unnamed).exists()
+
+
+def test_a_stranded_todo_is_repaired_once_even_if_the_repair_settled_nothing(
+    django_capture_on_commit_callbacks, monkeypatch, requester, confirmer, current_material
+) -> None:
+    """One repair per stranded todo, decided by the database and not by a re-scan.
+
+    If the reissued settlement itself closes nothing, the todo stays OPEN and visible
+    to an operator. Repairing again on every pass would append events and audit
+    records forever while changing nothing.
+    """
+
+    from apps.notifications.models import TodoStatus
+    from apps.platform.outbox.models import OutboxEvent
+    from apps.products.consumers import MaterialConfirmationDecidedConsumer
+    from apps.products.services.material_confirmation_repair import (
+        REISSUE_REASON,
+        ReissueSettlementForDecidedConfirmations,
+    )
+
+    confirmation, todo = _strand_settlement(
+        current_material, requester, confirmer, django_capture_on_commit_callbacks, monkeypatch
+    )
+
+    def _repair() -> list:
+        return ReissueSettlementForDecidedConfirmations(
+            context=CommandContext.for_actor(requester),
+            confirmation_public_ids=[confirmation.public_id],
+        ).execute()
+
+    monkeypatch.setattr(
+        MaterialConfirmationDecidedConsumer, "consume", lambda self, event: None, raising=True
+    )
+    with django_capture_on_commit_callbacks(execute=True):
+        first = _repair()
+    monkeypatch.undo()
+    todo.refresh_from_db()
+    assert first == [confirmation.public_id]
+    assert todo.status == TodoStatus.OPEN
+
+    second = _repair()
+
+    assert second == []
+    assert (
+        MaterialConfirmationSettlementRepair.objects.filter(confirmation=confirmation).count() == 1
+    )
+    assert (
+        OutboxEvent.objects.filter(
+            event_type="material_confirmation.decided",
+            aggregate_id=confirmation.public_id,
+            payload_json__reissue_reason=REISSUE_REASON,
+        ).count()
+        == 1
+    )
+    assert (
+        AuditEvent.objects.filter(
+            action_code="product_material.confirmation_settle_reissue",
+            resource_public_id=confirmation.public_id,
+        ).count()
+        == 1
+    )
+
+
+@pytest.mark.django_db(transaction=True)
+def test_two_repair_processes_produce_one_reissued_settlement(
+    django_capture_on_commit_callbacks, monkeypatch, requester, confirmer, current_material
+) -> None:
+    """Compensation is a fact, so the database decides whether it already exists.
+
+    Two operators, or an operator and a retry, can reach the same stranded todo at
+    once. "Check, then insert" would let both append a settlement event and an audit
+    record for one repair, so the unique repair key is the arbiter and the loser
+    writes nothing at all.
+    """
+
+    import threading
+
+    from django.db import connection
+
+    from apps.notifications.models import TodoStatus
+    from apps.platform.outbox.models import OutboxEvent
+    from apps.products.services.material_confirmation_repair import (
+        REISSUE_REASON,
+        ReissueSettlementForDecidedConfirmations,
+    )
+
+    confirmation, todo = _strand_settlement(
+        current_material, requester, confirmer, django_capture_on_commit_callbacks, monkeypatch
+    )
+
+    results: list[str] = []
+    barrier = threading.Barrier(2)
+    lock = threading.Lock()
+
+    def _repair(label: str) -> None:
+        connection.close()
+        try:
+            barrier.wait(timeout=10)
+            reissued = ReissueSettlementForDecidedConfirmations(
+                context=CommandContext.for_actor(requester),
+                confirmation_public_ids=[confirmation.public_id],
+            ).execute()
+            with lock:
+                results.append(f"reissued:{label}" if reissued else f"skipped:{label}")
+        except Exception as exc:  # noqa: BLE001 - collected for the assertion
+            with lock:
+                results.append(f"error:{type(exc).__name__}:{label}")
+        finally:
+            connection.close()
+
+    threads = [
+        threading.Thread(target=_repair, args=("a",)),
+        threading.Thread(target=_repair, args=("b",)),
+    ]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join(timeout=30)
+        assert not thread.is_alive(), "concurrent settlement repair did not finish"
+
+    assert not [item for item in results if item.startswith("error:")], results
+    assert len([item for item in results if item.startswith("reissued:")]) == 1, results
+    assert len([item for item in results if item.startswith("skipped:")]) == 1, results
+    assert (
+        MaterialConfirmationSettlementRepair.objects.filter(confirmation=confirmation).count() == 1
+    )
+    assert (
+        OutboxEvent.objects.filter(
+            event_type="material_confirmation.decided",
+            aggregate_id=confirmation.public_id,
+            payload_json__reissue_reason=REISSUE_REASON,
+        ).count()
+        == 1
+    )
+    assert (
+        AuditEvent.objects.filter(
+            action_code="product_material.confirmation_settle_reissue",
+            resource_public_id=confirmation.public_id,
+        ).count()
+        == 1
+    )
+    todo.refresh_from_db()
+    assert todo.status == TodoStatus.COMPLETED
+    assert todo.open_slot is None
+
+
+def test_the_operations_command_reports_before_it_moves_anything(
+    django_capture_on_commit_callbacks, monkeypatch, requester, confirmer, current_material
+) -> None:
+    """History repair is an operator's decision, taken twice: report, then apply.
+
+    Nothing in request handling or seeding may sweep an organization's history, so
+    the sweep lives behind a command that says what it found and only closes todos
+    when asked to.
+    """
+
+    from django.core.management import call_command
+
+    from apps.notifications.models import TodoStatus
+
+    confirmation, todo = _strand_settlement(
+        current_material, requester, confirmer, django_capture_on_commit_callbacks, monkeypatch
+    )
+
+    call_command(
+        "repair_material_confirmation_settlements",
+        "--actor-login-key",
+        requester.login_key,
+    )
+
+    todo.refresh_from_db()
+    assert todo.status == TodoStatus.OPEN
+    assert not MaterialConfirmationSettlementRepair.objects.exists()
+
+    call_command(
+        "repair_material_confirmation_settlements",
+        "--actor-login-key",
+        requester.login_key,
+        "--apply",
+    )
+
+    todo.refresh_from_db()
+    assert todo.status == TodoStatus.COMPLETED
+    assert (
+        MaterialConfirmationSettlementRepair.objects.filter(confirmation=confirmation).count() == 1
+    )
+
+
+def test_a_settlement_is_refused_when_the_material_outranks_the_confirmers_clearance(
+    undelivered_decision, confirmer, current_material
+) -> None:
+    """The settle judges the locked material's own level, whatever the caller read.
+
+    Whoever asks for a settlement read the material outside the settling transaction,
+    so its sensitivity may have been raised since. A stale lower level must not buy
+    the right to close a todo on a material the actor may no longer touch.
+    """
+
+    from apps.authorization.models.role import (
+        DataSensitivityLevel,
+        PermissionAction,
+        Role,
+        RolePermission,
+    )
+    from apps.platform.outbox.tasks import LocalOutboxPublisher
+
+    RolePermission.objects.filter(
+        role=Role.objects.get(role_code="ROLE_PRODUCT_MATERIAL_CONFIRM"),
+        action=PermissionAction.objects.get(action_code="product_material.confirm"),
+    ).update(max_data_level=DataSensitivityLevel.INTERNAL)
+    ProductMaterial.objects.filter(pk=current_material.pk).update(
+        sensitivity_level=DataSensitivityLevel.HIGHLY_SENSITIVE
+    )
+
+    with pytest.raises(PermissionDeniedError):
+        LocalOutboxPublisher().publish(undelivered_decision.event)
+
+    _assert_settled_nothing(undelivered_decision)
 
 
 def test_confirmation_survives_when_local_outbox_dispatch_fails(

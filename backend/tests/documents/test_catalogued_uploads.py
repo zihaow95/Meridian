@@ -318,6 +318,36 @@ def test_completing_the_same_session_twice_is_refused(
         ).execute()
 
 
+def test_a_second_completer_settles_after_the_first_moved_the_bytes(
+    active_user: User, file_storage, publish_catalog, catalogued_session
+) -> None:
+    """The loser of a completion race must not fail on the winner's success.
+
+    Between the winner binding its version and marking the session complete, a
+    second completer can hold the session lock while the temp payload is already
+    in permanent storage. Re-reading those bytes to check the catalog signature
+    would fail an upload that in fact succeeded.
+    """
+
+    publish_catalog(catalog_item())
+    session = catalogued_session()
+    winner = CompleteUpload(
+        session_public_id=session.public_id, actor=active_user, storage=file_storage
+    ).execute()
+    assert not Path(session.temp_path).exists()
+    # Reopen the window the racing completer would have entered.
+    session.completed_at = None
+    session.save(update_fields=["completed_at"])
+
+    settled = CompleteUpload(
+        session_public_id=session.public_id, actor=active_user, storage=file_storage
+    ).execute()
+
+    assert settled.id == winner.id
+    assert settled.status == VersionStatus.CONTROLLED
+    assert DocumentVersion.objects.filter(status=VersionStatus.CONTROLLED).count() == 1
+
+
 @pytest.mark.django_db(transaction=True)
 def test_two_concurrent_completions_settle_to_one_controlled_version(
     active_user: User, file_storage, publish_catalog, catalogued_session

@@ -7,6 +7,7 @@ from datetime import datetime
 from typing import Any
 from uuid import UUID
 
+from django.apps import apps as django_apps
 from django.db import IntegrityError, transaction
 
 from apps.authorization.context import AuthorizationContext, ResourceDescriptor
@@ -124,6 +125,14 @@ class SettleOpenTodosForSource:
             return updated
 
 
+# The domain row that owns the sensitivity a settle must respect, per todo source.
+# Resolved through the app registry so a projection app does not depend on a domain
+# app; a source that is not listed cannot be judged and is therefore refused.
+_AUTHORITATIVE_SOURCES: dict[str, tuple[str, str, tuple[str, ...]]] = {
+    "product_material": ("products", "ProductMaterial", ("material_type_code",)),
+}
+
+
 class TodoNotProjectedYet(Exception):
     """The todo this settlement targets has not been projected at all yet.
 
@@ -142,7 +151,8 @@ class SettleOneOpenTodo:
 
     The actor is re-judged against the locked todo rather than trusted from the
     caller: a projection consumer reads whatever an event claims, so the right to
-    settle has to be established here, in the same transaction as the write.
+    settle has to be established here, in the same transaction as the write, and
+    against the locked domain row rather than any sensitivity the caller supplies.
     """
 
     context: CommandContext
@@ -150,7 +160,6 @@ class SettleOneOpenTodo:
     dedup_key: str
     status: str
     close_reason: str
-    sensitivity_level: str = "INTERNAL"
 
     def execute(self) -> int:
         from apps.notifications.services.lifecycle import SynchronizeNotificationForTodo
@@ -204,16 +213,40 @@ class SettleOneOpenTodo:
         decision = authorize(
             subject_for(self.context.actor),
             action=todo.action_code,
-            resource=ResourceDescriptor(
-                resource_type=todo.source_type,
-                public_id=todo.source_id,
-                organization_id=todo.organization_id,
-                sensitivity_level=self.sensitivity_level,
-            ),
+            resource=self._locked_source_of(todo),
             context=AuthorizationContext.current(),
         )
         if not decision.allowed:
             raise PermissionDeniedError()
+
+    def _locked_source_of(self, todo: Todo) -> ResourceDescriptor:
+        """Read the sensitivity from the locked domain row, not from the caller.
+
+        Whoever asked for this settlement read the source outside this transaction,
+        so its sensitivity may already have been raised since. Locking and re-reading
+        here closes the window where a settle is judged against a stale, lower level.
+        """
+
+        source = _AUTHORITATIVE_SOURCES.get(todo.source_type)
+        if source is None:
+            raise PermissionDeniedError()
+        app_label, model_name, metadata_fields = source
+        model = django_apps.get_model(app_label, model_name)
+        row = (
+            model.objects.select_for_update()
+            .filter(public_id=todo.source_id, organization_id=todo.organization_id)
+            .values("sensitivity_level", *metadata_fields)
+            .first()
+        )
+        if row is None:
+            raise PermissionDeniedError()
+        return ResourceDescriptor(
+            resource_type=todo.source_type,
+            public_id=todo.source_id,
+            organization_id=todo.organization_id,
+            sensitivity_level=str(row["sensitivity_level"]),
+            metadata={field: row[field] for field in metadata_fields},
+        )
 
 
 @dataclass(frozen=True)

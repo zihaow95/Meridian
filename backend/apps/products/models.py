@@ -1002,6 +1002,42 @@ class MaterialConfirmation(OrganizationOwnedModel):
         ]
 
 
+class MaterialConfirmationSettlementRepair(OrganizationOwnedModel):
+    """The one repair a stranded confirmation todo is allowed to receive.
+
+    An earlier build could receipt `material_confirmation.decided` while the
+    request's own todo was still unprojected, leaving an APPROVED material behind
+    an OPEN todo. The repair re-emits the settlement, so it must be recorded as a
+    fact and not decided by "check, then insert": two operators, or an operator and
+    a retry, would otherwise each append an event and an audit record for the same
+    stranded todo. The unique key is the arbiter; a repair that still fails to
+    settle stays visible as an OPEN todo for an operator instead of looping.
+    """
+
+    confirmation = models.ForeignKey(
+        MaterialConfirmation,
+        on_delete=models.PROTECT,
+        related_name="settlement_repairs",
+    )
+    todo_public_id = models.UUIDField()
+    # The reissued event, kept as a plain id: products must not own an outbox row.
+    reissued_event_id = models.UUIDField()
+    reason = models.CharField(max_length=64)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = "products_material_confirmation_settlement_repair"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["confirmation", "todo_public_id"],
+                name="products_material_repair_uniq",
+            )
+        ]
+
+    def __str__(self) -> str:  # pragma: no cover - debug helper
+        return f"repair {self.confirmation_id}/{self.todo_public_id}"
+
+
 class ImportBatchStatus(models.TextChoices):
     UPLOADED = "UPLOADED", "Uploaded"
     PARSING = "PARSING", "Parsing"

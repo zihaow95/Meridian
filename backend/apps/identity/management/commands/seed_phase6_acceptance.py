@@ -95,6 +95,7 @@ from apps.products.services.create_legacy_baseline import CreateLegacyBaselineDr
 from apps.products.services.legacy_material_intake import CreateLegacyMaterialSubmission
 from apps.products.services.material_confirmation_repair import (
     ReissueSettlementForDecidedConfirmations,
+    stranded_settlement_candidates,
 )
 from apps.products.services.material_confirmations import confirmation_todo_dedup_key
 from apps.products.services.publish_legacy_baseline import PublishLegacyBaseline
@@ -535,18 +536,23 @@ class Command(BaseCommand):
         those events here, repair settlements an earlier build receipted into thin air,
         then assert the end state rather than disclosing an intention.
 
-        Only the two projection event types are converged. Events of other types are
-        somebody else's loop, and a long-lived database can hold thousands of them.
+        Scope is this organization's own confirmation events, named by exact row id.
+        A seed has no mandate over another organization's todos, and a long-lived
+        database can hold thousands of events belonging to loops it does not own -
+        including failing ones that would block this run.
         """
 
         publisher = LocalOutboxPublisher()
-        report = converge_pending_events(publisher=publisher, event_types=_PROJECTION_EVENT_TYPES)
+        report = converge_pending_events(
+            publisher=publisher, event_ids=self._own_projection_event_ids(actor)
+        )
         reissued = ReissueSettlementForDecidedConfirmations(
-            context=CommandContext.for_actor(actor)
+            context=CommandContext.for_actor(actor),
+            confirmation_public_ids=self._own_stranded_confirmations(actor),
         ).execute()
         if reissued:
             report = converge_pending_events(
-                publisher=publisher, event_types=_PROJECTION_EVENT_TYPES
+                publisher=publisher, event_ids=self._own_projection_event_ids(actor)
             )
 
         problems = [undelivered.describe() for undelivered in report.undelivered]
@@ -562,13 +568,48 @@ class Command(BaseCommand):
             f"{report.rounds} round(s), {len(reissued)} settlement(s) reissued."
         )
 
+    def _own_confirmation_ids(self, actor: User) -> list[UUID]:
+        return list(
+            MaterialConfirmation.objects.filter(organization_id=actor.organization_id).values_list(
+                "public_id", flat=True
+            )
+        )
+
+    def _own_projection_event_ids(self, actor: User) -> list[int]:
+        """The exact projection event rows this organization's confirmations own.
+
+        Both projection event types are registered against a `material_confirmation`
+        aggregate, so the organization's confirmations name the whole set without
+        reaching a stranger's event of the same type.
+        """
+
+        return list(
+            OutboxEvent.objects.filter(
+                event_type__in=_PROJECTION_EVENT_TYPES,
+                aggregate_type="material_confirmation",
+                aggregate_id__in=self._own_confirmation_ids(actor),
+            ).values_list("pk", flat=True)
+        )
+
+    def _own_stranded_confirmations(self, actor: User) -> list[UUID]:
+        """Decided confirmations of this organization whose todo is still open.
+
+        The seed repairs only what it can see standing open after its own
+        convergence. Sweeping an organization's whole history is an operations
+        decision and lives in `repair_material_confirmation_settlements`.
+        """
+
+        return stranded_settlement_candidates(organization_id=actor.organization_id)
+
     def _unsettled_confirmation_facts(self, actor: User) -> list[str]:
         """Report every way the decided-confirmation loop could still be open."""
 
         problems: list[str] = []
-        for event in OutboxEvent.objects.filter(event_type__in=_PROJECTION_EVENT_TYPES).order_by(
-            "occurred_at", "pk"
-        ):
+        for event in OutboxEvent.objects.filter(
+            event_type__in=_PROJECTION_EVENT_TYPES,
+            aggregate_type="material_confirmation",
+            aggregate_id__in=self._own_confirmation_ids(actor),
+        ).order_by("occurred_at", "pk"):
             if event.status != OutboxStatus.PUBLISHED:
                 problems.append(f"{event.event_type} on {event.aggregate_id} is {event.status}")
             elif not ConsumerReceipt.objects.filter(event=event).exists():
@@ -582,6 +623,7 @@ class Command(BaseCommand):
             OutboxEvent.objects.filter(
                 event_type="todo.requested",
                 aggregate_type="material_confirmation",
+                aggregate_id__in=self._own_confirmation_ids(actor),
             ).values_list("aggregate_id", flat=True)
         )
         confirmations = (

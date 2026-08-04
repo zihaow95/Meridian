@@ -79,6 +79,26 @@ LAN URL, not a public hostname.
 - Do not leave `VITE_ENABLE_PILOT_PASSWORD_LOGIN=true` in shared production
   build pipelines.
 
+## Repair a confirmation todo left open
+
+No Celery worker or beat runs in this environment, so a projection event that
+failed once is not retried on its own. `seed_phase6_acceptance` converges its own
+confirmation events and fails loudly if any stay open, but a material approved by
+an earlier build can still wear an OPEN confirmation todo.
+
+Report the stranded confirmations of one organization:
+
+```
+uv run python manage.py repair_material_confirmation_settlements ^
+  --actor-login-key <operator-login-key>
+```
+
+Re-run with `--apply` to reissue their settlements. The operator needs
+`product_material.manage`; each repair is audited, keeps the original receipt, and
+is recorded once per stranded todo. A todo that is still OPEN after `--apply`
+means the reissued settlement itself failed - read the reported event and treat it
+as an incident rather than repeating the command.
+
 ## Known follow-ups
 
 - Whether password login remains after DingTalk is production-ready is a later

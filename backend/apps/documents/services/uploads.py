@@ -134,10 +134,12 @@ class CompleteUpload:
                 raise UploadValidationFailed("Uploaded file is empty.")
             if session.size_bytes > max_bytes:
                 raise UploadValidationFailed("Uploaded file exceeds size limit.")
-            if rules is not None:
-                _assert_content_matches_declaration(session)
 
             if session.document_version_id is not None:
+                # The payload passed the catalog signature check when this version
+                # was bound, and the bytes may already have been relocated into
+                # permanent storage by whoever bound it. Reading the temp file again
+                # would fail on the winner's success rather than on a real defect.
                 version = DocumentVersion.objects.select_related("file_object").get(
                     id=session.document_version_id
                 )
@@ -148,6 +150,8 @@ class CompleteUpload:
                     object_key=version.file_object.object_key,
                 )
             else:
+                if rules is not None:
+                    _assert_content_matches_declaration(session)
                 version, staged = stage_controlled_content(
                     organization=session.organization,
                     source_temp_path=Path(session.temp_path),
