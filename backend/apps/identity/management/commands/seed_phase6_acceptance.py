@@ -456,12 +456,40 @@ class Command(BaseCommand):
         )
         from apps.notifications.models import Notification
 
+        # E2E lists the newest page of notifications. Keep each category's open
+        # fixture inside that window even when earlier suite runs closed keys or
+        # buried old UNREAD rows under newer ACTION_REQUIRED traffic.
+        recent_ids = set(
+            Notification.objects.filter(recipient=actor)
+            .order_by("-created_at", "-id")
+            .values_list("id", flat=True)[:40]
+        )
         for category, level in _CATEGORY_LEVELS:
             template_code = f"phase6.{category.lower()}"
             deep_link = (
                 product_link if category == NotificationCategory.ACTION_REQUIRED else "/todos"
             )
-            dedup_key = f"phase6:notify:{category}:{level}"
+            base_key = f"phase6:notify:{category}:{level}"
+            # Prefer any non-CLOSED fixture for this category. Prior E2E runs may
+            # have closed both the primary and `:open` keys; never reopen history.
+            open_existing = (
+                Notification.objects.filter(
+                    recipient=actor,
+                    dedup_key__startswith=base_key,
+                )
+                .exclude(status=NotificationStatus.CLOSED)
+                .order_by("-id")
+                .first()
+            )
+            if open_existing is not None and open_existing.id in recent_ids:
+                Notification.objects.filter(pk=open_existing.pk).update(deep_link=deep_link)
+                continue
+
+            dedup_key = base_key
+            suffix = 0
+            while Notification.objects.filter(recipient=actor, dedup_key=dedup_key).exists():
+                suffix += 1
+                dedup_key = f"{base_key}:open" if suffix == 1 else f"{base_key}:open:{suffix}"
             CreateInAppNotification(
                 recipient=actor,
                 template_code=template_code,
@@ -473,32 +501,6 @@ class Command(BaseCommand):
                 action_code="notification.read",
                 level=level,
             ).execute()
-            existing = Notification.objects.filter(recipient=actor, dedup_key=dedup_key).first()
-            if existing is None:
-                continue
-            if existing.status == NotificationStatus.CLOSED:
-                # Never reopen CLOSED history. Seed a sibling unread fixture
-                # with a stable secondary key for later E2E suites.
-                reseed_key = f"{dedup_key}:open"
-                CreateInAppNotification(
-                    recipient=actor,
-                    template_code=template_code,
-                    variables={"title": f"{category}-{level}"},
-                    object_type="identity.user",
-                    object_id=actor.public_id,
-                    dedup_key=reseed_key,
-                    deep_link=deep_link,
-                    action_code="notification.read",
-                    level=level,
-                ).execute()
-                Notification.objects.filter(recipient=actor, dedup_key=reseed_key).exclude(
-                    status=NotificationStatus.CLOSED
-                ).update(deep_link=deep_link)
-            else:
-                # Refresh deep links on open rows only; keep read/close facts.
-                Notification.objects.filter(pk=existing.pk).exclude(
-                    status=NotificationStatus.CLOSED
-                ).update(deep_link=deep_link)
 
     def _ensure_document_volume(
         self, organization: Organization, actor: User

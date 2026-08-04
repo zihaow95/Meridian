@@ -13,6 +13,7 @@ from typing import Any
 from uuid import UUID
 
 from django.db import transaction
+from django.db.models import Q
 from django.utils import timezone
 
 from apps.audit.models import AuditResult
@@ -22,7 +23,11 @@ from apps.authorization.context import AuthorizationContext, ResourceDescriptor
 from apps.authorization.policies.engine import authorize
 from apps.authorization.services.subject import subject_for
 from apps.identity.models.user import User, UserStatus
-from apps.notifications.services.todos import CompleteOpenTodosForSource
+from apps.notifications.models import TodoStatus
+from apps.notifications.services.todos import (
+    CompleteOpenTodosForSource,
+    SettleOpenTodosForSource,
+)
 from apps.platform.api.errors import PermissionDeniedError
 from apps.platform.application.command import CommandContext
 from apps.platform.outbox.services import (
@@ -70,16 +75,95 @@ def supersede_live_confirmations(material: ProductMaterial, *, at: datetime | No
     )
 
 
-def supersede_open_confirmations(material: ProductMaterial, *, at: datetime | None = None) -> None:
-    """Retire live approvals and unfinished pending requests on a material."""
+@dataclass(frozen=True)
+class SupersedeOpenMaterialConfirmations:
+    """Governed retirement of live/pending confirmations when a material stands down.
 
-    clock = at or timezone.now()
-    supersede_live_confirmations(material, at=clock)
-    MaterialConfirmation.objects.filter(
-        material=material,
-        decision=MaterialConfirmationDecision.PENDING,
-        superseded_at__isnull=True,
-    ).update(superseded_at=clock, updated_at=clock)
+    Callers must already hold the material row lock inside an outer transaction.
+    """
+
+    context: CommandContext
+    material: ProductMaterial
+
+    def execute(self) -> int:
+        actor = self.context.actor
+        material = self.material
+        decision = authorize(
+            subject_for(actor),
+            action="product_material.manage",
+            resource=ResourceDescriptor(
+                resource_type="product_material",
+                public_id=material.public_id,
+                organization_id=material.organization_id,
+                sensitivity_level=material.sensitivity_level,
+            ),
+            context=AuthorizationContext.current(),
+        )
+        if not decision.allowed:
+            raise PermissionDeniedError()
+
+        now = self.context.occurred_at or timezone.now()
+        open_rows = list(
+            MaterialConfirmation.objects.select_for_update()
+            .filter(material=material)
+            .filter(
+                Q(live_slot=1)
+                | Q(
+                    decision=MaterialConfirmationDecision.PENDING,
+                    superseded_at__isnull=True,
+                )
+            )
+            .order_by("pk")
+        )
+        if not open_rows:
+            return 0
+
+        superseded_ids = [row.public_id for row in open_rows]
+        MaterialConfirmation.objects.filter(pk__in=[row.pk for row in open_rows]).update(
+            superseded_at=now,
+            live_slot=None,
+            updated_at=now,
+        )
+        append_event(
+            AuditRecord(
+                actor=actor,
+                action_code="product_material.confirmation_supersede",
+                resource_type="product_material",
+                resource_public_id=material.public_id,
+                result=AuditResult.SUCCESS,
+                trace_id=self.context.trace_id,
+                occurred_at=now,
+                acting_roles_snapshot=acting_roles_snapshot(actor),
+                after_summary={
+                    "superseded_confirmation_public_ids": [str(pid) for pid in superseded_ids],
+                    "close_reason": "MATERIAL_SUPERSEDED",
+                },
+            )
+        )
+        outbox_event = register_outbox_event(
+            OutboxMessage(
+                event_type="material_confirmation.superseded",
+                aggregate_type="product_material",
+                aggregate_id=material.public_id,
+                payload={
+                    "material_public_id": str(material.public_id),
+                    "confirmation_public_ids": [str(pid) for pid in superseded_ids],
+                    "close_reason": "MATERIAL_SUPERSEDED",
+                },
+                occurred_at=now,
+            )
+        )
+        schedule_local_dispatch_after_commit(outbox_event)
+        SettleOpenTodosForSource(
+            organization_id=material.organization_id,
+            source_type="product_material",
+            source_id=material.public_id,
+            status=TodoStatus.CANCELLED,
+            close_reason="MATERIAL_SUPERSEDED",
+            actor=actor,
+            trace_id=self.context.trace_id,
+        ).execute()
+        return len(superseded_ids)
 
 
 @dataclass(frozen=True)

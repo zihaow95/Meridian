@@ -362,7 +362,7 @@ def test_replacing_the_file_invalidates_the_approval_but_keeps_the_record(
         version_no=2,
         supersedes_material=current_material,
     )
-    make_material_current(newer)
+    make_material_current(newer, context=CommandContext.for_actor(requester))
 
     confirmation.refresh_from_db()
     current_material.refresh_from_db()
@@ -372,6 +372,60 @@ def test_replacing_the_file_invalidates_the_approval_but_keeps_the_record(
     assert current_material.material_status == MaterialStatus.INACTIVE
     assert current_material.current_slot is None
     assert newer.current_slot == 1
+
+
+def test_standing_down_a_material_closes_open_confirmation_todos_and_notifications(
+    django_capture_on_commit_callbacks,
+    requester,
+    confirmer,
+    current_material,
+    organization,
+    controlled_document_version,
+) -> None:
+    from apps.audit.models import AuditEvent
+    from apps.notifications.models import Notification, NotificationStatus, Todo, TodoStatus
+    from apps.platform.outbox.models import OutboxEvent
+
+    with django_capture_on_commit_callbacks(execute=True):
+        confirmation = submit(requester, current_material, confirmer)
+
+    todo = Todo.objects.get(
+        source_type="product_material",
+        source_id=current_material.public_id,
+        status=TodoStatus.OPEN,
+    )
+    notification = Notification.objects.get(todo=todo)
+    assert notification.status == NotificationStatus.UNREAD
+
+    newer = ProductMaterial.objects.create(
+        organization=organization,
+        change_set=current_material.change_set,
+        owner_type=current_material.owner_type,
+        owner_id=current_material.owner_id,
+        material_type_code=current_material.material_type_code,
+        document_version=controlled_document_version(content=b"%PDF-1.4 successor"),
+        version_no=2,
+        supersedes_material=current_material,
+    )
+    make_material_current(newer, context=CommandContext.for_actor(requester))
+
+    confirmation.refresh_from_db()
+    todo.refresh_from_db()
+    notification.refresh_from_db()
+    assert confirmation.superseded_at is not None
+    assert todo.status == TodoStatus.CANCELLED
+    assert todo.open_slot is None
+    assert notification.status == NotificationStatus.CLOSED
+    assert notification.close_reason == "MATERIAL_SUPERSEDED"
+    assert AuditEvent.objects.filter(
+        action_code="product_material.confirmation_supersede",
+        resource_public_id=current_material.public_id,
+        actor_user=requester,
+    ).exists()
+    assert OutboxEvent.objects.filter(
+        event_type="material_confirmation.superseded",
+        aggregate_id=current_material.public_id,
+    ).exists()
 
 
 def test_a_decision_is_audited_against_the_file_that_was_reviewed(

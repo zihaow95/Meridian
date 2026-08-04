@@ -43,6 +43,7 @@ NO_LOCAL_SUBSCRIBER_EVENT_TYPES = frozenset(
         "configuration.snapshot.created",
         "legacy_baseline.draft.created",
         "legacy_baseline.published",
+        "material_confirmation.superseded",
     }
 )
 

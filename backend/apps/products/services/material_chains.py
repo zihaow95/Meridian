@@ -46,34 +46,39 @@ class MaterialOwner:
     owner_id: int
 
 
-def make_material_current(material: ProductMaterial) -> ProductMaterial:
+def make_material_current(material: ProductMaterial, *, context: CommandContext) -> ProductMaterial:
     """Move the current marker onto one material of a chain.
 
     The slot is released before it is claimed, so the unique index holds at
     every instant. Confirmations of the material being stood down are retired
-    here rather than by the caller: an approval always describes bytes that are
-    no longer the current ones.
+    through the governed supersede command so todos and notifications settle.
     """
 
-    from apps.products.services.material_confirmations import supersede_open_confirmations
-
-    stood_down = (
-        ProductMaterial.objects.select_for_update()
-        .filter(
-            organization_id=material.organization_id,
-            owner_type=material.owner_type,
-            owner_id=material.owner_id,
-            material_type_code=material.material_type_code,
-            current_slot=1,
-        )
-        .exclude(pk=material.pk)
+    from apps.products.services.material_confirmations import (
+        SupersedeOpenMaterialConfirmations,
     )
-    for previous in stood_down:
-        supersede_open_confirmations(previous)
-    stood_down.update(current_slot=None, material_status=MaterialStatus.INACTIVE)
 
-    material.current_slot = 1
-    material.save(update_fields=["current_slot", "updated_at"])
+    with transaction.atomic():
+        stood_down = list(
+            ProductMaterial.objects.select_for_update()
+            .filter(
+                organization_id=material.organization_id,
+                owner_type=material.owner_type,
+                owner_id=material.owner_id,
+                material_type_code=material.material_type_code,
+                current_slot=1,
+            )
+            .exclude(pk=material.pk)
+            .order_by("pk")
+        )
+        for previous in stood_down:
+            SupersedeOpenMaterialConfirmations(context=context, material=previous).execute()
+            previous.current_slot = None
+            previous.material_status = MaterialStatus.INACTIVE
+            previous.save(update_fields=["current_slot", "material_status", "updated_at"])
+
+        material.current_slot = 1
+        material.save(update_fields=["current_slot", "updated_at"])
     return material
 
 
@@ -223,7 +228,7 @@ class CreateLegacyMaterialVersionChain:
                 next_version += 1
 
             assert current is not None  # the caller's nomination was validated above
-            make_material_current(current)
+            make_material_current(current, context=self.context)
 
         return created
 

@@ -1192,9 +1192,28 @@ class Command(BaseCommand):
             },
         )
 
+        context = CommandContext.for_actor(actor)
         with transaction.atomic():
+            # Re-lock current inside the writer so a concurrent seed cannot race.
+            current = (
+                ProductMaterial.objects.select_for_update()
+                .select_related("document_version__file_object")
+                .filter(
+                    organization_id=product.organization_id,
+                    owner_type=AttributeOwnerType.PRODUCT,
+                    owner_id=product.id,
+                    material_type_code="PRODUCT_LABEL",
+                    current_slot=1,
+                )
+                .first()
+            )
+            if current is not None and self._has_valid_approved_confirmation(current):
+                return
+
             # Never rewrite an existing material's document_version in place.
             # Keep the old row as history and promote a new draft version.
+            # Create → switch → supersede → Submit/Decide share one boundary so
+            # a failed confirmation cannot leave a stranded current DRAFT.
             highest = (
                 ProductMaterial.objects.filter(
                     organization_id=product.organization_id,
@@ -1204,54 +1223,37 @@ class Command(BaseCommand):
                 ).aggregate(highest=Max("version_no"))["highest"]
                 or 0
             )
-            if current is None:
-                material = ProductMaterial.objects.create(
-                    organization_id=product.organization_id,
-                    owner_type=AttributeOwnerType.PRODUCT,
-                    owner_id=product.id,
-                    material_type_code="PRODUCT_LABEL",
-                    version_no=highest + 1,
-                    document_version=version,
-                    material_status=MaterialStatus.DRAFT,
-                    current_slot=None,
-                    sensitivity_level=version.sensitivity_level,
-                )
-            else:
-                material = ProductMaterial.objects.create(
-                    organization_id=product.organization_id,
-                    owner_type=AttributeOwnerType.PRODUCT,
-                    owner_id=product.id,
-                    material_type_code="PRODUCT_LABEL",
-                    version_no=highest + 1,
-                    supersedes_material=current,
-                    document_version=version,
-                    material_status=MaterialStatus.DRAFT,
-                    current_slot=None,
-                    sensitivity_level=version.sensitivity_level,
-                )
-            make_material_current(material)
-
-        if self._has_valid_approved_confirmation(material):
-            return
-
-        pending = MaterialConfirmation.objects.filter(
-            material=material,
-            decision=MaterialConfirmationDecision.PENDING,
-            superseded_at__isnull=True,
-        ).first()
-        if pending is None:
-            pending = SubmitMaterialConfirmation(
-                context=CommandContext.for_actor(actor),
-                material_public_id=material.public_id,
-                confirmer_public_id=actor.public_id,
-                comment="E2E repair seed confirmation",
+            material = ProductMaterial.objects.create(
+                organization_id=product.organization_id,
+                owner_type=AttributeOwnerType.PRODUCT,
+                owner_id=product.id,
+                material_type_code="PRODUCT_LABEL",
+                version_no=highest + 1,
+                supersedes_material=current,
+                document_version=version,
+                material_status=MaterialStatus.DRAFT,
+                current_slot=None,
+                sensitivity_level=version.sensitivity_level,
+            )
+            make_material_current(material, context=context)
+            pending = MaterialConfirmation.objects.filter(
+                material=material,
+                decision=MaterialConfirmationDecision.PENDING,
+                superseded_at__isnull=True,
+            ).first()
+            if pending is None:
+                pending = SubmitMaterialConfirmation(
+                    context=context,
+                    material_public_id=material.public_id,
+                    confirmer_public_id=actor.public_id,
+                    comment="E2E repair seed confirmation",
+                ).execute()
+            DecideMaterialConfirmation(
+                context=context,
+                confirmation_public_id=pending.public_id,
+                decision=MaterialConfirmationDecision.APPROVED,
+                comment="E2E repair seed approval",
             ).execute()
-        DecideMaterialConfirmation(
-            context=CommandContext.for_actor(actor),
-            confirmation_public_id=pending.public_id,
-            decision=MaterialConfirmationDecision.APPROVED,
-            comment="E2E repair seed approval",
-        ).execute()
 
     def _has_valid_approved_confirmation(self, material: object) -> bool:
         from apps.products.models import (

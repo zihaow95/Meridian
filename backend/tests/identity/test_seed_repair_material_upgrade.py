@@ -197,3 +197,156 @@ def test_repair_seed_upgrades_stale_pending_confirmation_on_rerun(
     )
     assert current.pk != old.pk
     assert SeedE2ECommand()._has_valid_approved_confirmation(current)
+
+
+def test_repair_seed_submit_failure_rolls_back_and_rerun_upgrades_once(
+    yogurt_product: ProductAsset,
+    active_user: User,
+    grant_action: Callable[..., None],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    grant_action(active_user, "product_material.manage", "product_material")
+    grant_action(active_user, "product_material.confirm", "product_material")
+    forged_version = _forged_document(
+        organization=yogurt_product.organization,
+        actor=active_user,
+        marker="submit-fail",
+    )
+    old = ProductMaterial.objects.create(
+        organization_id=yogurt_product.organization_id,
+        owner_type=AttributeOwnerType.PRODUCT,
+        owner_id=yogurt_product.id,
+        material_type_code="PRODUCT_LABEL",
+        version_no=1,
+        document_version=forged_version,
+        material_status=MaterialStatus.APPROVED,
+        current_slot=1,
+        sensitivity_level=forged_version.sensitivity_level,
+    )
+    MaterialConfirmation.objects.create(
+        organization_id=yogurt_product.organization_id,
+        material=old,
+        document_version=forged_version,
+        content_hash="0" * 64,
+        requested_by=active_user,
+        requested_at=timezone.now(),
+        confirmer=active_user,
+        decision=MaterialConfirmationDecision.APPROVED,
+        decided_at=timezone.now(),
+        live_slot=1,
+    )
+
+    from apps.products.services import material_confirmations as confirmations
+
+    real_submit = confirmations.SubmitMaterialConfirmation.execute
+
+    def boom(self):  # noqa: ANN001
+        raise RuntimeError("injected submit failure")
+
+    monkeypatch.setattr(confirmations.SubmitMaterialConfirmation, "execute", boom)
+    with pytest.raises(RuntimeError, match="injected submit failure"):
+        SeedE2ECommand()._ensure_approved_product_label(product=yogurt_product, actor=active_user)
+
+    old.refresh_from_db()
+    assert old.current_slot == 1
+    assert (
+        ProductMaterial.objects.filter(
+            owner_type=AttributeOwnerType.PRODUCT,
+            owner_id=yogurt_product.id,
+            material_type_code="PRODUCT_LABEL",
+        ).count()
+        == 1
+    )
+
+    monkeypatch.setattr(confirmations.SubmitMaterialConfirmation, "execute", real_submit)
+    SeedE2ECommand()._ensure_approved_product_label(product=yogurt_product, actor=active_user)
+    SeedE2ECommand()._ensure_approved_product_label(product=yogurt_product, actor=active_user)
+
+    materials = list(
+        ProductMaterial.objects.filter(
+            owner_type=AttributeOwnerType.PRODUCT,
+            owner_id=yogurt_product.id,
+            material_type_code="PRODUCT_LABEL",
+        ).order_by("version_no")
+    )
+    assert len(materials) == 2
+    assert materials[0].pk == old.pk
+    assert materials[0].current_slot is None
+    assert materials[1].current_slot == 1
+    assert materials[1].version_no == 2
+    assert SeedE2ECommand()._has_valid_approved_confirmation(materials[1])
+
+
+def test_repair_seed_decide_failure_rolls_back_and_rerun_upgrades_once(
+    yogurt_product: ProductAsset,
+    active_user: User,
+    grant_action: Callable[..., None],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    grant_action(active_user, "product_material.manage", "product_material")
+    grant_action(active_user, "product_material.confirm", "product_material")
+    forged_version = _forged_document(
+        organization=yogurt_product.organization,
+        actor=active_user,
+        marker="decide-fail",
+    )
+    old = ProductMaterial.objects.create(
+        organization_id=yogurt_product.organization_id,
+        owner_type=AttributeOwnerType.PRODUCT,
+        owner_id=yogurt_product.id,
+        material_type_code="PRODUCT_LABEL",
+        version_no=1,
+        document_version=forged_version,
+        material_status=MaterialStatus.APPROVED,
+        current_slot=1,
+        sensitivity_level=forged_version.sensitivity_level,
+    )
+    MaterialConfirmation.objects.create(
+        organization_id=yogurt_product.organization_id,
+        material=old,
+        document_version=forged_version,
+        content_hash="0" * 64,
+        requested_by=active_user,
+        requested_at=timezone.now(),
+        confirmer=active_user,
+        decision=MaterialConfirmationDecision.APPROVED,
+        decided_at=timezone.now(),
+        live_slot=1,
+    )
+
+    from apps.products.services import material_confirmations as confirmations
+
+    real_decide = confirmations.DecideMaterialConfirmation.execute
+
+    def boom(self):  # noqa: ANN001
+        raise RuntimeError("injected decide failure")
+
+    monkeypatch.setattr(confirmations.DecideMaterialConfirmation, "execute", boom)
+    with pytest.raises(RuntimeError, match="injected decide failure"):
+        SeedE2ECommand()._ensure_approved_product_label(product=yogurt_product, actor=active_user)
+
+    old.refresh_from_db()
+    assert old.current_slot == 1
+    assert MaterialConfirmation.objects.filter(material=old, live_slot=1).exists()
+    assert (
+        ProductMaterial.objects.filter(
+            owner_type=AttributeOwnerType.PRODUCT,
+            owner_id=yogurt_product.id,
+            material_type_code="PRODUCT_LABEL",
+        ).count()
+        == 1
+    )
+
+    monkeypatch.setattr(confirmations.DecideMaterialConfirmation, "execute", real_decide)
+    SeedE2ECommand()._ensure_approved_product_label(product=yogurt_product, actor=active_user)
+
+    materials = list(
+        ProductMaterial.objects.filter(
+            owner_type=AttributeOwnerType.PRODUCT,
+            owner_id=yogurt_product.id,
+            material_type_code="PRODUCT_LABEL",
+        ).order_by("version_no")
+    )
+    assert len(materials) == 2
+    assert materials[1].version_no == 2
+    assert SeedE2ECommand()._has_valid_approved_confirmation(materials[1])

@@ -264,7 +264,13 @@ test.describe('Phase 6 controlled files / notifications / pilot readiness', () =
     await devLogin(page, '/notifications')
     await expect(page.getByRole('heading', { name: '站内通知' })).toBeVisible()
 
-    const list = await authedJson(page, 'GET', '/api/v1/notifications/my?page_size=50')
+    // Seeded category fixtures are UNREAD; do not rely on a mixed page that can
+    // bury older open rows under newer confirmation traffic from prior tests.
+    const list = await authedJson(
+      page,
+      'GET',
+      '/api/v1/notifications/my?status=UNREAD&page_size=50',
+    )
     expect(list.status()).toBe(200)
     const body = await list.json()
     expect(body.unread_count).toBeGreaterThanOrEqual(1)
