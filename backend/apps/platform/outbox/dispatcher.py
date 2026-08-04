@@ -32,15 +32,14 @@ def dispatch_pending_events(
     *,
     publisher: OutboxPublisher,
     limit: int = 100,
-    event_types: Collection[str] | None = None,
     event_ids: Collection[int] | None = None,
 ) -> int:
-    """Publish due pending events, optionally narrowed to specific events.
+    """Publish due pending events, optionally narrowed to exact rows.
 
     Narrowing exists for callers that must close one loop - a seed settling its own
     todos, an operator repairing one projection - without also draining an unrelated
-    backlog they are not responsible for. `event_ids` narrows to exact rows, which is
-    what a caller uses when "this type" would still reach facts it does not own.
+    backlog they are not responsible for. Rows are named by id, because "every event
+    of this type" reaches facts the caller does not own.
     """
 
     dispatched = 0
@@ -50,8 +49,6 @@ def dispatch_pending_events(
         due = OutboxEvent.objects.select_for_update(skip_locked=True).filter(
             status=OutboxStatus.PENDING, next_attempt_at__lte=now
         )
-        if event_types is not None:
-            due = due.filter(event_type__in=list(event_types))
         if event_ids is not None:
             due = due.filter(pk__in=list(event_ids))
         events = list(due.order_by("occurred_at")[:limit])

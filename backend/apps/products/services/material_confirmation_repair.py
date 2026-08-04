@@ -48,15 +48,35 @@ from apps.products.services.material_confirmations import confirmation_todo_dedu
 
 REISSUE_REASON = "SETTLEMENT_RECEIPT_WITHOUT_TODO"
 _TODO_DEDUP_PREFIX = "material_confirmation:"
+# The unique repair key, named so a duplicate on it can be told apart from every
+# other integrity failure this transaction could hit.
+REPAIR_UNIQUE_CONSTRAINT = "products_material_repair_uniq"
 
 
-def stranded_settlement_candidates(*, organization_id: int) -> list[UUID]:
+class _AlreadyRepaired(Exception):
+    """Another process holds the repair key for this todo."""
+
+
+def _is_duplicate_repair(error: IntegrityError) -> bool:
+    return REPAIR_UNIQUE_CONSTRAINT in str(error)
+
+
+def stranded_settlement_candidates(
+    *,
+    organization_id: int,
+    confirmation_public_ids: Collection[UUID] | None = None,
+) -> list[UUID]:
     """Report decided confirmations whose todo is still open. Read-only.
 
     Separate from the repair so the decision to move business facts is taken by a
-    caller with a scope, not by a scan. An operations command lists candidates,
-    then repairs the ones it names.
+    caller with a scope, not by a scan. An operations command deliberately scans a
+    whole organization; a caller answering only for its own confirmations passes
+    them in and gets back the subset that is stranded.
     """
+
+    scope = None if confirmation_public_ids is None else set(confirmation_public_ids)
+    if scope is not None and not scope:
+        return []
 
     candidates: list[UUID] = []
     for dedup_key in (
@@ -70,6 +90,8 @@ def stranded_settlement_candidates(*, organization_id: int) -> list[UUID]:
     ):
         confirmation_id = _confirmation_id_in(dedup_key)
         if confirmation_id is None:
+            continue
+        if scope is not None and confirmation_id not in scope:
             continue
         decided = (
             MaterialConfirmation.objects.filter(
@@ -104,8 +126,10 @@ class ReissueSettlementForDecidedConfirmations:
         actor = self.context.actor
         try:
             with transaction.atomic():
-                # Lock the confirmation first, then its todo: the settle path takes
-                # the same order, so a concurrent repair queues instead of racing.
+                # Confirmation and its material first, then the todo. Every domain
+                # path locks the material before the asks that point at it, and the
+                # settle command does the same, so a concurrent settlement queues
+                # behind this repair instead of deadlocking with it.
                 confirmation = (
                     MaterialConfirmation.objects.select_for_update()
                     .select_related("material")
@@ -160,17 +184,25 @@ class ReissueSettlementForDecidedConfirmations:
                     )
                 )
                 # The unique key decides whether this repair exists, so a loser
-                # writes neither an audit record nor a dispatch.
-                MaterialConfirmationSettlementRepair.objects.create(
-                    organization_id=confirmation.organization_id,
-                    confirmation=confirmation,
-                    todo_public_id=todo.public_id,
-                    reissued_event_id=event.event_id,
-                    reason=REISSUE_REASON,
-                )
+                # writes neither an audit record nor a dispatch. Only that key's own
+                # duplicate means "already repaired": any other database failure is a
+                # real failure and must not be reported as an idempotent skip.
+                try:
+                    with transaction.atomic():
+                        MaterialConfirmationSettlementRepair.objects.create(
+                            organization_id=confirmation.organization_id,
+                            confirmation=confirmation,
+                            todo_public_id=todo.public_id,
+                            reissued_event_id=event.event_id,
+                            reason=REISSUE_REASON,
+                        )
+                except IntegrityError as error:
+                    if not _is_duplicate_repair(error):
+                        raise
+                    raise _AlreadyRepaired from error
                 self._append_repair_audit(confirmation, todo)
                 schedule_local_dispatch_after_commit(event)
-        except IntegrityError:
+        except _AlreadyRepaired:
             return False
         return True
 

@@ -1110,6 +1110,128 @@ def test_a_stranded_todo_is_repaired_once_even_if_the_repair_settled_nothing(
     )
 
 
+def test_a_database_failure_during_a_repair_is_not_read_as_a_duplicate(
+    django_capture_on_commit_callbacks, monkeypatch, requester, confirmer, current_material
+) -> None:
+    """Only the repair key's own duplicate means "already repaired".
+
+    Any other integrity failure - an outbox row, an audit row, a constraint added
+    later - is a real failure. Reporting it as an idempotent skip would hide a broken
+    repair behind a clean exit code.
+    """
+
+    from django.db import IntegrityError
+
+    from apps.notifications.models import TodoStatus
+    from apps.platform.outbox.models import OutboxEvent
+    from apps.products.services import material_confirmation_repair as repair_module
+    from apps.products.services.material_confirmation_repair import (
+        ReissueSettlementForDecidedConfirmations,
+    )
+
+    confirmation, todo = _strand_settlement(
+        current_material, requester, confirmer, django_capture_on_commit_callbacks, monkeypatch
+    )
+
+    def _boom(*args: Any, **kwargs: Any) -> None:
+        raise IntegrityError("(1452, 'Cannot add or update a child row: audit_event')")
+
+    monkeypatch.setattr(repair_module, "append_event", _boom)
+
+    with pytest.raises(IntegrityError):
+        ReissueSettlementForDecidedConfirmations(
+            context=CommandContext.for_actor(requester),
+            confirmation_public_ids=[confirmation.public_id],
+        ).execute()
+
+    todo.refresh_from_db()
+    assert todo.status == TodoStatus.OPEN
+    assert not MaterialConfirmationSettlementRepair.objects.exists()
+    assert (
+        OutboxEvent.objects.filter(
+            event_type="material_confirmation.decided",
+            aggregate_id=confirmation.public_id,
+        ).count()
+        == 1
+    )
+
+
+@pytest.mark.django_db(transaction=True)
+def test_a_repair_and_a_settlement_do_not_deadlock_on_the_same_material(
+    django_capture_on_commit_callbacks, monkeypatch, requester, confirmer, current_material
+) -> None:
+    """Both paths take the material before the todo, so one waits for the other.
+
+    A repair reads the confirmation and its material, then the ask; a settlement
+    reads the material behind the ask, then the ask. Taking those two rows in
+    opposite orders is a MySQL deadlock waiting for the two to overlap.
+    """
+
+    import threading
+
+    from django.db import connection
+
+    from apps.notifications.models import TodoStatus
+    from apps.notifications.services.todos import SettleOneOpenTodo
+    from apps.products.services.material_confirmation_repair import (
+        ReissueSettlementForDecidedConfirmations,
+    )
+
+    confirmation, todo = _strand_settlement(
+        current_material, requester, confirmer, django_capture_on_commit_callbacks, monkeypatch
+    )
+    dedup_key = f"material_confirmation:{confirmation.public_id}"
+
+    results: list[str] = []
+    barrier = threading.Barrier(2)
+    lock = threading.Lock()
+
+    def _run(label: str, work: Any) -> None:
+        connection.close()
+        try:
+            barrier.wait(timeout=10)
+            work()
+            with lock:
+                results.append(f"done:{label}")
+        except Exception as exc:  # noqa: BLE001 - collected for the assertion
+            with lock:
+                results.append(f"error:{type(exc).__name__}:{label}")
+        finally:
+            connection.close()
+
+    def _repair() -> None:
+        ReissueSettlementForDecidedConfirmations(
+            context=CommandContext.for_actor(requester),
+            confirmation_public_ids=[confirmation.public_id],
+        ).execute()
+
+    def _settle() -> None:
+        SettleOneOpenTodo(
+            context=CommandContext.for_actor(confirmer),
+            assignee_id=confirmer.id,
+            dedup_key=dedup_key,
+            status=TodoStatus.COMPLETED,
+            close_reason="SOURCE_COMPLETED",
+        ).execute()
+
+    threads = [
+        threading.Thread(target=_run, args=("repair", _repair)),
+        threading.Thread(target=_run, args=("settle", _settle)),
+    ]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join(timeout=30)
+        assert not thread.is_alive(), "repair and settlement did not finish"
+
+    assert results == ["done:repair", "done:settle"] or results == ["done:settle", "done:repair"], (
+        results
+    )
+    todo.refresh_from_db()
+    assert todo.status == TodoStatus.COMPLETED
+    assert todo.open_slot is None
+
+
 @pytest.mark.django_db(transaction=True)
 def test_two_repair_processes_produce_one_reissued_settlement(
     django_capture_on_commit_callbacks, monkeypatch, requester, confirmer, current_material
@@ -1230,6 +1352,44 @@ def test_the_operations_command_reports_before_it_moves_anything(
 
     todo.refresh_from_db()
     assert todo.status == TodoStatus.COMPLETED
+    assert (
+        MaterialConfirmationSettlementRepair.objects.filter(confirmation=confirmation).count() == 1
+    )
+
+
+def test_the_operations_command_fails_when_a_todo_it_repaired_is_still_open(
+    django_capture_on_commit_callbacks, monkeypatch, requester, confirmer, current_material
+) -> None:
+    """An operator learns the repair did not close the ask, from the exit code.
+
+    A repair that reissued nothing because the sentinel already exists, or whose
+    settlement never landed, leaves the todo exactly as open as before. Counting
+    reissues would call that a success and hide the one fact that matters.
+    """
+
+    from django.core.management import call_command
+    from django.core.management.base import CommandError
+
+    from apps.notifications.models import TodoStatus
+    from apps.products.consumers import MaterialConfirmationDecidedConsumer
+
+    confirmation, todo = _strand_settlement(
+        current_material, requester, confirmer, django_capture_on_commit_callbacks, monkeypatch
+    )
+    monkeypatch.setattr(
+        MaterialConfirmationDecidedConsumer, "consume", lambda self, event: None, raising=True
+    )
+
+    with pytest.raises(CommandError, match="still has an open confirmation todo"):
+        call_command(
+            "repair_material_confirmation_settlements",
+            "--actor-login-key",
+            requester.login_key,
+            "--apply",
+        )
+
+    todo.refresh_from_db()
+    assert todo.status == TodoStatus.OPEN
     assert (
         MaterialConfirmationSettlementRepair.objects.filter(confirmation=confirmation).count() == 1
     )

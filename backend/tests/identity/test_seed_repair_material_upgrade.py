@@ -241,6 +241,65 @@ def test_repair_seed_leaves_no_open_confirmation_todo_after_commit_callbacks(
     assert Notification.objects.get(todo=todo).status == NotificationStatus.CLOSED
 
 
+def test_phase6_seed_converges_its_own_fixture_and_leaves_history_alone(
+    django_capture_on_commit_callbacks,
+    published_todo_notification_catalog: None,
+    yogurt_product: ProductAsset,
+    active_user: User,
+    grant_action: Callable[..., None],
+) -> None:
+    """The acceptance seed answers for the fixtures it created, not for history.
+
+    An organization that has run for months holds confirmations from builds and runs
+    this seed never saw. Repairing those would move business facts nobody asked about,
+    so scope is the confirmations `seed_e2e_user` recorded on this run - and a stranded
+    todo outside that scope is left for the operations command.
+    """
+
+    from apps.identity.management.commands.seed_e2e_user import (
+        fixture_material_confirmation_ids,
+    )
+    from apps.identity.management.commands.seed_phase6_acceptance import (
+        Command as SeedPhase6Command,
+    )
+    from apps.notifications.models import Todo, TodoStatus
+    from apps.products.models import MaterialConfirmationSettlementRepair
+
+    grant_action(active_user, "product_material.manage", "product_material")
+    grant_action(active_user, "product_material.confirm", "product_material")
+
+    with django_capture_on_commit_callbacks(execute=True):
+        SeedE2ECommand()._ensure_approved_product_label(product=yogurt_product, actor=active_user)
+
+    current = ProductMaterial.objects.get(
+        owner_type=AttributeOwnerType.PRODUCT,
+        owner_id=yogurt_product.id,
+        material_type_code="PRODUCT_LABEL",
+        current_slot=1,
+    )
+    confirmation = MaterialConfirmation.objects.get(material=current, live_slot=1)
+    assert confirmation.public_id in fixture_material_confirmation_ids()
+
+    todo = Todo.objects.get(source_type="product_material", source_id=current.public_id)
+    # Stand the ask back open, the way a run interrupted before its settlement would.
+    Todo.objects.filter(pk=todo.pk).update(status=TodoStatus.OPEN, open_slot=1)
+
+    seed = SeedPhase6Command()
+    seed._fixture_confirmation_ids = ()
+    seed._converge_projection_events(active_user)
+
+    todo.refresh_from_db()
+    assert todo.status == TodoStatus.OPEN
+    assert not MaterialConfirmationSettlementRepair.objects.exists()
+
+    seed._fixture_confirmation_ids = (confirmation.public_id,)
+    seed._converge_projection_events(active_user)
+
+    todo.refresh_from_db()
+    assert todo.status == TodoStatus.COMPLETED
+    assert MaterialConfirmationSettlementRepair.objects.count() == 1
+
+
 def test_repair_seed_upgrades_stale_pending_confirmation_on_rerun(
     yogurt_product: ProductAsset,
     active_user: User,

@@ -82,9 +82,10 @@ LAN URL, not a public hostname.
 ## Repair a confirmation todo left open
 
 No Celery worker or beat runs in this environment, so a projection event that
-failed once is not retried on its own. `seed_phase6_acceptance` converges its own
-confirmation events and fails loudly if any stay open, but a material approved by
-an earlier build can still wear an OPEN confirmation todo.
+failed once is not retried on its own. `seed_phase6_acceptance` converges only the
+confirmations its own run created, and fails loudly if any stay open. A material
+approved by an earlier build or an earlier run keeps its OPEN confirmation todo
+until an operator repairs it here; the seed never sweeps that history.
 
 Report the stranded confirmations of one organization:
 
@@ -95,9 +96,12 @@ uv run python manage.py repair_material_confirmation_settlements ^
 
 Re-run with `--apply` to reissue their settlements. The operator needs
 `product_material.manage`; each repair is audited, keeps the original receipt, and
-is recorded once per stranded todo. A todo that is still OPEN after `--apply`
-means the reissued settlement itself failed - read the reported event and treat it
-as an incident rather than repeating the command.
+is recorded once per stranded todo.
+
+`--apply` exits non-zero and names every fact it could not settle: an undelivered
+event, or a candidate todo still OPEN afterwards. A repair is only done when the
+ask it was run for is closed, so a non-zero exit is an incident to read - repeating
+the command changes nothing, because the repair is recorded once per todo.
 
 ## Known follow-ups
 

@@ -125,11 +125,23 @@ E2E_OPS_SALES_METRIC_CODE = "GROSS_SALES"
 E2E_OPS_RULE_CODE = "E2E_QUARTER_SHELF_MIN_PROD"
 E2E_OPS_MONITORING_DECISION_ID = UUID("1a09db77-b7f2-5c7a-8c59-fd509f67bbfb")
 
+# The material confirmations this seed's fixtures depend on, recorded per run so a
+# later step can converge exactly their projection events. A caller must not have to
+# guess the scope from "everything this organization ever confirmed".
+_FIXTURE_CONFIRMATION_IDS: list[UUID] = []
+
+
+def fixture_material_confirmation_ids() -> tuple[UUID, ...]:
+    """The confirmations the most recent `seed_e2e_user` run created or relied on."""
+
+    return tuple(_FIXTURE_CONFIRMATION_IDS)
+
 
 class Command(BaseCommand):
     help = "Create or refresh the deterministic E2E active user, permissions, and sample todo."
 
     def handle(self, *args: object, **options: object) -> None:
+        _FIXTURE_CONFIRMATION_IDS.clear()
         organization, _ = Organization.objects.get_or_create(name=E2E_ORG_NAME)
         user, created = User.objects.get_or_create(
             login_key=E2E_LOGIN_KEY,
@@ -1141,7 +1153,11 @@ class Command(BaseCommand):
             )
             .first()
         )
-        if current is not None and self._has_valid_approved_confirmation(current):
+        existing = None if current is None else self._valid_approved_confirmation(current)
+        if existing is not None:
+            # Already satisfied, possibly by an interrupted earlier run whose todo
+            # never settled. It stays in scope so the caller can converge it.
+            self._remember_fixture_confirmation(existing)
             return
 
         self._grant_action(actor, "product_material.manage", "product_material")
@@ -1207,7 +1223,9 @@ class Command(BaseCommand):
                 )
                 .first()
             )
-            if current is not None and self._has_valid_approved_confirmation(current):
+            existing = None if current is None else self._valid_approved_confirmation(current)
+            if existing is not None:
+                self._remember_fixture_confirmation(existing)
                 return
 
             # Never rewrite an existing material's document_version in place.
@@ -1254,8 +1272,27 @@ class Command(BaseCommand):
                 decision=MaterialConfirmationDecision.APPROVED,
                 comment="E2E repair seed approval",
             ).execute()
+            self._remember_fixture_confirmation(pending)
+
+    def _remember_fixture_confirmation(self, confirmation: object) -> None:
+        """Name this fixture's confirmation so a later step can converge just it.
+
+        The request and its decision only project after this transaction commits, and
+        the notification catalog they need is published by a later command. Recording
+        the confirmation is what lets that command close this loop without reaching
+        confirmations it did not create.
+        """
+
+        from apps.products.models import MaterialConfirmation
+
+        assert isinstance(confirmation, MaterialConfirmation)
+        if confirmation.public_id not in _FIXTURE_CONFIRMATION_IDS:
+            _FIXTURE_CONFIRMATION_IDS.append(confirmation.public_id)
 
     def _has_valid_approved_confirmation(self, material: object) -> bool:
+        return self._valid_approved_confirmation(material) is not None
+
+    def _valid_approved_confirmation(self, material: object) -> object | None:
         from apps.products.models import (
             MaterialConfirmation,
             MaterialConfirmationDecision,
@@ -1265,7 +1302,7 @@ class Command(BaseCommand):
 
         assert isinstance(material, ProductMaterial)
         if material.material_status != MaterialStatus.APPROVED:
-            return False
+            return None
         file_object = material.document_version.file_object
         return MaterialConfirmation.objects.filter(
             material=material,
@@ -1275,7 +1312,7 @@ class Command(BaseCommand):
             content_hash=file_object.sha256,
             confirmer__isnull=False,
             superseded_at__isnull=True,
-        ).exists()
+        ).first()
 
     def _submit_first_launch_gate(self, project: Project, *, submitter: User) -> StageGateInstance:
         """Put the FIRST_LAUNCH gate into a decideable SUBMITTED + active L2 state."""

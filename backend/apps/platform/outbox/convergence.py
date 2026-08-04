@@ -10,9 +10,10 @@ genuinely broken event escape becoming FAILED and queryable. Convergence keeps
 attempting until every event in scope leaves PENDING, so a bad event spends its
 whole budget here rather than being handed back as "still retryable, one day".
 
-Scope is mandatory. Draining every row of a given type across the database would
-let one organization's operator step publish another organization's business
-events, and would let a stranger's failing event block the caller's own loop.
+Scope is mandatory and is a list of exact event ids. Draining every row of a given
+type across the database would let one organization's operator step publish another
+organization's business events, and would let a stranger's failing event block the
+caller's own loop.
 """
 
 from __future__ import annotations
@@ -62,8 +63,7 @@ class ConvergenceReport:
 def converge_pending_events(
     *,
     publisher: OutboxPublisher,
-    event_ids: Collection[int] | None = None,
-    event_types: Collection[str] | None = None,
+    event_ids: Collection[int],
     max_rounds: int = DEFAULT_MAX_ROUNDS,
     limit: int = 200,
 ) -> ConvergenceReport:
@@ -77,16 +77,15 @@ def converge_pending_events(
     attempt so the event can reach FAILED inside this call. Only a round that
     neither publishes nor attempts anything ends the loop.
 
-    `event_ids` names the exact rows a caller owns; `event_types` narrows a
-    deliberate sweep. At least one is required.
+    Scope is the exact rows the caller owns. Naming a type instead would put every
+    organization holding that type inside one caller's decision, so there is no
+    interface for it here: a caller resolves its own ids first.
     """
 
-    if event_ids is None and event_types is None:
-        raise ValueError("Convergence needs an explicit scope: event_ids and/or event_types.")
-    if event_ids is not None and not event_ids:
+    if not event_ids:
         return ConvergenceReport(dispatched=0, rounds=0, undelivered=())
 
-    scope = _ScopedEvents(event_ids=event_ids, event_types=event_types)
+    scope = _ScopedEvents(event_ids=event_ids)
     dispatched = 0
     rounds = 0
     while rounds < max_rounds and scope.pending().exists():
@@ -98,12 +97,7 @@ def converge_pending_events(
         scope.pending().filter(Q(next_attempt_at__gt=now) | Q(next_attempt_at__isnull=True)).update(
             next_attempt_at=now, updated_at=now
         )
-        moved = dispatch_pending_events(
-            publisher=publisher,
-            limit=limit,
-            event_types=event_types,
-            event_ids=event_ids,
-        )
+        moved = dispatch_pending_events(publisher=publisher, limit=limit, event_ids=event_ids)
         dispatched += moved
         if moved == 0 and scope.progress_marker() == before:
             break
@@ -127,16 +121,10 @@ def converge_pending_events(
 
 @dataclass(frozen=True)
 class _ScopedEvents:
-    event_ids: Collection[int] | None
-    event_types: Collection[str] | None
+    event_ids: Collection[int]
 
     def all(self) -> QuerySet[OutboxEvent]:
-        events = OutboxEvent.objects.all()
-        if self.event_ids is not None:
-            events = events.filter(pk__in=list(self.event_ids))
-        if self.event_types is not None:
-            events = events.filter(event_type__in=list(self.event_types))
-        return events
+        return OutboxEvent.objects.filter(pk__in=list(self.event_ids))
 
     def pending(self) -> QuerySet[OutboxEvent]:
         return self.all().filter(status=OutboxStatus.PENDING)

@@ -76,12 +76,25 @@ class Command(BaseCommand):
             publisher=LocalOutboxPublisher(),
             event_ids=self._reissued_event_ids(reissued),
         )
-        for undelivered in report.undelivered:
-            self.stdout.write(self.style.ERROR(undelivered.describe()))
+        # A repair is only done when the todo it was run for is closed. Reporting a
+        # count would call "the sentinel already existed and nothing changed" a
+        # success, which is exactly the state an operator has to be told about.
+        problems = [undelivered.describe() for undelivered in report.undelivered]
+        problems.extend(
+            f"confirmation {confirmation_id} still has an open confirmation todo"
+            for confirmation_id in stranded_settlement_candidates(
+                organization_id=actor.organization_id,
+                confirmation_public_ids=candidates,
+            )
+        )
+        if problems:
+            raise CommandError(
+                f"Repair did not settle {len(problems)} fact(s):\n  " + "\n  ".join(problems)
+            )
+
         self.stdout.write(
             self.style.SUCCESS(
-                f"reissued={len(reissued)} dispatched={report.dispatched} "
-                f"undelivered={len(report.undelivered)}"
+                f"reissued={len(reissued)} dispatched={report.dispatched} settled={len(candidates)}"
             )
         )
 

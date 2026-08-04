@@ -67,36 +67,24 @@ def test_convergence_publishes_a_retry_the_scheduler_would_still_be_waiting_for(
 
 
 @pytest.mark.django_db
-def test_convergence_refuses_to_drain_events_nobody_named() -> None:
-    """Without a scope, one organization's operator step moves everybody's facts."""
-
-    with pytest.raises(ValueError):
-        converge_pending_events(publisher=AcceptingPublisher())
-
-
-@pytest.mark.django_db
-def test_convergence_ignores_the_loops_it_was_not_asked_to_close(
+def test_convergence_does_nothing_for_a_caller_that_owns_no_events(
     outbox_event: OutboxEvent,
 ) -> None:
-    """A caller closing one loop must not be blocked by an unrelated backlog.
+    """An empty scope is an empty run, never "then take whatever is pending".
 
-    A long-lived database holds thousands of pending events of other types. Draining
-    them is somebody else's decision, and it would also push the caller's own events
-    out of the dispatch window.
+    A caller closing one loop must not be blocked by, or reach into, an unrelated
+    backlog: a long-lived database holds thousands of pending events belonging to
+    other organizations, and draining them is somebody else's decision.
     """
 
-    mine = _todo_event()
+    report = converge_pending_events(publisher=AcceptingPublisher(), event_ids=[])
 
-    report = converge_pending_events(
-        publisher=AcceptingPublisher(), event_types=("todo.requested",)
-    )
-
-    mine.refresh_from_db()
     outbox_event.refresh_from_db()
     assert report.converged
-    assert report.dispatched == 1
-    assert mine.status == OutboxStatus.PUBLISHED
+    assert report.dispatched == 0
+    assert report.rounds == 0
     assert outbox_event.status == OutboxStatus.PENDING
+    assert outbox_event.attempt_count == 0
 
 
 @pytest.mark.django_db

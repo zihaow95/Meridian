@@ -9,6 +9,7 @@ from uuid import UUID
 
 from django.apps import apps as django_apps
 from django.db import IntegrityError, transaction
+from django.db.models import QuerySet
 
 from apps.authorization.context import AuthorizationContext, ResourceDescriptor
 from apps.authorization.policies.engine import authorize
@@ -153,6 +154,10 @@ class SettleOneOpenTodo:
     caller: a projection consumer reads whatever an event claims, so the right to
     settle has to be established here, in the same transaction as the write, and
     against the locked domain row rather than any sensitivity the caller supplies.
+
+    Locks are taken source row first, todo second, because that is the order every
+    domain path already uses - promoting a material and then cancelling its asks.
+    Settling in the opposite order would deadlock against them under MySQL.
     """
 
     context: CommandContext
@@ -175,21 +180,35 @@ class SettleOneOpenTodo:
             raise ValueError(f"Cannot settle a todo into {self.status}.")
 
         with transaction.atomic():
-            todos = list(
-                Todo.objects.select_for_update()
-                .filter(
-                    organization_id=actor.organization_id,
-                    assignee_id=self.assignee_id,
-                    dedup_key=self.dedup_key,
-                )
-                .order_by("pk")
+            # Unlocked first, only to learn which source rows to lock ahead of the
+            # todos. The locked read below is what the settle actually acts on.
+            sources = sorted(
+                {
+                    (source_type, str(source_id))
+                    for source_type, source_id in self._matching_todos().values_list(
+                        "source_type", "source_id"
+                    )
+                }
             )
+            if not sources:
+                raise TodoNotProjectedYet(self.dedup_key)
+            resources = {
+                source: self._locked_source(source_type=source[0], source_id=UUID(source[1]))
+                for source in sources
+            }
+
+            todos = list(self._matching_todos().select_for_update().order_by("pk"))
             if not todos:
                 raise TodoNotProjectedYet(self.dedup_key)
 
             settled = 0
             for todo in todos:
-                self._require_may_act_on(todo)
+                resource = resources.get((todo.source_type, str(todo.source_id)))
+                if resource is None:
+                    # A todo arrived after the sources were locked. Taking its source
+                    # lock now would invert the order, so leave it to the next attempt.
+                    raise TodoNotProjectedYet(self.dedup_key)
+                self._require_may_act_on(todo, resource)
                 if todo.status == TodoStatus.OPEN:
                     Todo.objects.filter(pk=todo.pk, status=TodoStatus.OPEN).update(
                         status=self.status, open_slot=None
@@ -207,19 +226,26 @@ class SettleOneOpenTodo:
                 ).execute()
             return settled
 
-    def _require_may_act_on(self, todo: Todo) -> None:
+    def _matching_todos(self) -> QuerySet[Todo]:
+        return Todo.objects.filter(
+            organization_id=self.context.actor.organization_id,
+            assignee_id=self.assignee_id,
+            dedup_key=self.dedup_key,
+        )
+
+    def _require_may_act_on(self, todo: Todo, resource: ResourceDescriptor) -> None:
         """The settler must still hold the action the todo asks for."""
 
         decision = authorize(
             subject_for(self.context.actor),
             action=todo.action_code,
-            resource=self._locked_source_of(todo),
+            resource=resource,
             context=AuthorizationContext.current(),
         )
         if not decision.allowed:
             raise PermissionDeniedError()
 
-    def _locked_source_of(self, todo: Todo) -> ResourceDescriptor:
+    def _locked_source(self, *, source_type: str, source_id: UUID) -> ResourceDescriptor:
         """Read the sensitivity from the locked domain row, not from the caller.
 
         Whoever asked for this settlement read the source outside this transaction,
@@ -227,23 +253,23 @@ class SettleOneOpenTodo:
         here closes the window where a settle is judged against a stale, lower level.
         """
 
-        source = _AUTHORITATIVE_SOURCES.get(todo.source_type)
+        source = _AUTHORITATIVE_SOURCES.get(source_type)
         if source is None:
             raise PermissionDeniedError()
         app_label, model_name, metadata_fields = source
         model = django_apps.get_model(app_label, model_name)
         row = (
             model.objects.select_for_update()
-            .filter(public_id=todo.source_id, organization_id=todo.organization_id)
+            .filter(public_id=source_id, organization_id=self.context.actor.organization_id)
             .values("sensitivity_level", *metadata_fields)
             .first()
         )
         if row is None:
             raise PermissionDeniedError()
         return ResourceDescriptor(
-            resource_type=todo.source_type,
-            public_id=todo.source_id,
-            organization_id=todo.organization_id,
+            resource_type=source_type,
+            public_id=source_id,
+            organization_id=self.context.actor.organization_id,
             sensitivity_level=str(row["sensitivity_level"]),
             metadata={field: row[field] for field in metadata_fields},
         )

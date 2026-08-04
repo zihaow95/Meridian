@@ -52,6 +52,7 @@ from apps.identity.management.commands.seed_e2e_user import (
     E2E_APPROVER_LOGIN_KEY,
     E2E_LOGIN_KEY,
     E2E_ORG_NAME,
+    fixture_material_confirmation_ids,
 )
 from apps.identity.models.organization import Organization
 from apps.identity.models.user import User, UserStatus
@@ -128,6 +129,9 @@ class Command(BaseCommand):
 
     def handle(self, *args: object, **options: object) -> None:
         call_command("seed_e2e_user")
+        # Recorded before anything else runs: these are the confirmations this run is
+        # answerable for, and the only ones it may converge or repair.
+        self._fixture_confirmation_ids: tuple[UUID, ...] = fixture_material_confirmation_ids()
         organization = Organization.objects.get(name=E2E_ORG_NAME)
         if organization.public_id != PHASE6_ORG_PUBLIC_ID:
             Organization.objects.filter(pk=organization.pk).update(public_id=PHASE6_ORG_PUBLIC_ID)
@@ -536,27 +540,31 @@ class Command(BaseCommand):
         those events here, repair settlements an earlier build receipted into thin air,
         then assert the end state rather than disclosing an intention.
 
-        Scope is this organization's own confirmation events, named by exact row id.
-        A seed has no mandate over another organization's todos, and a long-lived
-        database can hold thousands of events belonging to loops it does not own -
-        including failing ones that would block this run.
+        Scope is the confirmations `seed_e2e_user` just recorded as its fixtures, and
+        their events named by exact row id. A seed has no mandate over facts it did
+        not create - not another organization's, and not this organization's history
+        either. Sweeping history is an operations decision and lives in
+        `repair_material_confirmation_settlements`.
         """
 
         publisher = LocalOutboxPublisher()
         report = converge_pending_events(
-            publisher=publisher, event_ids=self._own_projection_event_ids(actor)
+            publisher=publisher, event_ids=self._fixture_projection_event_ids()
         )
         reissued = ReissueSettlementForDecidedConfirmations(
             context=CommandContext.for_actor(actor),
-            confirmation_public_ids=self._own_stranded_confirmations(actor),
+            confirmation_public_ids=stranded_settlement_candidates(
+                organization_id=actor.organization_id,
+                confirmation_public_ids=self._fixture_confirmation_ids,
+            ),
         ).execute()
         if reissued:
             report = converge_pending_events(
-                publisher=publisher, event_ids=self._own_projection_event_ids(actor)
+                publisher=publisher, event_ids=self._fixture_projection_event_ids()
             )
 
         problems = [undelivered.describe() for undelivered in report.undelivered]
-        problems.extend(self._unsettled_confirmation_facts(actor))
+        problems.extend(self._unsettled_confirmation_facts())
         if problems:
             raise CommandError(
                 "Phase 6 seed left the notification projection loop open:\n  "
@@ -568,47 +576,30 @@ class Command(BaseCommand):
             f"{report.rounds} round(s), {len(reissued)} settlement(s) reissued."
         )
 
-    def _own_confirmation_ids(self, actor: User) -> list[UUID]:
-        return list(
-            MaterialConfirmation.objects.filter(organization_id=actor.organization_id).values_list(
-                "public_id", flat=True
-            )
-        )
-
-    def _own_projection_event_ids(self, actor: User) -> list[int]:
-        """The exact projection event rows this organization's confirmations own.
+    def _fixture_projection_event_ids(self) -> list[int]:
+        """The exact projection event rows this run's fixture confirmations own.
 
         Both projection event types are registered against a `material_confirmation`
-        aggregate, so the organization's confirmations name the whole set without
-        reaching a stranger's event of the same type.
+        aggregate, so the recorded fixture confirmations name the whole set without
+        reaching an event the seed did not cause.
         """
 
         return list(
             OutboxEvent.objects.filter(
                 event_type__in=_PROJECTION_EVENT_TYPES,
                 aggregate_type="material_confirmation",
-                aggregate_id__in=self._own_confirmation_ids(actor),
+                aggregate_id__in=self._fixture_confirmation_ids,
             ).values_list("pk", flat=True)
         )
 
-    def _own_stranded_confirmations(self, actor: User) -> list[UUID]:
-        """Decided confirmations of this organization whose todo is still open.
-
-        The seed repairs only what it can see standing open after its own
-        convergence. Sweeping an organization's whole history is an operations
-        decision and lives in `repair_material_confirmation_settlements`.
-        """
-
-        return stranded_settlement_candidates(organization_id=actor.organization_id)
-
-    def _unsettled_confirmation_facts(self, actor: User) -> list[str]:
+    def _unsettled_confirmation_facts(self) -> list[str]:
         """Report every way the decided-confirmation loop could still be open."""
 
         problems: list[str] = []
         for event in OutboxEvent.objects.filter(
             event_type__in=_PROJECTION_EVENT_TYPES,
             aggregate_type="material_confirmation",
-            aggregate_id__in=self._own_confirmation_ids(actor),
+            aggregate_id__in=self._fixture_confirmation_ids,
         ).order_by("occurred_at", "pk"):
             if event.status != OutboxStatus.PUBLISHED:
                 problems.append(f"{event.event_type} on {event.aggregate_id} is {event.status}")
@@ -623,12 +614,12 @@ class Command(BaseCommand):
             OutboxEvent.objects.filter(
                 event_type="todo.requested",
                 aggregate_type="material_confirmation",
-                aggregate_id__in=self._own_confirmation_ids(actor),
+                aggregate_id__in=self._fixture_confirmation_ids,
             ).values_list("aggregate_id", flat=True)
         )
         confirmations = (
             MaterialConfirmation.objects.select_related("material")
-            .filter(organization_id=actor.organization_id, public_id__in=requested)
+            .filter(public_id__in=requested)
             .exclude(decision=MaterialConfirmationDecision.PENDING)
             .order_by("pk")
         )
