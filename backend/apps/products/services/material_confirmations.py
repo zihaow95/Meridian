@@ -24,10 +24,7 @@ from apps.authorization.policies.engine import authorize
 from apps.authorization.services.subject import subject_for
 from apps.identity.models.user import User, UserStatus
 from apps.notifications.models import TodoStatus
-from apps.notifications.services.todos import (
-    CompleteOpenTodosForSource,
-    SettleOpenTodosForSource,
-)
+from apps.notifications.services.todos import SettleOpenTodosForSource
 from apps.platform.api.errors import PermissionDeniedError
 from apps.platform.application.command import CommandContext
 from apps.platform.outbox.services import (
@@ -348,13 +345,25 @@ class DecideMaterialConfirmation:
                     after_summary=self._audit_summary(confirmation, material),
                 )
             )
-            CompleteOpenTodosForSource(
-                organization_id=confirmation.organization_id,
-                source_type="product_material",
-                source_id=material.public_id,
-                actor=actor,
-                trace_id=self.context.trace_id,
-            ).execute()
+            settle_event = register_outbox_event(
+                OutboxMessage(
+                    event_type="material_confirmation.decided",
+                    aggregate_type="material_confirmation",
+                    aggregate_id=confirmation.public_id,
+                    payload={
+                        "confirmation_public_id": str(confirmation.public_id),
+                        "material_public_id": str(material.public_id),
+                        "decision": confirmation.decision,
+                        "actor_user_id": actor.id,
+                    },
+                    occurred_at=self.context.occurred_at or timezone.now(),
+                )
+            )
+            # The request's own todo is only projected after commit, so settling
+            # in-transaction would try to close a todo that does not exist yet
+            # whenever request and decision share one boundary. Replay the
+            # settlement from the outbox instead.
+            schedule_local_dispatch_after_commit(settle_event)
         return confirmation
 
     def _audit_summary(

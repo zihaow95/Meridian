@@ -428,6 +428,130 @@ def test_standing_down_a_material_closes_open_confirmation_todos_and_notificatio
     ).exists()
 
 
+def test_deciding_inside_the_requesting_transaction_still_settles_the_todo(
+    django_capture_on_commit_callbacks, requester, confirmer, current_material
+) -> None:
+    """Seeds and importers request and decide inside one boundary.
+
+    `todo.requested` only projects after commit, so a settle that ran inside the
+    transaction would leave an OPEN todo and UNREAD notice behind an APPROVED
+    material.
+    """
+
+    from apps.notifications.models import Notification, NotificationStatus, Todo, TodoStatus
+
+    with django_capture_on_commit_callbacks(execute=True):
+        with transaction.atomic():
+            confirmation = submit(requester, current_material, confirmer)
+            decide(confirmer, confirmation, MaterialConfirmationDecision.APPROVED)
+
+    current_material.refresh_from_db()
+    assert current_material.material_status == MaterialStatus.APPROVED
+    todo = Todo.objects.get(
+        source_type="product_material",
+        source_id=current_material.public_id,
+    )
+    assert todo.status == TodoStatus.COMPLETED
+    assert todo.open_slot is None
+    notification = Notification.objects.get(todo=todo)
+    assert notification.status == NotificationStatus.CLOSED
+
+
+def test_the_decision_settlement_event_can_be_replayed_without_reopening(
+    django_capture_on_commit_callbacks, requester, confirmer, current_material
+) -> None:
+    from apps.notifications.models import Todo, TodoStatus
+    from apps.platform.outbox.models import OutboxEvent, OutboxStatus
+    from apps.products.consumers import MaterialConfirmationDecidedConsumer
+
+    with django_capture_on_commit_callbacks(execute=True):
+        confirmation = submit(requester, current_material, confirmer)
+    with django_capture_on_commit_callbacks(execute=True):
+        decide(confirmer, confirmation, MaterialConfirmationDecision.APPROVED)
+
+    event = OutboxEvent.objects.get(
+        event_type="material_confirmation.decided",
+        aggregate_id=confirmation.public_id,
+    )
+    assert event.status == OutboxStatus.PUBLISHED
+
+    MaterialConfirmationDecidedConsumer().consume(event)
+
+    todos = Todo.objects.filter(
+        source_type="product_material",
+        source_id=current_material.public_id,
+    )
+    assert todos.count() == 1
+    assert todos.get().status == TodoStatus.COMPLETED
+
+
+def test_making_a_material_current_refuses_an_actor_from_another_organization(
+    current_material, organization, controlled_document_version, grant_action
+) -> None:
+    from apps.identity.models.organization import Organization
+
+    outsider = User.objects.create_user(
+        organization=Organization.objects.create(name="Foreign Corp"),
+        display_name="Outsider",
+        status=UserStatus.ACTIVE,
+        activated_at=timezone.now(),
+    )
+    grant_action(outsider, "product_material.manage", "product_material")
+    newer = ProductMaterial.objects.create(
+        organization=organization,
+        change_set=current_material.change_set,
+        owner_type=current_material.owner_type,
+        owner_id=current_material.owner_id,
+        material_type_code=current_material.material_type_code,
+        document_version=controlled_document_version(content=b"%PDF-1.4 foreign"),
+        version_no=2,
+    )
+
+    with pytest.raises(PermissionDeniedError):
+        make_material_current(newer, context=CommandContext.for_actor(outsider))
+
+    newer.refresh_from_db()
+    current_material.refresh_from_db()
+    assert newer.current_slot is None
+    assert current_material.current_slot == 1
+
+
+def test_making_a_material_current_judges_the_stored_sensitivity_not_the_passed_instance(
+    requester, current_material, organization, controlled_document_version
+) -> None:
+    """A caller holding a stale in-memory row must not promote above clearance."""
+
+    from apps.authorization.models.role import (
+        DataSensitivityLevel,
+        PermissionAction,
+        Role,
+        RolePermission,
+    )
+
+    RolePermission.objects.filter(
+        role=Role.objects.get(role_code="ROLE_PRODUCT_MATERIAL_MANAGE"),
+        action=PermissionAction.objects.get(action_code="product_material.manage"),
+    ).update(max_data_level=DataSensitivityLevel.INTERNAL)
+    newer = ProductMaterial.objects.create(
+        organization=organization,
+        change_set=current_material.change_set,
+        owner_type=current_material.owner_type,
+        owner_id=current_material.owner_id,
+        material_type_code=current_material.material_type_code,
+        document_version=controlled_document_version(content=b"%PDF-1.4 secret"),
+        version_no=2,
+        sensitivity_level=DataSensitivityLevel.HIGHLY_SENSITIVE,
+    )
+    newer.sensitivity_level = DataSensitivityLevel.INTERNAL
+
+    with pytest.raises(PermissionDeniedError):
+        make_material_current(newer, context=CommandContext.for_actor(requester))
+
+    newer.refresh_from_db()
+    assert newer.current_slot is None
+    assert newer.sensitivity_level == DataSensitivityLevel.HIGHLY_SENSITIVE
+
+
 def test_a_decision_is_audited_against_the_file_that_was_reviewed(
     requester, confirmer, current_material
 ) -> None:

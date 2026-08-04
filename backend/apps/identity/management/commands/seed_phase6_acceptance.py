@@ -456,33 +456,27 @@ class Command(BaseCommand):
         )
         from apps.notifications.models import Notification
 
-        # E2E lists the newest page of notifications. Keep each category's open
-        # fixture inside that window even when earlier suite runs closed keys or
-        # buried old UNREAD rows under newer ACTION_REQUIRED traffic.
-        recent_ids = set(
-            Notification.objects.filter(recipient=actor)
-            .order_by("-created_at", "-id")
-            .values_list("id", flat=True)[:40]
-        )
         for category, level in _CATEGORY_LEVELS:
             template_code = f"phase6.{category.lower()}"
             deep_link = (
                 product_link if category == NotificationCategory.ACTION_REQUIRED else "/todos"
             )
             base_key = f"phase6:notify:{category}:{level}"
-            # Prefer any non-CLOSED fixture for this category. Prior E2E runs may
-            # have closed both the primary and `:open` keys; never reopen history.
-            open_existing = (
+            # Only an UNREAD row is a usable acceptance fixture. A READ or CLOSED
+            # row is a fact a run already consumed: keep it as history and add a
+            # fresh unread sibling instead of reopening it. Reusing the existing
+            # UNREAD row keeps at most one live fixture per category.
+            reusable = (
                 Notification.objects.filter(
                     recipient=actor,
                     dedup_key__startswith=base_key,
+                    status=NotificationStatus.UNREAD,
                 )
-                .exclude(status=NotificationStatus.CLOSED)
                 .order_by("-id")
                 .first()
             )
-            if open_existing is not None and open_existing.id in recent_ids:
-                Notification.objects.filter(pk=open_existing.pk).update(deep_link=deep_link)
+            if reusable is not None:
+                Notification.objects.filter(pk=reusable.pk).update(deep_link=deep_link)
                 continue
 
             dedup_key = base_key

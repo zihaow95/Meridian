@@ -36,6 +36,66 @@ pytestmark = pytest.mark.django_db
 
 
 @pytest.fixture
+def published_todo_notification_catalog(organization: Organization, active_user: User) -> None:
+    """`todo.requested` projection needs a live template + delivery policy."""
+
+    from apps.configuration.models import (
+        ConfigurationDefinition,
+        ConfigurationStatus,
+        ConfigurationVersion,
+    )
+    from apps.configuration.schema_registry import (
+        NOTIFICATION_DELIVERY_POLICY_CODE,
+        NOTIFICATION_TEMPLATE_CATALOG_CODE,
+    )
+
+    contents = (
+        (
+            NOTIFICATION_TEMPLATE_CATALOG_CODE,
+            {
+                "templates": [
+                    {
+                        "template_code": "todo.created",
+                        "category": "ACTION_REQUIRED",
+                        "default_level": "IMPORTANT",
+                        "summary_template": "待办 {title} 需要处理",
+                        "allowed_variables": ["title"],
+                    }
+                ]
+            },
+        ),
+        (
+            NOTIFICATION_DELIVERY_POLICY_CODE,
+            {
+                "rules": [
+                    {
+                        "category": "ACTION_REQUIRED",
+                        "level": "IMPORTANT",
+                        "channels": ["IN_APP"],
+                    }
+                ]
+            },
+        ),
+    )
+    for code, content in contents:
+        definition, _ = ConfigurationDefinition.objects.get_or_create(
+            organization=organization,
+            definition_code=code,
+            defaults={"name": code, "description": ""},
+        )
+        ConfigurationVersion.objects.create(
+            organization=organization,
+            definition=definition,
+            version_number=ConfigurationVersion.objects.filter(definition=definition).count() + 1,
+            status=ConfigurationStatus.PUBLISHED,
+            current_published_slot=1,
+            content_json=content,
+            created_by=active_user,
+            published_at=timezone.now(),
+        )
+
+
+@pytest.fixture
 def yogurt_product(organization: Organization, active_user: User) -> ProductAsset:
     return ProductAsset.objects.create(
         organization=organization,
@@ -145,6 +205,40 @@ def test_repair_seed_upgrades_forged_live_approval_without_overwriting_history(
     assert current.version_no == 2
     assert current.document_version_id != forged_version.id
     assert SeedE2ECommand()._has_valid_approved_confirmation(current)
+
+
+def test_repair_seed_leaves_no_open_confirmation_todo_after_commit_callbacks(
+    django_capture_on_commit_callbacks,
+    published_todo_notification_catalog: None,
+    yogurt_product: ProductAsset,
+    active_user: User,
+    grant_action: Callable[..., None],
+) -> None:
+    """An approved material must never keep a "please confirm" todo open.
+
+    The seed requests and decides in one transaction, so the todo is projected
+    only after commit; the settlement has to land after that projection.
+    """
+
+    from apps.notifications.models import Notification, NotificationStatus, Todo, TodoStatus
+
+    grant_action(active_user, "product_material.manage", "product_material")
+    grant_action(active_user, "product_material.confirm", "product_material")
+
+    with django_capture_on_commit_callbacks(execute=True):
+        SeedE2ECommand()._ensure_approved_product_label(product=yogurt_product, actor=active_user)
+
+    current = ProductMaterial.objects.get(
+        owner_type=AttributeOwnerType.PRODUCT,
+        owner_id=yogurt_product.id,
+        material_type_code="PRODUCT_LABEL",
+        current_slot=1,
+    )
+    assert current.material_status == MaterialStatus.APPROVED
+    todo = Todo.objects.get(source_type="product_material", source_id=current.public_id)
+    assert todo.status == TodoStatus.COMPLETED
+    assert todo.open_slot is None
+    assert Notification.objects.get(todo=todo).status == NotificationStatus.CLOSED
 
 
 def test_repair_seed_upgrades_stale_pending_confirmation_on_rerun(

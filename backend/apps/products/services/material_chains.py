@@ -52,23 +52,45 @@ def make_material_current(material: ProductMaterial, *, context: CommandContext)
     The slot is released before it is claimed, so the unique index holds at
     every instant. Confirmations of the material being stood down are retired
     through the governed supersede command so todos and notifications settle.
+
+    The nominated row is re-read and locked inside the transaction and judged on
+    its stored sensitivity: a caller holding a detached instance must not be able
+    to promote a file the actor may not touch, or one from another organization.
     """
 
     from apps.products.services.material_confirmations import (
         SupersedeOpenMaterialConfirmations,
     )
 
+    actor = context.actor
     with transaction.atomic():
+        target = (
+            ProductMaterial.objects.select_for_update()
+            .filter(pk=material.pk, organization_id=actor.organization_id)
+            .first()
+        )
+        if target is None:
+            # Same surface for "not yours" and "not there".
+            raise PermissionDeniedError()
+        _require(
+            actor,
+            action="product_material.manage",
+            resource_type="product_material",
+            public_id=target.public_id,
+            organization_id=target.organization_id,
+            sensitivity_level=target.sensitivity_level,
+        )
+
         stood_down = list(
             ProductMaterial.objects.select_for_update()
             .filter(
-                organization_id=material.organization_id,
-                owner_type=material.owner_type,
-                owner_id=material.owner_id,
-                material_type_code=material.material_type_code,
+                organization_id=target.organization_id,
+                owner_type=target.owner_type,
+                owner_id=target.owner_id,
+                material_type_code=target.material_type_code,
                 current_slot=1,
             )
-            .exclude(pk=material.pk)
+            .exclude(pk=target.pk)
             .order_by("pk")
         )
         for previous in stood_down:
@@ -77,9 +99,11 @@ def make_material_current(material: ProductMaterial, *, context: CommandContext)
             previous.material_status = MaterialStatus.INACTIVE
             previous.save(update_fields=["current_slot", "material_status", "updated_at"])
 
-        material.current_slot = 1
-        material.save(update_fields=["current_slot", "updated_at"])
-    return material
+        target.current_slot = 1
+        target.save(update_fields=["current_slot", "updated_at"])
+    # Callers keep working with the instance they passed in.
+    material.current_slot = target.current_slot
+    return target
 
 
 @dataclass(frozen=True)

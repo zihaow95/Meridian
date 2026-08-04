@@ -264,19 +264,23 @@ test.describe('Phase 6 controlled files / notifications / pilot readiness', () =
     await devLogin(page, '/notifications')
     await expect(page.getByRole('heading', { name: '站内通知' })).toBeVisible()
 
-    // Seeded category fixtures are UNREAD; do not rely on a mixed page that can
-    // bury older open rows under newer confirmation traffic from prior tests.
-    const list = await authedJson(
-      page,
-      'GET',
-      '/api/v1/notifications/my?status=UNREAD&page_size=50',
-    )
+    const list = await authedJson(page, 'GET', '/api/v1/notifications/my?page_size=50')
     expect(list.status()).toBe(200)
     const body = await list.json()
     expect(body.unread_count).toBeGreaterThanOrEqual(1)
-    const categories = new Set(
-      body.items.map((row: { category: string }) => row.category).filter(Boolean),
-    )
+    expect(body.items[0]).not.toHaveProperty('object_id')
+    expect(body.items[0]).toHaveProperty('summary')
+
+    // Ask per category instead of hoping one page holds all six: whether the
+    // fixture exists must not depend on how much traffic earlier specs left.
+    type NotificationRow = {
+      public_id: string
+      category: string
+      level: string
+      status: string
+      deep_link: string
+    }
+    const unreadByCategory = new Map<string, NotificationRow>()
     for (const category of [
       'ACTION_REQUIRED',
       'DEADLINE',
@@ -285,27 +289,27 @@ test.describe('Phase 6 controlled files / notifications / pilot readiness', () =
       'SYSTEM_FAILURE',
       'INFORMATION',
     ]) {
-      expect(categories.has(category)).toBe(true)
+      const scoped = await authedJson(
+        page,
+        'GET',
+        `/api/v1/notifications/my?status=UNREAD&category=${category}&page_size=5`,
+      )
+      expect(scoped.status()).toBe(200)
+      const items = (await scoped.json()).items as NotificationRow[]
+      expect(items.length, `no UNREAD fixture for ${category}`).toBeGreaterThan(0)
+      unreadByCategory.set(category, items[0])
     }
-    expect(body.items[0]).not.toHaveProperty('object_id')
-    expect(body.items[0]).toHaveProperty('summary')
 
-    const levels = new Set(
-      body.items.map((row: { level: string }) => row.level).filter(Boolean),
-    )
+    const levels = new Set([...unreadByCategory.values()].map((row) => row.level))
     expect(levels.has('URGENT')).toBe(true)
     expect(levels.has('IMPORTANT')).toBe(true)
     expect(levels.has('NORMAL')).toBe(true)
 
-    const actionRequired = body.items.find(
-      (row: { category: string; deep_link: string }) =>
-        row.category === 'ACTION_REQUIRED' && String(row.deep_link).startsWith('/products/'),
-    )
-    expect(actionRequired?.deep_link).toBeTruthy()
-    const productDeepLink = actionRequired.deep_link as string
+    const productDeepLink = unreadByCategory.get('ACTION_REQUIRED')!.deep_link
+    expect(productDeepLink.startsWith('/products/')).toBe(true)
 
-    const target = body.items.find((row: { status: string }) => row.status === 'UNREAD')
-    expect(target?.public_id).toBeTruthy()
+    const target = unreadByCategory.get('INFORMATION')!
+    expect(target.public_id).toBeTruthy()
     const read = await authedJson(
       page,
       'POST',
