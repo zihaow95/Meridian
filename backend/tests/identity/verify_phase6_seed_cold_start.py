@@ -83,6 +83,37 @@ SNAPSHOT_QUERIES = {
         WHERE u.login_key = 'e2e-active-user' AND t.dedup_key = 'e2e:todo'
         ORDER BY t.id
     """,
+    # The material confirmation loop is the one the seed itself drives end to end:
+    # request, projection, decision, settlement. Snapshotting only 'e2e:todo' would
+    # report a stable seed while an APPROVED material still wore an OPEN todo.
+    "confirmation_todos": """
+        SELECT t.dedup_key, t.status, t.open_slot, t.action_code
+        FROM {database}.notifications_todo AS t
+        WHERE t.dedup_key LIKE 'material\\_confirmation:%'
+        ORDER BY t.dedup_key
+    """,
+    # Keyed, not joined: one notice serves one ask, so a replayed request can leave a
+    # sibling todo row with no notice of its own while the ask is properly closed.
+    "confirmation_notifications": """
+        SELECT n.dedup_key, n.status, n.close_reason
+        FROM {database}.notifications_notification AS n
+        WHERE n.dedup_key LIKE 'notify:material\\_confirmation:%'
+        ORDER BY n.dedup_key, n.id
+    """,
+    "projection_events": """
+        SELECT e.event_type, e.aggregate_type, e.status, e.attempt_count,
+               e.last_error_code
+        FROM {database}.platform_outbox_event AS e
+        WHERE e.event_type IN ('todo.requested', 'material_confirmation.decided')
+        ORDER BY e.occurred_at, e.id
+    """,
+    "projection_receipts": """
+        SELECT e.event_type, r.consumer_code
+        FROM {database}.platform_consumer_receipt AS r
+        JOIN {database}.platform_outbox_event AS e ON e.id = r.event_id
+        WHERE e.event_type IN ('todo.requested', 'material_confirmation.decided')
+        ORDER BY e.occurred_at, r.id
+    """,
     "pilot_batches": """
         SELECT id, public_id, name, status, purpose,
                planned_participant_count, planned_duration_days
@@ -148,6 +179,47 @@ def assert_volume_floors(snapshot: dict[str, tuple]) -> None:
         raise RuntimeError("Phase 6 seed expected six category notification rows.")
 
 
+def assert_projection_loop_settled(snapshot: dict[str, tuple]) -> None:
+    """The seed must hand back a settled loop, not a retryable intention.
+
+    Phase 6 has no Celery worker, so an event left PENDING is stuck, and a decided
+    confirmation would keep an OPEN todo and an UNREAD notice forever.
+    """
+
+    problems: list[str] = []
+    for dedup_key, status, open_slot, _action_code in snapshot["confirmation_todos"]:
+        if status not in {"COMPLETED", "CANCELLED"}:
+            problems.append(f"todo {dedup_key} is {status}")
+        if open_slot is not None:
+            problems.append(f"todo {dedup_key} still holds the open slot")
+    for dedup_key, status, _close_reason in snapshot["confirmation_notifications"]:
+        if status != "CLOSED":
+            problems.append(f"notification for {dedup_key} is {status}")
+
+    receipts_by_type: dict[str, int] = {}
+    for event_type, _consumer_code in snapshot["projection_receipts"]:
+        receipts_by_type[event_type] = receipts_by_type.get(event_type, 0) + 1
+    events_by_type: dict[str, int] = {}
+    for event_type, _aggregate_type, status, attempts, last_error in snapshot["projection_events"]:
+        events_by_type[event_type] = events_by_type.get(event_type, 0) + 1
+        if status != "PUBLISHED":
+            problems.append(
+                f"{event_type} is {status} after {attempts} attempt(s) "
+                f"(last error {last_error or 'NONE'})"
+            )
+    for event_type, count in events_by_type.items():
+        if receipts_by_type.get(event_type, 0) < count:
+            problems.append(
+                f"{event_type} has {receipts_by_type.get(event_type, 0)} receipt(s) "
+                f"for {count} event(s)"
+            )
+
+    if problems:
+        raise RuntimeError(
+            "Phase 6 seed left the notification projection loop open: " + "; ".join(problems)
+        )
+
+
 def main() -> int:
     root_password = required_env("MYSQL_ROOT_PASSWORD")
     database_name = f"meridian_p6_seed_{uuid.uuid4().hex[:12]}"
@@ -184,9 +256,11 @@ def main() -> int:
         run_manage("seed_phase6_acceptance", env=child_env)
         first_snapshot = read_seed_snapshot(cursor, database_name)
         assert_volume_floors(first_snapshot)
+        assert_projection_loop_settled(first_snapshot)
 
         run_manage("seed_phase6_acceptance", env=child_env)
         second_snapshot = read_seed_snapshot(cursor, database_name)
+        assert_projection_loop_settled(second_snapshot)
         changed = [name for name in first_snapshot if second_snapshot[name] != first_snapshot[name]]
         if changed:
             raise RuntimeError("Repeat Phase 6 seed changed stable fixtures: " + ", ".join(changed))

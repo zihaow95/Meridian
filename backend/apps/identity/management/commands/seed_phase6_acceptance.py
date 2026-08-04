@@ -13,7 +13,8 @@ from typing import Any
 from uuid import UUID
 
 from django.core.management import call_command
-from django.core.management.base import BaseCommand
+from django.core.management.base import BaseCommand, CommandError
+from django.db.models import Q
 from django.utils import timezone
 
 from apps.authorization.actions import PHASE6_ACTIONS
@@ -55,9 +56,12 @@ from apps.identity.management.commands.seed_e2e_user import (
 from apps.identity.models.organization import Organization
 from apps.identity.models.user import User, UserStatus
 from apps.notifications.models import (
+    Notification,
     NotificationCategory,
     NotificationLevel,
     NotificationStatus,
+    Todo,
+    TodoStatus,
 )
 from apps.notifications.services.lifecycle import CloseNotification
 from apps.notifications.services.notifications import CreateInAppNotification
@@ -76,6 +80,9 @@ from apps.pilot.services.feedback import (
     SubmitFeedbackRetest,
 )
 from apps.platform.application.command import CommandContext
+from apps.platform.outbox.convergence import converge_pending_events
+from apps.platform.outbox.models import ConsumerReceipt, OutboxEvent, OutboxStatus
+from apps.platform.outbox.tasks import LocalOutboxPublisher
 from apps.products.models import (
     AttributeOwnerType,
     MaterialConfirmation,
@@ -86,6 +93,10 @@ from apps.products.models import (
 )
 from apps.products.services.create_legacy_baseline import CreateLegacyBaselineDraft
 from apps.products.services.legacy_material_intake import CreateLegacyMaterialSubmission
+from apps.products.services.material_confirmation_repair import (
+    ReissueSettlementForDecidedConfirmations,
+)
+from apps.products.services.material_confirmations import confirmation_todo_dedup_key
 from apps.products.services.publish_legacy_baseline import PublishLegacyBaseline
 
 PHASE6_ORG_PUBLIC_ID = UUID("6a6a6a6a-6b6b-6c6c-6d6d-6e6e6e6e6e6e")
@@ -98,6 +109,8 @@ PHASE6_CONTROLLED_VERSION_COUNT = 100
 PHASE6_HISTORY_VERSION_COUNT = 20
 PHASE6_PENDING_TRIAGE_COUNT = 10
 PHASE6_MAX_UPLOAD_BYTES = 50 * 1024 * 1024
+# Events whose failure would leave a todo or notification permanently open.
+_PROJECTION_EVENT_TYPES = ("todo.requested", "material_confirmation.decided")
 
 _CATEGORY_LEVELS: tuple[tuple[str, str], ...] = (
     (NotificationCategory.ACTION_REQUIRED, NotificationLevel.URGENT),
@@ -141,6 +154,7 @@ class Command(BaseCommand):
         self._ensure_legacy_products(actor, versions)
         # After products exist so ACTION_REQUIRED can deep-link a real product.
         self._ensure_notifications(actor)
+        self._converge_projection_events(actor)
 
         self.stdout.write(
             self.style.SUCCESS(
@@ -455,8 +469,6 @@ class Command(BaseCommand):
         product_link = (
             f"/products/{first_product.public_id}" if first_product is not None else "/todos"
         )
-        from apps.notifications.models import Notification
-
         for category, level in _CATEGORY_LEVELS:
             template_code = f"phase6.{category.lower()}"
             deep_link = (
@@ -484,9 +496,17 @@ class Command(BaseCommand):
                     notification_public_id=superseded.public_id,
                     close_reason="SEED_FIXTURE_SUPERSEDED",
                 ).execute()
-            if reusable is not None:
-                Notification.objects.filter(pk=reusable.pk).update(deep_link=deep_link)
+            if reusable is not None and reusable.deep_link == deep_link:
                 continue
+            if reusable is not None:
+                # The authoritative link moved. A notification is a delivered fact,
+                # so the stale one is closed and a new one is appended rather than
+                # having its link rewritten underneath the reader.
+                CloseNotification(
+                    context=CommandContext.for_actor(actor),
+                    notification_public_id=reusable.public_id,
+                    close_reason="SEED_FIXTURE_LINK_CHANGED",
+                ).execute()
 
             dedup_key = base_key
             suffix = 0
@@ -504,6 +524,93 @@ class Command(BaseCommand):
                 action_code="notification.read",
                 level=level,
             ).execute()
+
+    def _converge_projection_events(self, actor: User) -> None:
+        """Hand back a settled projection loop instead of a retryable promise.
+
+        `seed_e2e_user` runs before this command publishes the notification template
+        catalog, so its confirmation todo and settlement events fail their first
+        after-commit dispatch. Phase 6 runs on a LAN with no Celery worker or beat,
+        which makes a PENDING event stuck rather than eventually consistent. Dispatch
+        those events here, repair settlements an earlier build receipted into thin air,
+        then assert the end state rather than disclosing an intention.
+
+        Only the two projection event types are converged. Events of other types are
+        somebody else's loop, and a long-lived database can hold thousands of them.
+        """
+
+        publisher = LocalOutboxPublisher()
+        report = converge_pending_events(publisher=publisher, event_types=_PROJECTION_EVENT_TYPES)
+        reissued = ReissueSettlementForDecidedConfirmations(
+            context=CommandContext.for_actor(actor)
+        ).execute()
+        if reissued:
+            report = converge_pending_events(
+                publisher=publisher, event_types=_PROJECTION_EVENT_TYPES
+            )
+
+        problems = [undelivered.describe() for undelivered in report.undelivered]
+        problems.extend(self._unsettled_confirmation_facts(actor))
+        if problems:
+            raise CommandError(
+                "Phase 6 seed left the notification projection loop open:\n  "
+                + "\n  ".join(problems)
+            )
+
+        self.stdout.write(
+            f"Projection convergence: {report.dispatched} event(s) published in "
+            f"{report.rounds} round(s), {len(reissued)} settlement(s) reissued."
+        )
+
+    def _unsettled_confirmation_facts(self, actor: User) -> list[str]:
+        """Report every way the decided-confirmation loop could still be open."""
+
+        problems: list[str] = []
+        for event in OutboxEvent.objects.filter(event_type__in=_PROJECTION_EVENT_TYPES).order_by(
+            "occurred_at", "pk"
+        ):
+            if event.status != OutboxStatus.PUBLISHED:
+                problems.append(f"{event.event_type} on {event.aggregate_id} is {event.status}")
+            elif not ConsumerReceipt.objects.filter(event=event).exists():
+                problems.append(
+                    f"{event.event_type} on {event.aggregate_id} is PUBLISHED without a receipt"
+                )
+
+        # Only a confirmation that actually asked somebody owes a settled todo.
+        # A legacy baseline import records a decision without requesting one.
+        requested = set(
+            OutboxEvent.objects.filter(
+                event_type="todo.requested",
+                aggregate_type="material_confirmation",
+            ).values_list("aggregate_id", flat=True)
+        )
+        confirmations = (
+            MaterialConfirmation.objects.select_related("material")
+            .filter(organization_id=actor.organization_id, public_id__in=requested)
+            .exclude(decision=MaterialConfirmationDecision.PENDING)
+            .order_by("pk")
+        )
+        for confirmation in confirmations:
+            dedup_key = confirmation_todo_dedup_key(confirmation.public_id)
+            todos = list(Todo.objects.filter(dedup_key=dedup_key).order_by("pk"))
+            if not todos:
+                problems.append(
+                    f"confirmation {confirmation.public_id} requested a todo that never projected"
+                )
+                continue
+            for todo in todos:
+                if todo.status == TodoStatus.OPEN:
+                    problems.append(f"todo {dedup_key} is still OPEN behind a decided confirmation")
+            # Notices are found by key as well as by link: one notice serves an ask,
+            # so a replayed request can leave a sibling todo row pointing nowhere.
+            open_notices = Notification.objects.filter(
+                Q(todo__dedup_key=dedup_key) | Q(dedup_key=f"notify:{dedup_key}")
+            ).exclude(status=NotificationStatus.CLOSED)
+            for notice in open_notices:
+                problems.append(
+                    f"notification {notice.public_id} for {dedup_key} is {notice.status}"
+                )
+        return problems
 
     def _ensure_document_volume(
         self, organization: Organization, actor: User

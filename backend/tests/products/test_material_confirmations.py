@@ -9,6 +9,7 @@ prove that anybody looked at the bytes, so it cannot be replayed as an approval.
 from __future__ import annotations
 
 import importlib
+from dataclasses import dataclass
 from typing import Any
 from uuid import uuid4
 
@@ -543,6 +544,73 @@ def test_a_stale_decision_event_does_not_settle_a_later_requests_todo(
     )
 
 
+@dataclass(frozen=True)
+class UndeliveredDecision:
+    confirmation: MaterialConfirmation
+    todo: Any
+    notification: Any
+    event: Any
+
+
+@pytest.fixture
+def undelivered_decision(
+    django_capture_on_commit_callbacks, requester, confirmer, current_material
+) -> UndeliveredDecision:
+    """A real decision whose settlement event has not been consumed yet.
+
+    Payload validation can only be exercised from this state. With a still-PENDING
+    confirmation the consumer refuses on "carries no decision to settle" first, so
+    every field claim would pass untested; and after delivery there is no open todo
+    left to prove a rejected event changed nothing.
+    """
+
+    from apps.notifications.models import Notification, NotificationStatus, Todo, TodoStatus
+    from apps.platform.outbox.models import ConsumerReceipt, OutboxEvent, OutboxStatus
+
+    with django_capture_on_commit_callbacks(execute=True):
+        confirmation = submit(requester, current_material, confirmer)
+    # Deliberately no capture: the decision commits, its settlement does not run.
+    decide(confirmer, confirmation, MaterialConfirmationDecision.APPROVED)
+
+    confirmation.refresh_from_db()
+    assert confirmation.decision == MaterialConfirmationDecision.APPROVED
+    todo = Todo.objects.get(dedup_key=f"material_confirmation:{confirmation.public_id}")
+    assert todo.status == TodoStatus.OPEN
+    notification = Notification.objects.get(todo=todo)
+    assert notification.status == NotificationStatus.UNREAD
+    event = OutboxEvent.objects.get(
+        event_type="material_confirmation.decided",
+        aggregate_id=confirmation.public_id,
+    )
+    assert event.status == OutboxStatus.PENDING
+    assert not ConsumerReceipt.objects.filter(event=event).exists()
+    return UndeliveredDecision(
+        confirmation=confirmation, todo=todo, notification=notification, event=event
+    )
+
+
+def _retamper(event: Any, changes: dict[str, Any]) -> Any:
+    from apps.platform.outbox.models import OutboxEvent
+
+    payload = dict(event.payload_json)
+    payload.update(changes)
+    OutboxEvent.objects.filter(pk=event.pk).update(payload_json=payload)
+    event.refresh_from_db()
+    return event
+
+
+def _assert_settled_nothing(decision: UndeliveredDecision) -> None:
+    from apps.notifications.models import NotificationStatus, TodoStatus
+    from apps.platform.outbox.models import ConsumerReceipt
+
+    decision.todo.refresh_from_db()
+    decision.notification.refresh_from_db()
+    assert decision.todo.status == TodoStatus.OPEN
+    assert decision.todo.open_slot == 1
+    assert decision.notification.status == NotificationStatus.UNREAD
+    assert not ConsumerReceipt.objects.filter(event=decision.event).exists()
+
+
 @pytest.mark.parametrize(
     "tamper",
     [
@@ -550,41 +618,32 @@ def test_a_stale_decision_event_does_not_settle_a_later_requests_todo(
         pytest.param({"actor_user_id": "requester"}, id="actor-is-not-the-confirmer"),
         pytest.param({"material_public_id": str(uuid4())}, id="material-does-not-match"),
         pytest.param({"decision": "RETURNED"}, id="decision-does-not-match"),
+        pytest.param({"assignee_id": "requester"}, id="assignee-is-not-the-confirmer"),
+        pytest.param(
+            {"todo_dedup_key": f"material_confirmation:{uuid4()}"},
+            id="dedup-key-names-another-request",
+        ),
         pytest.param({"confirmation_public_id": str(uuid4())}, id="confirmation-does-not-resolve"),
+        pytest.param({"confirmation_public_id": None}, id="confirmation-id-is-explicitly-null"),
+        pytest.param({"material_public_id": None}, id="material-id-is-explicitly-null"),
+        pytest.param({"decision": None}, id="decision-is-explicitly-null"),
+        pytest.param({"assignee_id": None}, id="assignee-is-explicitly-null"),
+        pytest.param({"todo_dedup_key": None}, id="dedup-key-is-explicitly-null"),
     ],
 )
 def test_a_decision_event_that_contradicts_the_database_settles_nothing(
-    django_capture_on_commit_callbacks,
-    requester,
-    confirmer,
-    current_material,
-    organization,
-    tamper,
+    undelivered_decision, requester, tamper
 ) -> None:
-    """A malformed or foreign event must not close todos or take a receipt."""
+    """A malformed or foreign event must not close todos or take a receipt.
+
+    An explicitly null field is a claim of "no value", which a decided confirmation
+    never has; only an absent field may fall back to the authoritative row.
+    """
 
     from apps.identity.models.organization import Organization
-    from apps.notifications.models import Todo, TodoStatus
-    from apps.platform.outbox.models import ConsumerReceipt, OutboxEvent
     from apps.platform.outbox.tasks import LocalOutboxPublisher
     from apps.products.consumers import MaterialConfirmationEventRejected
 
-    with django_capture_on_commit_callbacks(execute=True):
-        confirmation = submit(requester, current_material, confirmer)
-
-    todo = Todo.objects.get(dedup_key=f"material_confirmation:{confirmation.public_id}")
-    event = OutboxEvent.objects.create(
-        event_type="material_confirmation.decided",
-        aggregate_type="material_confirmation",
-        aggregate_id=confirmation.public_id,
-        payload_json={
-            "confirmation_public_id": str(confirmation.public_id),
-            "material_public_id": str(current_material.public_id),
-            "decision": MaterialConfirmationDecision.APPROVED,
-            "actor_user_id": confirmer.id,
-        },
-        occurred_at=timezone.now(),
-    )
     actors = {
         "requester": requester.id,
         "foreign": User.objects.create_user(
@@ -594,18 +653,79 @@ def test_a_decision_event_that_contradicts_the_database_settles_nothing(
             activated_at=timezone.now(),
         ).id,
     }
-    payload = dict(event.payload_json)
-    for key, value in tamper.items():
-        payload[key] = actors.get(str(value), value)
-    OutboxEvent.objects.filter(pk=event.pk).update(payload_json=payload)
-    event.refresh_from_db()
+    changes = {
+        key: actors[str(value)] if str(value) in actors else value for key, value in tamper.items()
+    }
+    event = _retamper(undelivered_decision.event, changes)
 
     with pytest.raises(MaterialConfirmationEventRejected):
         LocalOutboxPublisher().publish(event)
 
-    todo.refresh_from_db()
-    assert todo.status == TodoStatus.OPEN
-    assert not ConsumerReceipt.objects.filter(event=event).exists()
+    _assert_settled_nothing(undelivered_decision)
+
+
+def test_a_decision_event_filed_under_another_aggregate_settles_nothing(
+    undelivered_decision,
+) -> None:
+    """The stream an event belongs to must be the confirmation it claims to settle."""
+
+    from apps.platform.outbox.models import OutboxEvent
+    from apps.platform.outbox.tasks import LocalOutboxPublisher
+    from apps.products.consumers import MaterialConfirmationEventRejected
+
+    OutboxEvent.objects.filter(pk=undelivered_decision.event.pk).update(aggregate_id=uuid4())
+    undelivered_decision.event.refresh_from_db()
+
+    with pytest.raises(MaterialConfirmationEventRejected):
+        LocalOutboxPublisher().publish(undelivered_decision.event)
+
+    _assert_settled_nothing(undelivered_decision)
+
+
+def test_an_event_missing_a_field_added_later_still_settles_its_todo(
+    undelivered_decision,
+) -> None:
+    """Older events predate payload fields; absence falls back to the database."""
+
+    from apps.notifications.models import NotificationStatus, TodoStatus
+    from apps.platform.outbox.models import ConsumerReceipt, OutboxEvent
+    from apps.platform.outbox.tasks import LocalOutboxPublisher
+
+    payload = dict(undelivered_decision.event.payload_json)
+    for key in ("material_public_id", "decision", "assignee_id", "todo_dedup_key"):
+        payload.pop(key)
+    OutboxEvent.objects.filter(pk=undelivered_decision.event.pk).update(payload_json=payload)
+    undelivered_decision.event.refresh_from_db()
+
+    LocalOutboxPublisher().publish(undelivered_decision.event)
+
+    undelivered_decision.todo.refresh_from_db()
+    undelivered_decision.notification.refresh_from_db()
+    assert undelivered_decision.todo.status == TodoStatus.COMPLETED
+    assert undelivered_decision.notification.status == NotificationStatus.CLOSED
+    assert ConsumerReceipt.objects.filter(event=undelivered_decision.event).exists()
+
+
+def test_a_settlement_is_refused_when_the_confirmer_lost_the_confirm_action(
+    undelivered_decision, confirmer
+) -> None:
+    """The settle command judges the locked todo itself, not the event's word.
+
+    A projection consumer believes whatever an event says, so the right to close a
+    todo has to be re-established where the write happens.
+    """
+
+    from apps.authorization.models.assignment import RoleAssignment
+    from apps.platform.outbox.tasks import LocalOutboxPublisher
+
+    RoleAssignment.objects.filter(
+        user=confirmer, role__role_code="ROLE_PRODUCT_MATERIAL_CONFIRM"
+    ).delete()
+
+    with pytest.raises(PermissionDeniedError):
+        LocalOutboxPublisher().publish(undelivered_decision.event)
+
+    _assert_settled_nothing(undelivered_decision)
 
 
 def test_the_decision_settlement_event_can_be_replayed_without_reopening(
@@ -726,6 +846,108 @@ def test_a_decision_is_refused_when_the_reviewed_bytes_no_longer_match(
 
     with pytest.raises(MaterialConfirmationRejected):
         decide(confirmer, confirmation, MaterialConfirmationDecision.APPROVED)
+
+
+def test_a_receipt_from_an_earlier_build_no_longer_strands_an_open_todo(
+    django_capture_on_commit_callbacks, undelivered_decision, requester
+) -> None:
+    """Upgrade path for settlements an older build receipted into thin air.
+
+    That build settled inside the deciding transaction, so the receipt was written
+    while the request's own todo did not exist yet. The receipt legitimately stops
+    the consumer from running again, which leaves an APPROVED material wearing an
+    OPEN todo. The repair keeps the old receipt and appends a new settlement event.
+    """
+
+    from apps.notifications.models import NotificationStatus, TodoStatus
+    from apps.platform.outbox.models import ConsumerReceipt, OutboxEvent, OutboxStatus
+    from apps.platform.outbox.tasks import LocalOutboxPublisher
+    from apps.products.services.material_confirmation_repair import (
+        REISSUE_REASON,
+        ReissueSettlementForDecidedConfirmations,
+    )
+
+    stale_event = undelivered_decision.event
+    ConsumerReceipt.objects.create(event=stale_event, consumer_code="material_confirmation_decided")
+    OutboxEvent.objects.filter(pk=stale_event.pk).update(
+        status=OutboxStatus.PUBLISHED, published_at=timezone.now()
+    )
+    stale_event.refresh_from_db()
+    # The receipt is what makes this unrecoverable by replay alone.
+    LocalOutboxPublisher().publish(stale_event)
+    undelivered_decision.todo.refresh_from_db()
+    assert undelivered_decision.todo.status == TodoStatus.OPEN
+
+    with django_capture_on_commit_callbacks(execute=True):
+        reissued = ReissueSettlementForDecidedConfirmations(
+            context=CommandContext.for_actor(requester)
+        ).execute()
+
+    assert reissued == [undelivered_decision.confirmation.public_id]
+    undelivered_decision.todo.refresh_from_db()
+    undelivered_decision.notification.refresh_from_db()
+    assert undelivered_decision.todo.status == TodoStatus.COMPLETED
+    assert undelivered_decision.todo.open_slot is None
+    assert undelivered_decision.notification.status == NotificationStatus.CLOSED
+    # History is kept: the old receipt stays, the repair earns its own.
+    assert ConsumerReceipt.objects.filter(event=stale_event).exists()
+    repair = OutboxEvent.objects.get(
+        event_type="material_confirmation.decided",
+        aggregate_id=undelivered_decision.confirmation.public_id,
+        payload_json__reissue_reason=REISSUE_REASON,
+    )
+    assert repair.status == OutboxStatus.PUBLISHED
+    assert ConsumerReceipt.objects.filter(event=repair).exists()
+    assert AuditEvent.objects.filter(
+        action_code="product_material.confirmation_settle_reissue",
+        resource_public_id=undelivered_decision.confirmation.public_id,
+        actor_user=requester,
+    ).exists()
+
+
+def test_the_repair_leaves_an_undelivered_settlement_to_converge_on_its_own(
+    undelivered_decision, requester
+) -> None:
+    """A settlement still in flight needs delivery, not a duplicate event."""
+
+    from apps.platform.outbox.models import OutboxEvent
+    from apps.products.services.material_confirmation_repair import (
+        ReissueSettlementForDecidedConfirmations,
+    )
+
+    reissued = ReissueSettlementForDecidedConfirmations(
+        context=CommandContext.for_actor(requester)
+    ).execute()
+
+    assert reissued == []
+    assert (
+        OutboxEvent.objects.filter(
+            event_type="material_confirmation.decided",
+            aggregate_id=undelivered_decision.confirmation.public_id,
+        ).count()
+        == 1
+    )
+
+
+def test_the_repair_refuses_an_actor_without_the_manage_action(
+    undelivered_decision, confirmer
+) -> None:
+    from apps.platform.outbox.models import OutboxEvent
+    from apps.products.services.material_confirmation_repair import (
+        ReissueSettlementForDecidedConfirmations,
+    )
+
+    OutboxEvent.objects.filter(pk=undelivered_decision.event.pk).delete()
+
+    with pytest.raises(PermissionDeniedError):
+        ReissueSettlementForDecidedConfirmations(
+            context=CommandContext.for_actor(confirmer)
+        ).execute()
+
+    assert not OutboxEvent.objects.filter(
+        event_type="material_confirmation.decided",
+        aggregate_id=undelivered_decision.confirmation.public_id,
+    ).exists()
 
 
 def test_confirmation_survives_when_local_outbox_dispatch_fails(

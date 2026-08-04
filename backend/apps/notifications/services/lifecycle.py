@@ -174,7 +174,7 @@ class SynchronizeNotificationForTodo:
                     AuditRecord(
                         actor=self.actor,
                         action_code="notification.message.close",
-                        resource_type="notifications.todo",
+                        resource_type="notification.todo",
                         resource_public_id=self.todo_public_id,
                         result=AuditResult.SUCCESS,
                         trace_id=self.trace_id,

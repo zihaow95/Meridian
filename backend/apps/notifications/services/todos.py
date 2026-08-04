@@ -9,8 +9,13 @@ from uuid import UUID
 
 from django.db import IntegrityError, transaction
 
+from apps.authorization.context import AuthorizationContext, ResourceDescriptor
+from apps.authorization.policies.engine import authorize
+from apps.authorization.services.subject import subject_for
 from apps.identity.models.user import User
 from apps.notifications.models import Todo, TodoStatus
+from apps.platform.api.errors import PermissionDeniedError
+from apps.platform.application.command import CommandContext
 
 
 @dataclass(frozen=True)
@@ -134,20 +139,24 @@ class SettleOneOpenTodo:
     Settling by source would let a replayed or delayed event close a newer
     request for the same object. Settling by dedup key keeps each ask separate,
     and a missing todo is reported rather than treated as success.
+
+    The actor is re-judged against the locked todo rather than trusted from the
+    caller: a projection consumer reads whatever an event claims, so the right to
+    settle has to be established here, in the same transaction as the write.
     """
 
-    organization_id: int
+    context: CommandContext
     assignee_id: int
     dedup_key: str
     status: str
     close_reason: str
-    actor: User
-    trace_id: str = ""
+    sensitivity_level: str = "INTERNAL"
 
     def execute(self) -> int:
         from apps.notifications.services.lifecycle import SynchronizeNotificationForTodo
 
-        if self.actor is None:
+        actor = self.context.actor
+        if actor is None:
             raise ValueError("SettleOneOpenTodo requires an actor.")
         if self.status not in {
             TodoStatus.COMPLETED,
@@ -160,7 +169,7 @@ class SettleOneOpenTodo:
             todos = list(
                 Todo.objects.select_for_update()
                 .filter(
-                    organization_id=self.organization_id,
+                    organization_id=actor.organization_id,
                     assignee_id=self.assignee_id,
                     dedup_key=self.dedup_key,
                 )
@@ -171,6 +180,7 @@ class SettleOneOpenTodo:
 
             settled = 0
             for todo in todos:
+                self._require_may_act_on(todo)
                 if todo.status == TodoStatus.OPEN:
                     Todo.objects.filter(pk=todo.pk, status=TodoStatus.OPEN).update(
                         status=self.status, open_slot=None
@@ -179,14 +189,31 @@ class SettleOneOpenTodo:
                 # Notices of an already-settled todo may still be open when an
                 # earlier attempt died between the two writes.
                 SynchronizeNotificationForTodo(
-                    organization_id=self.organization_id,
+                    organization_id=todo.organization_id,
                     todo_id=todo.pk,
                     todo_public_id=todo.public_id,
-                    actor=self.actor,
+                    actor=actor,
                     close_reason=self.close_reason,
-                    trace_id=self.trace_id,
+                    trace_id=self.context.trace_id,
                 ).execute()
             return settled
+
+    def _require_may_act_on(self, todo: Todo) -> None:
+        """The settler must still hold the action the todo asks for."""
+
+        decision = authorize(
+            subject_for(self.context.actor),
+            action=todo.action_code,
+            resource=ResourceDescriptor(
+                resource_type=todo.source_type,
+                public_id=todo.source_id,
+                organization_id=todo.organization_id,
+                sensitivity_level=self.sensitivity_level,
+            ),
+            context=AuthorizationContext.current(),
+        )
+        if not decision.allowed:
+            raise PermissionDeniedError()
 
 
 @dataclass(frozen=True)

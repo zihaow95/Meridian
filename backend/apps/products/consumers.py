@@ -8,6 +8,7 @@ from uuid import UUID
 from apps.identity.models.user import User
 from apps.notifications.models import TodoStatus
 from apps.notifications.services.todos import SettleOneOpenTodo
+from apps.platform.application.command import CommandContext
 from apps.platform.outbox.consumer import OutboxConsumer
 from apps.platform.outbox.models import OutboxEvent
 from apps.products.models import MaterialConfirmation, MaterialConfirmationDecision
@@ -21,12 +22,15 @@ class MaterialConfirmationEventRejected(Exception):
 def _matches(payload: dict[str, Any], key: str, expected: object) -> bool:
     """Compare a payload field against a database fact, if the field is present.
 
-    Events written before a field existed stay replayable; a field that is there
-    and disagrees with the database is a defect and must stop the consumer.
+    Only an absent key means "written before this field existed" and falls back to
+    the authoritative row. A key that is present but null asserts "no value", which
+    a decided confirmation never has, so it is a defect like any other mismatch.
     """
 
-    if key not in payload or payload[key] is None:
+    if key not in payload:
         return True
+    if payload[key] is None:
+        return False
     return str(payload[key]) == str(expected)
 
 
@@ -44,6 +48,8 @@ class MaterialConfirmationDecidedConsumer:
         if event.event_type != "material_confirmation.decided":
             return
         payload = event.payload_json or {}
+        if "confirmation_public_id" in payload and payload["confirmation_public_id"] is None:
+            raise MaterialConfirmationEventRejected("confirmation_public_id must not be null")
         confirmation_id = UUID(str(payload.get("confirmation_public_id") or event.aggregate_id))
         confirmation = (
             MaterialConfirmation.objects.select_related("material")
@@ -53,6 +59,12 @@ class MaterialConfirmationDecidedConsumer:
         if confirmation is None:
             raise MaterialConfirmationEventRejected(
                 f"confirmation {confirmation_id} does not resolve"
+            )
+        # The stream this event belongs to must be the confirmation it settles,
+        # otherwise a payload could borrow another aggregate's delivery slot.
+        if str(event.aggregate_id) != str(confirmation.public_id):
+            raise MaterialConfirmationEventRejected(
+                f"aggregate {event.aggregate_id} disagrees with confirmation {confirmation_id}"
             )
         if confirmation.decision == MaterialConfirmationDecision.PENDING:
             raise MaterialConfirmationEventRejected(
@@ -89,13 +101,14 @@ class MaterialConfirmationDecidedConsumer:
                 )
 
         SettleOneOpenTodo(
-            organization_id=confirmation.organization_id,
+            context=CommandContext.for_actor(actor, trace_id=str(event.event_id)),
             assignee_id=confirmation.confirmer_id,
             dedup_key=dedup_key,
             status=TodoStatus.COMPLETED,
             close_reason="SOURCE_COMPLETED",
-            actor=actor,
-            trace_id=str(event.event_id),
+            # The settle command re-judges the actor on the material's own
+            # sensitivity, not a default.
+            sensitivity_level=material.sensitivity_level,
         ).execute()
 
 
