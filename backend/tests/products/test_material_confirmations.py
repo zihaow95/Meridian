@@ -1134,7 +1134,7 @@ def test_a_database_failure_during_a_repair_is_not_read_as_a_duplicate(
     )
 
     def _boom(*args: Any, **kwargs: Any) -> None:
-        raise IntegrityError("(1452, 'Cannot add or update a child row: audit_event')")
+        raise IntegrityError(1452, "Cannot add or update a child row: audit_event")
 
     monkeypatch.setattr(repair_module, "append_event", _boom)
 
@@ -1156,20 +1156,146 @@ def test_a_database_failure_during_a_repair_is_not_read_as_a_duplicate(
     )
 
 
+def test_a_non_duplicate_error_that_names_the_repair_key_is_not_an_idempotent_skip() -> None:
+    """Naming the constraint is not enough; only MySQL 1062 on that key is a skip."""
+
+    from django.db import IntegrityError
+
+    from apps.products.services.material_confirmation_repair import (
+        REPAIR_UNIQUE_CONSTRAINT,
+        _is_duplicate_repair,
+    )
+
+    quoted = IntegrityError(
+        1452,
+        f"Cannot add or update a child row: a foreign key constraint fails "
+        f"(`db`.`t`, CONSTRAINT `{REPAIR_UNIQUE_CONSTRAINT}`)",
+    )
+    assert not _is_duplicate_repair(quoted)
+
+    duplicate = IntegrityError(
+        1062,
+        f"Duplicate entry '1-uuid' for key '{REPAIR_UNIQUE_CONSTRAINT}'",
+    )
+    assert _is_duplicate_repair(duplicate)
+
+    # Django sometimes wraps the driver error; the errno lives on the cause.
+    wrapped = IntegrityError(f"Duplicate entry for key '{REPAIR_UNIQUE_CONSTRAINT}'")
+    wrapped.__cause__ = IntegrityError(
+        1062, f"Duplicate entry '1-uuid' for key '{REPAIR_UNIQUE_CONSTRAINT}'"
+    )
+    assert _is_duplicate_repair(wrapped)
+
+
+def test_a_non_1062_error_that_names_the_repair_key_propagates_through_repair(
+    django_capture_on_commit_callbacks, monkeypatch, requester, confirmer, current_material
+) -> None:
+    """A quoted constraint name without errno 1062 must not become 'already repaired'."""
+
+    from django.db import IntegrityError
+
+    from apps.notifications.models import TodoStatus
+    from apps.products.services.material_confirmation_repair import (
+        REPAIR_UNIQUE_CONSTRAINT,
+        ReissueSettlementForDecidedConfirmations,
+    )
+
+    confirmation, todo = _strand_settlement(
+        current_material, requester, confirmer, django_capture_on_commit_callbacks, monkeypatch
+    )
+
+    def _boom(*args: Any, **kwargs: Any) -> Any:
+        raise IntegrityError(
+            1452,
+            f"Cannot add or update a child row: a foreign key constraint fails "
+            f"(`db`.`t`, CONSTRAINT `{REPAIR_UNIQUE_CONSTRAINT}`)",
+        )
+
+    monkeypatch.setattr(MaterialConfirmationSettlementRepair.objects, "create", _boom)
+
+    with pytest.raises(IntegrityError) as raised:
+        ReissueSettlementForDecidedConfirmations(
+            context=CommandContext.for_actor(requester),
+            confirmation_public_ids=[confirmation.public_id],
+        ).execute()
+
+    assert raised.value.args[0] == 1452
+    todo.refresh_from_db()
+    assert todo.status == TodoStatus.OPEN
+    assert not MaterialConfirmationSettlementRepair.objects.exists()
+
+
+def test_a_scoped_candidate_query_never_reads_open_todos_outside_the_named_confirmations(
+    django_capture_on_commit_callbacks,
+    monkeypatch,
+    requester,
+    confirmer,
+    current_material,
+    organization,
+    change_set,
+    controlled_document_version,
+) -> None:
+    """Object-level scope is a SQL filter, not a Python filter after a broad read.
+
+    A seed naming its own fixtures must not pull every open confirmation todo in the
+    organization into memory first. The query itself is limited to those dedup keys.
+    """
+
+    from django.db import connection
+    from django.test.utils import CaptureQueriesContext
+
+    from apps.products.services.material_confirmation_repair import (
+        stranded_settlement_candidates,
+    )
+
+    named, _named_todo = _strand_settlement(
+        current_material, requester, confirmer, django_capture_on_commit_callbacks, monkeypatch
+    )
+    other_material = ProductMaterial.objects.create(
+        organization=organization,
+        change_set=change_set,
+        owner_type=AttributeOwnerType.PRODUCT,
+        owner_id=change_set.product_id,
+        material_type_code="PRODUCT_MANUAL",
+        document_version=controlled_document_version(content=b"%PDF-1.4 manual"),
+        version_no=1,
+        current_slot=1,
+    )
+    unnamed, _unnamed_todo = _strand_settlement(
+        other_material, requester, confirmer, django_capture_on_commit_callbacks, monkeypatch
+    )
+
+    with CaptureQueriesContext(connection) as captured:
+        candidates = stranded_settlement_candidates(
+            organization_id=requester.organization_id,
+            confirmation_public_ids=[named.public_id],
+        )
+
+    assert candidates == [named.public_id]
+    assert unnamed.public_id not in candidates
+    todo_sql = " ".join(
+        query["sql"] for query in captured.captured_queries if "notifications_todo" in query["sql"]
+    ).upper()
+    # Object scope is `dedup_key__in`, never the org-wide `dedup_key__startswith` LIKE.
+    assert "NOTIFICATIONS_TODO" in todo_sql
+    assert " IN " in todo_sql
+    assert " LIKE " not in todo_sql
+
+
 @pytest.mark.django_db(transaction=True)
 def test_a_repair_and_a_settlement_do_not_deadlock_on_the_same_material(
     django_capture_on_commit_callbacks, monkeypatch, requester, confirmer, current_material
 ) -> None:
     """Both paths take the material before the todo, so one waits for the other.
 
-    A repair reads the confirmation and its material, then the ask; a settlement
-    reads the material behind the ask, then the ask. Taking those two rows in
-    opposite orders is a MySQL deadlock waiting for the two to overlap.
+    Their first lock is the same material row, so both cannot hold it at once. The
+    rendezvous is therefore: repair holds confirmation/material, then settle is
+    allowed to enter and block behind that lock, and only then does repair take the
+    todo. A start-only barrier could still serialize the two; this forces an
+    overlapping critical section under the unified order.
     """
 
     import threading
-
-    from django.db import connection
 
     from apps.notifications.models import TodoStatus
     from apps.notifications.services.todos import SettleOneOpenTodo
@@ -1181,48 +1307,40 @@ def test_a_repair_and_a_settlement_do_not_deadlock_on_the_same_material(
         current_material, requester, confirmer, django_capture_on_commit_callbacks, monkeypatch
     )
     dedup_key = f"material_confirmation:{confirmation.public_id}"
+    repair_holds_first = threading.Event()
+    settle_entered = threading.Event()
 
-    results: list[str] = []
-    barrier = threading.Barrier(2)
-    lock = threading.Lock()
+    original_require = ReissueSettlementForDecidedConfirmations._require_may_repair
+    original_settle = SettleOneOpenTodo.execute
 
-    def _run(label: str, work: Any) -> None:
-        connection.close()
-        try:
-            barrier.wait(timeout=10)
-            work()
-            with lock:
-                results.append(f"done:{label}")
-        except Exception as exc:  # noqa: BLE001 - collected for the assertion
-            with lock:
-                results.append(f"error:{type(exc).__name__}:{label}")
-        finally:
-            connection.close()
+    def _repair_holds_first(self: Any, locked: Any) -> None:
+        original_require(self, locked)
+        repair_holds_first.set()
+        assert settle_entered.wait(timeout=10), "settle never entered behind the repair lock"
 
-    def _repair() -> None:
-        ReissueSettlementForDecidedConfirmations(
+    def _settle_after_repair_holds_first(self: Any) -> int:
+        assert repair_holds_first.wait(timeout=10), "repair never took its first lock"
+        settle_entered.set()
+        return original_settle(self)
+
+    monkeypatch.setattr(
+        ReissueSettlementForDecidedConfirmations, "_require_may_repair", _repair_holds_first
+    )
+    monkeypatch.setattr(SettleOneOpenTodo, "execute", _settle_after_repair_holds_first)
+
+    results = _run_repair_against_settlement(
+        repair=lambda: ReissueSettlementForDecidedConfirmations(
             context=CommandContext.for_actor(requester),
             confirmation_public_ids=[confirmation.public_id],
-        ).execute()
-
-    def _settle() -> None:
-        SettleOneOpenTodo(
+        ).execute(),
+        settle=lambda: SettleOneOpenTodo(
             context=CommandContext.for_actor(confirmer),
             assignee_id=confirmer.id,
             dedup_key=dedup_key,
             status=TodoStatus.COMPLETED,
             close_reason="SOURCE_COMPLETED",
-        ).execute()
-
-    threads = [
-        threading.Thread(target=_run, args=("repair", _repair)),
-        threading.Thread(target=_run, args=("settle", _settle)),
-    ]
-    for thread in threads:
-        thread.start()
-    for thread in threads:
-        thread.join(timeout=30)
-        assert not thread.is_alive(), "repair and settlement did not finish"
+        ).execute(),
+    )
 
     assert results == ["done:repair", "done:settle"] or results == ["done:settle", "done:repair"], (
         results
@@ -1230,6 +1348,123 @@ def test_a_repair_and_a_settlement_do_not_deadlock_on_the_same_material(
     todo.refresh_from_db()
     assert todo.status == TodoStatus.COMPLETED
     assert todo.open_slot is None
+
+
+@pytest.mark.django_db(transaction=True)
+def test_reversed_repair_and_settlement_lock_order_is_caught_as_a_mysql_deadlock(
+    django_capture_on_commit_callbacks, monkeypatch, requester, confirmer, current_material
+) -> None:
+    """The held-first barrier is only evidence if reverse order fails under it.
+
+    First locks differ here: repair holds confirmation/material, settlement holds
+    the todo. The barrier releases only after both are held, so the second-lock
+    cross-wait is unavoidable and MySQL must raise a deadlock (OperationalError).
+    """
+
+    import threading
+
+    from django.db import transaction
+
+    from apps.notifications.models import Todo, TodoStatus
+    from apps.notifications.services.todos import SettleOneOpenTodo
+    from apps.products.models import MaterialConfirmation
+    from apps.products.services.material_confirmation_repair import (
+        ReissueSettlementForDecidedConfirmations,
+    )
+
+    confirmation, todo = _strand_settlement(
+        current_material, requester, confirmer, django_capture_on_commit_callbacks, monkeypatch
+    )
+    dedup_key = f"material_confirmation:{confirmation.public_id}"
+    held_first_lock = threading.Barrier(2)
+
+    original_require = ReissueSettlementForDecidedConfirmations._require_may_repair
+
+    def _repair_holds_first(self: Any, locked: Any) -> None:
+        original_require(self, locked)
+        held_first_lock.wait(timeout=10)
+
+    def _settle_todo_first(self: Any) -> int:
+        actor = self.context.actor
+        with transaction.atomic():
+            todos = list(
+                Todo.objects.select_for_update()
+                .filter(
+                    organization_id=actor.organization_id,
+                    assignee_id=self.assignee_id,
+                    dedup_key=self.dedup_key,
+                )
+                .order_by("pk")
+            )
+            if not todos:
+                raise AssertionError("expected a projected todo")
+            held_first_lock.wait(timeout=10)
+            # Opposite of production: material after the ask.
+            MaterialConfirmation.objects.select_for_update().select_related("material").get(
+                public_id=confirmation.public_id
+            )
+            for row in todos:
+                if row.status == TodoStatus.OPEN:
+                    Todo.objects.filter(pk=row.pk, status=TodoStatus.OPEN).update(
+                        status=self.status, open_slot=None
+                    )
+            return 1
+
+    monkeypatch.setattr(
+        ReissueSettlementForDecidedConfirmations, "_require_may_repair", _repair_holds_first
+    )
+    monkeypatch.setattr(SettleOneOpenTodo, "execute", _settle_todo_first)
+
+    results = _run_repair_against_settlement(
+        repair=lambda: ReissueSettlementForDecidedConfirmations(
+            context=CommandContext.for_actor(requester),
+            confirmation_public_ids=[confirmation.public_id],
+        ).execute(),
+        settle=lambda: SettleOneOpenTodo(
+            context=CommandContext.for_actor(confirmer),
+            assignee_id=confirmer.id,
+            dedup_key=dedup_key,
+            status=TodoStatus.COMPLETED,
+            close_reason="SOURCE_COMPLETED",
+        ).execute(),
+    )
+
+    deadlocks = [item for item in results if item.startswith("error:OperationalError:")]
+    assert deadlocks, results
+    assert any(item.startswith("done:") for item in results), results
+    assert any("1213" in item or "Deadlock" in item for item in deadlocks), deadlocks
+
+
+def _run_repair_against_settlement(*, repair: Any, settle: Any) -> list[str]:
+    import threading
+
+    from django.db import connection
+
+    results: list[str] = []
+    lock = threading.Lock()
+
+    def _run(label: str, work: Any) -> None:
+        connection.close()
+        try:
+            work()
+            with lock:
+                results.append(f"done:{label}")
+        except Exception as exc:  # noqa: BLE001 - collected for the assertion
+            with lock:
+                results.append(f"error:{type(exc).__name__}:{label}:{exc}")
+        finally:
+            connection.close()
+
+    threads = [
+        threading.Thread(target=_run, args=("repair", repair)),
+        threading.Thread(target=_run, args=("settle", settle)),
+    ]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join(timeout=30)
+        assert not thread.is_alive(), "repair and settlement did not finish"
+    return results
 
 
 @pytest.mark.django_db(transaction=True)

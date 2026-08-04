@@ -51,14 +51,35 @@ _TODO_DEDUP_PREFIX = "material_confirmation:"
 # The unique repair key, named so a duplicate on it can be told apart from every
 # other integrity failure this transaction could hit.
 REPAIR_UNIQUE_CONSTRAINT = "products_material_repair_uniq"
+# MySQL: ER_DUP_ENTRY. A message that merely names the constraint is not enough.
+MYSQL_DUPLICATE_ENTRY = 1062
 
 
 class _AlreadyRepaired(Exception):
     """Another process holds the repair key for this todo."""
 
 
+def _mysql_errno(error: BaseException) -> int | None:
+    """Walk the cause chain for the integer errno MySQL put on the exception."""
+
+    current: BaseException | None = error
+    while current is not None:
+        args = getattr(current, "args", ())
+        if args and isinstance(args[0], int):
+            return args[0]
+        current = current.__cause__ or current.__context__
+    return None
+
+
 def _is_duplicate_repair(error: IntegrityError) -> bool:
-    return REPAIR_UNIQUE_CONSTRAINT in str(error)
+    """Only the repair key's own duplicate is an idempotent skip.
+
+    MySQL puts 1062 on a true duplicate-key failure. Naming the constraint alone is
+    not enough: a foreign-key or other message that happens to quote the name must
+    still surface as a real failure.
+    """
+
+    return _mysql_errno(error) == MYSQL_DUPLICATE_ENTRY and REPAIR_UNIQUE_CONSTRAINT in str(error)
 
 
 def stranded_settlement_candidates(
@@ -70,16 +91,35 @@ def stranded_settlement_candidates(
 
     Separate from the repair so the decision to move business facts is taken by a
     caller with a scope, not by a scan. An operations command deliberately scans a
-    whole organization; a caller answering only for its own confirmations passes
-    them in and gets back the subset that is stranded.
+    whole organization; a caller answering only for its own confirmations names
+    them, and the SQL itself is limited to those objects - never "read everything
+    open, then filter in Python".
     """
 
-    scope = None if confirmation_public_ids is None else set(confirmation_public_ids)
-    if scope is not None and not scope:
-        return []
+    if confirmation_public_ids is not None:
+        scope = _ordered(confirmation_public_ids)
+        if not scope:
+            return []
+        open_keys = set(
+            Todo.objects.filter(
+                organization_id=organization_id,
+                status=TodoStatus.OPEN,
+                dedup_key__in=[confirmation_todo_dedup_key(cid) for cid in scope],
+            ).values_list("dedup_key", flat=True)
+        )
+        decided = set(
+            MaterialConfirmation.objects.filter(
+                organization_id=organization_id,
+                public_id__in=scope,
+            )
+            .exclude(decision=MaterialConfirmationDecision.PENDING)
+            .values_list("public_id", flat=True)
+        )
+        return [
+            cid for cid in scope if confirmation_todo_dedup_key(cid) in open_keys and cid in decided
+        ]
 
-    candidates: list[UUID] = []
-    for dedup_key in (
+    org_open_keys = list(
         Todo.objects.filter(
             organization_id=organization_id,
             status=TodoStatus.OPEN,
@@ -87,23 +127,23 @@ def stranded_settlement_candidates(
         )
         .order_by("pk")
         .values_list("dedup_key", flat=True)
-    ):
-        confirmation_id = _confirmation_id_in(dedup_key)
-        if confirmation_id is None:
-            continue
-        if scope is not None and confirmation_id not in scope:
-            continue
-        decided = (
-            MaterialConfirmation.objects.filter(
-                public_id=confirmation_id,
-                organization_id=organization_id,
-            )
-            .exclude(decision=MaterialConfirmationDecision.PENDING)
-            .exists()
+    )
+    confirmation_ids = [
+        confirmation_id
+        for confirmation_id in (_confirmation_id_in(key) for key in org_open_keys)
+        if confirmation_id is not None
+    ]
+    if not confirmation_ids:
+        return []
+    decided = set(
+        MaterialConfirmation.objects.filter(
+            organization_id=organization_id,
+            public_id__in=confirmation_ids,
         )
-        if decided:
-            candidates.append(confirmation_id)
-    return candidates
+        .exclude(decision=MaterialConfirmationDecision.PENDING)
+        .values_list("public_id", flat=True)
+    )
+    return [cid for cid in confirmation_ids if cid in decided]
 
 
 @dataclass(frozen=True)
