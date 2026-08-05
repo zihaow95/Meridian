@@ -1,9 +1,14 @@
-"""One ProductMaterial version per legacy source_submission.
+"""Ensure ProductMaterial.source_submission uniqueness on the database.
 
-MySQL cannot roll back DDL. Refuse colliding non-null source_submission values
-before adding the unique constraint so a stopped upgrade leaves no half-applied
-schema. Environments that already gained the constraint from an earlier combined
-0017 skip the ADD when the index is present.
+0017 owns the constraint in Django project state (including databases that
+applied 46f65ce's combined 0017). This migration only:
+
+1. refuses colliding non-null source_submission values before any DDL;
+2. adds the unique constraint when it is missing (greenfield after rewritten 0017).
+
+Reverse is a no-op on the database. Removing the index here would leave
+"0017 applied, constraint absent" drift for installs where 46f65ce's 0017
+created the constraint.
 """
 
 from django.db import migrations, models
@@ -66,18 +71,11 @@ def add_source_submission_uniq_if_missing(apps, schema_editor) -> None:
     schema_editor.add_constraint(ProductMaterial, constraint)
 
 
-def remove_source_submission_uniq_if_present(apps, schema_editor) -> None:
-    if not _constraint_exists(schema_editor):
-        return
-    ProductMaterial = apps.get_model("products", "ProductMaterial")
-    constraint = models.UniqueConstraint(
-        fields=("source_submission",),
-        name=CONSTRAINT_NAME,
-    )
-    schema_editor.remove_constraint(ProductMaterial, constraint)
-
-
 class Migration(migrations.Migration):
+    # RunPython performs DDL (ADD UNIQUE). MySQL cannot run that inside the
+    # per-migration transaction Django would otherwise open.
+    atomic = False
+
     dependencies = [
         ("products", "0017_repair_attempt_and_submission_uniq"),
     ]
@@ -87,21 +85,8 @@ class Migration(migrations.Migration):
             refuse_duplicate_source_submissions,
             migrations.RunPython.noop,
         ),
-        migrations.SeparateDatabaseAndState(
-            state_operations=[
-                migrations.AddConstraint(
-                    model_name="productmaterial",
-                    constraint=models.UniqueConstraint(
-                        fields=("source_submission",),
-                        name=CONSTRAINT_NAME,
-                    ),
-                ),
-            ],
-            database_operations=[
-                migrations.RunPython(
-                    add_source_submission_uniq_if_missing,
-                    remove_source_submission_uniq_if_present,
-                ),
-            ],
+        migrations.RunPython(
+            add_source_submission_uniq_if_missing,
+            migrations.RunPython.noop,
         ),
     ]
