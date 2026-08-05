@@ -19,7 +19,9 @@ submission_migration = importlib.import_module(
 
 REPAIR_NAME = "0017_repair_attempt_and_submission_uniq"
 SUBMISSION_NAME = "0018_product_material_source_submission_uniq"
+BASELINE_NAME = "0016_materialconfirmationsettlementrepair"
 CONSTRAINT = "products_material_source_submission_uniq"
+FK_HELPER_INDEX = "products_material_source_submission_fk"
 
 
 def _constraint_exists() -> bool:
@@ -36,29 +38,47 @@ def _constraint_exists() -> bool:
         return cursor.fetchone()[0] >= 1
 
 
-def _strip_source_submission_uniq_leaving_fk() -> None:
-    """Remove the unique index left behind by 0018's no-op reverse.
-
-    InnoDB may be using that unique index for the FK, so keep a plain index first.
-    """
-
-    if not _constraint_exists():
-        return
+def _index_names() -> set[str]:
     with connection.cursor() as cursor:
         cursor.execute(
             """
-            SELECT COUNT(*) FROM information_schema.statistics
+            SELECT DISTINCT index_name FROM information_schema.statistics
             WHERE table_schema = DATABASE()
               AND table_name = 'products_product_material'
-              AND index_name = 'products_material_source_submission_fk'
             """
         )
-        if cursor.fetchone()[0] == 0:
+        return {row[0] for row in cursor.fetchall()}
+
+
+def _helper_index_exists() -> bool:
+    return FK_HELPER_INDEX in _index_names()
+
+
+def _strip_source_submission_uniq_leaving_fk() -> bool:
+    """Remove the unique index left behind by 0018's no-op reverse.
+
+    Returns True when this helper created products_material_source_submission_fk.
+    """
+
+    if not _constraint_exists():
+        return False
+    created_helper = False
+    with connection.cursor() as cursor:
+        if not _helper_index_exists():
             cursor.execute(
                 "ALTER TABLE products_product_material "
-                "ADD INDEX products_material_source_submission_fk (source_submission_id)"
+                f"ADD INDEX {FK_HELPER_INDEX} (source_submission_id)"
             )
+            created_helper = True
         cursor.execute(f"ALTER TABLE products_product_material DROP INDEX {CONSTRAINT}")
+    return created_helper
+
+
+def _drop_helper_index_if_present() -> None:
+    if not _helper_index_exists():
+        return
+    with connection.cursor() as cursor:
+        cursor.execute(f"ALTER TABLE products_product_material DROP INDEX {FK_HELPER_INDEX}")
 
 
 def _state_has_constraint(migration_name: str) -> bool:
@@ -68,8 +88,8 @@ def _state_has_constraint(migration_name: str) -> bool:
     return any(constraint.name == CONSTRAINT for constraint in model._meta.constraints)
 
 
-def test_0017_owns_source_submission_constraint_in_state_only() -> None:
-    """46f65ce applied this name with the constraint; state ownership stays on 0017."""
+def test_0017_owns_constraint_in_state_with_noop_forward_and_conditional_reverse() -> None:
+    """46f65ce ownership stays on 0017; reverse must clear the MySQL unique index."""
 
     state_ops = [
         operation
@@ -77,18 +97,14 @@ def test_0017_owns_source_submission_constraint_in_state_only() -> None:
         if isinstance(operation, migrations.SeparateDatabaseAndState)
     ]
     assert len(state_ops) == 1
-    assert state_ops[0].database_operations == []
+    db_ops = state_ops[0].database_operations
+    assert len(db_ops) == 1
+    assert isinstance(db_ops[0], migrations.RunPython)
+    assert db_ops[0].code is repair_migration.noop_source_submission_uniq
+    assert db_ops[0].reverse_code is repair_migration.remove_source_submission_uniq_if_present
     assert any(
         isinstance(operation, migrations.AddConstraint) and operation.constraint.name == CONSTRAINT
         for operation in state_ops[0].state_operations
-    )
-    assert all(
-        not (
-            isinstance(operation, migrations.AddConstraint)
-            and operation.constraint.name == CONSTRAINT
-        )
-        for operation in repair_migration.Migration.operations
-        if not isinstance(operation, migrations.SeparateDatabaseAndState)
     )
 
 
@@ -117,13 +133,14 @@ def test_old_state_upgrade_fails_leaves_no_half_applied_constraint_then_reruns(
     before = ("products", REPAIR_NAME)
     target = ("products", SUBMISSION_NAME)
     products_leaf = [node for node in executor.loader.graph.leaf_nodes() if node[0] == "products"]
+    created_helper = False
 
     try:
         executor.migrate([before])
         # 0018 reverse is intentionally a no-op, so a DB that once reached leaf may
         # still carry the unique index. Strip it to recreate the greenfield-after-0017
         # shape that 0018 is responsible for upgrading.
-        _strip_source_submission_uniq_leaving_fk()
+        created_helper = _strip_source_submission_uniq_leaving_fk()
         assert not _constraint_exists()
         assert _state_has_constraint(REPAIR_NAME)
 
@@ -186,6 +203,9 @@ def test_old_state_upgrade_fails_leaves_no_half_applied_constraint_then_reruns(
     finally:
         restore = MigrationExecutor(connection)
         restore.migrate(products_leaf or [target])
+        if created_helper:
+            _drop_helper_index_if_present()
+        assert not _helper_index_exists()
 
 
 @pytest.mark.django_db(transaction=True)
@@ -241,6 +261,51 @@ def test_legacy_46f65ce_0017_with_constraint_survives_0018_forward_reverse_forwa
         assert target in applied
         assert _constraint_exists()
         assert _state_has_constraint(SUBMISSION_NAME)
+        assert not _helper_index_exists()
     finally:
         restore = MigrationExecutor(connection)
         restore.migrate(products_leaf or [target])
+        _drop_helper_index_if_present()
+
+
+@pytest.mark.django_db(transaction=True)
+def test_rolling_back_through_0016_drops_constraint_then_0018_restores_it() -> None:
+    """0018 → 0016 must clear MySQL uniqueness; 0016 → 0018 must restore without drift."""
+
+    executor = MigrationExecutor(connection)
+    baseline = ("products", BASELINE_NAME)
+    target = ("products", SUBMISSION_NAME)
+    products_leaf = [node for node in executor.loader.graph.leaf_nodes() if node[0] == "products"]
+
+    try:
+        executor.migrate([target])
+        assert _constraint_exists()
+        index_baseline = _index_names()
+        assert FK_HELPER_INDEX not in index_baseline
+
+        executor = MigrationExecutor(connection)
+        executor.loader.build_graph()
+        executor.migrate([baseline])
+
+        applied = MigrationExecutor(connection).loader.applied_migrations
+        assert baseline in applied
+        assert ("products", REPAIR_NAME) not in applied
+        assert target not in applied
+        assert not _constraint_exists()
+        assert not _state_has_constraint(BASELINE_NAME)
+
+        executor = MigrationExecutor(connection)
+        executor.loader.build_graph()
+        executor.migrate([target])
+
+        applied = MigrationExecutor(connection).loader.applied_migrations
+        assert ("products", REPAIR_NAME) in applied
+        assert target in applied
+        assert _constraint_exists()
+        assert _state_has_constraint(SUBMISSION_NAME)
+        assert _index_names() == index_baseline
+        assert FK_HELPER_INDEX not in _index_names()
+    finally:
+        restore = MigrationExecutor(connection)
+        restore.migrate(products_leaf or [target])
+        _drop_helper_index_if_present()

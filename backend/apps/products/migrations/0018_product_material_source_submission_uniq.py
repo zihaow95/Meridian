@@ -4,17 +4,20 @@
 applied 46f65ce's combined 0017). This migration only:
 
 1. refuses colliding non-null source_submission values before any DDL;
-2. adds the unique constraint when it is missing (greenfield after rewritten 0017).
+2. adds the unique constraint when it is missing (greenfield after rewritten 0017);
+3. drops the temporary FK helper index 0017 reverse may have left behind.
 
 Reverse is a no-op on the database. Removing the index here would leave
 "0017 applied, constraint absent" drift for installs where 46f65ce's 0017
-created the constraint.
+created the constraint; 0017 reverse is responsible for dropping it when
+rolling back past 0017.
 """
 
 from django.db import migrations, models
 from django.db.models import Count
 
 CONSTRAINT_NAME = "products_material_source_submission_uniq"
+FK_HELPER_INDEX = "products_material_source_submission_fk"
 
 
 def refuse_duplicate_source_submissions(apps, schema_editor) -> None:
@@ -61,18 +64,38 @@ def _constraint_exists(schema_editor) -> bool:
 
 
 def add_source_submission_uniq_if_missing(apps, schema_editor) -> None:
-    if _constraint_exists(schema_editor):
+    if not _constraint_exists(schema_editor):
+        ProductMaterial = apps.get_model("products", "ProductMaterial")
+        constraint = models.UniqueConstraint(
+            fields=("source_submission",),
+            name=CONSTRAINT_NAME,
+        )
+        schema_editor.add_constraint(ProductMaterial, constraint)
+    _drop_fk_helper_index_if_unique_covers(schema_editor)
+
+
+def _drop_fk_helper_index_if_unique_covers(schema_editor) -> None:
+    if not _constraint_exists(schema_editor):
         return
-    ProductMaterial = apps.get_model("products", "ProductMaterial")
-    constraint = models.UniqueConstraint(
-        fields=("source_submission",),
-        name=CONSTRAINT_NAME,
-    )
-    schema_editor.add_constraint(ProductMaterial, constraint)
+    with schema_editor.connection.cursor() as cursor:
+        cursor.execute(
+            """
+            SELECT COUNT(*) FROM information_schema.statistics
+            WHERE table_schema = DATABASE()
+              AND table_name = 'products_product_material'
+              AND index_name = %s
+            """,
+            [FK_HELPER_INDEX],
+        )
+        if cursor.fetchone()[0] == 0:
+            return
+        cursor.execute(
+            f"ALTER TABLE products_product_material DROP INDEX {FK_HELPER_INDEX}"
+        )
 
 
 class Migration(migrations.Migration):
-    # RunPython performs DDL (ADD UNIQUE). MySQL cannot run that inside the
+    # RunPython performs DDL (ADD/DROP INDEX). MySQL cannot run that inside the
     # per-migration transaction Django would otherwise open.
     atomic = False
 
