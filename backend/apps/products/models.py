@@ -821,6 +821,13 @@ class ProductMaterial(OrganizationOwnedModel):
                 ],
                 name="products_material_version_uniq",
             ),
+            # MySQL allows multiple NULLs in a unique column, so submissions that
+            # never came from the legacy park stay unconstrained while each
+            # promoted submission can appear on at most one material version.
+            models.UniqueConstraint(
+                fields=["source_submission"],
+                name="products_material_source_submission_uniq",
+            ),
         ]
         indexes = [
             models.Index(fields=["owner_type", "owner_id", "material_status"]),
@@ -1003,15 +1010,14 @@ class MaterialConfirmation(OrganizationOwnedModel):
 
 
 class MaterialConfirmationSettlementRepair(OrganizationOwnedModel):
-    """The one repair a stranded confirmation todo is allowed to receive.
+    """One audited compensation attempt for a stranded confirmation todo.
 
     An earlier build could receipt `material_confirmation.decided` while the
     request's own todo was still unprojected, leaving an APPROVED material behind
-    an OPEN todo. The repair re-emits the settlement, so it must be recorded as a
-    fact and not decided by "check, then insert": two operators, or an operator and
-    a retry, would otherwise each append an event and an audit record for the same
-    stranded todo. The unique key is the arbiter; a repair that still fails to
-    settle stays visible as an OPEN todo for an operator instead of looping.
+    an OPEN todo. Each re-emit is an append-only attempt: history stays, and a
+    failed attempt must not block a later controlled retry. Concurrent operators
+    racing the same next attempt_no collide on the unique key so only one of them
+    writes the event and the audit record.
     """
 
     confirmation = models.ForeignKey(
@@ -1020,6 +1026,7 @@ class MaterialConfirmationSettlementRepair(OrganizationOwnedModel):
         related_name="settlement_repairs",
     )
     todo_public_id = models.UUIDField()
+    attempt_no = models.PositiveIntegerField()
     # The reissued event, kept as a plain id: products must not own an outbox row.
     reissued_event_id = models.UUIDField()
     reason = models.CharField(max_length=64)
@@ -1029,13 +1036,13 @@ class MaterialConfirmationSettlementRepair(OrganizationOwnedModel):
         db_table = "products_material_confirmation_settlement_repair"
         constraints = [
             models.UniqueConstraint(
-                fields=["confirmation", "todo_public_id"],
-                name="products_material_repair_uniq",
+                fields=["confirmation", "todo_public_id", "attempt_no"],
+                name="products_material_repair_attempt_uniq",
             )
         ]
 
     def __str__(self) -> str:  # pragma: no cover - debug helper
-        return f"repair {self.confirmation_id}/{self.todo_public_id}"
+        return f"repair {self.confirmation_id}/{self.todo_public_id}#{self.attempt_no}"
 
 
 class ImportBatchStatus(models.TextChoices):

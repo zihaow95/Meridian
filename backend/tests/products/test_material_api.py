@@ -300,6 +300,32 @@ def test_the_chain_endpoint_refuses_an_unverified_submission(
     assert ProductMaterial.objects.count() == 0
 
 
+def test_the_chain_endpoint_refuses_a_repeated_submission_id(
+    client: APIClient, product: ProductAsset, staged_version
+) -> None:
+    parked = intake(client, product, staged_version(), "intake-dup").json()
+    verify_resp = client.post(
+        reverse("legacy-material-verify", args=[parked["public_id"]]),
+        {"decision": LegacyMaterialStatus.VERIFIED, "note": "ok"},
+        format="json",
+    )
+    assert verify_resp.status_code == 200
+
+    response = client.post(
+        reverse("product-material-chain-create", args=[product.public_id]),
+        {
+            "material_type_code": MATERIAL_TYPE,
+            "ordered_submission_ids": [parked["public_id"], parked["public_id"]],
+            "current_submission_id": parked["public_id"],
+        },
+        format="json",
+    )
+
+    assert response.status_code == 400
+    assert "more than once" in response.json()["message"]
+    assert ProductMaterial.objects.count() == 0
+
+
 def test_the_material_list_shows_the_current_version_and_its_history(
     client: APIClient, product: ProductAsset, organization: Organization, staged_version
 ) -> None:

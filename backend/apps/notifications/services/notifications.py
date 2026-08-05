@@ -51,7 +51,6 @@ class CreateInAppNotification:
     summary: str | None = None
     todo: Todo | None = None
     action_code: str = "notification.read"
-    level: str | None = None
 
     def execute(self) -> Notification | None:
         decision = authorize(
@@ -77,7 +76,6 @@ class CreateInAppNotification:
             organization=self.recipient.organization,
             template_code=self.template_code,
             variables=self.variables,
-            level=self.level,
         )
 
         notification, _ = Notification.objects.get_or_create(

@@ -305,6 +305,14 @@ def validate_content(definition_code: str, content: dict[str, Any]) -> list[str]
     )
     if schema_code == PROJECT_EXECUTION_TEMPLATE_CODE:
         errors.extend(_validate_project_template_rules(content))
+    if schema_code == TECHNICAL_FILE_CATALOG_CODE:
+        errors.extend(_validate_technical_file_catalog(content))
+    if schema_code == PRODUCT_MATERIAL_REQUIREMENTS_CODE:
+        errors.extend(_validate_product_material_requirements(content))
+    if schema_code == NOTIFICATION_TEMPLATE_CATALOG_CODE:
+        errors.extend(_validate_notification_template_catalog(content))
+    if schema_code == NOTIFICATION_DELIVERY_POLICY_CODE:
+        errors.extend(_validate_notification_delivery_policy(content))
     if schema_code in _SCRIPT_GUARDED_CODES:
         errors.extend(_reject_forbidden_script_keys(content))
     return errors
@@ -348,3 +356,64 @@ def _reject_forbidden_script_keys(content: dict[str, Any], *, path: str = "") ->
                 if isinstance(item, dict):
                     errors.extend(_reject_forbidden_script_keys(item, path=f"{full}[{index}]"))
     return errors
+
+
+def _validate_technical_file_catalog(content: dict[str, Any]) -> list[str]:
+    codes = [
+        item.get("item_code")
+        for item in content.get("catalog_items") or []
+        if isinstance(item, dict)
+    ]
+    return _duplicate_key_errors(codes, label="item_code")
+
+
+def _validate_product_material_requirements(content: dict[str, Any]) -> list[str]:
+    keys = [
+        (row.get("product_category_code"), row.get("lifecycle_state"))
+        for row in content.get("requirements") or []
+        if isinstance(row, dict)
+    ]
+    return _duplicate_key_errors(keys, label="product_category_code/lifecycle_state")
+
+
+def _validate_notification_template_catalog(content: dict[str, Any]) -> list[str]:
+    codes = [
+        item.get("template_code")
+        for item in content.get("templates") or []
+        if isinstance(item, dict)
+    ]
+    return _duplicate_key_errors(codes, label="template_code")
+
+
+def _validate_notification_delivery_policy(content: dict[str, Any]) -> list[str]:
+    pairs = [
+        (rule.get("category"), rule.get("level"))
+        for rule in content.get("rules") or []
+        if isinstance(rule, dict)
+    ]
+    errors = _duplicate_key_errors(pairs, label="category/level")
+    present = {(category, level) for category, level in pairs if category and level}
+    required = {
+        (category, level) for category in NOTIFICATION_CATEGORIES for level in NOTIFICATION_LEVELS
+    }
+    missing = sorted(required - present)
+    if missing:
+        rendered = ", ".join(f"{category}/{level}" for category, level in missing)
+        errors.append(
+            "Delivery policy must cover every category and level pair; missing: " + rendered
+        )
+    return errors
+
+
+def _duplicate_key_errors(values: list[Any], *, label: str) -> list[str]:
+    seen: set[Any] = set()
+    duplicates: set[Any] = set()
+    for value in values:
+        if value in seen:
+            duplicates.add(value)
+        else:
+            seen.add(value)
+    if not duplicates:
+        return []
+    rendered = ", ".join(sorted(str(item) for item in duplicates))
+    return [f"Duplicate {label} values are not allowed: {rendered}"]

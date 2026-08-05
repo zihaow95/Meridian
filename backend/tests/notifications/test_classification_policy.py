@@ -76,9 +76,11 @@ def test_the_resolution_pins_the_channel_rule_it_acted_on(organization, template
     }
 
 
-def test_a_caller_may_raise_the_level_and_the_policy_follows(
+def test_a_caller_cannot_override_the_published_template_level(
     organization, templates, policy
 ) -> None:
+    """Business facts do not carry a level; the template catalog owns the class."""
+
     templates()
     policy(
         [
@@ -87,10 +89,11 @@ def test_a_caller_may_raise_the_level_and_the_policy_follows(
         ]
     )
 
-    resolved = resolve(organization, level="URGENT")
+    with pytest.raises(TypeError):
+        resolve(organization, level="URGENT")
 
-    assert resolved.level == "URGENT"
-    assert resolved.policy_snapshot["level"] == "URGENT"
+    resolved = resolve(organization)
+    assert resolved.level == "IMPORTANT"
 
 
 def test_an_unknown_template_code_is_refused(organization, templates, policy) -> None:
@@ -290,3 +293,24 @@ def test_replaying_the_same_dedup_key_does_not_create_a_second_notification(
     assert first is not None and second is not None
     assert first.pk == second.pk
     assert Notification.objects.count() == 1
+
+
+def test_a_todo_requested_event_cannot_override_the_template_level(
+    active_user, event, todo_consumer, allow_notification, templates, policy
+) -> None:
+    """Even a payload that still carries `level` must use the published default."""
+
+    templates()
+    policy(
+        [
+            {"category": "ACTION_REQUIRED", "level": "IMPORTANT", "channels": ["IN_APP"]},
+            {"category": "ACTION_REQUIRED", "level": "URGENT", "channels": ["IN_APP"]},
+        ]
+    )
+    event.payload_json = {**event.payload_json, "level": "URGENT", "template_code": "todo.created"}
+    event.save(update_fields=["payload_json"])
+
+    todo_consumer.consume(event)
+
+    notice = Notification.objects.get(dedup_key=f"notify:{event.payload_json['dedup_key']}")
+    assert notice.level == "IMPORTANT"

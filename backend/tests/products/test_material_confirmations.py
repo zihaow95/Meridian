@@ -1049,14 +1049,14 @@ def test_the_repair_leaves_alone_the_stranded_todo_it_was_not_asked_about(
     assert not MaterialConfirmationSettlementRepair.objects.filter(confirmation=unnamed).exists()
 
 
-def test_a_stranded_todo_is_repaired_once_even_if_the_repair_settled_nothing(
+def test_a_failed_repair_can_be_retried_until_the_todo_closes(
     django_capture_on_commit_callbacks, monkeypatch, requester, confirmer, current_material
 ) -> None:
-    """One repair per stranded todo, decided by the database and not by a re-scan.
+    """A failed attempt is history; the next controlled apply must still be able to settle.
 
-    If the reissued settlement itself closes nothing, the todo stays OPEN and visible
-    to an operator. Repairing again on every pass would append events and audit
-    records forever while changing nothing.
+    Occupying a unique key before the todo closes would leave the ask recoverable
+    only by editing the database. Attempts are therefore append-only: the first
+    failed try stays, and a later try closes the todo under a new attempt_no.
     """
 
     from apps.notifications.models import TodoStatus
@@ -1086,27 +1086,35 @@ def test_a_stranded_todo_is_repaired_once_even_if_the_repair_settled_nothing(
     todo.refresh_from_db()
     assert first == [confirmation.public_id]
     assert todo.status == TodoStatus.OPEN
-
-    second = _repair()
-
-    assert second == []
     assert (
         MaterialConfirmationSettlementRepair.objects.filter(confirmation=confirmation).count() == 1
     )
+
+    with django_capture_on_commit_callbacks(execute=True):
+        second = _repair()
+
+    todo.refresh_from_db()
+    assert second == [confirmation.public_id]
+    assert todo.status == TodoStatus.COMPLETED
+    assert list(
+        MaterialConfirmationSettlementRepair.objects.filter(confirmation=confirmation)
+        .order_by("attempt_no")
+        .values_list("attempt_no", flat=True)
+    ) == [1, 2]
     assert (
         OutboxEvent.objects.filter(
             event_type="material_confirmation.decided",
             aggregate_id=confirmation.public_id,
             payload_json__reissue_reason=REISSUE_REASON,
         ).count()
-        == 1
+        == 2
     )
     assert (
         AuditEvent.objects.filter(
             action_code="product_material.confirmation_settle_reissue",
             resource_public_id=confirmation.public_id,
         ).count()
-        == 1
+        == 2
     )
 
 
@@ -1570,9 +1578,8 @@ def test_the_operations_command_fails_when_a_todo_it_repaired_is_still_open(
 ) -> None:
     """An operator learns the repair did not close the ask, from the exit code.
 
-    A repair that reissued nothing because the sentinel already exists, or whose
-    settlement never landed, leaves the todo exactly as open as before. Counting
-    reissues would call that a success and hide the one fact that matters.
+    The failed attempt stays as history. A later --apply must still be able to
+    settle, so the unique key cannot permanently block retries.
     """
 
     from django.core.management import call_command
@@ -1600,6 +1607,20 @@ def test_the_operations_command_fails_when_a_todo_it_repaired_is_still_open(
     assert todo.status == TodoStatus.OPEN
     assert (
         MaterialConfirmationSettlementRepair.objects.filter(confirmation=confirmation).count() == 1
+    )
+
+    monkeypatch.undo()
+    call_command(
+        "repair_material_confirmation_settlements",
+        "--actor-login-key",
+        requester.login_key,
+        "--apply",
+    )
+
+    todo.refresh_from_db()
+    assert todo.status == TodoStatus.COMPLETED
+    assert (
+        MaterialConfirmationSettlementRepair.objects.filter(confirmation=confirmation).count() == 2
     )
 
 

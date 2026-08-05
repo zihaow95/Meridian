@@ -16,7 +16,9 @@ import pytest
 from apps.authorization.models.admin_change import AdminChangeStatus
 from apps.configuration.models import ConfigurationDefinition, ConfigurationStatus
 from apps.configuration.schema_registry import (
+    NOTIFICATION_CATEGORIES,
     NOTIFICATION_DELIVERY_POLICY_CODE,
+    NOTIFICATION_LEVELS,
     NOTIFICATION_TEMPLATE_CATALOG_CODE,
     PRODUCT_MATERIAL_REQUIREMENTS_CODE,
     SENSITIVITY_LEVELS,
@@ -89,8 +91,9 @@ def notification_template_catalog() -> dict[str, Any]:
 def notification_delivery_policy() -> dict[str, Any]:
     return {
         "rules": [
-            {"category": "ACTION_REQUIRED", "level": "URGENT", "channels": ["IN_APP"]},
-            {"category": "INFORMATION", "level": "NORMAL", "channels": ["IN_APP"]},
+            {"category": category, "level": level, "channels": ["IN_APP"]}
+            for category in NOTIFICATION_CATEGORIES
+            for level in NOTIFICATION_LEVELS
         ]
     }
 
@@ -188,6 +191,51 @@ def test_delivery_policy_refuses_to_enable_dingtalk_in_phase_6() -> None:
     content["rules"][0]["channels"] = ["IN_APP", "DINGTALK"]
 
     assert validate_content(NOTIFICATION_DELIVERY_POLICY_CODE, content) != []
+
+
+def test_catalog_rejects_duplicate_item_codes() -> None:
+    content = technical_file_catalog()
+    content["catalog_items"].append(dict(content["catalog_items"][0]))
+
+    errors = validate_content(TECHNICAL_FILE_CATALOG_CODE, content)
+
+    assert any("item_code" in error for error in errors)
+
+
+def test_material_requirements_reject_duplicate_category_lifecycle_rows() -> None:
+    content = product_material_requirements()
+    content["requirements"].append(dict(content["requirements"][0]))
+
+    errors = validate_content(PRODUCT_MATERIAL_REQUIREMENTS_CODE, content)
+
+    assert any("product_category_code/lifecycle_state" in error for error in errors)
+
+
+def test_notification_templates_reject_duplicate_template_codes() -> None:
+    content = notification_template_catalog()
+    content["templates"].append(dict(content["templates"][0]))
+
+    errors = validate_content(NOTIFICATION_TEMPLATE_CATALOG_CODE, content)
+
+    assert any("template_code" in error for error in errors)
+
+
+def test_delivery_policy_rejects_duplicate_category_level_rules() -> None:
+    content = notification_delivery_policy()
+    content["rules"].append(dict(content["rules"][0]))
+
+    errors = validate_content(NOTIFICATION_DELIVERY_POLICY_CODE, content)
+
+    assert any("category/level" in error for error in errors)
+
+
+def test_delivery_policy_rejects_a_missing_category_level_cell() -> None:
+    content = notification_delivery_policy()
+    content["rules"] = content["rules"][1:]
+
+    errors = validate_content(NOTIFICATION_DELIVERY_POLICY_CODE, content)
+
+    assert any("missing" in error for error in errors)
 
 
 @pytest.mark.parametrize("definition_code", PHASE6_DEFINITION_CODES)

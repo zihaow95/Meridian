@@ -278,7 +278,6 @@ class SubmitMaterialConfirmation:
                         "deep_link": f"/products?confirm={confirmation.public_id}",
                         "title": title,
                         "template_code": "todo.created",
-                        "level": "IMPORTANT",
                     },
                     occurred_at=self.context.occurred_at or timezone.now(),
                 )

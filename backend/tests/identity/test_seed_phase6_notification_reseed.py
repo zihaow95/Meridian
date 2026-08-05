@@ -116,7 +116,6 @@ def test_phase6_notification_seed_retires_duplicate_unread_left_by_older_seeds(
             dedup_key=key,
             deep_link="/todos",
             action_code="notification.read",
-            level=level,
         ).execute()
 
     command._ensure_notifications(active_user)

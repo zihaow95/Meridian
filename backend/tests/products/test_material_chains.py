@@ -236,6 +236,49 @@ def test_a_submission_still_in_triage_cannot_be_promoted(submissions, submitter:
     assert ProductMaterial.objects.count() == 0
 
 
+def test_a_chain_rejects_the_same_submission_listed_twice(
+    submissions, verifier: User, submitter: User
+) -> None:
+    """Repeating a submission id would invent two material versions from one fact."""
+
+    verified = verify(verifier, submissions("V1", date(2019, 1, 1)))
+
+    with pytest.raises(MaterialChainRejected, match="more than once"):
+        CreateLegacyMaterialVersionChain(
+            context=CommandContext.for_actor(submitter),
+            ordered_submission_ids=[verified.public_id, verified.public_id],
+            current_submission_id=verified.public_id,
+            owner=MaterialOwner(owner_type=AttributeOwnerType.PRODUCT, owner_id=OWNER_ID),
+            material_type_code=MATERIAL_TYPE,
+        ).execute()
+
+    assert ProductMaterial.objects.count() == 0
+
+
+@pytest.mark.django_db(transaction=True)
+def test_mysql_refuses_a_second_material_for_the_same_source_submission(
+    submissions, verifier: User, submitter: User
+) -> None:
+    """The service rejects duplicates; the database still guards a racing second write."""
+
+    verified = verify(verifier, submissions("V1", date(2019, 1, 1)))
+    materials = build_chain(submitter, [verified], verified)
+    assert len(materials) == 1
+
+    with pytest.raises(IntegrityError), transaction.atomic():
+        ProductMaterial.objects.create(
+            organization_id=submitter.organization_id,
+            owner_type=AttributeOwnerType.PRODUCT,
+            owner_id=OWNER_ID,
+            material_type_code=MATERIAL_TYPE,
+            document_version=verified.document_version,
+            sensitivity_level=verified.document_version.sensitivity_level,
+            material_status=MaterialStatus.DRAFT,
+            version_no=99,
+            source_submission=verified,
+        )
+
+
 def test_a_submission_cannot_be_chained_onto_a_different_owner(
     submissions, verifier: User, submitter: User
 ) -> None:

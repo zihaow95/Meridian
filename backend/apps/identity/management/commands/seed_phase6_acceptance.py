@@ -323,18 +323,18 @@ class Command(BaseCommand):
             definition_code=NOTIFICATION_TEMPLATE_CATALOG_CODE,
             content={"templates": templates},
         )
+        # Publish gate requires the full category×level matrix so a missing cell
+        # cannot be approved and then fail only at delivery time.
+        from apps.configuration.schema_registry import (
+            NOTIFICATION_CATEGORIES,
+            NOTIFICATION_LEVELS,
+        )
+
         rules = [
-            {
-                "category": NotificationCategory.ACTION_REQUIRED,
-                "level": NotificationLevel.IMPORTANT,
-                "channels": ["IN_APP"],
-            },
-            *[
-                {"category": category, "level": level, "channels": ["IN_APP"]}
-                for category, level in _CATEGORY_LEVELS
-            ],
+            {"category": category, "level": level, "channels": ["IN_APP"]}
+            for category in NOTIFICATION_CATEGORIES
+            for level in NOTIFICATION_LEVELS
         ]
-        # Cover every category×level cell used by the six templates.
         self._publish_config(
             organization=organization,
             actor=actor,
@@ -527,7 +527,6 @@ class Command(BaseCommand):
                 dedup_key=dedup_key,
                 deep_link=deep_link,
                 action_code="notification.read",
-                level=level,
             ).execute()
 
     def _converge_projection_events(self, actor: User) -> None:

@@ -22,6 +22,7 @@ from dataclasses import dataclass
 from uuid import UUID
 
 from django.db import IntegrityError, transaction
+from django.db.models import Max
 from django.utils import timezone
 
 from apps.audit.models import AuditResult
@@ -48,15 +49,15 @@ from apps.products.services.material_confirmations import confirmation_todo_dedu
 
 REISSUE_REASON = "SETTLEMENT_RECEIPT_WITHOUT_TODO"
 _TODO_DEDUP_PREFIX = "material_confirmation:"
-# The unique repair key, named so a duplicate on it can be told apart from every
+# The unique attempt key, named so a concurrent loser can be told apart from every
 # other integrity failure this transaction could hit.
-REPAIR_UNIQUE_CONSTRAINT = "products_material_repair_uniq"
+REPAIR_UNIQUE_CONSTRAINT = "products_material_repair_attempt_uniq"
 # MySQL: ER_DUP_ENTRY. A message that merely names the constraint is not enough.
 MYSQL_DUPLICATE_ENTRY = 1062
 
 
-class _AlreadyRepaired(Exception):
-    """Another process holds the repair key for this todo."""
+class _ConcurrentRepairAttempt(Exception):
+    """Another process already claimed this attempt_no for the stranded todo."""
 
 
 def _mysql_errno(error: BaseException) -> int | None:
@@ -203,6 +204,9 @@ class ReissueSettlementForDecidedConfirmations:
                     # event would only duplicate the work.
                     return False
 
+                attempt_no = self._next_attempt_no(
+                    confirmation=confirmation, todo_public_id=todo.public_id
+                )
                 event = register_outbox_event(
                     OutboxMessage(
                         event_type="material_confirmation.decided",
@@ -219,32 +223,43 @@ class ReissueSettlementForDecidedConfirmations:
                             "assignee_id": confirmation.confirmer_id,
                             "todo_dedup_key": confirmation_todo_dedup_key(confirmation.public_id),
                             "reissue_reason": REISSUE_REASON,
+                            "repair_attempt_no": attempt_no,
                         },
                         occurred_at=self.context.occurred_at or timezone.now(),
                     )
                 )
-                # The unique key decides whether this repair exists, so a loser
-                # writes neither an audit record nor a dispatch. Only that key's own
-                # duplicate means "already repaired": any other database failure is a
-                # real failure and must not be reported as an idempotent skip.
+                # The unique attempt key decides who owns this try. A prior failed
+                # attempt stays as history; only a peer racing the same attempt_no
+                # is an idempotent skip. Any other integrity failure propagates.
                 try:
                     with transaction.atomic():
                         MaterialConfirmationSettlementRepair.objects.create(
                             organization_id=confirmation.organization_id,
                             confirmation=confirmation,
                             todo_public_id=todo.public_id,
+                            attempt_no=attempt_no,
                             reissued_event_id=event.event_id,
                             reason=REISSUE_REASON,
                         )
                 except IntegrityError as error:
                     if not _is_duplicate_repair(error):
                         raise
-                    raise _AlreadyRepaired from error
-                self._append_repair_audit(confirmation, todo)
+                    raise _ConcurrentRepairAttempt from error
+                self._append_repair_audit(confirmation, todo, attempt_no=attempt_no)
                 schedule_local_dispatch_after_commit(event)
-        except _AlreadyRepaired:
+        except _ConcurrentRepairAttempt:
             return False
         return True
+
+    def _next_attempt_no(self, *, confirmation: MaterialConfirmation, todo_public_id: UUID) -> int:
+        highest = (
+            MaterialConfirmationSettlementRepair.objects.filter(
+                confirmation=confirmation,
+                todo_public_id=todo_public_id,
+            ).aggregate(highest=Max("attempt_no"))["highest"]
+            or 0
+        )
+        return highest + 1
 
     def _settlement_still_in_flight(self, confirmation_public_id: UUID) -> bool:
         return OutboxEvent.objects.filter(
@@ -269,7 +284,9 @@ class ReissueSettlementForDecidedConfirmations:
         if not decision.allowed:
             raise PermissionDeniedError()
 
-    def _append_repair_audit(self, confirmation: MaterialConfirmation, todo: Todo) -> None:
+    def _append_repair_audit(
+        self, confirmation: MaterialConfirmation, todo: Todo, *, attempt_no: int
+    ) -> None:
         append_event(
             AuditRecord(
                 actor=self.context.actor,
@@ -285,6 +302,7 @@ class ReissueSettlementForDecidedConfirmations:
                     "todo_public_id": str(todo.public_id),
                     "todo_dedup_key": todo.dedup_key,
                     "reissue_reason": REISSUE_REASON,
+                    "repair_attempt_no": attempt_no,
                 },
             )
         )

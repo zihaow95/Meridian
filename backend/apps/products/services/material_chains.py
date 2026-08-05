@@ -189,6 +189,9 @@ class CreateLegacyMaterialVersionChain:
         actor = self.context.actor
         if not self.ordered_submission_ids:
             raise MaterialChainRejected("A chain needs at least one submission.")
+        unique_ids = list(dict.fromkeys(self.ordered_submission_ids))
+        if len(unique_ids) != len(self.ordered_submission_ids):
+            raise MaterialChainRejected("A chain cannot list the same submission more than once.")
         if self.current_submission_id not in set(self.ordered_submission_ids):
             raise MaterialChainRejected(
                 "The current version must be one of the submissions in the chain."

@@ -151,18 +151,17 @@ def resolve_notification(
     organization: Organization,
     template_code: str,
     variables: dict[str, Any],
-    level: str | None = None,
 ) -> ResolvedNotification:
     """Decide class, wording and channels, pinning the versions that said so.
 
-    Pass `level` to raise or lower the template's default for one occurrence; the
-    policy is then read for that level, not for the default.
+    Level is always the published template's default. Callers submit business
+    facts only; overriding the class here would fork the versioned policy.
     """
 
     catalog = published_template_catalog(organization)
     entry = _template_entry(catalog, template_code)
     category = str(entry["category"])
-    effective_level = level or str(entry["default_level"])
+    effective_level = str(entry["default_level"])
 
     summary = render_summary(
         summary_template=str(entry["summary_template"]),

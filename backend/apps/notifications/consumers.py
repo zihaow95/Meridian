@@ -27,7 +27,8 @@ class TodoProjectionConsumer:
             todo = UpsertOpenTodo(event=todo_event).execute()
             assignee = User.objects.select_related("organization").get(pk=todo_event.assignee_id)
             template_code = str(event.payload_json.get("template_code") or "todo.created")
-            level = event.payload_json.get("level")
+            # Level comes only from the published template catalog. A business
+            # event that carried `level` would bypass versioned classification.
             CreateInAppNotification(
                 recipient=assignee,
                 template_code=template_code,
@@ -38,7 +39,6 @@ class TodoProjectionConsumer:
                 deep_link=todo_event.deep_link,
                 todo=todo,
                 action_code=todo_event.action_code,
-                level=str(level) if level else None,
             ).execute()
 
 
