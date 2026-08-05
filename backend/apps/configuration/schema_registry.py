@@ -373,7 +373,18 @@ def _validate_product_material_requirements(content: dict[str, Any]) -> list[str
         for row in content.get("requirements") or []
         if isinstance(row, dict)
     ]
-    return _duplicate_key_errors(keys, label="product_category_code/lifecycle_state")
+    errors = _duplicate_key_errors(keys, label="product_category_code/lifecycle_state")
+    for index, row in enumerate(content.get("requirements") or []):
+        if not isinstance(row, dict):
+            continue
+        material_codes = [
+            item.get("material_type_code")
+            for item in row.get("materials") or []
+            if isinstance(item, dict)
+        ]
+        nested = _duplicate_key_errors(material_codes, label="material_type_code")
+        errors.extend(f"requirements[{index}]: {message}" for message in nested)
+    return errors
 
 
 def _validate_notification_template_catalog(content: dict[str, Any]) -> list[str]:

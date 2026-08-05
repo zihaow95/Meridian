@@ -211,6 +211,16 @@ def test_material_requirements_reject_duplicate_category_lifecycle_rows() -> Non
     assert any("product_category_code/lifecycle_state" in error for error in errors)
 
 
+def test_material_requirements_reject_duplicate_material_type_codes_within_one_rule() -> None:
+    content = product_material_requirements()
+    content["requirements"][0]["materials"].append(dict(content["requirements"][0]["materials"][0]))
+
+    errors = validate_content(PRODUCT_MATERIAL_REQUIREMENTS_CODE, content)
+
+    assert errors != []
+    assert any("material_type_code" in error for error in errors)
+
+
 def test_notification_templates_reject_duplicate_template_codes() -> None:
     content = notification_template_catalog()
     content["templates"].append(dict(content["templates"][0]))
