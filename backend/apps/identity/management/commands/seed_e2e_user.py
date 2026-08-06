@@ -125,11 +125,23 @@ E2E_OPS_SALES_METRIC_CODE = "GROSS_SALES"
 E2E_OPS_RULE_CODE = "E2E_QUARTER_SHELF_MIN_PROD"
 E2E_OPS_MONITORING_DECISION_ID = UUID("1a09db77-b7f2-5c7a-8c59-fd509f67bbfb")
 
+# The material confirmations this seed's fixtures depend on, recorded per run so a
+# later step can converge exactly their projection events. A caller must not have to
+# guess the scope from "everything this organization ever confirmed".
+_FIXTURE_CONFIRMATION_IDS: list[UUID] = []
+
+
+def fixture_material_confirmation_ids() -> tuple[UUID, ...]:
+    """The confirmations the most recent `seed_e2e_user` run created or relied on."""
+
+    return tuple(_FIXTURE_CONFIRMATION_IDS)
+
 
 class Command(BaseCommand):
     help = "Create or refresh the deterministic E2E active user, permissions, and sample todo."
 
     def handle(self, *args: object, **options: object) -> None:
+        _FIXTURE_CONFIRMATION_IDS.clear()
         organization, _ = Organization.objects.get_or_create(name=E2E_ORG_NAME)
         user, created = User.objects.get_or_create(
             login_key=E2E_LOGIN_KEY,
@@ -153,6 +165,8 @@ class Command(BaseCommand):
 
         self._grant_action(user, "notification.todo.read", "notification.todo")
         self._grant_action(user, "configuration.version.read", "configuration.version")
+        self._grant_action(user, "configuration.draft.create", "configuration.version")
+        self._grant_action(user, "configuration.version.publish", "configuration.version")
         for action_code, resource_type, role_code in _PHASE2_ACTIONS:
             self._grant_action(user, action_code, resource_type, role_code=role_code)
         for action_code, resource_type, role_code in _PHASE3_ACTIONS:
@@ -246,6 +260,10 @@ class Command(BaseCommand):
             ("first_launch.final_decision.record", "stage_gate", "BOSS"),
             # PRODUCT_RETIREMENT final decision — dual-control vs active user mgmt.
             ("retirement.final_decision.record", "stage_gate", "BOSS"),
+            # Project creation pins the published template via CreateSnapshot.
+            ("configuration.version.read", "configuration.version", "BOSS"),
+            ("major_gate.final_decision.record", "stage_gate", "BOSS"),
+            ("major_gate.management_conclusion.record", "stage_gate", "BOSS"),
         ):
             self._grant_action(approver, action_code, resource_type, role_code=role_code)
 
@@ -963,6 +981,9 @@ class Command(BaseCommand):
             ],
         }
         repaired_draft.save(update_fields=["change_scope", "updated_at"])
+        repaired_product = project.product_asset
+        if repaired_product is not None:
+            self._ensure_approved_product_label(product=repaired_product, actor=leader)
 
     def _rearm_repair_retry_project(self, project: Project, *, business_no: str) -> None:
         """Re-drive a real publish failure so every E2E run starts from PENDING_REPAIR.
@@ -1083,6 +1104,215 @@ class Command(BaseCommand):
             ],
         }
         draft.save(update_fields=["change_scope", "updated_at"])
+        product = project.product_asset
+        if product is not None:
+            self._ensure_approved_product_label(product=product, actor=project.leader)
+
+    def _ensure_approved_product_label(self, *, product: object, actor: User) -> None:
+        """Satisfy YOGURT ACTIVE material requirements via real confirmation facts."""
+
+        import hashlib
+
+        from django.conf import settings
+        from django.db import transaction
+        from django.db.models import Max
+
+        from apps.documents.models import (
+            Document,
+            DocumentSource,
+            DocumentVersion,
+            FileObject,
+            StorageBackend,
+            StorageStatus,
+            VersionStatus,
+        )
+        from apps.platform.application.command import CommandContext
+        from apps.products.models import (
+            AttributeOwnerType,
+            MaterialConfirmation,
+            MaterialConfirmationDecision,
+            MaterialStatus,
+            ProductAsset,
+            ProductMaterial,
+        )
+        from apps.products.services.material_chains import make_material_current
+        from apps.products.services.material_confirmations import (
+            DecideMaterialConfirmation,
+            SubmitMaterialConfirmation,
+        )
+
+        assert isinstance(product, ProductAsset)
+        current = (
+            ProductMaterial.objects.select_related("document_version__file_object")
+            .filter(
+                organization_id=product.organization_id,
+                owner_type=AttributeOwnerType.PRODUCT,
+                owner_id=product.id,
+                material_type_code="PRODUCT_LABEL",
+                current_slot=1,
+            )
+            .first()
+        )
+        existing = None if current is None else self._valid_approved_confirmation(current)
+        if existing is not None:
+            # Already satisfied, possibly by an interrupted earlier run whose todo
+            # never settled. It stays in scope so the caller can converge it.
+            self._remember_fixture_confirmation(existing)
+            return
+
+        self._grant_action(actor, "product_material.manage", "product_material")
+        self._grant_action(actor, "product_material.confirm", "product_material")
+
+        storage_root = settings.FILE_STORAGE_ROOT
+        storage_root.mkdir(parents=True, exist_ok=True)
+        code = f"E2E-LABEL-{product.business_no}"
+        document, _ = Document.objects.get_or_create(
+            organization_id=product.organization_id,
+            document_code=code,
+            defaults={
+                "title": f"Label for {product.business_no}",
+                "source": DocumentSource.PRODUCT,
+            },
+        )
+        payload = f"e2e-label-{product.business_no}".encode()
+        digest = hashlib.sha256(payload).hexdigest()
+        object_key = f"e2e/labels/{code}.bin"
+        file_object, created = FileObject.objects.get_or_create(
+            organization_id=product.organization_id,
+            object_key=object_key,
+            defaults={
+                "storage_backend": StorageBackend.NAS_NFS,
+                "size_bytes": len(payload),
+                "sha256": digest,
+                "detected_mime_type": "application/pdf",
+                "storage_status": StorageStatus.ACTIVE,
+            },
+        )
+        if created:
+            path = storage_root / object_key
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_bytes(payload)
+        version, _ = DocumentVersion.objects.get_or_create(
+            organization_id=product.organization_id,
+            document=document,
+            version_number=1,
+            defaults={
+                "file_object": file_object,
+                "original_filename": f"{code}.pdf",
+                "declared_mime_type": "application/pdf",
+                "detected_mime_type": "application/pdf",
+                "status": VersionStatus.CONTROLLED,
+                "catalog_item_code": "PRODUCT_LABEL",
+                "uploaded_by": actor,
+                "uploaded_at": timezone.now(),
+            },
+        )
+
+        context = CommandContext.for_actor(actor)
+        with transaction.atomic():
+            # Re-lock current inside the writer so a concurrent seed cannot race.
+            current = (
+                ProductMaterial.objects.select_for_update()
+                .select_related("document_version__file_object")
+                .filter(
+                    organization_id=product.organization_id,
+                    owner_type=AttributeOwnerType.PRODUCT,
+                    owner_id=product.id,
+                    material_type_code="PRODUCT_LABEL",
+                    current_slot=1,
+                )
+                .first()
+            )
+            existing = None if current is None else self._valid_approved_confirmation(current)
+            if existing is not None:
+                self._remember_fixture_confirmation(existing)
+                return
+
+            # Never rewrite an existing material's document_version in place.
+            # Keep the old row as history and promote a new draft version.
+            # Create → switch → supersede → Submit/Decide share one boundary so
+            # a failed confirmation cannot leave a stranded current DRAFT.
+            highest = (
+                ProductMaterial.objects.filter(
+                    organization_id=product.organization_id,
+                    owner_type=AttributeOwnerType.PRODUCT,
+                    owner_id=product.id,
+                    material_type_code="PRODUCT_LABEL",
+                ).aggregate(highest=Max("version_no"))["highest"]
+                or 0
+            )
+            material = ProductMaterial.objects.create(
+                organization_id=product.organization_id,
+                owner_type=AttributeOwnerType.PRODUCT,
+                owner_id=product.id,
+                material_type_code="PRODUCT_LABEL",
+                version_no=highest + 1,
+                supersedes_material=current,
+                document_version=version,
+                material_status=MaterialStatus.DRAFT,
+                current_slot=None,
+                sensitivity_level=version.sensitivity_level,
+            )
+            make_material_current(material, context=context)
+            pending = MaterialConfirmation.objects.filter(
+                material=material,
+                decision=MaterialConfirmationDecision.PENDING,
+                superseded_at__isnull=True,
+            ).first()
+            if pending is None:
+                pending = SubmitMaterialConfirmation(
+                    context=context,
+                    material_public_id=material.public_id,
+                    confirmer_public_id=actor.public_id,
+                    comment="E2E repair seed confirmation",
+                ).execute()
+            DecideMaterialConfirmation(
+                context=context,
+                confirmation_public_id=pending.public_id,
+                decision=MaterialConfirmationDecision.APPROVED,
+                comment="E2E repair seed approval",
+            ).execute()
+            self._remember_fixture_confirmation(pending)
+
+    def _remember_fixture_confirmation(self, confirmation: object) -> None:
+        """Name this fixture's confirmation so a later step can converge just it.
+
+        The request and its decision only project after this transaction commits, and
+        the notification catalog they need is published by a later command. Recording
+        the confirmation is what lets that command close this loop without reaching
+        confirmations it did not create.
+        """
+
+        from apps.products.models import MaterialConfirmation
+
+        assert isinstance(confirmation, MaterialConfirmation)
+        if confirmation.public_id not in _FIXTURE_CONFIRMATION_IDS:
+            _FIXTURE_CONFIRMATION_IDS.append(confirmation.public_id)
+
+    def _has_valid_approved_confirmation(self, material: object) -> bool:
+        return self._valid_approved_confirmation(material) is not None
+
+    def _valid_approved_confirmation(self, material: object) -> object | None:
+        from apps.products.models import (
+            MaterialConfirmation,
+            MaterialConfirmationDecision,
+            MaterialStatus,
+            ProductMaterial,
+        )
+
+        assert isinstance(material, ProductMaterial)
+        if material.material_status != MaterialStatus.APPROVED:
+            return None
+        file_object = material.document_version.file_object
+        return MaterialConfirmation.objects.filter(
+            material=material,
+            decision=MaterialConfirmationDecision.APPROVED,
+            live_slot=1,
+            document_version_id=material.document_version_id,
+            content_hash=file_object.sha256,
+            confirmer__isnull=False,
+            superseded_at__isnull=True,
+        ).first()
 
     def _submit_first_launch_gate(self, project: Project, *, submitter: User) -> StageGateInstance:
         """Put the FIRST_LAUNCH gate into a decideable SUBMITTED + active L2 state."""
@@ -1304,3 +1534,12 @@ class Command(BaseCommand):
             raise RuntimeError("FIRST_LAUNCH gate missing after InitializeProjectRuntime")
         if gate.status not in {GateStatus.DECIDED, GateStatus.APPROVED}:
             self._submit_first_launch_gate(project, submitter=leader)
+
+        # Phase 6 material gates evaluate YOGURT/ACTIVE at publish time. The happy-path
+        # launch fixture must already hold an approved PRODUCT_LABEL or first-launch
+        # handover lands in PUBLISH_PENDING_REPAIR instead of OPERATING.
+        if publishable and project.product_asset_id is not None:
+            self._ensure_approved_product_label(
+                product=project.product_asset,
+                actor=leader,
+            )

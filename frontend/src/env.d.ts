@@ -2,6 +2,7 @@
 
 interface ImportMetaEnv {
   readonly VITE_ENABLE_DEV_LOGIN?: string
+  readonly VITE_ENABLE_PILOT_PASSWORD_LOGIN?: string
 }
 
 interface ImportMeta {

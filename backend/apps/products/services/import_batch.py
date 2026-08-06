@@ -16,19 +16,14 @@ from apps.identity.models.user import User
 from apps.platform.api.errors import PermissionDeniedError
 from apps.platform.application.command import CommandContext
 from apps.products.models import (
-    ChangeSetStatus,
-    ChangeSetType,
-    CompletenessStatus,
     ImportBatch,
     ImportBatchStatus,
     ImportItem,
     ImportItemDecision,
     ImportItemStatus,
     ProductAsset,
-    ProductChangeSet,
-    ProductLifecycleStatus,
-    ProductSourceType,
 )
+from apps.products.services.create_legacy_baseline import CreateLegacyBaselineDraft
 from apps.products.services.duplicate_detection import (
     DetectProductImportDuplicates,
     serialize_candidates,
@@ -299,37 +294,20 @@ class ConfirmProductImportBatch:
         if item.decision == ImportItemDecision.LINK:
             return self._link_existing_product(batch=batch, item=item, actor=actor)
 
-        payload: dict[str, Any] = item.normalized_payload
-        business_no = str(payload.get("business_no") or f"LEG-{batch.id}-{item.row_number}")
-        product = ProductAsset.objects.create(
-            organization=batch.organization,
-            business_no=business_no,
-            name=str(payload["name"]),
-            brand_code=str(payload.get("brand_code") or ""),
-            category_code=str(payload["category_code"]),
-            source_type=ProductSourceType.LEGACY_IMPORT,
-            lifecycle_status=ProductLifecycleStatus.DEVELOPING,
-            product_owner=actor,
-        )
-        completeness = (
-            CompletenessStatus.COMPLETE
-            if payload.get("sku_code") and payload.get("barcode")
-            else CompletenessStatus.PARTIAL
-        )
-        change_set = ProductChangeSet.objects.create(
-            organization=batch.organization,
-            change_type=ChangeSetType.LEGACY_BASELINE,
-            status=ChangeSetStatus.DRAFT,
-            product=product,
+        if item.decision == ImportItemDecision.PENDING:
+            # Authoritative CREATE fact before the single writer runs.
+            item.decision = ImportItemDecision.CREATE
+            item.save(update_fields=["decision", "updated_at"])
+
+        draft = CreateLegacyBaselineDraft(
+            context=CommandContext.for_actor(actor),
+            payload=item.normalized_payload,
             migration_batch_id=batch.id,
-            title=f"Legacy baseline: {product.name}",
-            definition_summary=str(payload.get("specification") or ""),
-            completeness_status=completeness,
-            change_scope={"import_row_number": item.row_number, "payload": payload},
-            created_by=actor,
-        )
-        item.baseline_change_set = change_set
-        item.target_product = product
+            import_row_number=item.row_number,
+            business_no_fallback=f"LEG-{batch.id}-{item.row_number}",
+        ).execute()
+        item.baseline_change_set = draft.change_set
+        item.target_product = draft.product
         item.item_status = ImportItemStatus.CONFIRMED
         item.decision = ImportItemDecision.CREATE
         item.save(
@@ -343,7 +321,7 @@ class ConfirmProductImportBatch:
         )
         return ConfirmImportItemResult(
             row_number=item.row_number,
-            baseline_public_id=str(change_set.public_id),
+            baseline_public_id=str(draft.change_set.public_id),
             item_status=item.item_status,
         )
 
@@ -368,23 +346,14 @@ class ConfirmProductImportBatch:
             pk=item.target_product_id,
             organization_id=batch.organization_id,
         )
-        change_set = ProductChangeSet.objects.create(
-            organization=batch.organization,
-            change_type=ChangeSetType.LEGACY_BASELINE,
-            status=ChangeSetStatus.DRAFT,
-            product=product,
+        draft = CreateLegacyBaselineDraft(
+            context=CommandContext.for_actor(actor),
+            payload=item.normalized_payload,
+            existing_product=product,
             migration_batch_id=batch.id,
-            title=f"Legacy baseline link: {product.name}",
-            definition_summary=str(item.normalized_payload.get("specification") or ""),
-            completeness_status=CompletenessStatus.PARTIAL,
-            change_scope={
-                "import_row_number": item.row_number,
-                "payload": item.normalized_payload,
-                "linked_existing_product": True,
-            },
-            created_by=actor,
-        )
-        item.baseline_change_set = change_set
+            import_row_number=item.row_number,
+        ).execute()
+        item.baseline_change_set = draft.change_set
         item.target_product = product
         item.item_status = ImportItemStatus.CONFIRMED
         item.save(
@@ -397,7 +366,7 @@ class ConfirmProductImportBatch:
         )
         return ConfirmImportItemResult(
             row_number=item.row_number,
-            baseline_public_id=str(change_set.public_id),
+            baseline_public_id=str(draft.change_set.public_id),
             item_status=item.item_status,
         )
 

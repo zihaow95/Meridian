@@ -125,6 +125,9 @@ try {
     Invoke-Native 'Backend: clean E2E seed' {
         uv run python 'tests\identity\verify_e2e_seed_cold_start.py'
     } $backend
+    Invoke-Native 'Backend: clean Phase 6 acceptance seed' {
+        uv run python 'tests\identity\verify_phase6_seed_cold_start.py'
+    } $backend
     Invoke-Native 'Backend: pytest (MySQL)' { uv run pytest -q } $backend
     Invoke-Native 'Backend: OpenAPI drift' {
         $spectacularOutput = uv run python manage.py spectacular --file openapi/schema.yaml --validate --settings=config.settings.test 2>&1 | Out-String
@@ -152,9 +155,9 @@ try {
     $e2e = Join-Path $RepoRoot 'tests/e2e'
     Invoke-NpmCi 'E2E: install deps' $e2e
     Invoke-Native 'E2E: Playwright browser' { npx playwright install chromium } $e2e
-    Invoke-Native 'E2E: platform kernel, phase 2, and phase 3 product profile' {
+    Invoke-Native 'E2E: platform kernel through phase 6 pilot readiness' {
         $env:CI = 'true'
-        npx playwright test platform-kernel.spec.ts opportunity-to-project.spec.ts product-profile-migration.spec.ts development-first-launch.spec.ts operations-iteration-retirement.spec.ts
+        npx playwright test platform-kernel.spec.ts opportunity-to-project.spec.ts product-profile-migration.spec.ts development-first-launch.spec.ts operations-iteration-retirement.spec.ts controlled-files-notifications-pilot-readiness.spec.ts
     } $e2e
 
     # 6. Docker image builds.

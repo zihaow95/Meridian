@@ -3,6 +3,7 @@ import { onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 
 import { ApiError } from '@/api/client'
+import { resolveInternalDeepLink } from '@/modules/todos/deepLink'
 import { useTodoStore } from '@/modules/todos/store'
 
 const router = useRouter()
@@ -25,15 +26,12 @@ async function load(): Promise<void> {
 onMounted(load)
 
 function openLink(link: string): void {
-  if (
-    link.startsWith('/projects/') ||
-    link.startsWith('/operations') ||
-    link.startsWith('/retirement-plans/')
-  ) {
-    router.push(link)
+  const decision = resolveInternalDeepLink(link)
+  if (!decision.ok) {
+    errorText.value = '无权访问或内容不存在'
     return
   }
-  window.location.assign(link)
+  void router.push(decision.path)
 }
 </script>
 
@@ -41,7 +39,12 @@ function openLink(link: string): void {
   <div class="todos">
     <div class="todos__header">
       <h2>我的待办</h2>
-      <el-button :loading="todos.loading" @click="load">刷新</el-button>
+      <div class="todos__actions">
+        <el-button data-test="open-notifications" @click="router.push('/notifications')">
+          站内通知
+        </el-button>
+        <el-button :loading="todos.loading" @click="load">刷新</el-button>
+      </div>
     </div>
 
     <el-alert
@@ -51,13 +54,17 @@ function openLink(link: string): void {
       :title="errorText"
       show-icon
       class="todos__error"
+      data-test="todo-error"
     />
 
     <el-empty v-else-if="!todos.loading && todos.items.length === 0" description="暂无待办" />
 
     <el-table v-else v-loading="todos.loading" :data="todos.items" style="width: 100%">
       <el-table-column prop="title" label="标题" />
-      <el-table-column prop="status" label="状态" width="140" />
+      <el-table-column prop="category" label="类别" width="140" />
+      <el-table-column prop="level" label="等级" width="110" />
+      <el-table-column prop="due_at" label="到期" width="180" />
+      <el-table-column prop="status" label="状态" width="120" />
       <el-table-column label="操作" width="160">
         <template #default="{ row }">
           <el-button link type="primary" data-test="open-todo" @click="openLink(row.deep_link)">
@@ -76,6 +83,11 @@ function openLink(link: string): void {
   justify-content: space-between;
   gap: 1rem;
   margin-bottom: 1rem;
+}
+
+.todos__actions {
+  display: flex;
+  gap: 0.75rem;
 }
 
 .todos__error {

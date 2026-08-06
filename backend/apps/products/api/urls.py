@@ -29,6 +29,17 @@ from apps.products.api.imports import (
     ProductImportTemplateDownloadView,
     PublishLegacyBaselineView,
 )
+from apps.products.api.legacy_baselines import LegacyBaselineDraftCreateView
+from apps.products.api.materials import (
+    LegacyMaterialVerifyView,
+    MaterialConfirmationDecideView,
+    ProductLegacyMaterialCreateView,
+    ProductLegacyMaterialListView,
+    ProductMaterialChainCreateView,
+    ProductMaterialCompletenessView,
+    ProductMaterialConfirmationCreateView,
+    ProductMaterialListView,
+)
 from apps.products.api.products import ProductDetailView, ProductListView
 
 urlpatterns = [
@@ -133,6 +144,51 @@ urlpatterns = [
         "product-import-batches/<uuid:public_id>/decide-item",
         ProductImportItemDecideView.as_view(),
         name="product-import-item-decide",
+    ),
+    path(
+        "products/<uuid:public_id>/materials",
+        ProductMaterialListView.as_view(),
+        name="product-material-list",
+    ),
+    path(
+        "products/<uuid:public_id>/material-completeness",
+        ProductMaterialCompletenessView.as_view(),
+        name="product-material-completeness",
+    ),
+    path(
+        "products/<uuid:public_id>/material-chains",
+        ProductMaterialChainCreateView.as_view(),
+        name="product-material-chain-create",
+    ),
+    path(
+        "products/<uuid:public_id>/legacy-materials",
+        ProductLegacyMaterialListView.as_view(),
+        name="product-legacy-material-list",
+    ),
+    path(
+        "products/<uuid:public_id>/legacy-material-submissions",
+        ProductLegacyMaterialCreateView.as_view(),
+        name="product-legacy-material-create",
+    ),
+    path(
+        "legacy-materials/<uuid:public_id>/verify",
+        LegacyMaterialVerifyView.as_view(),
+        name="legacy-material-verify",
+    ),
+    path(
+        "product-materials/<uuid:public_id>/confirmations",
+        ProductMaterialConfirmationCreateView.as_view(),
+        name="product-material-confirmation-create",
+    ),
+    path(
+        "material-confirmations/<uuid:public_id>/decide",
+        MaterialConfirmationDecideView.as_view(),
+        name="material-confirmation-decide",
+    ),
+    path(
+        "legacy-baselines",
+        LegacyBaselineDraftCreateView.as_view(),
+        name="legacy-baseline-create",
     ),
     path(
         "legacy-baselines/<uuid:public_id>/publish",

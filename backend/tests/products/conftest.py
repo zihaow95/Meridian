@@ -3,6 +3,9 @@
 from __future__ import annotations
 
 from collections.abc import Callable
+from hashlib import sha256
+from typing import Any
+from uuid import uuid4
 
 import pytest
 from django.utils import timezone
@@ -12,6 +15,7 @@ from apps.configuration.models import (
     ConfigurationStatus,
     ConfigurationVersion,
 )
+from apps.configuration.schema_registry import PRODUCT_MATERIAL_REQUIREMENTS_CODE
 from apps.identity.models.department import Department, DepartmentStatus
 from apps.identity.models.organization import Organization
 from apps.identity.models.user import User, UserStatus
@@ -38,6 +42,36 @@ from apps.projects.models import Project
 from apps.projects.services.create_project_from_candidate import ApproveAndCreateProject
 from tests.opportunities.factories import build_approval_ready_candidate
 from tests.products.schema_factories import build_published_product_schema
+
+
+@pytest.fixture
+def published_empty_material_requirements(
+    organization: Organization, active_user: User
+) -> ConfigurationVersion:
+    """Publish empty material requirements for tests that publish without materials.
+
+    Not autouse: products.conftest is a global pytest plugin and must not mutate
+    configuration state for unrelated suites.
+    """
+
+    definition, _ = ConfigurationDefinition.objects.get_or_create(
+        organization=organization,
+        definition_code=PRODUCT_MATERIAL_REQUIREMENTS_CODE,
+        defaults={"name": PRODUCT_MATERIAL_REQUIREMENTS_CODE, "description": ""},
+    )
+    ConfigurationVersion.objects.filter(
+        definition=definition, status=ConfigurationStatus.PUBLISHED
+    ).update(status=ConfigurationStatus.RETIRED, current_published_slot=None)
+    return ConfigurationVersion.objects.create(
+        organization=organization,
+        definition=definition,
+        version_number=ConfigurationVersion.objects.filter(definition=definition).count() + 1,
+        status=ConfigurationStatus.PUBLISHED,
+        current_published_slot=1,
+        content_json={"requirements": []},
+        created_by=active_user,
+        published_at=timezone.now(),
+    )
 
 
 @pytest.fixture
@@ -134,6 +168,18 @@ def product_director(another_active_user: User, grant_action: Callable[..., None
         "candidate.submit_review",
     ):
         grant_action(another_active_user, action, "project_candidate", role_code="PRODUCT_DIRECTOR")
+    grant_action(
+        another_active_user,
+        "legacy_baseline.draft.create",
+        "product",
+        role_code="PRODUCT_DIRECTOR",
+    )
+    grant_action(
+        another_active_user,
+        "configuration.version.read",
+        "configuration.version",
+        role_code="PRODUCT_DIRECTOR",
+    )
     return another_active_user
 
 
@@ -149,6 +195,12 @@ def boss(another_active_user: User, grant_action: Callable[..., None]) -> User:
         another_active_user,
         "major_gate.final_decision.record",
         "stage_gate",
+        role_code="BOSS",
+    )
+    grant_action(
+        another_active_user,
+        "configuration.version.read",
+        "configuration.version",
         role_code="BOSS",
     )
     return another_active_user
@@ -387,3 +439,56 @@ def active_product(
 @pytest.fixture
 def ordinary_employee(another_active_user: User) -> User:
     return another_active_user
+
+
+@pytest.fixture
+def controlled_document_version(
+    organization: Organization, active_user: User
+) -> Callable[..., Any]:
+    """Build a CONTROLLED document version a product material may reference."""
+
+    def _create(*, code: str = "LABEL", content: bytes = b"%PDF-1.4 label") -> Any:
+        from apps.documents.models import (
+            Document,
+            DocumentSource,
+            DocumentStatus,
+            DocumentVersion,
+            FileObject,
+            StorageBackend,
+            StorageStatus,
+            VersionStatus,
+        )
+
+        suffix = uuid4().hex[:8]
+        file_object = FileObject.objects.create(
+            organization=organization,
+            storage_backend=StorageBackend.NAS_NFS,
+            object_key=f"products/{code}-{suffix}.pdf",
+            size_bytes=len(content),
+            sha256=sha256(content).hexdigest(),
+            detected_mime_type="application/pdf",
+            storage_status=StorageStatus.ACTIVE,
+        )
+        document = Document.objects.create(
+            organization=organization,
+            document_code=f"{code}-{suffix}",
+            title=f"{code} document",
+            category=code,
+            source=DocumentSource.PRODUCT,
+            status=DocumentStatus.ACTIVE,
+        )
+        return DocumentVersion.objects.create(
+            organization=organization,
+            document=document,
+            version_number=1,
+            file_object=file_object,
+            original_filename=f"{code.lower()}.pdf",
+            declared_mime_type="application/pdf",
+            detected_mime_type="application/pdf",
+            status=VersionStatus.CONTROLLED,
+            uploaded_by=active_user,
+            uploaded_at=timezone.now(),
+            catalog_item_code=code,
+        )
+
+    return _create

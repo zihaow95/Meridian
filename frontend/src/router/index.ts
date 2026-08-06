@@ -10,6 +10,7 @@ import AuditListView from '@/modules/admin/AuditListView.vue'
 import DocumentWorkbenchView from '@/modules/admin/DocumentWorkbenchView.vue'
 import UserAccessView from '@/modules/admin/UserAccessView.vue'
 import TodoListView from '@/modules/todos/TodoListView.vue'
+import NotificationCenterView from '@/modules/todos/NotificationCenterView.vue'
 import OpportunityListView from '@/modules/opportunities/OpportunityListView.vue'
 import OpportunityCreateView from '@/modules/opportunities/OpportunityCreateView.vue'
 import OpportunityWorkbenchView from '@/modules/opportunities/OpportunityWorkbenchView.vue'
@@ -20,6 +21,7 @@ import ProductListView from '@/modules/products/ProductListView.vue'
 import ProductDetailView from '@/modules/products/ProductDetailView.vue'
 import ProductChangeSetView from '@/modules/products/ProductChangeSetView.vue'
 import ProductImportPage from '@/modules/products/ProductImportPage.vue'
+import LegacyProductCreateView from '@/modules/products/LegacyProductCreateView.vue'
 import ProjectLifecycleBoardView from '@/modules/projects/LifecycleBoardView.vue'
 import ProjectWorkbenchView from '@/modules/projects/ProjectWorkbenchView.vue'
 import OperatingDashboardPage from '@/modules/operations/OperatingDashboardPage.vue'
@@ -27,12 +29,23 @@ import OperatingDataBatchPage from '@/modules/operations/OperatingDataBatchPage.
 import RiskSignalCenterPage from '@/modules/operations/RiskSignalCenterPage.vue'
 import OperatingIssuePage from '@/modules/operations/OperatingIssuePage.vue'
 import RetirementPlanPage from '@/modules/operations/RetirementPlanPage.vue'
+import PilotBatchView from '@/modules/pilot/PilotBatchView.vue'
 
 const routes: RouteRecordRaw[] = [
   { path: '/', redirect: '/todos' },
   { path: '/login', component: LoginView },
   { path: '/access-denied', component: AccessDeniedView },
   { path: '/todos', component: TodoListView, meta: { requiresAuth: true } },
+  {
+    path: '/notifications',
+    component: NotificationCenterView,
+    meta: { requiresAuth: true },
+  },
+  {
+    path: '/pilot/batches',
+    component: PilotBatchView,
+    meta: { requiresAuth: true },
+  },
   { path: '/opportunities', component: OpportunityListView, meta: { requiresAuth: true } },
   { path: '/opportunities/new', component: OpportunityCreateView, meta: { requiresAuth: true } },
   {
@@ -57,6 +70,11 @@ const routes: RouteRecordRaw[] = [
   },
   { path: '/products', component: ProductListView, meta: { requiresAuth: true } },
   { path: '/products/import', component: ProductImportPage, meta: { requiresAuth: true } },
+  {
+    path: '/products/legacy-new',
+    component: LegacyProductCreateView,
+    meta: { requiresAuth: true },
+  },
   {
     path: '/products/:publicId',
     component: ProductDetailView,

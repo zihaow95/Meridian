@@ -10,9 +10,9 @@ from apps.configuration.models import ConfigurationStatus
 
 @pytest.mark.django_db
 def test_configuration_definitions_requires_read_permission(
-    client: Client, active_user, file_upload_definition
+    client: Client, another_active_user, file_upload_definition
 ) -> None:
-    client.force_login(active_user)
+    client.force_login(another_active_user)
     response = client.get("/api/v1/configurations/definitions")
     assert response.status_code == 404
 

@@ -36,6 +36,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/auth/capabilities": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["auth_capabilities_retrieve"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/auth/csrf": {
         parameters: {
             query?: never;
@@ -118,6 +134,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/auth/pilot/login": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["auth_pilot_login"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/authorization/roles": {
         parameters: {
             query?: never;
@@ -166,6 +198,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/configurations/definitions/{definition_code}/drafts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["configuration_drafts_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/configurations/definitions/{definition_code}/versions": {
         parameters: {
             query?: never;
@@ -176,6 +224,70 @@ export interface paths {
         get: operations["configuration_versions_list"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/configurations/publication-requests": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["configuration_publication_requests_list"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/configurations/publication-requests/{public_id}/review": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["configuration_publication_requests_review"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/configurations/versions/{public_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["configuration_versions_retrieve"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/configurations/versions/{public_id}/publication-requests": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["configuration_publication_requests_create"];
         delete?: never;
         options?: never;
         head?: never;
@@ -391,6 +503,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/legacy-baselines": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["legacy_baselines_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/legacy-baselines/{public_id}/publish": {
         parameters: {
             query?: never;
@@ -401,6 +529,22 @@ export interface paths {
         get?: never;
         put?: never;
         post: operations["legacy_baselines_publish"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/legacy-materials/{public_id}/verify": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["legacy_materials_verify"];
         delete?: never;
         options?: never;
         head?: never;
@@ -423,6 +567,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/material-confirmations/{public_id}/decide": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["material_confirmations_decide"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/me": {
         parameters: {
             query?: never;
@@ -432,6 +592,54 @@ export interface paths {
         };
         /** Current authenticated user */
         get: operations["me_retrieve"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/notifications/{public_id}/close": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["notifications_close"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/notifications/{public_id}/read": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["notifications_mark_read"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/notifications/my": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["notifications_my_list"];
         put?: never;
         post?: never;
         delete?: never;
@@ -905,6 +1113,182 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/pilot/batches": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["pilot_batches_list"];
+        put?: never;
+        post: operations["pilot_batches_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/pilot/batches/{batch_public_id}/feedback": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["pilot_feedback_list"];
+        put?: never;
+        post: operations["pilot_feedback_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/pilot/batches/{public_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["pilot_batches_retrieve"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/pilot/batches/{public_id}/complete": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["pilot_batches_complete"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/pilot/batches/{public_id}/participants": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["pilot_batches_add_participant"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/pilot/batches/{public_id}/start": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["pilot_batches_start"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/pilot/feedback/{public_id}/assign": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["pilot_feedback_assign"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/pilot/feedback/{public_id}/close": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["pilot_feedback_close"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/pilot/feedback/{public_id}/handle": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["pilot_feedback_handle"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/pilot/feedback/{public_id}/retest": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["pilot_feedback_retest"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/pilot/feedback/{public_id}/submit-retest": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["pilot_feedback_submit_retest"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/plan-changes/{public_id}/confirm": {
         parameters: {
             query?: never;
@@ -1209,6 +1593,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/product-materials/{public_id}/confirmations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["product_materials_confirmations_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/products": {
         parameters: {
             query?: never;
@@ -1267,6 +1667,86 @@ export interface paths {
         get?: never;
         put?: never;
         post: operations["products_external_bindings_upsert"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/products/{public_id}/legacy-material-submissions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["products_legacy_materials_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/products/{public_id}/legacy-materials": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["products_legacy_materials_list"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/products/{public_id}/material-chains": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["products_material_chains_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/products/{public_id}/material-completeness": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["products_material_completeness_retrieve"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/products/{public_id}/materials": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["products_materials_list"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -2059,6 +2539,10 @@ export interface components {
             resource_public_id: string | null;
             result: string;
         };
+        AuthCapabilitiesResponse: {
+            pilot_password_login: boolean;
+            dev_login: boolean;
+        };
         CandidateSplitList: {
             public_id: string;
             name: string;
@@ -2090,6 +2574,46 @@ export interface components {
             definition_code: string;
             name: string;
             description: string;
+        };
+        ConfigurationDraftCreateRequest: {
+            content: unknown;
+            scope?: unknown;
+        };
+        ConfigurationDraftCreateResponse: {
+            public_id: string;
+            version_number: number;
+            status: string;
+        };
+        ConfigurationPublicationRequestListItem: {
+            public_id: string;
+            definition_code: string;
+            version_public_id: string;
+            version_number: number;
+            proposed_by: string;
+            status: string;
+            expires_at: string;
+        };
+        ConfigurationPublicationRequestResponse: {
+            public_id: string;
+            status: string;
+            version_public_id: string;
+        };
+        ConfigurationPublicationReviewRequest: {
+            decision: string;
+        };
+        ConfigurationPublicationReviewResponse: {
+            public_id: string;
+            status: string;
+        };
+        ConfigurationVersionDetail: {
+            public_id: string;
+            definition_code: string;
+            version_number: number;
+            status: string;
+            content_digest: string;
+            content_json: unknown;
+            validation_errors: string[];
+            diff_summary: unknown;
         };
         ConfigurationVersionListItem: {
             public_id: string;
@@ -2267,6 +2791,61 @@ export interface components {
             failure_count: number;
             items: unknown[];
         };
+        LegacyBaselineDraft: {
+            /** Format: uuid */
+            change_set_public_id: string;
+            /** Format: uuid */
+            product_public_id: string;
+            created: boolean;
+            duplicate_candidates: unknown[];
+        };
+        LegacyBaselineDraftCreateRequest: {
+            payload: {
+                [key: string]: unknown;
+            };
+            idempotency_key: string;
+            decision?: string;
+            /** Format: uuid */
+            target_product_public_id?: string | null;
+        };
+        LegacyMaterialSubmission: {
+            /** Format: uuid */
+            public_id: string;
+            /** Format: uuid */
+            document_version_public_id: string;
+            processing_status: string;
+            source_note: string;
+            /** Format: date */
+            original_file_date: string | null;
+            claimed_version: string;
+            /** Format: date */
+            claimed_effective_from: string | null;
+            sha256: string;
+            /** Format: uuid */
+            submitted_by_public_id: string;
+            /** Format: uuid */
+            verified_by_public_id: string | null;
+            verification_note: string;
+            duplicate_candidates?: unknown[];
+        };
+        LegacyMaterialSubmissionCreateRequest: {
+            /** Format: uuid */
+            document_version_public_id: string;
+            idempotency_key: string;
+            source_note?: string;
+            /** Format: date */
+            original_file_date?: string | null;
+            claimed_version?: string;
+            /** Format: date */
+            claimed_effective_from?: string | null;
+        };
+        LegacyMaterialSubmissionPage: {
+            items: components["schemas"]["LegacyMaterialSubmission"][];
+        };
+        LegacyMaterialSubmissionVerifyRequest: {
+            decision: string;
+            note?: string;
+        };
         LifecycleBoardItem: {
             item_type: string;
             public_id: string;
@@ -2302,6 +2881,27 @@ export interface components {
             final_decision: string;
             has_conclusion_difference: boolean;
             decision_summary: string;
+        };
+        MaterialConfirmation: {
+            /** Format: uuid */
+            public_id: string;
+            decision: string;
+            /** Format: uuid */
+            confirmer_public_id: string | null;
+            content_hash: string;
+            /** Format: date-time */
+            requested_at: string;
+            /** Format: date-time */
+            decided_at: string | null;
+        };
+        MaterialConfirmationCreateRequest: {
+            /** Format: uuid */
+            confirmer_public_id: string;
+            comment?: string;
+        };
+        MaterialConfirmationDecideRequest: {
+            decision: string;
+            comment?: string;
         };
         MeResponse: {
             /** Format: uuid */
@@ -2373,12 +2973,72 @@ export interface components {
             staging_relpath: string;
             expires_at: string;
         };
+        MyNotificationItem: {
+            /** Format: uuid */
+            public_id: string;
+            summary: string;
+            category: string;
+            level: string;
+            status: string;
+            deep_link: string;
+            /** Format: date-time */
+            created_at: string;
+            /** Format: date-time */
+            read_at: string | null;
+            /** Format: date-time */
+            closed_at: string | null;
+            close_reason: string;
+        };
+        MyNotificationPage: {
+            items: components["schemas"]["MyNotificationItem"][];
+            page: number;
+            page_size: number;
+            count: number;
+            unread_count: number;
+        };
         MyTodoListItem: {
             public_id: string;
             title: string;
             status: string;
+            category: string | null;
+            level: string | null;
             due_at: string | null;
             deep_link: string;
+        };
+        NotificationCloseRequest: {
+            close_reason?: string;
+        };
+        NotificationCloseResult: {
+            /** Format: uuid */
+            public_id: string;
+            summary: string;
+            category: string;
+            level: string;
+            status: string;
+            deep_link: string;
+            /** Format: date-time */
+            created_at: string;
+            /** Format: date-time */
+            read_at: string | null;
+            /** Format: date-time */
+            closed_at: string | null;
+            close_reason: string;
+        };
+        NotificationReadResult: {
+            /** Format: uuid */
+            public_id: string;
+            summary: string;
+            category: string;
+            level: string;
+            status: string;
+            deep_link: string;
+            /** Format: date-time */
+            created_at: string;
+            /** Format: date-time */
+            read_at: string | null;
+            /** Format: date-time */
+            closed_at: string | null;
+            close_reason: string;
         };
         OperatingDataExportRequest: {
             period_start: string;
@@ -2695,6 +3355,345 @@ export interface components {
             target_users_needs?: string;
             suggested_retail_price?: string | null;
         };
+        PilotBatchCompleteResponse: {
+            /** Format: uuid */
+            public_id: string;
+            name: string;
+            purpose: string;
+            status: string;
+            planned_participant_count: number;
+            planned_duration_days: number;
+            config_snapshot: {
+                [key: string]: unknown;
+            };
+            data_scope_note: string;
+            feedback_owner_note: string;
+            version_no: number;
+            /** Format: date-time */
+            started_at: string | null;
+            /** Format: date-time */
+            completed_at: string | null;
+        };
+        PilotBatchCreateRequest: {
+            name: string;
+            planned_participant_count?: number;
+            planned_duration_days?: number;
+            data_scope_note?: string;
+            feedback_owner_note?: string;
+        };
+        PilotBatchCreateResponse: {
+            /** Format: uuid */
+            public_id: string;
+            name: string;
+            purpose: string;
+            status: string;
+            planned_participant_count: number;
+            planned_duration_days: number;
+            config_snapshot: {
+                [key: string]: unknown;
+            };
+            data_scope_note: string;
+            feedback_owner_note: string;
+            version_no: number;
+            /** Format: date-time */
+            started_at: string | null;
+            /** Format: date-time */
+            completed_at: string | null;
+        };
+        PilotBatchDetail: {
+            /** Format: uuid */
+            public_id: string;
+            name: string;
+            purpose: string;
+            status: string;
+            planned_participant_count: number;
+            planned_duration_days: number;
+            config_snapshot: {
+                [key: string]: unknown;
+            };
+            data_scope_note: string;
+            feedback_owner_note: string;
+            version_no: number;
+            /** Format: date-time */
+            started_at: string | null;
+            /** Format: date-time */
+            completed_at: string | null;
+            participants: components["schemas"]["PilotParticipantItem"][];
+        };
+        PilotBatchItem: {
+            /** Format: uuid */
+            public_id: string;
+            name: string;
+            purpose: string;
+            status: string;
+            planned_participant_count: number;
+            planned_duration_days: number;
+            config_snapshot: {
+                [key: string]: unknown;
+            };
+            data_scope_note: string;
+            feedback_owner_note: string;
+            version_no: number;
+            /** Format: date-time */
+            started_at: string | null;
+            /** Format: date-time */
+            completed_at: string | null;
+        };
+        PilotBatchList: {
+            items: components["schemas"]["PilotBatchItem"][];
+        };
+        PilotBatchStartResponse: {
+            /** Format: uuid */
+            public_id: string;
+            name: string;
+            purpose: string;
+            status: string;
+            planned_participant_count: number;
+            planned_duration_days: number;
+            config_snapshot: {
+                [key: string]: unknown;
+            };
+            data_scope_note: string;
+            feedback_owner_note: string;
+            version_no: number;
+            /** Format: date-time */
+            started_at: string | null;
+            /** Format: date-time */
+            completed_at: string | null;
+        };
+        PilotFeedbackAssignRequest: {
+            severity: string;
+            /** Format: uuid */
+            assignee_public_id: string;
+            expected_version?: number;
+        };
+        PilotFeedbackAssignResponse: {
+            /** Format: uuid */
+            public_id: string;
+            /** Format: uuid */
+            batch_public_id: string;
+            title: string;
+            reproduction_summary: string;
+            severity: string;
+            status: string;
+            external_key: string;
+            /** Format: uuid */
+            evidence_document_version_public_id: string | null;
+            /** Format: uuid */
+            assignee_public_id: string | null;
+            target_version: string;
+            workaround: string;
+            /** Format: uuid */
+            accepted_by_public_id: string | null;
+            acceptance_note: string;
+            close_reason: string;
+            retest_result: string;
+            version_no: number;
+        };
+        PilotFeedbackCloseRequest: {
+            reject?: boolean;
+            close_reason?: string;
+            workaround?: string;
+            target_version?: string;
+            /** Format: uuid */
+            accepted_by_public_id?: string;
+            acceptance_note?: string;
+            expected_version?: number;
+        };
+        PilotFeedbackCloseResponse: {
+            /** Format: uuid */
+            public_id: string;
+            /** Format: uuid */
+            batch_public_id: string;
+            title: string;
+            reproduction_summary: string;
+            severity: string;
+            status: string;
+            external_key: string;
+            /** Format: uuid */
+            evidence_document_version_public_id: string | null;
+            /** Format: uuid */
+            assignee_public_id: string | null;
+            target_version: string;
+            workaround: string;
+            /** Format: uuid */
+            accepted_by_public_id: string | null;
+            acceptance_note: string;
+            close_reason: string;
+            retest_result: string;
+            version_no: number;
+        };
+        PilotFeedbackCreateRequest: {
+            title: string;
+            reproduction_summary: string;
+            external_key?: string;
+            /** Format: uuid */
+            evidence_document_version_public_id?: string;
+        };
+        PilotFeedbackCreateResponse: {
+            /** Format: uuid */
+            public_id: string;
+            /** Format: uuid */
+            batch_public_id: string;
+            title: string;
+            reproduction_summary: string;
+            severity: string;
+            status: string;
+            external_key: string;
+            /** Format: uuid */
+            evidence_document_version_public_id: string | null;
+            /** Format: uuid */
+            assignee_public_id: string | null;
+            target_version: string;
+            workaround: string;
+            /** Format: uuid */
+            accepted_by_public_id: string | null;
+            acceptance_note: string;
+            close_reason: string;
+            retest_result: string;
+            version_no: number;
+        };
+        PilotFeedbackHandleRequest: {
+            expected_version?: number;
+        };
+        PilotFeedbackHandleResponse: {
+            /** Format: uuid */
+            public_id: string;
+            /** Format: uuid */
+            batch_public_id: string;
+            title: string;
+            reproduction_summary: string;
+            severity: string;
+            status: string;
+            external_key: string;
+            /** Format: uuid */
+            evidence_document_version_public_id: string | null;
+            /** Format: uuid */
+            assignee_public_id: string | null;
+            target_version: string;
+            workaround: string;
+            /** Format: uuid */
+            accepted_by_public_id: string | null;
+            acceptance_note: string;
+            close_reason: string;
+            retest_result: string;
+            version_no: number;
+        };
+        PilotFeedbackItem: {
+            /** Format: uuid */
+            public_id: string;
+            /** Format: uuid */
+            batch_public_id: string;
+            title: string;
+            reproduction_summary: string;
+            severity: string;
+            status: string;
+            external_key: string;
+            /** Format: uuid */
+            evidence_document_version_public_id: string | null;
+            /** Format: uuid */
+            assignee_public_id: string | null;
+            target_version: string;
+            workaround: string;
+            /** Format: uuid */
+            accepted_by_public_id: string | null;
+            acceptance_note: string;
+            close_reason: string;
+            retest_result: string;
+            version_no: number;
+        };
+        PilotFeedbackList: {
+            items: components["schemas"]["PilotFeedbackItem"][];
+        };
+        PilotFeedbackRetestRequest: {
+            passed: boolean;
+            expected_version?: number;
+        };
+        PilotFeedbackRetestResponse: {
+            /** Format: uuid */
+            public_id: string;
+            /** Format: uuid */
+            batch_public_id: string;
+            title: string;
+            reproduction_summary: string;
+            severity: string;
+            status: string;
+            external_key: string;
+            /** Format: uuid */
+            evidence_document_version_public_id: string | null;
+            /** Format: uuid */
+            assignee_public_id: string | null;
+            target_version: string;
+            workaround: string;
+            /** Format: uuid */
+            accepted_by_public_id: string | null;
+            acceptance_note: string;
+            close_reason: string;
+            retest_result: string;
+            version_no: number;
+        };
+        PilotFeedbackSubmitRetestRequest: {
+            target_version?: string;
+            expected_version?: number;
+        };
+        PilotFeedbackSubmitRetestResponse: {
+            /** Format: uuid */
+            public_id: string;
+            /** Format: uuid */
+            batch_public_id: string;
+            title: string;
+            reproduction_summary: string;
+            severity: string;
+            status: string;
+            external_key: string;
+            /** Format: uuid */
+            evidence_document_version_public_id: string | null;
+            /** Format: uuid */
+            assignee_public_id: string | null;
+            target_version: string;
+            workaround: string;
+            /** Format: uuid */
+            accepted_by_public_id: string | null;
+            acceptance_note: string;
+            close_reason: string;
+            retest_result: string;
+            version_no: number;
+        };
+        PilotLoginRequest: {
+            /** Format: uuid */
+            organization_public_id: string;
+            employee_no: string;
+            password: string;
+        };
+        PilotLoginResponse: {
+            public_id: string;
+            display_name: string;
+        };
+        PilotParticipantCreateRequest: {
+            /** Format: uuid */
+            user_public_id: string;
+            department_snapshot?: string;
+        };
+        PilotParticipantCreateResponse: {
+            /** Format: uuid */
+            public_id: string;
+            /** Format: uuid */
+            user_public_id: string;
+            display_name_snapshot: string;
+            employee_no_snapshot: string;
+            department_snapshot: string;
+            role_codes_snapshot: string[];
+        };
+        PilotParticipantItem: {
+            /** Format: uuid */
+            public_id: string;
+            /** Format: uuid */
+            user_public_id: string;
+            display_name_snapshot: string;
+            employee_no_snapshot: string;
+            department_snapshot: string;
+            role_codes_snapshot: string[];
+        };
         PlanChangeRequest: {
             change_type: string;
             target_type: string;
@@ -2747,6 +3746,49 @@ export interface components {
             product_asset_name: string;
             target_product_asset_public_id: string | null;
             candidate_public_id: string;
+        };
+        ProductMaterial: {
+            /** Format: uuid */
+            public_id: string;
+            material_type_code: string;
+            version_no: number;
+            material_status: string;
+            is_current: boolean;
+            /** Format: uuid */
+            document_version_public_id: string;
+            original_filename: string;
+            confirmation: components["schemas"]["MaterialConfirmation"] | null;
+        };
+        ProductMaterialChain: {
+            items: components["schemas"]["ProductMaterial"][];
+        };
+        ProductMaterialChainCreateRequest: {
+            material_type_code: string;
+            ordered_submission_ids: string[];
+            /** Format: uuid */
+            current_submission_id: string;
+        };
+        ProductMaterialCompleteness: {
+            /** Format: uuid */
+            requirement_version_public_id: string;
+            requirement_version_number: number;
+            requirement_content_digest: string;
+            is_complete: boolean;
+            blocking_material_type_codes: string[];
+            items: components["schemas"]["ProductMaterialCompletenessItem"][];
+        };
+        ProductMaterialCompletenessItem: {
+            material_type_code: string;
+            requirement: string;
+            state: string;
+        };
+        ProductMaterialGroup: {
+            material_type_code: string;
+            current: components["schemas"]["ProductMaterial"] | null;
+            history: components["schemas"]["ProductMaterial"][];
+        };
+        ProductMaterialGroupPage: {
+            items: components["schemas"]["ProductMaterialGroup"][];
         };
         ProductSearchPage: {
             items: components["schemas"]["ProductSummary"][];
@@ -3195,12 +4237,14 @@ export interface components {
             file: string;
             original_filename?: string;
             declared_mime_type?: string;
+            catalog_item_code?: string;
         };
         UploadSessionCreateResponse: {
             public_id: string;
             original_filename: string;
             declared_mime_type: string;
             size_bytes: number;
+            catalog_item_code: string;
         };
         UpsertExternalBindingRequest: {
             source_system: string;
@@ -3332,6 +4376,25 @@ export interface operations {
             };
         };
     };
+    auth_capabilities_retrieve: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AuthCapabilitiesResponse"];
+                };
+            };
+        };
+    };
     auth_csrf_retrieve: {
         parameters: {
             query?: never;
@@ -3436,6 +4499,38 @@ export interface operations {
             };
         };
     };
+    auth_pilot_login: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PilotLoginRequest"];
+                "application/x-www-form-urlencoded": components["schemas"]["PilotLoginRequest"];
+                "multipart/form-data": components["schemas"]["PilotLoginRequest"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PilotLoginResponse"];
+                };
+            };
+            /** @description No response body */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
     authorization_roles_list: {
         parameters: {
             query?: never;
@@ -3522,6 +4617,33 @@ export interface operations {
             };
         };
     };
+    configuration_drafts_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                definition_code: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ConfigurationDraftCreateRequest"];
+                "application/x-www-form-urlencoded": components["schemas"]["ConfigurationDraftCreateRequest"];
+                "multipart/form-data": components["schemas"]["ConfigurationDraftCreateRequest"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConfigurationDraftCreateResponse"];
+                };
+            };
+        };
+    };
     configuration_versions_list: {
         parameters: {
             query?: never;
@@ -3539,6 +4661,94 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ConfigurationVersionListItem"][];
+                };
+            };
+        };
+    };
+    configuration_publication_requests_list: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConfigurationPublicationRequestListItem"][];
+                };
+            };
+        };
+    };
+    configuration_publication_requests_review: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                public_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ConfigurationPublicationReviewRequest"];
+                "application/x-www-form-urlencoded": components["schemas"]["ConfigurationPublicationReviewRequest"];
+                "multipart/form-data": components["schemas"]["ConfigurationPublicationReviewRequest"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConfigurationPublicationReviewResponse"];
+                };
+            };
+        };
+    };
+    configuration_versions_retrieve: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                public_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConfigurationVersionDetail"];
+                };
+            };
+        };
+    };
+    configuration_publication_requests_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                public_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConfigurationPublicationRequestResponse"];
                 };
             };
         };
@@ -3848,6 +5058,39 @@ export interface operations {
             };
         };
     };
+    legacy_baselines_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LegacyBaselineDraftCreateRequest"];
+                "application/x-www-form-urlencoded": components["schemas"]["LegacyBaselineDraftCreateRequest"];
+                "multipart/form-data": components["schemas"]["LegacyBaselineDraftCreateRequest"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LegacyBaselineDraft"];
+                };
+            };
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LegacyBaselineDraft"];
+                };
+            };
+        };
+    };
     legacy_baselines_publish: {
         parameters: {
             query?: never;
@@ -3875,6 +5118,33 @@ export interface operations {
             };
         };
     };
+    legacy_materials_verify: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                public_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LegacyMaterialSubmissionVerifyRequest"];
+                "application/x-www-form-urlencoded": components["schemas"]["LegacyMaterialSubmissionVerifyRequest"];
+                "multipart/form-data": components["schemas"]["LegacyMaterialSubmissionVerifyRequest"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LegacyMaterialSubmission"];
+                };
+            };
+        };
+    };
     lifecycle_board_list: {
         parameters: {
             query?: never;
@@ -3894,6 +5164,33 @@ export interface operations {
             };
         };
     };
+    material_confirmations_decide: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                public_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MaterialConfirmationDecideRequest"];
+                "application/x-www-form-urlencoded": components["schemas"]["MaterialConfirmationDecideRequest"];
+                "multipart/form-data": components["schemas"]["MaterialConfirmationDecideRequest"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MaterialConfirmation"];
+                };
+            };
+        };
+    };
     me_retrieve: {
         parameters: {
             query?: never;
@@ -3909,6 +5206,79 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["MeResponse"];
+                };
+            };
+        };
+    };
+    notifications_close: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                public_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["NotificationCloseRequest"];
+                "application/x-www-form-urlencoded": components["schemas"]["NotificationCloseRequest"];
+                "multipart/form-data": components["schemas"]["NotificationCloseRequest"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotificationCloseResult"];
+                };
+            };
+        };
+    };
+    notifications_mark_read: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                public_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotificationReadResult"];
+                };
+            };
+        };
+    };
+    notifications_my_list: {
+        parameters: {
+            query?: {
+                category?: string;
+                level?: string;
+                page?: number;
+                page_size?: number;
+                status?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MyNotificationPage"];
                 };
             };
         };
@@ -4715,6 +6085,323 @@ export interface operations {
             };
         };
     };
+    pilot_batches_list: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PilotBatchList"];
+                };
+            };
+        };
+    };
+    pilot_batches_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PilotBatchCreateRequest"];
+                "application/x-www-form-urlencoded": components["schemas"]["PilotBatchCreateRequest"];
+                "multipart/form-data": components["schemas"]["PilotBatchCreateRequest"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PilotBatchCreateResponse"];
+                };
+            };
+        };
+    };
+    pilot_feedback_list: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                batch_public_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PilotFeedbackList"];
+                };
+            };
+        };
+    };
+    pilot_feedback_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                batch_public_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PilotFeedbackCreateRequest"];
+                "application/x-www-form-urlencoded": components["schemas"]["PilotFeedbackCreateRequest"];
+                "multipart/form-data": components["schemas"]["PilotFeedbackCreateRequest"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PilotFeedbackCreateResponse"];
+                };
+            };
+        };
+    };
+    pilot_batches_retrieve: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                public_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PilotBatchDetail"];
+                };
+            };
+        };
+    };
+    pilot_batches_complete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                public_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PilotBatchCompleteResponse"];
+                };
+            };
+        };
+    };
+    pilot_batches_add_participant: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                public_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PilotParticipantCreateRequest"];
+                "application/x-www-form-urlencoded": components["schemas"]["PilotParticipantCreateRequest"];
+                "multipart/form-data": components["schemas"]["PilotParticipantCreateRequest"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PilotParticipantCreateResponse"];
+                };
+            };
+        };
+    };
+    pilot_batches_start: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                public_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PilotBatchStartResponse"];
+                };
+            };
+        };
+    };
+    pilot_feedback_assign: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                public_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PilotFeedbackAssignRequest"];
+                "application/x-www-form-urlencoded": components["schemas"]["PilotFeedbackAssignRequest"];
+                "multipart/form-data": components["schemas"]["PilotFeedbackAssignRequest"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PilotFeedbackAssignResponse"];
+                };
+            };
+        };
+    };
+    pilot_feedback_close: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                public_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["PilotFeedbackCloseRequest"];
+                "application/x-www-form-urlencoded": components["schemas"]["PilotFeedbackCloseRequest"];
+                "multipart/form-data": components["schemas"]["PilotFeedbackCloseRequest"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PilotFeedbackCloseResponse"];
+                };
+            };
+        };
+    };
+    pilot_feedback_handle: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                public_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["PilotFeedbackHandleRequest"];
+                "application/x-www-form-urlencoded": components["schemas"]["PilotFeedbackHandleRequest"];
+                "multipart/form-data": components["schemas"]["PilotFeedbackHandleRequest"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PilotFeedbackHandleResponse"];
+                };
+            };
+        };
+    };
+    pilot_feedback_retest: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                public_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PilotFeedbackRetestRequest"];
+                "application/x-www-form-urlencoded": components["schemas"]["PilotFeedbackRetestRequest"];
+                "multipart/form-data": components["schemas"]["PilotFeedbackRetestRequest"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PilotFeedbackRetestResponse"];
+                };
+            };
+        };
+    };
+    pilot_feedback_submit_retest: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                public_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["PilotFeedbackSubmitRetestRequest"];
+                "application/x-www-form-urlencoded": components["schemas"]["PilotFeedbackSubmitRetestRequest"];
+                "multipart/form-data": components["schemas"]["PilotFeedbackSubmitRetestRequest"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PilotFeedbackSubmitRetestResponse"];
+                };
+            };
+        };
+    };
     plan_changes_confirm: {
         parameters: {
             query?: never;
@@ -5168,6 +6855,33 @@ export interface operations {
             };
         };
     };
+    product_materials_confirmations_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                public_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MaterialConfirmationCreateRequest"];
+                "application/x-www-form-urlencoded": components["schemas"]["MaterialConfirmationCreateRequest"];
+                "multipart/form-data": components["schemas"]["MaterialConfirmationCreateRequest"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MaterialConfirmation"];
+                };
+            };
+        };
+    };
     products_list: {
         parameters: {
             query?: {
@@ -5269,6 +6983,127 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ExternalBinding"];
+                };
+            };
+        };
+    };
+    products_legacy_materials_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                public_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LegacyMaterialSubmissionCreateRequest"];
+                "application/x-www-form-urlencoded": components["schemas"]["LegacyMaterialSubmissionCreateRequest"];
+                "multipart/form-data": components["schemas"]["LegacyMaterialSubmissionCreateRequest"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LegacyMaterialSubmission"];
+                };
+            };
+        };
+    };
+    products_legacy_materials_list: {
+        parameters: {
+            query?: {
+                processing_status?: string;
+            };
+            header?: never;
+            path: {
+                public_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LegacyMaterialSubmissionPage"];
+                };
+            };
+        };
+    };
+    products_material_chains_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                public_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ProductMaterialChainCreateRequest"];
+                "application/x-www-form-urlencoded": components["schemas"]["ProductMaterialChainCreateRequest"];
+                "multipart/form-data": components["schemas"]["ProductMaterialChainCreateRequest"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProductMaterialChain"];
+                };
+            };
+        };
+    };
+    products_material_completeness_retrieve: {
+        parameters: {
+            query?: {
+                lifecycle_state?: string;
+            };
+            header?: never;
+            path: {
+                public_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProductMaterialCompleteness"];
+                };
+            };
+        };
+    };
+    products_materials_list: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                public_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProductMaterialGroupPage"];
                 };
             };
         };

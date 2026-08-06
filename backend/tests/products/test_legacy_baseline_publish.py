@@ -19,6 +19,8 @@ from apps.products.services.import_batch import ConfirmProductImportBatch, Creat
 from apps.products.services.import_template import sample_import_csv
 from apps.products.services.publish_legacy_baseline import PublishLegacyBaseline
 
+pytestmark = pytest.mark.usefixtures("published_empty_material_requirements")
+
 
 @pytest.fixture
 def baseline_director(product_director, grant_action: Callable[..., None]):

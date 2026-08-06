@@ -122,6 +122,7 @@ def _mapping_content(**overrides) -> dict:
 
 def _configure_source(*, user, department, grant_action, source_code, source_type, priority=10):
     grant_action(user, "data_source.configure", "data_source")
+    grant_action(user, "configuration.draft.create", "configuration.version")
     grant_action(user, "configuration.version.publish", "configuration.version")
     return ConfigureOperatingDataSource(
         context=CommandContext.for_actor(user),

@@ -10,11 +10,12 @@ from apps.operations.consumers import no_local_subscriber_event_types
 from apps.platform.outbox.consumer import OutboxConsumer, consume_once
 from apps.platform.outbox.dispatcher import UnregisteredEventType, dispatch_pending_events
 from apps.platform.outbox.models import OutboxEvent
+from apps.products.consumers import local_consumer_registry as products_registry
 
 
 def merged_consumer_registry() -> dict[str, list[tuple[str, OutboxConsumer]]]:
     merged: dict[str, list[tuple[str, OutboxConsumer]]] = {}
-    for registry in (notifications_registry(), operations_registry()):
+    for registry in (notifications_registry(), operations_registry(), products_registry()):
         for event_type, consumers in registry.items():
             merged.setdefault(event_type, []).extend(consumers)
     return merged

@@ -122,6 +122,7 @@ def _configure_source(
     source_type: str,
 ):
     grant_action(user, "data_source.configure", "data_source")
+    grant_action(user, "configuration.draft.create", "configuration.version")
     grant_action(user, "configuration.version.publish", "configuration.version")
     return ConfigureOperatingDataSource(
         context=CommandContext.for_actor(user),

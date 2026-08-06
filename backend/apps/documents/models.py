@@ -109,6 +109,8 @@ class DocumentVersion(OrganizationOwnedModel):
     status = models.CharField(
         max_length=16, choices=VersionStatus.choices, default=VersionStatus.DRAFT
     )
+    # Blank for uploads that predate the technical file catalog or bypass it.
+    catalog_item_code = models.CharField(max_length=64, blank=True)
     sensitivity_level = models.CharField(max_length=32, default="INTERNAL")
     uploaded_by = models.ForeignKey(
         User, on_delete=models.PROTECT, related_name="document_versions_uploaded"
@@ -157,6 +159,12 @@ class UploadSession(PublicIdModel):
     declared_mime_type = models.CharField(max_length=128)
     size_bytes = models.BigIntegerField(default=0)
     sha256 = models.CharField(max_length=64, blank=True)
+    # The catalog version and digest the session started under. Completion
+    # re-reads that exact version, so republishing mid-upload cannot change the
+    # rules a user already agreed to.
+    catalog_item_code = models.CharField(max_length=64, blank=True)
+    catalog_version_public_id = models.UUIDField(null=True, blank=True)
+    catalog_content_digest = models.CharField(max_length=64, blank=True)
     expires_at = models.DateTimeField()
     completed_at = models.DateTimeField(null=True, blank=True)
     # Bound under select_for_update before activation so concurrent completes

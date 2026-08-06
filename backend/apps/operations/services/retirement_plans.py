@@ -433,7 +433,10 @@ class ExecuteRetirementPlan:
                         event_type="retirement.completed",
                         aggregate_type="retirement_plan",
                         aggregate_id=plan.public_id,
-                        payload={"plan_public_id": str(plan.public_id)},
+                        payload={
+                            "plan_public_id": str(plan.public_id),
+                            "actor_user_id": actor.id,
+                        },
                         occurred_at=now,
                     )
                 )

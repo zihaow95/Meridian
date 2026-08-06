@@ -57,6 +57,9 @@ class ConfigurationVersion(OrganizationOwnedModel):
     content_json = models.JSONField(default=dict)
     content_digest = models.CharField(max_length=64, blank=True)
     scope_json = models.JSONField(default=dict)
+    # Occupied (value 1) only while this version is the published one. MySQL
+    # ignores conditional unique constraints, so the slot carries the rule.
+    current_published_slot = models.PositiveSmallIntegerField(null=True, blank=True)
     created_by = models.ForeignKey(
         User,
         on_delete=models.PROTECT,
@@ -81,25 +84,41 @@ class ConfigurationVersion(OrganizationOwnedModel):
             models.UniqueConstraint(
                 fields=["definition", "version_number"],
                 name="configuration_version_def_num_uniq",
-            )
+            ),
+            models.UniqueConstraint(
+                fields=["definition", "current_published_slot"],
+                name="configuration_version_published_slot_uniq",
+            ),
         ]
         indexes = [
             models.Index(fields=["definition", "status"]),
         ]
 
     def replace_content(self, content: dict) -> None:
-        if self.status == ConfigurationStatus.PUBLISHED:
-            raise PublishedConfigurationImmutable("Published configuration cannot be edited.")
+        if self.status in {
+            ConfigurationStatus.PUBLISHED,
+            ConfigurationStatus.RETIRED,
+        }:
+            raise PublishedConfigurationImmutable(
+                "Published or retired configuration cannot be edited."
+            )
         self.content_json = content
         self.content_digest = compute_content_digest(content)
 
     def save(self, *args: Any, **kwargs: Any) -> None:
-        if self.status == ConfigurationStatus.PUBLISHED and self.pk:
+        if self.status in {ConfigurationStatus.PUBLISHED, ConfigurationStatus.RETIRED} and self.pk:
             previous = (
-                ConfigurationVersion.objects.filter(pk=self.pk).values("content_json").first()
+                ConfigurationVersion.objects.filter(pk=self.pk)
+                .values("content_json", "content_digest")
+                .first()
             )
-            if previous and previous["content_json"] != self.content_json:
-                raise PublishedConfigurationImmutable("Published configuration cannot be edited.")
+            if previous and (
+                previous["content_json"] != self.content_json
+                or previous["content_digest"] != self.content_digest
+            ):
+                raise PublishedConfigurationImmutable(
+                    "Published or retired configuration cannot be edited."
+                )
         if not self.content_digest and self.content_json:
             self.content_digest = compute_content_digest(self.content_json)
         super().save(*args, **kwargs)

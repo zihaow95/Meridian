@@ -49,3 +49,20 @@ X_FRAME_OPTIONS = "DENY"
 
 if (env("ENABLE_DEV_LOGIN") or "false").lower() in {"1", "true", "yes"}:
     raise ImproperlyConfigured("ENABLE_DEV_LOGIN must not be enabled in production.")
+
+ENABLE_NOTIFICATIONS_API = True
+
+# Phase 6 keeps DingTalk off. Production refuses an accidental enable so a
+# mis-set environment variable cannot reopen an untested channel.
+ENABLE_DINGTALK_NOTIFICATIONS = False
+if (env("ENABLE_DINGTALK_NOTIFICATIONS") or "false").lower() in {"1", "true", "yes"}:
+    raise ImproperlyConfigured(
+        "ENABLE_DINGTALK_NOTIFICATIONS must not be enabled in production during phase 6."
+    )
+
+ENABLE_PILOT_PASSWORD_LOGIN = False
+if (env("ENABLE_PILOT_PASSWORD_LOGIN") or "false").lower() in {"1", "true", "yes"}:
+    raise ImproperlyConfigured("ENABLE_PILOT_PASSWORD_LOGIN must not be enabled in production.")
+
+# Pilot feedback APIs stay off in production until Phase 7 GO explicitly enables them.
+ENABLE_PILOT_API = False

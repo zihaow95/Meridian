@@ -13,17 +13,57 @@ const statusMessage = ref('')
 const sourceSystem = ref('ERP')
 const objectType = ref('PRODUCT')
 const externalId = ref('')
+const materialsVisible = ref(false)
+const triageVisible = ref(false)
+const completenessNote = ref('')
 
 async function load(): Promise<void> {
   errorText.value = ''
   try {
     await products.fetchProductDetail(String(route.params.publicId))
   } catch (err: unknown) {
-    if (err instanceof ApiError) {
+    if (err instanceof ApiError && (err.status === 403 || err.status === 404)) {
+      // Real-time deep-link denial must match the shared access-denied copy.
+      errorText.value = '无权访问或内容不存在'
+    } else if (err instanceof ApiError) {
       errorText.value = `${err.code}: ${err.message}`
     } else {
       errorText.value = '加载产品详情失败'
     }
+    return
+  }
+  await loadMaterials()
+}
+
+async function loadMaterials(): Promise<void> {
+  const productPublicId = String(route.params.publicId)
+  materialsVisible.value = false
+  triageVisible.value = false
+  completenessNote.value = ''
+  products.materialGroups = []
+  products.materialCompleteness = null
+  products.legacyMaterials = []
+
+  try {
+    await products.fetchProductMaterials(productPublicId)
+    materialsVisible.value = true
+  } catch {
+    // Without the read action the panel stays closed: no filenames, no counts,
+    // not even the fact that materials exist.
+    return
+  }
+
+  try {
+    await products.fetchMaterialCompleteness(productPublicId)
+  } catch {
+    completenessNote.value = '尚未发布适用于本品类的材料要求配置，暂不显示完整性预检结果'
+  }
+
+  try {
+    await products.fetchLegacyMaterials(productPublicId)
+    triageVisible.value = true
+  } catch {
+    // The triage queue is a separate read action; hide it on its own.
   }
 }
 
@@ -141,6 +181,74 @@ onMounted(load)
         </ul>
       </el-card>
 
+      <el-card v-if="materialsVisible" class="product-detail__materials" data-test="material-panel">
+        <template #header>产品材料</template>
+
+        <div v-if="products.materialCompleteness" data-test="material-completeness">
+          <p>
+            材料要求版本 v{{ products.materialCompleteness.requirement_version_number }} ·
+            <span data-test="material-completeness-state">
+              {{ products.materialCompleteness.is_complete ? '完整' : '不完整' }}
+            </span>
+          </p>
+          <ul>
+            <li
+              v-for="item in products.materialCompleteness.items"
+              :key="item.material_type_code"
+              data-test="material-completeness-row"
+            >
+              {{ item.material_type_code }} — {{ item.requirement }} / {{ item.state }}
+            </li>
+          </ul>
+        </div>
+        <p v-else-if="completenessNote" data-test="material-completeness-note">
+          {{ completenessNote }}
+        </p>
+
+        <div
+          v-for="group in products.materialGroups"
+          :key="group.material_type_code"
+          class="product-detail__material-group"
+          data-test="material-group"
+        >
+          <h4>{{ group.material_type_code }}</h4>
+          <p v-if="group.current" data-test="material-current">
+            当前 v{{ group.current.version_no }} · {{ group.current.original_filename }} ·
+            {{ group.current.material_status }} ·
+            {{ group.current.confirmation ? group.current.confirmation.decision : '未提交确认' }}
+          </p>
+          <p v-else data-test="material-current-missing">尚无当前版本</p>
+          <ul v-if="group.history.length">
+            <li
+              v-for="item in group.history"
+              :key="item.public_id"
+              data-test="material-history-row"
+            >
+              v{{ item.version_no }} · {{ item.original_filename }} · {{ item.material_status }}
+            </li>
+          </ul>
+        </div>
+        <p v-if="!products.materialGroups.length" data-test="material-groups-empty">
+          暂无已关联材料
+        </p>
+
+        <template v-if="triageVisible">
+          <h4>待整理资料</h4>
+          <ul v-if="products.legacyMaterials.length">
+            <li
+              v-for="submission in products.legacyMaterials"
+              :key="submission.public_id"
+              data-test="material-triage-row"
+            >
+              {{ submission.processing_status }} ·
+              {{ submission.claimed_version || '无版本声明' }} ·
+              {{ submission.source_note }}
+            </li>
+          </ul>
+          <p v-else data-test="material-triage-empty">暂无待整理资料</p>
+        </template>
+      </el-card>
+
       <el-card class="product-detail__bindings" data-test="external-bindings">
         <template #header>外部绑定</template>
         <ul v-if="products.detail.external_bindings?.length">
@@ -193,7 +301,12 @@ onMounted(load)
 
 .product-detail__version,
 .product-detail__bindings,
+.product-detail__materials,
 .product-detail__error {
+  margin-bottom: 0.75rem;
+}
+
+.product-detail__material-group {
   margin-bottom: 0.75rem;
 }
 

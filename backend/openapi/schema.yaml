@@ -36,6 +36,20 @@ paths:
                 items:
                   $ref: '#/components/schemas/AuditEventListItem'
           description: ''
+  /api/v1/auth/capabilities:
+    get:
+      operationId: auth_capabilities_retrieve
+      tags:
+      - auth
+      security:
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthCapabilitiesResponse'
+          description: ''
   /api/v1/auth/csrf:
     get:
       operationId: auth_csrf_retrieve
@@ -105,6 +119,34 @@ paths:
       - cookieAuth: []
       responses:
         '204':
+          description: No response body
+  /api/v1/auth/pilot/login:
+    post:
+      operationId: auth_pilot_login
+      tags:
+      - auth
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PilotLoginRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PilotLoginRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PilotLoginRequest'
+        required: true
+      security:
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PilotLoginResponse'
+          description: ''
+        '404':
           description: No response body
   /api/v1/authorization/roles:
     get:
@@ -193,6 +235,38 @@ paths:
                 items:
                   $ref: '#/components/schemas/ConfigurationDefinitionListItem'
           description: ''
+  /api/v1/configurations/definitions/{definition_code}/drafts:
+    post:
+      operationId: configuration_drafts_create
+      parameters:
+      - in: path
+        name: definition_code
+        schema:
+          type: string
+        required: true
+      tags:
+      - configurations
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ConfigurationDraftCreateRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/ConfigurationDraftCreateRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/ConfigurationDraftCreateRequest'
+        required: true
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConfigurationDraftCreateResponse'
+          description: ''
   /api/v1/configurations/definitions/{definition_code}/versions:
     get:
       operationId: configuration_versions_list
@@ -214,6 +288,97 @@ paths:
                 type: array
                 items:
                   $ref: '#/components/schemas/ConfigurationVersionListItem'
+          description: ''
+  /api/v1/configurations/publication-requests:
+    get:
+      operationId: configuration_publication_requests_list
+      tags:
+      - configurations
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ConfigurationPublicationRequestListItem'
+          description: ''
+  /api/v1/configurations/publication-requests/{public_id}/review:
+    post:
+      operationId: configuration_publication_requests_review
+      parameters:
+      - in: path
+        name: public_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - configurations
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ConfigurationPublicationReviewRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/ConfigurationPublicationReviewRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/ConfigurationPublicationReviewRequest'
+        required: true
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConfigurationPublicationReviewResponse'
+          description: ''
+  /api/v1/configurations/versions/{public_id}:
+    get:
+      operationId: configuration_versions_retrieve
+      parameters:
+      - in: path
+        name: public_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - configurations
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConfigurationVersionDetail'
+          description: ''
+  /api/v1/configurations/versions/{public_id}/publication-requests:
+    post:
+      operationId: configuration_publication_requests_create
+      parameters:
+      - in: path
+        name: public_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - configurations
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConfigurationPublicationRequestResponse'
           description: ''
   /api/v1/configurations/versions/{public_id}/publish:
     post:
@@ -549,6 +714,38 @@ paths:
                     service: meridian-api
                   summary: ok
           description: ''
+  /api/v1/legacy-baselines:
+    post:
+      operationId: legacy_baselines_create
+      tags:
+      - legacy-baselines
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LegacyBaselineDraftCreateRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/LegacyBaselineDraftCreateRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/LegacyBaselineDraftCreateRequest'
+        required: true
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LegacyBaselineDraft'
+          description: ''
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LegacyBaselineDraft'
+          description: ''
   /api/v1/legacy-baselines/{public_id}/publish:
     post:
       operationId: legacy_baselines_publish
@@ -582,6 +779,39 @@ paths:
               schema:
                 $ref: '#/components/schemas/PublishLegacyBaselineResponse'
           description: ''
+  /api/v1/legacy-materials/{public_id}/verify:
+    post:
+      operationId: legacy_materials_verify
+      parameters:
+      - in: path
+        name: public_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - legacy-materials
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LegacyMaterialSubmissionVerifyRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/LegacyMaterialSubmissionVerifyRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/LegacyMaterialSubmissionVerifyRequest'
+        required: true
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LegacyMaterialSubmission'
+          description: ''
   /api/v1/lifecycle-board:
     get:
       operationId: lifecycle_board_list
@@ -595,6 +825,39 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/LifecycleBoardPage'
+          description: ''
+  /api/v1/material-confirmations/{public_id}/decide:
+    post:
+      operationId: material_confirmations_decide
+      parameters:
+      - in: path
+        name: public_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - material-confirmations
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MaterialConfirmationDecideRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/MaterialConfirmationDecideRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/MaterialConfirmationDecideRequest'
+        required: true
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MaterialConfirmation'
           description: ''
   /api/v1/me:
     get:
@@ -610,6 +873,94 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/MeResponse'
+          description: ''
+  /api/v1/notifications/{public_id}/close:
+    post:
+      operationId: notifications_close
+      parameters:
+      - in: path
+        name: public_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - notifications
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/NotificationCloseRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/NotificationCloseRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/NotificationCloseRequest'
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NotificationCloseResult'
+          description: ''
+  /api/v1/notifications/{public_id}/read:
+    post:
+      operationId: notifications_mark_read
+      parameters:
+      - in: path
+        name: public_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - notifications
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NotificationReadResult'
+          description: ''
+  /api/v1/notifications/my:
+    get:
+      operationId: notifications_my_list
+      parameters:
+      - in: query
+        name: category
+        schema:
+          type: string
+      - in: query
+        name: level
+        schema:
+          type: string
+      - in: query
+        name: page
+        schema:
+          type: integer
+      - in: query
+        name: page_size
+        schema:
+          type: integer
+      - in: query
+        name: status
+        schema:
+          type: string
+      tags:
+      - notifications
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MyNotificationPage'
           description: ''
   /api/v1/operating-data-sources:
     get:
@@ -1472,6 +1823,356 @@ paths:
                 items:
                   $ref: '#/components/schemas/OpportunitySummaryList'
           description: ''
+  /api/v1/pilot/batches:
+    get:
+      operationId: pilot_batches_list
+      tags:
+      - pilot
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PilotBatchList'
+          description: ''
+    post:
+      operationId: pilot_batches_create
+      tags:
+      - pilot
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PilotBatchCreateRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PilotBatchCreateRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PilotBatchCreateRequest'
+        required: true
+      security:
+      - cookieAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PilotBatchCreateResponse'
+          description: ''
+  /api/v1/pilot/batches/{batch_public_id}/feedback:
+    get:
+      operationId: pilot_feedback_list
+      parameters:
+      - in: path
+        name: batch_public_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - pilot
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PilotFeedbackList'
+          description: ''
+    post:
+      operationId: pilot_feedback_create
+      parameters:
+      - in: path
+        name: batch_public_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - pilot
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PilotFeedbackCreateRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PilotFeedbackCreateRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PilotFeedbackCreateRequest'
+        required: true
+      security:
+      - cookieAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PilotFeedbackCreateResponse'
+          description: ''
+  /api/v1/pilot/batches/{public_id}:
+    get:
+      operationId: pilot_batches_retrieve
+      parameters:
+      - in: path
+        name: public_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - pilot
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PilotBatchDetail'
+          description: ''
+  /api/v1/pilot/batches/{public_id}/complete:
+    post:
+      operationId: pilot_batches_complete
+      parameters:
+      - in: path
+        name: public_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - pilot
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PilotBatchCompleteResponse'
+          description: ''
+  /api/v1/pilot/batches/{public_id}/participants:
+    post:
+      operationId: pilot_batches_add_participant
+      parameters:
+      - in: path
+        name: public_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - pilot
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PilotParticipantCreateRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PilotParticipantCreateRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PilotParticipantCreateRequest'
+        required: true
+      security:
+      - cookieAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PilotParticipantCreateResponse'
+          description: ''
+  /api/v1/pilot/batches/{public_id}/start:
+    post:
+      operationId: pilot_batches_start
+      parameters:
+      - in: path
+        name: public_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - pilot
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PilotBatchStartResponse'
+          description: ''
+  /api/v1/pilot/feedback/{public_id}/assign:
+    post:
+      operationId: pilot_feedback_assign
+      parameters:
+      - in: path
+        name: public_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - pilot
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PilotFeedbackAssignRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PilotFeedbackAssignRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PilotFeedbackAssignRequest'
+        required: true
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PilotFeedbackAssignResponse'
+          description: ''
+  /api/v1/pilot/feedback/{public_id}/close:
+    post:
+      operationId: pilot_feedback_close
+      parameters:
+      - in: path
+        name: public_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - pilot
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PilotFeedbackCloseRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PilotFeedbackCloseRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PilotFeedbackCloseRequest'
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PilotFeedbackCloseResponse'
+          description: ''
+  /api/v1/pilot/feedback/{public_id}/handle:
+    post:
+      operationId: pilot_feedback_handle
+      parameters:
+      - in: path
+        name: public_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - pilot
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PilotFeedbackHandleRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PilotFeedbackHandleRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PilotFeedbackHandleRequest'
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PilotFeedbackHandleResponse'
+          description: ''
+  /api/v1/pilot/feedback/{public_id}/retest:
+    post:
+      operationId: pilot_feedback_retest
+      parameters:
+      - in: path
+        name: public_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - pilot
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PilotFeedbackRetestRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PilotFeedbackRetestRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PilotFeedbackRetestRequest'
+        required: true
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PilotFeedbackRetestResponse'
+          description: ''
+  /api/v1/pilot/feedback/{public_id}/submit-retest:
+    post:
+      operationId: pilot_feedback_submit_retest
+      parameters:
+      - in: path
+        name: public_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - pilot
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PilotFeedbackSubmitRetestRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PilotFeedbackSubmitRetestRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PilotFeedbackSubmitRetestRequest'
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PilotFeedbackSubmitRetestResponse'
+          description: ''
   /api/v1/plan-changes/{public_id}/confirm:
     post:
       operationId: plan_changes_confirm
@@ -1974,6 +2675,39 @@ paths:
                 type: string
                 format: binary
           description: XLSX import template
+  /api/v1/product-materials/{public_id}/confirmations:
+    post:
+      operationId: product_materials_confirmations_create
+      parameters:
+      - in: path
+        name: public_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - product-materials
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MaterialConfirmationCreateRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/MaterialConfirmationCreateRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/MaterialConfirmationCreateRequest'
+        required: true
+      security:
+      - cookieAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MaterialConfirmation'
+          description: ''
   /api/v1/products:
     get:
       operationId: products_list
@@ -2115,6 +2849,143 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ExternalBinding'
+          description: ''
+  /api/v1/products/{public_id}/legacy-material-submissions:
+    post:
+      operationId: products_legacy_materials_create
+      parameters:
+      - in: path
+        name: public_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - products
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LegacyMaterialSubmissionCreateRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/LegacyMaterialSubmissionCreateRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/LegacyMaterialSubmissionCreateRequest'
+        required: true
+      security:
+      - cookieAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LegacyMaterialSubmission'
+          description: ''
+  /api/v1/products/{public_id}/legacy-materials:
+    get:
+      operationId: products_legacy_materials_list
+      parameters:
+      - in: query
+        name: processing_status
+        schema:
+          type: string
+      - in: path
+        name: public_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - products
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LegacyMaterialSubmissionPage'
+          description: ''
+  /api/v1/products/{public_id}/material-chains:
+    post:
+      operationId: products_material_chains_create
+      parameters:
+      - in: path
+        name: public_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - products
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProductMaterialChainCreateRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/ProductMaterialChainCreateRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/ProductMaterialChainCreateRequest'
+        required: true
+      security:
+      - cookieAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProductMaterialChain'
+          description: ''
+  /api/v1/products/{public_id}/material-completeness:
+    get:
+      operationId: products_material_completeness_retrieve
+      parameters:
+      - in: query
+        name: lifecycle_state
+        schema:
+          type: string
+      - in: path
+        name: public_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - products
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProductMaterialCompleteness'
+          description: ''
+  /api/v1/products/{public_id}/materials:
+    get:
+      operationId: products_materials_list
+      parameters:
+      - in: path
+        name: public_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - products
+      security:
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProductMaterialGroupPage'
           description: ''
   /api/v1/products/{public_id}/operating-summary:
     get:
@@ -3619,6 +4490,16 @@ components:
       - resource_public_id
       - resource_type
       - result
+    AuthCapabilitiesResponse:
+      type: object
+      properties:
+        pilot_password_login:
+          type: boolean
+        dev_login:
+          type: boolean
+      required:
+      - dev_login
+      - pilot_password_login
     CandidateSplitList:
       type: object
       properties:
@@ -3699,6 +4580,110 @@ components:
       - definition_code
       - description
       - name
+    ConfigurationDraftCreateRequest:
+      type: object
+      properties:
+        content: {}
+        scope: {}
+      required:
+      - content
+    ConfigurationDraftCreateResponse:
+      type: object
+      properties:
+        public_id:
+          type: string
+        version_number:
+          type: integer
+        status:
+          type: string
+      required:
+      - public_id
+      - status
+      - version_number
+    ConfigurationPublicationRequestListItem:
+      type: object
+      properties:
+        public_id:
+          type: string
+        definition_code:
+          type: string
+        version_public_id:
+          type: string
+        version_number:
+          type: integer
+        proposed_by:
+          type: string
+        status:
+          type: string
+        expires_at:
+          type: string
+      required:
+      - definition_code
+      - expires_at
+      - proposed_by
+      - public_id
+      - status
+      - version_number
+      - version_public_id
+    ConfigurationPublicationRequestResponse:
+      type: object
+      properties:
+        public_id:
+          type: string
+        status:
+          type: string
+        version_public_id:
+          type: string
+      required:
+      - public_id
+      - status
+      - version_public_id
+    ConfigurationPublicationReviewRequest:
+      type: object
+      properties:
+        decision:
+          type: string
+      required:
+      - decision
+    ConfigurationPublicationReviewResponse:
+      type: object
+      properties:
+        public_id:
+          type: string
+        status:
+          type: string
+      required:
+      - public_id
+      - status
+    ConfigurationVersionDetail:
+      type: object
+      properties:
+        public_id:
+          type: string
+        definition_code:
+          type: string
+        version_number:
+          type: integer
+        status:
+          type: string
+        content_digest:
+          type: string
+        content_json:
+          nullable: true
+        validation_errors:
+          type: array
+          items:
+            type: string
+        diff_summary: {}
+      required:
+      - content_digest
+      - content_json
+      - definition_code
+      - diff_summary
+      - public_id
+      - status
+      - validation_errors
+      - version_number
     ConfigurationVersionListItem:
       type: object
       properties:
@@ -4122,6 +5107,132 @@ components:
       - success_count
       - template_version
       - total_count
+    LegacyBaselineDraft:
+      type: object
+      properties:
+        change_set_public_id:
+          type: string
+          format: uuid
+        product_public_id:
+          type: string
+          format: uuid
+        created:
+          type: boolean
+        duplicate_candidates:
+          type: array
+          items: {}
+      required:
+      - change_set_public_id
+      - created
+      - duplicate_candidates
+      - product_public_id
+    LegacyBaselineDraftCreateRequest:
+      type: object
+      properties:
+        payload:
+          type: object
+          additionalProperties: {}
+        idempotency_key:
+          type: string
+        decision:
+          type: string
+        target_product_public_id:
+          type: string
+          format: uuid
+          nullable: true
+      required:
+      - idempotency_key
+      - payload
+    LegacyMaterialSubmission:
+      type: object
+      properties:
+        public_id:
+          type: string
+          format: uuid
+        document_version_public_id:
+          type: string
+          format: uuid
+        processing_status:
+          type: string
+        source_note:
+          type: string
+        original_file_date:
+          type: string
+          format: date
+          nullable: true
+        claimed_version:
+          type: string
+        claimed_effective_from:
+          type: string
+          format: date
+          nullable: true
+        sha256:
+          type: string
+        submitted_by_public_id:
+          type: string
+          format: uuid
+        verified_by_public_id:
+          type: string
+          format: uuid
+          nullable: true
+        verification_note:
+          type: string
+        duplicate_candidates:
+          type: array
+          items: {}
+      required:
+      - claimed_effective_from
+      - claimed_version
+      - document_version_public_id
+      - original_file_date
+      - processing_status
+      - public_id
+      - sha256
+      - source_note
+      - submitted_by_public_id
+      - verification_note
+      - verified_by_public_id
+    LegacyMaterialSubmissionCreateRequest:
+      type: object
+      properties:
+        document_version_public_id:
+          type: string
+          format: uuid
+        idempotency_key:
+          type: string
+        source_note:
+          type: string
+        original_file_date:
+          type: string
+          format: date
+          nullable: true
+        claimed_version:
+          type: string
+        claimed_effective_from:
+          type: string
+          format: date
+          nullable: true
+      required:
+      - document_version_public_id
+      - idempotency_key
+    LegacyMaterialSubmissionPage:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/LegacyMaterialSubmission'
+      required:
+      - items
+    LegacyMaterialSubmissionVerifyRequest:
+      type: object
+      properties:
+        decision:
+          type: string
+        note:
+          type: string
+      required:
+      - decision
     LifecycleBoardItem:
       type: object
       properties:
@@ -4221,6 +5332,53 @@ components:
       - management_conclusion
       - public_id
       - stage_gate_public_id
+    MaterialConfirmation:
+      type: object
+      properties:
+        public_id:
+          type: string
+          format: uuid
+        decision:
+          type: string
+        confirmer_public_id:
+          type: string
+          format: uuid
+          nullable: true
+        content_hash:
+          type: string
+        requested_at:
+          type: string
+          format: date-time
+        decided_at:
+          type: string
+          format: date-time
+          nullable: true
+      required:
+      - confirmer_public_id
+      - content_hash
+      - decided_at
+      - decision
+      - public_id
+      - requested_at
+    MaterialConfirmationCreateRequest:
+      type: object
+      properties:
+        confirmer_public_id:
+          type: string
+          format: uuid
+        comment:
+          type: string
+      required:
+      - confirmer_public_id
+    MaterialConfirmationDecideRequest:
+      type: object
+      properties:
+        decision:
+          type: string
+        comment:
+          type: string
+      required:
+      - decision
     MeResponse:
       type: object
       properties:
@@ -4388,6 +5546,67 @@ components:
       - sha256
       - size_bytes
       - staging_relpath
+    MyNotificationItem:
+      type: object
+      properties:
+        public_id:
+          type: string
+          format: uuid
+        summary:
+          type: string
+        category:
+          type: string
+        level:
+          type: string
+        status:
+          type: string
+        deep_link:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+        read_at:
+          type: string
+          format: date-time
+          nullable: true
+        closed_at:
+          type: string
+          format: date-time
+          nullable: true
+        close_reason:
+          type: string
+      required:
+      - category
+      - close_reason
+      - closed_at
+      - created_at
+      - deep_link
+      - level
+      - public_id
+      - read_at
+      - status
+      - summary
+    MyNotificationPage:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/MyNotificationItem'
+        page:
+          type: integer
+        page_size:
+          type: integer
+        count:
+          type: integer
+        unread_count:
+          type: integer
+      required:
+      - count
+      - items
+      - page
+      - page_size
+      - unread_count
     MyTodoListItem:
       type: object
       properties:
@@ -4397,17 +5616,110 @@ components:
           type: string
         status:
           type: string
+        category:
+          type: string
+          nullable: true
+        level:
+          type: string
+          nullable: true
         due_at:
           type: string
           nullable: true
         deep_link:
           type: string
       required:
+      - category
       - deep_link
       - due_at
+      - level
       - public_id
       - status
       - title
+    NotificationCloseRequest:
+      type: object
+      properties:
+        close_reason:
+          type: string
+    NotificationCloseResult:
+      type: object
+      properties:
+        public_id:
+          type: string
+          format: uuid
+        summary:
+          type: string
+        category:
+          type: string
+        level:
+          type: string
+        status:
+          type: string
+        deep_link:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+        read_at:
+          type: string
+          format: date-time
+          nullable: true
+        closed_at:
+          type: string
+          format: date-time
+          nullable: true
+        close_reason:
+          type: string
+      required:
+      - category
+      - close_reason
+      - closed_at
+      - created_at
+      - deep_link
+      - level
+      - public_id
+      - read_at
+      - status
+      - summary
+    NotificationReadResult:
+      type: object
+      properties:
+        public_id:
+          type: string
+          format: uuid
+        summary:
+          type: string
+        category:
+          type: string
+        level:
+          type: string
+        status:
+          type: string
+        deep_link:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+        read_at:
+          type: string
+          format: date-time
+          nullable: true
+        closed_at:
+          type: string
+          format: date-time
+          nullable: true
+        close_reason:
+          type: string
+      required:
+      - category
+      - close_reason
+      - closed_at
+      - created_at
+      - deep_link
+      - level
+      - public_id
+      - read_at
+      - status
+      - summary
     OperatingDataExportRequest:
       type: object
       properties:
@@ -5167,6 +6479,847 @@ components:
         suggested_retail_price:
           type: string
           nullable: true
+    PilotBatchCompleteResponse:
+      type: object
+      properties:
+        public_id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        purpose:
+          type: string
+        status:
+          type: string
+        planned_participant_count:
+          type: integer
+        planned_duration_days:
+          type: integer
+        config_snapshot:
+          type: object
+          additionalProperties: {}
+        data_scope_note:
+          type: string
+        feedback_owner_note:
+          type: string
+        version_no:
+          type: integer
+        started_at:
+          type: string
+          format: date-time
+          nullable: true
+        completed_at:
+          type: string
+          format: date-time
+          nullable: true
+      required:
+      - completed_at
+      - config_snapshot
+      - data_scope_note
+      - feedback_owner_note
+      - name
+      - planned_duration_days
+      - planned_participant_count
+      - public_id
+      - purpose
+      - started_at
+      - status
+      - version_no
+    PilotBatchCreateRequest:
+      type: object
+      properties:
+        name:
+          type: string
+        planned_participant_count:
+          type: integer
+        planned_duration_days:
+          type: integer
+        data_scope_note:
+          type: string
+        feedback_owner_note:
+          type: string
+      required:
+      - name
+    PilotBatchCreateResponse:
+      type: object
+      properties:
+        public_id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        purpose:
+          type: string
+        status:
+          type: string
+        planned_participant_count:
+          type: integer
+        planned_duration_days:
+          type: integer
+        config_snapshot:
+          type: object
+          additionalProperties: {}
+        data_scope_note:
+          type: string
+        feedback_owner_note:
+          type: string
+        version_no:
+          type: integer
+        started_at:
+          type: string
+          format: date-time
+          nullable: true
+        completed_at:
+          type: string
+          format: date-time
+          nullable: true
+      required:
+      - completed_at
+      - config_snapshot
+      - data_scope_note
+      - feedback_owner_note
+      - name
+      - planned_duration_days
+      - planned_participant_count
+      - public_id
+      - purpose
+      - started_at
+      - status
+      - version_no
+    PilotBatchDetail:
+      type: object
+      properties:
+        public_id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        purpose:
+          type: string
+        status:
+          type: string
+        planned_participant_count:
+          type: integer
+        planned_duration_days:
+          type: integer
+        config_snapshot:
+          type: object
+          additionalProperties: {}
+        data_scope_note:
+          type: string
+        feedback_owner_note:
+          type: string
+        version_no:
+          type: integer
+        started_at:
+          type: string
+          format: date-time
+          nullable: true
+        completed_at:
+          type: string
+          format: date-time
+          nullable: true
+        participants:
+          type: array
+          items:
+            $ref: '#/components/schemas/PilotParticipantItem'
+      required:
+      - completed_at
+      - config_snapshot
+      - data_scope_note
+      - feedback_owner_note
+      - name
+      - participants
+      - planned_duration_days
+      - planned_participant_count
+      - public_id
+      - purpose
+      - started_at
+      - status
+      - version_no
+    PilotBatchItem:
+      type: object
+      properties:
+        public_id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        purpose:
+          type: string
+        status:
+          type: string
+        planned_participant_count:
+          type: integer
+        planned_duration_days:
+          type: integer
+        config_snapshot:
+          type: object
+          additionalProperties: {}
+        data_scope_note:
+          type: string
+        feedback_owner_note:
+          type: string
+        version_no:
+          type: integer
+        started_at:
+          type: string
+          format: date-time
+          nullable: true
+        completed_at:
+          type: string
+          format: date-time
+          nullable: true
+      required:
+      - completed_at
+      - config_snapshot
+      - data_scope_note
+      - feedback_owner_note
+      - name
+      - planned_duration_days
+      - planned_participant_count
+      - public_id
+      - purpose
+      - started_at
+      - status
+      - version_no
+    PilotBatchList:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/PilotBatchItem'
+      required:
+      - items
+    PilotBatchStartResponse:
+      type: object
+      properties:
+        public_id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        purpose:
+          type: string
+        status:
+          type: string
+        planned_participant_count:
+          type: integer
+        planned_duration_days:
+          type: integer
+        config_snapshot:
+          type: object
+          additionalProperties: {}
+        data_scope_note:
+          type: string
+        feedback_owner_note:
+          type: string
+        version_no:
+          type: integer
+        started_at:
+          type: string
+          format: date-time
+          nullable: true
+        completed_at:
+          type: string
+          format: date-time
+          nullable: true
+      required:
+      - completed_at
+      - config_snapshot
+      - data_scope_note
+      - feedback_owner_note
+      - name
+      - planned_duration_days
+      - planned_participant_count
+      - public_id
+      - purpose
+      - started_at
+      - status
+      - version_no
+    PilotFeedbackAssignRequest:
+      type: object
+      properties:
+        severity:
+          type: string
+        assignee_public_id:
+          type: string
+          format: uuid
+        expected_version:
+          type: integer
+      required:
+      - assignee_public_id
+      - severity
+    PilotFeedbackAssignResponse:
+      type: object
+      properties:
+        public_id:
+          type: string
+          format: uuid
+        batch_public_id:
+          type: string
+          format: uuid
+        title:
+          type: string
+        reproduction_summary:
+          type: string
+        severity:
+          type: string
+        status:
+          type: string
+        external_key:
+          type: string
+        evidence_document_version_public_id:
+          type: string
+          format: uuid
+          nullable: true
+        assignee_public_id:
+          type: string
+          format: uuid
+          nullable: true
+        target_version:
+          type: string
+        workaround:
+          type: string
+        accepted_by_public_id:
+          type: string
+          format: uuid
+          nullable: true
+        acceptance_note:
+          type: string
+        close_reason:
+          type: string
+        retest_result:
+          type: string
+        version_no:
+          type: integer
+      required:
+      - acceptance_note
+      - accepted_by_public_id
+      - assignee_public_id
+      - batch_public_id
+      - close_reason
+      - evidence_document_version_public_id
+      - external_key
+      - public_id
+      - reproduction_summary
+      - retest_result
+      - severity
+      - status
+      - target_version
+      - title
+      - version_no
+      - workaround
+    PilotFeedbackCloseRequest:
+      type: object
+      properties:
+        reject:
+          type: boolean
+        close_reason:
+          type: string
+        workaround:
+          type: string
+        target_version:
+          type: string
+        accepted_by_public_id:
+          type: string
+          format: uuid
+        acceptance_note:
+          type: string
+        expected_version:
+          type: integer
+    PilotFeedbackCloseResponse:
+      type: object
+      properties:
+        public_id:
+          type: string
+          format: uuid
+        batch_public_id:
+          type: string
+          format: uuid
+        title:
+          type: string
+        reproduction_summary:
+          type: string
+        severity:
+          type: string
+        status:
+          type: string
+        external_key:
+          type: string
+        evidence_document_version_public_id:
+          type: string
+          format: uuid
+          nullable: true
+        assignee_public_id:
+          type: string
+          format: uuid
+          nullable: true
+        target_version:
+          type: string
+        workaround:
+          type: string
+        accepted_by_public_id:
+          type: string
+          format: uuid
+          nullable: true
+        acceptance_note:
+          type: string
+        close_reason:
+          type: string
+        retest_result:
+          type: string
+        version_no:
+          type: integer
+      required:
+      - acceptance_note
+      - accepted_by_public_id
+      - assignee_public_id
+      - batch_public_id
+      - close_reason
+      - evidence_document_version_public_id
+      - external_key
+      - public_id
+      - reproduction_summary
+      - retest_result
+      - severity
+      - status
+      - target_version
+      - title
+      - version_no
+      - workaround
+    PilotFeedbackCreateRequest:
+      type: object
+      properties:
+        title:
+          type: string
+        reproduction_summary:
+          type: string
+        external_key:
+          type: string
+        evidence_document_version_public_id:
+          type: string
+          format: uuid
+      required:
+      - reproduction_summary
+      - title
+    PilotFeedbackCreateResponse:
+      type: object
+      properties:
+        public_id:
+          type: string
+          format: uuid
+        batch_public_id:
+          type: string
+          format: uuid
+        title:
+          type: string
+        reproduction_summary:
+          type: string
+        severity:
+          type: string
+        status:
+          type: string
+        external_key:
+          type: string
+        evidence_document_version_public_id:
+          type: string
+          format: uuid
+          nullable: true
+        assignee_public_id:
+          type: string
+          format: uuid
+          nullable: true
+        target_version:
+          type: string
+        workaround:
+          type: string
+        accepted_by_public_id:
+          type: string
+          format: uuid
+          nullable: true
+        acceptance_note:
+          type: string
+        close_reason:
+          type: string
+        retest_result:
+          type: string
+        version_no:
+          type: integer
+      required:
+      - acceptance_note
+      - accepted_by_public_id
+      - assignee_public_id
+      - batch_public_id
+      - close_reason
+      - evidence_document_version_public_id
+      - external_key
+      - public_id
+      - reproduction_summary
+      - retest_result
+      - severity
+      - status
+      - target_version
+      - title
+      - version_no
+      - workaround
+    PilotFeedbackHandleRequest:
+      type: object
+      properties:
+        expected_version:
+          type: integer
+    PilotFeedbackHandleResponse:
+      type: object
+      properties:
+        public_id:
+          type: string
+          format: uuid
+        batch_public_id:
+          type: string
+          format: uuid
+        title:
+          type: string
+        reproduction_summary:
+          type: string
+        severity:
+          type: string
+        status:
+          type: string
+        external_key:
+          type: string
+        evidence_document_version_public_id:
+          type: string
+          format: uuid
+          nullable: true
+        assignee_public_id:
+          type: string
+          format: uuid
+          nullable: true
+        target_version:
+          type: string
+        workaround:
+          type: string
+        accepted_by_public_id:
+          type: string
+          format: uuid
+          nullable: true
+        acceptance_note:
+          type: string
+        close_reason:
+          type: string
+        retest_result:
+          type: string
+        version_no:
+          type: integer
+      required:
+      - acceptance_note
+      - accepted_by_public_id
+      - assignee_public_id
+      - batch_public_id
+      - close_reason
+      - evidence_document_version_public_id
+      - external_key
+      - public_id
+      - reproduction_summary
+      - retest_result
+      - severity
+      - status
+      - target_version
+      - title
+      - version_no
+      - workaround
+    PilotFeedbackItem:
+      type: object
+      properties:
+        public_id:
+          type: string
+          format: uuid
+        batch_public_id:
+          type: string
+          format: uuid
+        title:
+          type: string
+        reproduction_summary:
+          type: string
+        severity:
+          type: string
+        status:
+          type: string
+        external_key:
+          type: string
+        evidence_document_version_public_id:
+          type: string
+          format: uuid
+          nullable: true
+        assignee_public_id:
+          type: string
+          format: uuid
+          nullable: true
+        target_version:
+          type: string
+        workaround:
+          type: string
+        accepted_by_public_id:
+          type: string
+          format: uuid
+          nullable: true
+        acceptance_note:
+          type: string
+        close_reason:
+          type: string
+        retest_result:
+          type: string
+        version_no:
+          type: integer
+      required:
+      - acceptance_note
+      - accepted_by_public_id
+      - assignee_public_id
+      - batch_public_id
+      - close_reason
+      - evidence_document_version_public_id
+      - external_key
+      - public_id
+      - reproduction_summary
+      - retest_result
+      - severity
+      - status
+      - target_version
+      - title
+      - version_no
+      - workaround
+    PilotFeedbackList:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/PilotFeedbackItem'
+      required:
+      - items
+    PilotFeedbackRetestRequest:
+      type: object
+      properties:
+        passed:
+          type: boolean
+        expected_version:
+          type: integer
+      required:
+      - passed
+    PilotFeedbackRetestResponse:
+      type: object
+      properties:
+        public_id:
+          type: string
+          format: uuid
+        batch_public_id:
+          type: string
+          format: uuid
+        title:
+          type: string
+        reproduction_summary:
+          type: string
+        severity:
+          type: string
+        status:
+          type: string
+        external_key:
+          type: string
+        evidence_document_version_public_id:
+          type: string
+          format: uuid
+          nullable: true
+        assignee_public_id:
+          type: string
+          format: uuid
+          nullable: true
+        target_version:
+          type: string
+        workaround:
+          type: string
+        accepted_by_public_id:
+          type: string
+          format: uuid
+          nullable: true
+        acceptance_note:
+          type: string
+        close_reason:
+          type: string
+        retest_result:
+          type: string
+        version_no:
+          type: integer
+      required:
+      - acceptance_note
+      - accepted_by_public_id
+      - assignee_public_id
+      - batch_public_id
+      - close_reason
+      - evidence_document_version_public_id
+      - external_key
+      - public_id
+      - reproduction_summary
+      - retest_result
+      - severity
+      - status
+      - target_version
+      - title
+      - version_no
+      - workaround
+    PilotFeedbackSubmitRetestRequest:
+      type: object
+      properties:
+        target_version:
+          type: string
+        expected_version:
+          type: integer
+    PilotFeedbackSubmitRetestResponse:
+      type: object
+      properties:
+        public_id:
+          type: string
+          format: uuid
+        batch_public_id:
+          type: string
+          format: uuid
+        title:
+          type: string
+        reproduction_summary:
+          type: string
+        severity:
+          type: string
+        status:
+          type: string
+        external_key:
+          type: string
+        evidence_document_version_public_id:
+          type: string
+          format: uuid
+          nullable: true
+        assignee_public_id:
+          type: string
+          format: uuid
+          nullable: true
+        target_version:
+          type: string
+        workaround:
+          type: string
+        accepted_by_public_id:
+          type: string
+          format: uuid
+          nullable: true
+        acceptance_note:
+          type: string
+        close_reason:
+          type: string
+        retest_result:
+          type: string
+        version_no:
+          type: integer
+      required:
+      - acceptance_note
+      - accepted_by_public_id
+      - assignee_public_id
+      - batch_public_id
+      - close_reason
+      - evidence_document_version_public_id
+      - external_key
+      - public_id
+      - reproduction_summary
+      - retest_result
+      - severity
+      - status
+      - target_version
+      - title
+      - version_no
+      - workaround
+    PilotLoginRequest:
+      type: object
+      properties:
+        organization_public_id:
+          type: string
+          format: uuid
+        employee_no:
+          type: string
+        password:
+          type: string
+      required:
+      - employee_no
+      - organization_public_id
+      - password
+    PilotLoginResponse:
+      type: object
+      properties:
+        public_id:
+          type: string
+        display_name:
+          type: string
+      required:
+      - display_name
+      - public_id
+    PilotParticipantCreateRequest:
+      type: object
+      properties:
+        user_public_id:
+          type: string
+          format: uuid
+        department_snapshot:
+          type: string
+      required:
+      - user_public_id
+    PilotParticipantCreateResponse:
+      type: object
+      properties:
+        public_id:
+          type: string
+          format: uuid
+        user_public_id:
+          type: string
+          format: uuid
+        display_name_snapshot:
+          type: string
+        employee_no_snapshot:
+          type: string
+        department_snapshot:
+          type: string
+        role_codes_snapshot:
+          type: array
+          items:
+            type: string
+      required:
+      - department_snapshot
+      - display_name_snapshot
+      - employee_no_snapshot
+      - public_id
+      - role_codes_snapshot
+      - user_public_id
+    PilotParticipantItem:
+      type: object
+      properties:
+        public_id:
+          type: string
+          format: uuid
+        user_public_id:
+          type: string
+          format: uuid
+        display_name_snapshot:
+          type: string
+        employee_no_snapshot:
+          type: string
+        department_snapshot:
+          type: string
+        role_codes_snapshot:
+          type: array
+          items:
+            type: string
+      required:
+      - department_snapshot
+      - display_name_snapshot
+      - employee_no_snapshot
+      - public_id
+      - role_codes_snapshot
+      - user_public_id
     PlanChangeRequest:
       type: object
       properties:
@@ -5305,6 +7458,130 @@ components:
       - status
       - target_product_asset_public_id
       - title
+    ProductMaterial:
+      type: object
+      properties:
+        public_id:
+          type: string
+          format: uuid
+        material_type_code:
+          type: string
+        version_no:
+          type: integer
+        material_status:
+          type: string
+        is_current:
+          type: boolean
+        document_version_public_id:
+          type: string
+          format: uuid
+        original_filename:
+          type: string
+        confirmation:
+          allOf:
+          - $ref: '#/components/schemas/MaterialConfirmation'
+          nullable: true
+      required:
+      - confirmation
+      - document_version_public_id
+      - is_current
+      - material_status
+      - material_type_code
+      - original_filename
+      - public_id
+      - version_no
+    ProductMaterialChain:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/ProductMaterial'
+      required:
+      - items
+    ProductMaterialChainCreateRequest:
+      type: object
+      properties:
+        material_type_code:
+          type: string
+        ordered_submission_ids:
+          type: array
+          items:
+            type: string
+            format: uuid
+        current_submission_id:
+          type: string
+          format: uuid
+      required:
+      - current_submission_id
+      - material_type_code
+      - ordered_submission_ids
+    ProductMaterialCompleteness:
+      type: object
+      properties:
+        requirement_version_public_id:
+          type: string
+          format: uuid
+        requirement_version_number:
+          type: integer
+        requirement_content_digest:
+          type: string
+        is_complete:
+          type: boolean
+        blocking_material_type_codes:
+          type: array
+          items:
+            type: string
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/ProductMaterialCompletenessItem'
+      required:
+      - blocking_material_type_codes
+      - is_complete
+      - items
+      - requirement_content_digest
+      - requirement_version_number
+      - requirement_version_public_id
+    ProductMaterialCompletenessItem:
+      type: object
+      properties:
+        material_type_code:
+          type: string
+        requirement:
+          type: string
+        state:
+          type: string
+      required:
+      - material_type_code
+      - requirement
+      - state
+    ProductMaterialGroup:
+      type: object
+      properties:
+        material_type_code:
+          type: string
+        current:
+          allOf:
+          - $ref: '#/components/schemas/ProductMaterial'
+          nullable: true
+        history:
+          type: array
+          items:
+            $ref: '#/components/schemas/ProductMaterial'
+      required:
+      - current
+      - history
+      - material_type_code
+    ProductMaterialGroupPage:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/ProductMaterialGroup'
+      required:
+      - items
     ProductSearchPage:
       type: object
       properties:
@@ -6399,6 +8676,8 @@ components:
           type: string
         declared_mime_type:
           type: string
+        catalog_item_code:
+          type: string
       required:
       - file
     UploadSessionCreateResponse:
@@ -6412,7 +8691,10 @@ components:
           type: string
         size_bytes:
           type: integer
+        catalog_item_code:
+          type: string
       required:
+      - catalog_item_code
       - declared_mime_type
       - original_filename
       - public_id

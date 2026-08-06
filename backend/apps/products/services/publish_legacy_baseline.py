@@ -31,6 +31,7 @@ from apps.products.models import (
     ProductVersionStatus,
     SKUStatus,
 )
+from apps.products.services.validate_publication import ValidateProductPublication
 
 
 @dataclass(frozen=True)
@@ -88,9 +89,16 @@ class PublishLegacyBaseline:
             if not decision.allowed:
                 raise PermissionDeniedError()
 
+            validation = ValidateProductPublication(
+                actor=actor,
+                change_set_public_id=change_set.public_id,
+            ).execute()
+            if not validation.can_publish:
+                raise ValidationFailedError(
+                    details={"blocks": [block.code for block in validation.blocks]}
+                )
+
             payload = _import_payload(change_set)
-            if not payload.get("name"):
-                raise ValidationFailedError(details={"blocks": ["PRODUCT_REQUIRED_FIELD_MISSING"]})
 
             try:
                 product_version = ProductVersion.objects.create(

@@ -169,4 +169,20 @@ describe('TodoListView', () => {
     expect(push).toHaveBeenCalledWith('/retirement-plans/plan-1')
     expect(assign).not.toHaveBeenCalled()
   })
+
+  it('refuses an unknown deep link without assigning the window location', async () => {
+    vi.mocked(apiFetch).mockResolvedValue([
+      { public_id: '1', title: 'Mine', status: 'OPEN', due_at: null, deep_link: '/demo' },
+    ])
+    const assign = vi.fn()
+    vi.stubGlobal('location', { ...window.location, assign })
+    const wrapper = mount(TodoListView, {
+      global: { stubs, directives: { loading: () => {} } },
+    })
+    await flush()
+    await wrapper.get('[data-test="open-todo"]').trigger('click')
+    expect(push).not.toHaveBeenCalled()
+    expect(assign).not.toHaveBeenCalled()
+    expect(wrapper.get('[data-test="todo-error"]').text()).toContain('无权访问或内容不存在')
+  })
 })

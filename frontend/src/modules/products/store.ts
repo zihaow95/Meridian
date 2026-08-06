@@ -36,6 +36,20 @@ export type ConfirmImportBatchResponse = components['schemas']['ConfirmImportBat
 export type PublishLegacyBaselineResponse = components['schemas']['PublishLegacyBaselineResponse']
 export type ProductSearchPage = components['schemas']['ProductSearchPage']
 export type ReassignConfirmerRequest = components['schemas']['ReassignConfirmerRequest']
+export type LegacyBaselineDraft = components['schemas']['LegacyBaselineDraft']
+export type ProductMaterial = components['schemas']['ProductMaterial']
+export type ProductMaterialGroup = components['schemas']['ProductMaterialGroup']
+export type ProductMaterialCompleteness = components['schemas']['ProductMaterialCompleteness']
+export type LegacyMaterialSubmission = components['schemas']['LegacyMaterialSubmission']
+
+export type LegacyBaselineDecision = 'CREATE' | 'LINK'
+
+export type LegacyBaselineRequest = {
+  payload: Record<string, unknown>
+  idempotencyKey: string
+  decision?: LegacyBaselineDecision
+  targetProductPublicId?: string
+}
 
 export type ExternalBinding = {
   public_id: string
@@ -84,6 +98,9 @@ export const useProductStore = defineStore('products', {
     publicationValidation: null as PublicationValidation | null,
     importBatch: null as ImportBatchDetail | null,
     confirmResult: null as ConfirmImportBatchResponse | null,
+    materialGroups: [] as ProductMaterialGroup[],
+    materialCompleteness: null as ProductMaterialCompleteness | null,
+    legacyMaterials: [] as LegacyMaterialSubmission[],
   }),
   actions: {
     async fetchProducts(
@@ -336,6 +353,34 @@ export const useProductStore = defineStore('products', {
           json: { idempotency_key: idempotencyKey },
         },
       )
+    },
+    async createLegacyBaseline(request: LegacyBaselineRequest): Promise<LegacyBaselineDraft> {
+      const json: Record<string, unknown> = {
+        payload: request.payload,
+        idempotency_key: request.idempotencyKey,
+      }
+      if (request.decision) json.decision = request.decision
+      if (request.targetProductPublicId) {
+        json.target_product_public_id = request.targetProductPublicId
+      }
+      return apiFetch<LegacyBaselineDraft>('/api/v1/legacy-baselines', { method: 'POST', json })
+    },
+    async fetchProductMaterials(productPublicId: string): Promise<void> {
+      const page = await apiFetch<{ items: ProductMaterialGroup[] }>(
+        `/api/v1/products/${productPublicId}/materials`,
+      )
+      this.materialGroups = page.items
+    },
+    async fetchMaterialCompleteness(productPublicId: string): Promise<void> {
+      this.materialCompleteness = await apiFetch<ProductMaterialCompleteness>(
+        `/api/v1/products/${productPublicId}/material-completeness`,
+      )
+    },
+    async fetchLegacyMaterials(productPublicId: string): Promise<void> {
+      const page = await apiFetch<{ items: LegacyMaterialSubmission[] }>(
+        `/api/v1/products/${productPublicId}/legacy-materials`,
+      )
+      this.legacyMaterials = page.items
     },
   },
 })

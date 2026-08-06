@@ -3,6 +3,8 @@ import { defineConfig, devices } from '@playwright/test'
 const PORT = Number(process.env.E2E_PORT ?? 5173)
 const BASE_URL = process.env.E2E_BASE_URL ?? `http://localhost:${PORT}`
 const BACKEND_URL = process.env.E2E_BACKEND_URL ?? 'http://127.0.0.1:8000'
+// Windows npm shims are `npm.cmd`; Linux CI has `npm` only (exit 127 otherwise).
+const NPM = process.platform === 'win32' ? 'npm.cmd' : 'npm'
 
 export default defineConfig({
   testDir: './',
@@ -27,20 +29,25 @@ export default defineConfig({
   webServer: [
     {
       command:
-        'uv run python manage.py migrate --settings=config.settings.test && uv run python manage.py seed_e2e_user --settings=config.settings.test && uv run python manage.py runserver 127.0.0.1:8000 --settings=config.settings.test',
+        'uv run python manage.py migrate --settings=config.settings.test && uv run python manage.py seed_phase6_acceptance --settings=config.settings.test && uv run python manage.py runserver 127.0.0.1:8000 --settings=config.settings.test',
       cwd: '../../backend',
       url: `${BACKEND_URL}/api/v1/health`,
       reuseExistingServer: !process.env.CI,
-      timeout: 180_000,
+      timeout: 300_000,
     },
     {
-      command: `npm --prefix ../../frontend run dev -- --port ${PORT} --host localhost --strictPort`,
+      command:
+        `${NPM} run dev -- --port ` +
+        String(PORT) +
+        ' --host localhost --strictPort',
+      cwd: '../../frontend',
       url: BASE_URL,
       reuseExistingServer: !process.env.CI,
       timeout: 180_000,
       env: {
         ...process.env,
         VITE_ENABLE_DEV_LOGIN: 'true',
+        VITE_ENABLE_PILOT_PASSWORD_LOGIN: 'true',
       },
     },
   ],

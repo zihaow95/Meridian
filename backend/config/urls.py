@@ -123,3 +123,8 @@ if getattr(settings, "ENABLE_OPERATIONS_API", False):
     urlpatterns += [
         path("api/v1/", include("apps.operations.api.urls")),
     ]
+
+if getattr(settings, "ENABLE_PILOT_API", False):
+    urlpatterns += [
+        path("api/v1/", include("apps.pilot.api.urls")),
+    ]

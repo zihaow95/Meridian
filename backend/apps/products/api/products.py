@@ -12,8 +12,9 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from apps.identity.models.user import User
-from apps.platform.api.errors import ResourceNotFoundError
+from apps.platform.api.errors import PermissionDeniedError, ResourceNotFoundError
 from apps.products.api.schemas import PRODUCT_DETAIL_SCHEMA, PRODUCT_SEARCH_PAGE_SCHEMA
+from apps.products.models import ProductAsset
 from apps.products.queries.products import get_product_detail, search_products
 
 
@@ -77,7 +78,15 @@ class ProductDetailView(APIView):
     @extend_schema(operation_id="products_retrieve", responses=PRODUCT_DETAIL_SCHEMA)
     def get(self, request: Request, public_id: UUID) -> Response:
         user = cast(User, request.user)
+        exists = ProductAsset.objects.filter(
+            public_id=public_id,
+            organization_id=user.organization_id,
+        ).exists()
+        if not exists:
+            raise ResourceNotFoundError()
         detail = get_product_detail(user=user, public_id=public_id)
         if detail is None:
-            raise ResourceNotFoundError()
+            # Same opaque 404 as a missing product: never disclose that the
+            # object exists but the actor lacks read_basic.
+            raise PermissionDeniedError()
         return Response(detail)

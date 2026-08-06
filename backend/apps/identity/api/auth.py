@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from uuid import UUID
+
 from django.conf import settings
 from django.contrib.auth import logout as django_logout
 from django.http import HttpResponseBase
@@ -21,12 +23,14 @@ from apps.identity.services.authenticate_dingtalk import (
     DingTalkAuthStart,
     establish_session,
 )
+from apps.identity.services.pilot_login import AuthenticatePilotUser
 from apps.integrations.dingtalk.contracts import DingTalkGateway
 from apps.platform.api.errors import (
     AuthenticationFailedError,
     UserNotActiveError,
     ValidationFailedError,
 )
+from apps.platform.request_context import get_or_create_trace_id
 
 
 def _get_dingtalk_gateway() -> DingTalkGateway:
@@ -135,3 +139,85 @@ class DevLoginView(APIView):
 
         establish_session(request, user)
         return Response({"public_id": str(user.public_id), "display_name": user.display_name})
+
+
+class AuthCapabilitiesView(APIView):
+    authentication_classes: list = []
+    permission_classes = [AllowAny]
+
+    @extend_schema(
+        operation_id="auth_capabilities_retrieve",
+        responses=inline_serializer(
+            name="AuthCapabilitiesResponse",
+            fields={
+                "pilot_password_login": serializers.BooleanField(),
+                "dev_login": serializers.BooleanField(),
+            },
+        ),
+    )
+    def get(self, request: Request) -> Response:
+        return Response(
+            {
+                "pilot_password_login": bool(
+                    getattr(settings, "ENABLE_PILOT_PASSWORD_LOGIN", False)
+                ),
+                "dev_login": bool(getattr(settings, "ENABLE_DEV_LOGIN", False)),
+            }
+        )
+
+
+class PilotLoginView(APIView):
+    authentication_classes: list = []
+    permission_classes = [AllowAny]
+
+    @extend_schema(
+        operation_id="auth_pilot_login",
+        request=inline_serializer(
+            name="PilotLoginRequest",
+            fields={
+                "organization_public_id": serializers.UUIDField(),
+                "employee_no": serializers.CharField(),
+                "password": serializers.CharField(),
+            },
+        ),
+        responses={
+            200: inline_serializer(
+                name="PilotLoginResponse",
+                fields={
+                    "public_id": serializers.CharField(),
+                    "display_name": serializers.CharField(),
+                },
+            ),
+            404: None,
+        },
+    )
+    @method_decorator(csrf_protect)
+    def post(self, request: Request) -> Response:
+        if not getattr(settings, "ENABLE_PILOT_PASSWORD_LOGIN", False):
+            return Response(status=status.HTTP_404_NOT_FOUND)
+
+        try:
+            organization_public_id = request.data["organization_public_id"]
+            employee_no = str(request.data["employee_no"])
+            password = str(request.data["password"])
+        except KeyError as exc:
+            raise ValidationFailedError(message=f"{exc.args[0]} is required.") from exc
+
+        try:
+            org_id = UUID(str(organization_public_id))
+        except (TypeError, ValueError) as exc:
+            raise ValidationFailedError(message="organization_public_id is invalid.") from exc
+
+        result = AuthenticatePilotUser(
+            organization_public_id=org_id,
+            employee_no=employee_no,
+            password=password,
+            trace_id=get_or_create_trace_id(),
+        ).execute()
+        establish_session(request, result.user)
+        return Response(
+            {
+                "public_id": str(result.user.public_id),
+                "display_name": result.user.display_name,
+            }
+        )

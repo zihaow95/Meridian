@@ -2,14 +2,15 @@
 
 from __future__ import annotations
 
+from collections.abc import Collection
 from dataclasses import dataclass
-from datetime import timedelta
 from typing import Protocol
 
 from django.db import transaction
 from django.utils import timezone
 
 from apps.platform.outbox.models import OutboxEvent, OutboxStatus
+from apps.platform.outbox.retry import PUBLISH_FAILED, mark_pending_for_retry
 
 
 class OutboxPublisher(Protocol):
@@ -27,16 +28,30 @@ class UnregisteredEventType(Exception):
     error_code: str = "UNREGISTERED_EVENT_TYPE"
 
 
-def dispatch_pending_events(*, publisher: OutboxPublisher, limit: int = 100) -> int:
+def dispatch_pending_events(
+    *,
+    publisher: OutboxPublisher,
+    limit: int = 100,
+    event_ids: Collection[int] | None = None,
+) -> int:
+    """Publish due pending events, optionally narrowed to exact rows.
+
+    Narrowing exists for callers that must close one loop - a seed settling its own
+    todos, an operator repairing one projection - without also draining an unrelated
+    backlog they are not responsible for. Rows are named by id, because "every event
+    of this type" reaches facts the caller does not own.
+    """
+
     dispatched = 0
     now = timezone.now()
 
     with transaction.atomic():
-        events = list(
-            OutboxEvent.objects.select_for_update(skip_locked=True)
-            .filter(status=OutboxStatus.PENDING, next_attempt_at__lte=now)
-            .order_by("occurred_at")[:limit]
+        due = OutboxEvent.objects.select_for_update(skip_locked=True).filter(
+            status=OutboxStatus.PENDING, next_attempt_at__lte=now
         )
+        if event_ids is not None:
+            due = due.filter(pk__in=list(event_ids))
+        events = list(due.order_by("occurred_at")[:limit])
         for event in events:
             event.status = OutboxStatus.PROCESSING
             event.save(update_fields=["status", "updated_at"])
@@ -60,18 +75,11 @@ def dispatch_pending_events(*, publisher: OutboxPublisher, limit: int = 100) -> 
         except Exception:
             with transaction.atomic():
                 event.refresh_from_db()
-                event.status = OutboxStatus.PENDING
-                event.attempt_count += 1
-                event.next_attempt_at = now + timedelta(seconds=min(60, 2**event.attempt_count))
-                event.last_error_code = "PUBLISH_FAILED"
-                event.save(
-                    update_fields=[
-                        "status",
-                        "attempt_count",
-                        "next_attempt_at",
-                        "last_error_code",
-                        "updated_at",
-                    ]
+                mark_pending_for_retry(
+                    event,
+                    error_code=PUBLISH_FAILED,
+                    now=now,
+                    expected_statuses=(OutboxStatus.PROCESSING,),
                 )
             continue
 

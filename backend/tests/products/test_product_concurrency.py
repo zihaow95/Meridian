@@ -9,6 +9,8 @@ from apps.platform.application.command import CommandContext
 from apps.products.models import ProductVersion
 from apps.products.services.publish_change_set import PublishProductChangeSet
 
+pytestmark = pytest.mark.usefixtures("published_empty_material_requirements")
+
 
 @pytest.mark.django_db(transaction=True)
 def test_publish_lock_prevents_duplicate_versions_under_retry(ready_change_set) -> None:

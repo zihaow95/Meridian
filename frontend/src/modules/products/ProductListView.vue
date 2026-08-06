@@ -61,6 +61,9 @@ function openDetail(publicId: string): void {
         </p>
       </div>
       <div class="product-list__actions">
+        <el-button data-test="open-legacy-create" @click="router.push('/products/legacy-new')">
+          逐一录入
+        </el-button>
         <el-button @click="router.push('/products/import')">存量导入</el-button>
         <el-button :loading="products.loading" @click="load">刷新</el-button>
       </div>

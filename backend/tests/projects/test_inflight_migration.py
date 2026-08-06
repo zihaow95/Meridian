@@ -38,6 +38,12 @@ def migrator(organization, grant_action: Callable[..., None]) -> User:
         activated_at=timezone.now(),
     )
     grant_action(user, "project_migration.confirm", "project", role_code="PRODUCT_DIRECTOR")
+    grant_action(
+        user,
+        "configuration.version.read",
+        "configuration.version",
+        role_code="PRODUCT_DIRECTOR",
+    )
     return user
 
 

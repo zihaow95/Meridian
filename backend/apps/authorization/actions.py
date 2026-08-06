@@ -137,3 +137,34 @@ OPERATIONS_ACTIONS: tuple[tuple[str, str, str], ...] = (
     ("retirement.final_decision.record", "stage_gate", ActionCategory.DECIDE),
     ("metric_rule.configure", "metric_definition", ActionCategory.ADMIN),
 )
+
+# Registered once by authorization/0013 before any phase 6 feature ships, so a
+# later PR can reference a code but cannot widen its own authority by amending
+# the seed. Configuration publication keeps domain-specific review actions
+# instead of reusing authorization.admin_change.review, which would leak generic
+# review authority to anyone allowed to review one kind of change.
+PHASE6_ACTIONS: tuple[tuple[str, str, str], ...] = (
+    ("configuration.draft.create", "configuration.version", ActionCategory.WRITE),
+    ("configuration.publication.request", "configuration.version", ActionCategory.ADMIN),
+    ("configuration.publication.review", "configuration.version", ActionCategory.ADMIN),
+    ("configuration.content.read_sensitive", "configuration.version", ActionCategory.READ),
+    ("legacy_material.submission.create", "legacy_material_submission", ActionCategory.WRITE),
+    ("legacy_material.submission.read", "legacy_material_submission", ActionCategory.READ),
+    ("legacy_material.submission.verify", "legacy_material_submission", ActionCategory.DECIDE),
+    ("product_material.manage", "product_material", ActionCategory.WRITE),
+    ("product_material.confirm", "product_material", ActionCategory.DECIDE),
+    ("product_material.completeness.read", "product_material", ActionCategory.READ),
+    ("legacy_baseline.draft.create", "product_change_set", ActionCategory.WRITE),
+    ("notification.message.read", "notification.message", ActionCategory.READ),
+    ("notification.message.mark_read", "notification.message", ActionCategory.WRITE),
+    ("notification.message.close", "notification.message", ActionCategory.WRITE),
+    ("identity.pilot_account.provision", "identity.user", ActionCategory.ADMIN),
+    ("pilot.batch.manage", "pilot.batch", ActionCategory.ADMIN),
+    ("pilot.batch.read", "pilot.batch", ActionCategory.READ),
+    ("pilot.feedback.create", "pilot.feedback", ActionCategory.WRITE),
+    ("pilot.feedback.read", "pilot.feedback", ActionCategory.READ),
+    ("pilot.feedback.assign", "pilot.feedback", ActionCategory.ADMIN),
+    ("pilot.feedback.handle", "pilot.feedback", ActionCategory.WRITE),
+    ("pilot.feedback.retest", "pilot.feedback", ActionCategory.DECIDE),
+    ("pilot.feedback.close", "pilot.feedback", ActionCategory.DECIDE),
+)

@@ -48,14 +48,18 @@ class RequestAdminChange:
     before_summary: dict[str, object]
     after_summary: dict[str, object]
     expires_in: timedelta = timedelta(days=7)
+    # Domains reuse this state machine under their own action so that being
+    # allowed to request one kind of change does not imply the others.
+    action_code: str = "authorization.admin_change.request"
+    resource_type: str = "authorization.admin_change_request"
 
     def execute(self) -> AdminChangeRequest:
         with transaction.atomic():
             decision = authorize(
                 subject_for(self.context.actor),
-                action="authorization.admin_change.request",
+                action=self.action_code,
                 resource=ResourceDescriptor(
-                    resource_type="authorization.admin_change_request",
+                    resource_type=self.resource_type,
                     public_id=None,
                     organization_id=self.context.actor.organization_id,
                 ),
@@ -75,8 +79,8 @@ class RequestAdminChange:
             append_event(
                 AuditRecord(
                     actor=self.context.actor,
-                    action_code="authorization.admin_change.request",
-                    resource_type="authorization.admin_change_request",
+                    action_code=self.action_code,
+                    resource_type=self.resource_type,
                     resource_public_id=request.public_id,
                     result=AuditResult.SUCCESS,
                     trace_id=self.context.trace_id,

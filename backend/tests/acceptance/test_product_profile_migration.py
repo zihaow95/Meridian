@@ -14,6 +14,8 @@ from apps.products.models import ProductChangeSet, ProductLifecycleStatus
 from apps.products.services.import_batch import CreateProductImportBatch
 from apps.products.services.import_template import sample_import_csv
 
+pytestmark = pytest.mark.usefixtures("published_empty_material_requirements")
+
 
 @pytest.fixture
 def phase3_ready_project(ready_change_set: ProductChangeSet) -> SimpleNamespace:

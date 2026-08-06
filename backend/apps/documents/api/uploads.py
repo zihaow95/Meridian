@@ -16,6 +16,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from apps.documents.models import UploadSession
+from apps.documents.services.catalog import CatalogItemUnavailable
 from apps.documents.services.uploads import (
     CompleteUpload,
     CreateUploadSession,
@@ -44,6 +45,7 @@ class UploadSessionCreateView(APIView):
                 "file": serializers.FileField(),
                 "original_filename": serializers.CharField(required=False),
                 "declared_mime_type": serializers.CharField(required=False),
+                "catalog_item_code": serializers.CharField(required=False, allow_blank=True),
             },
         ),
         responses={
@@ -54,6 +56,7 @@ class UploadSessionCreateView(APIView):
                     "original_filename": serializers.CharField(),
                     "declared_mime_type": serializers.CharField(),
                     "size_bytes": serializers.IntegerField(),
+                    "catalog_item_code": serializers.CharField(),
                 },
             ),
         },
@@ -76,8 +79,9 @@ class UploadSessionCreateView(APIView):
                 original_filename=original_filename,
                 declared_mime_type=declared_mime_type,
                 storage=storage,
+                catalog_item_code=request.data.get("catalog_item_code") or None,
             ).execute()
-        except UploadValidationFailed as exc:
+        except (UploadValidationFailed, CatalogItemUnavailable) as exc:
             raise ValidationFailedError(message=str(exc)) from exc
 
         temp_path = Path(session.temp_path)
@@ -100,6 +104,7 @@ class UploadSessionCreateView(APIView):
                 "original_filename": session.original_filename,
                 "declared_mime_type": session.declared_mime_type,
                 "size_bytes": session.size_bytes,
+                "catalog_item_code": session.catalog_item_code,
             },
             status=201,
         )
@@ -144,7 +149,7 @@ class UploadSessionCompleteView(APIView):
                 document_code=request.data.get("document_code") or None,
                 title=request.data.get("title") or None,
             ).execute()
-        except UploadValidationFailed as exc:
+        except (UploadValidationFailed, CatalogItemUnavailable) as exc:
             raise ValidationFailedError(message=str(exc)) from exc
 
         return Response(

@@ -24,6 +24,7 @@ def create_todo_for(user: User, *, title: str) -> Todo:
         dedup_key=f"review:{source_id}",
         deep_link=f"/users/{source_id}",
         title=title,
+        open_slot=1,
     )
 
 
