@@ -3,6 +3,8 @@ import { defineConfig, devices } from '@playwright/test'
 const PORT = Number(process.env.E2E_PORT ?? 5173)
 const BASE_URL = process.env.E2E_BASE_URL ?? `http://localhost:${PORT}`
 const BACKEND_URL = process.env.E2E_BACKEND_URL ?? 'http://127.0.0.1:8000'
+// Windows npm shims are `npm.cmd`; Linux CI has `npm` only (exit 127 otherwise).
+const NPM = process.platform === 'win32' ? 'npm.cmd' : 'npm'
 
 export default defineConfig({
   testDir: './',
@@ -35,7 +37,7 @@ export default defineConfig({
     },
     {
       command:
-        'npm.cmd run dev -- --port ' +
+        `${NPM} run dev -- --port ` +
         String(PORT) +
         ' --host localhost --strictPort',
       cwd: '../../frontend',
