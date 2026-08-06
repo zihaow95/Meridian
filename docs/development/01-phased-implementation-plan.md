@@ -382,7 +382,7 @@ docker compose -f deploy/compose/compose.dev.yml config
 
 ## 9. 阶段6：存量产品、受控文件和试用准备
 
-**状态：** 实现完成，检查点为条件 GO（2026-08-03）；见 [`phase-6-checkpoint.md`](../implementation/phase-6-checkpoint.md)。冷启动种子与纵向 E2E 已通过；无条件 GO 前需补全量门禁、TRD 校验与双轴审阅。
+**状态：** 已完成并GO（2026-08-06）；见 [`phase-6-checkpoint.md`](../implementation/phase-6-checkpoint.md)和[`phase-6-final-code-review.md`](../implementation/phase-6-final-code-review.md)。HEAD `62ffea3`全量门禁与TRD校验通过，Standards / Spec双轴P0/P1/P2均为0；允许启动阶段7实施。
 
 **范围说明：** [`2026-07-30-phase-6-internal-pilot-scope.md`](../superpowers/specs/2026-07-30-phase-6-internal-pilot-scope.md)
 
@@ -433,7 +433,7 @@ docker compose -f deploy/compose/compose.dev.yml config
 
 ## 10. 阶段7：生产化准备与受控试用发布
 
-**状态：** 范围、退出标准与任务级计划已确认（2026-07-30），等待阶段6 GO后实现。
+**状态：** 范围、退出标准与任务级计划已确认（2026-07-30）；阶段6已GO，阶段7可以启动实施但尚未开始。
 
 **任务级计划：** [`2026-07-30-phase-7-production-readiness-pilot-release.md`](../superpowers/plans/2026-07-30-phase-7-production-readiness-pilot-release.md)
 

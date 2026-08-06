@@ -1,8 +1,8 @@
 # 阶段6 存量产品、受控文件、站内通知与试用准备 —— 完成检查点
 
-日期：2026-08-03
+日期：2026-08-06
 
-状态：**条件 GO（NO-GO 审阅后的 P1 整改已提交待复验；不得改为正式 GO，直至双轴 P0/P1=0 且全量门禁通过）**
+状态：**GO（最终整改复验双轴P0/P1/P2均为0；全量门禁与TRD校验通过，可以进入阶段7实施）**
 
 对应计划：`docs/superpowers/plans/2026-07-30-phase-6-controlled-files-notifications-pilot-readiness.md`
 
@@ -16,23 +16,35 @@
 - `pilot` 域完成内部验收批次与反馈闭环；阶段6 **不**标记真实业务试用完成。
 - 阶段6 GO **不**等于真实用户试用开始；下一步只能是阶段7生产化收尾。
 
-## 本轮已执行验证（2026-08-03 P1 整改）
+## 最终整改复验已执行验证（2026-08-06，HEAD `62ffea3`）
 
 ```text
 Branch: codex/phase-6-controlled-files-notifications-pilot-readiness
-Focused pytest: products + pilot + notifications + dual-control/publish + request_parsing
-Frontend: LoginView.spec (4 passed); Prettier on LoginView / PilotBatchView
+Initial review range: a39414b...cfac4d1 (30 commits)
+Remediation review range: cfac4d1...46f65ce (1 commit)
+Second remediation review range: 46f65ce...6590384 (1 commit)
+Third remediation review range: 6590384...9690cdb (1 commit)
+Final remediation review range: 9690cdb...62ffea3 (1 commit)
+scripts\check.cmd: exit 0, All quality gates passed
+Backend: ruff / format / mypy / django check / migration drift / full MySQL pytest passed
+Seeds: clean E2E seed and clean Phase6 seed passed; Phase6=20 products / 120 document versions / 16 stable fixture groups
+Frontend: lint / format / typecheck / build passed; 29 test files / 94 tests passed
+Playwright: full phase1-phase6 suite passed; remediation report 23 passed
+Docker: backend and frontend image builds passed
+Legacy reference scan: passed
+scripts\verify-trd.ps1: passed; 6 documents / 92 requirements / 4 major stage gates
 ```
 
-## 本轮未在检查点正文宣称通过（见矩阵分栏）
+## Spec / Standards 双轴终审
 
-- 完整 `scripts\check.cmd`（含全量 pytest / 前端门禁 / 全套 Playwright / Docker）
-- `scripts\verify-trd.ps1`（整改前审阅方曾通过；本轮整改后需重跑）
-- Standards / Spec 双轴复审（P1 整改后待验收）
+- 初审3个P1均已关闭：补偿失败可受控重试、重复submission受服务与数据库双重拒绝、业务事件不能覆盖版本化通知等级。
+- Standards最终复验：`0018→0016→0018`的迁移记录、Django state、MySQL约束及索引集合一致；helper索引完整清理。本轴P0/P1/P2均为0。
+- Spec最终复验：一个submission仅晋升一次、DDL前停线、失败无半成品及嵌套材料业务键规则均无回归。本轴P0/P1/P2均为0。
+- 完整证据与整改要求见 [`phase-6-final-code-review.md`](phase-6-final-code-review.md)。
 
-## GO 条件
+## GO 结论
 
-只有在测试矩阵记录：**全量门禁通过、双轴审阅 P0/P1=0、本检查点与矩阵一致** 后，方可将状态改写为无条件 GO 并进入阶段7。
+阶段6 GO条件已满足：全量门禁和TRD校验通过，Spec/Standards双轴P0/P1/P2均为0，检查点、测试矩阵与终审报告一致。允许启动阶段7生产化准备实施；真实用户试用仍须等待阶段7独立GO。
 
 ## 明确非目标
 

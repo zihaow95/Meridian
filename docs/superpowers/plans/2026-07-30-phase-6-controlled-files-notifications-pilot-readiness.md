@@ -8,7 +8,7 @@
 
 **Tech Stack:** Python 3.13、Django 5.2、DRF 3.16、MySQL 8.0、Redis、Celery 5.6、Vue 3、TypeScript、Pinia、Element Plus、Vitest、Playwright、OpenAPI 3、Docker Compose。
 
-**Status:** 已确认范围并完成任务级规划，尚未开始实现。
+**Status:** 已完成并GO（2026-08-06）。HEAD `62ffea3`全量门禁、TRD校验与Standards / Spec双轴终审通过，P0/P1/P2均为0，见`docs/implementation/phase-6-final-code-review.md`。
 
 **Date:** 2026-07-30（2026-07-31 依据 `a39414b` 检出复核代码基线，更正第2节裁决，新增第5.1节MySQL唯一性约定与第21节动作清单附录）
 
@@ -314,7 +314,7 @@ notifications.Todo: (models.W036) MySQL does not support unique constraints with
 - [x] E2E用内部验收数据完成反馈创建、分级、处理、复测和关闭。
 - [x] 验收数据达到不超过20个产品、至少100个正式版本、20个可信历史版本、10个待整理资料、单文件配置上限50MB和总量不超过2GB；测试文件不得提交Git。
 - [ ] 执行空库迁移、阶段5数据库升级、`makemigrations --check`、目标MySQL测试、完整`scripts\check.cmd`、`scripts\verify-trd.ps1`和必要Docker构建。
-- [ ] 对阶段6提交范围执行Spec与Standards双轴`/code-review`；修复所有P0/P1，并按规则处理P2/P3后重跑受影响门禁。
+- [x] 对阶段6提交范围执行Spec与Standards双轴`/code-review`；修复所有P0/P1，并按规则处理P2/P3后重跑受影响门禁。
 - [x] 测试矩阵记录本轮真实命令、提交号和结果；未执行、环境阻塞和文档历史结果分栏披露。
 - [x] 检查点给出明确GO/NO-GO；只有全量门禁通过、代码审阅闭环和P0/P1为零才可进入阶段7。
 - [x] 明确阶段6 GO不代表真实用户试用开始，下一步只能是阶段7生产化收尾。

@@ -1,6 +1,6 @@
 # 阶段6 存量产品、受控文件、站内通知与试用准备 —— 测试矩阵
 
-状态：**实现完成，验收证据更新中** — 分支 `codex/phase-6-controlled-files-notifications-pilot-readiness`。
+状态：**GO（最终整改复验Standards / Spec P0/P1/P2均为0）** — 分支 `codex/phase-6-controlled-files-notifications-pilot-readiness`，HEAD `62ffea3`。
 
 对应范围：`docs/superpowers/specs/2026-07-30-phase-6-internal-pilot-scope.md`
 
@@ -11,16 +11,18 @@
 > 状态取值：`未实现` / `进行中` / `已通过：<测试位置>` / `后置：<阶段>` / `阻塞：<原因>` / `本轮未跑`。
 > 「已通过」必须对应本阶段6检出上的真实自动化证据。
 
-## 1. 本轮命令与结果（2026-08-03）
+## 1. 本轮命令与结果（2026-08-06）
 
 | 检查 | 命令 | 结果 | 提交/备注 |
 |---|---|---|---|
-| 冷启动 Phase6 种子 | `uv run python tests/identity/verify_phase6_seed_cold_start.py` | **通过**：20 products / 120 document versions / 12 fixture groups，两次 seed 行级稳定 | 工作区含 seed 命令；基线 tip 见 git log |
-| Phase6 Playwright | `npx playwright test controlled-files-notifications-pilot-readiness.spec.ts` | **4 passed (12.1s)** | 含老品幂等发布、六类通知、pilot 登录、反馈闭环 |
-| LoginView 单测 | `npx vitest run src/modules/auth/LoginView.spec.ts` | **3 passed** | 含 vite 显式关闭 |
-| 全量 `scripts\check.cmd` | `scripts\check.cmd` | **本轮未跑完整门禁**（检查点为条件 GO） | 已把 Phase6 冷启动与 E2E 纳入 `check.ps1` |
-| `scripts\verify-trd.ps1` | `scripts\verify-trd.ps1` | **本轮未跑** | — |
-| Standards / Spec 双轴审阅 | `/code-review` since phase6 base | **本轮未完成终审记录** | 进入无条件 GO 前必补 |
+| 冷启动 Phase6 种子 | `scripts\check.cmd`内置`verify_phase6_seed_cold_start.py` | **通过**：20 products / 120 document versions / 16 stable fixture groups，两次seed行级稳定 | 当前HEAD `62ffea3` |
+| 后端MySQL | `scripts\check.cmd` | **通过**：全套MySQL pytest及ruff/format/mypy/django check/migration drift通过 | 本轮独立全量门禁exit 0 |
+| 前端 | `scripts\check.cmd` | **29 test files / 94 tests passed**；lint/format/typecheck/build通过 | OpenAPI生成类型无漂移 |
+| Playwright | `scripts\check.cmd` | **通过**：整改方报告23 passed，本轮独立全量门禁exit 0 | 含阶段6老品、通知、pilot登录、反馈闭环 |
+| Docker / 旧原型扫描 | `scripts\check.cmd` | **通过**：前后端镜像构建与legacy reference scan | `All quality gates passed.` |
+| 目标迁移回滚测试 | `pytest tests/products/test_source_submission_uniq_migration.py -q` | **5 passed**（整改方提交前运行；完整门禁再次覆盖） | `0018→0016→0018`及索引清理 |
+| `scripts\verify-trd.ps1` | `powershell -ExecutionPolicy Bypass -File scripts\verify-trd.ps1` | **通过**：6 documents / 92 requirements / 4 major stage gates | 当前HEAD `62ffea3` |
+| Standards / Spec 双轴最终复验 | `/code-review`，`git diff 9690cdb...62ffea3` | **GO**：Standards 0；Spec 0 | P0/P1/P2均为0；见`phase-6-final-code-review.md` |
 
 ## 2. 基线已知缺陷处置
 
@@ -67,13 +69,17 @@
 | `check.ps1` 增加 Phase6 冷启动步骤 | 已改 |
 | `check.ps1` Playwright 增加 phase6 spec | 已改 |
 | `playwright.config.ts` 使用 `seed_phase6_acceptance` | 已改 |
-| 全量门禁本轮实测 | 本轮未跑 |
+| 全量门禁本轮实测 | 已通过：2026-08-06，HEAD `62ffea3`，约531秒 |
 
 ## 6. P0 / P1 / P2 / P3（本轮）
 
 | 级别 | 项 |
 |---|---|
-| P0 | 无（以已跑套件为准） |
-| P1 | 无（以已跑套件为准） |
-| P2 | 全量 check / TRD / 双轴审阅待补证据后方可无条件 GO |
-| P3 | D-1/D-2/D-3/D-5/D-6 见计划 19bis |
+| P0 | 无 |
+| P1 | 无；迁移回滚state/数据库约束漂移已关闭 |
+| P2 | 无；测试helper索引污染已关闭 |
+| P3 | D-1/D-2/D-3/D-5/D-6见计划19bis |
+
+### 安全专项输入（不纳入本轮缺陷级别）
+
+`npm ci`报告5个high severity advisory，但阶段6差异未修改依赖锁文件，且正式联网分类未获外部披露授权；该项进入阶段7安全专项输入，不以离线缓存结果宣称安全，也不混入P3体验问题。
