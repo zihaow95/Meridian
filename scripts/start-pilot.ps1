@@ -67,7 +67,7 @@ Write-Host ''
 $backend = Start-Process -PassThru -NoNewWindow -WorkingDirectory $BackendDir -FilePath 'uv' -ArgumentList @(
     'run', 'python', 'manage.py', 'runserver', "127.0.0.1:$BackendPort"
 )
-$frontend = Start-Process -PassThru -NoNewWindow -WorkingDirectory $FrontendDir -FilePath 'npm' -ArgumentList @(
+$frontend = Start-Process -PassThru -NoNewWindow -WorkingDirectory $FrontendDir -FilePath 'npm.cmd' -ArgumentList @(
     'run', 'dev', '--', '--host', $PilotHost, '--port', "$FrontendPort"
 )
 
