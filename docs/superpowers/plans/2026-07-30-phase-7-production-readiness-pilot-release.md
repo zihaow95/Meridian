@@ -8,19 +8,20 @@
 
 **Tech Stack:** Python 3.13、Django 5.2、DRF 3.16、MySQL 8.0、Redis、Celery 5.6、Vue 3、TypeScript、Vitest、Playwright、OpenAPI 3、Docker Compose、Nginx、PowerShell。
 
-**Status:** 已确认范围并完成任务级规划，等待阶段6 GO后实现。
+**Status:** 阶段6已在`e26c553`记录当时GO（功能整改截至`62ffea3`）；本计划已于2026-08-06按实际代码重审，Task 7.0—7.8尚未开始。后续提交不自动继承该GO，阶段7开工提交由Task 7.0 fresh gate后另行固定。
 
-**Date:** 2026-07-30
+**Date:** 2026-07-30；最近重审：2026-08-06
 
-**Authoritative sources:** `README.md`; `docs/development/00-development-readiness-baseline.md`; 六份PRD/TRD，重点为PRD/TRD 05；`docs/development/02-engineering-standards.md`; `docs/development/03-test-strategy-and-quality-gates.md`; `docs/implementation/phase-6-checkpoint.md`（实现后提供）；阶段6任务级计划；当前Meridian代码。
+**Authoritative sources:** `README.md`; `docs/development/00-development-readiness-baseline.md`; 六份PRD/TRD，重点为PRD/TRD 05；`docs/development/02-engineering-standards.md`; `docs/development/03-test-strategy-and-quality-gates.md`; `docs/implementation/phase-6-checkpoint.md`; 阶段6任务级计划；当前Meridian代码。
 
 ## 1. 职责边界与执行基线
 
-- 正式仓库固定为 `D:\Projects\Meridian`；阶段7只能从阶段6明确GO提交创建 `codex/phase-7-production-readiness-pilot-release`。
+- 正式仓库固定为 `D:\Projects\Meridian`；`e26c553`只作为阶段6历史GO证据。Task 7.0必须在拟开工的单一精确提交上重跑基线门禁，通过后记录该提交并从它创建`codex/phase-7-production-readiness-pilot-release`。
 - 当前规划/审核代理只维护计划、审阅实现、复验门禁并给出GO/NO-GO，不承担Task 7.0—7.8开发，不在验收任务中直接修复代码。
 - 每个实现PR必须提供基线提交、变更范围、测试命令和结果；审核按Spec与Standards双轴给出P0—P3 findings，实现方整改后重新送审。
 - 阶段7终点是“受控试用环境可用且批准启动真实用户试用”，不是“真实用户试用完成”，也不是“正式生产上线”。
 - 无需公网IP；受控试用只允许公司内网入口。真实用户凭据不得经明文HTTP传输，内网HTTPS证书或等效可信终止是GO前置条件。
+- 阶段6已有`scripts/start-pilot.ps1`提供开发设置下的临时HTTP局域网入口，可用于非敏感内部演示和技术联调；它不满足Task 7.1的HTTPS、安全设置、资源约束和可重复部署门禁，不得作为阶段7环境验收证据。
 - 阶段6临时账号继续仅用于受控试用，独立账号、禁止共享、可停用、全量登录审计；`production`设置仍必须拒绝该登录能力。
 - 钉钉登录、组织同步、通知、深链接和真实外部系统API全部延期，不进入本阶段依赖、健康门禁或完成声明。
 - 不建设Kubernetes、Harbor、微服务、通用监控平台或第二套业务数据写入口。
@@ -29,9 +30,10 @@
 ## 2. 当前代码基线与冲突裁决
 
 - 已有`production.py`强制密钥、允许主机、MySQL凭据、HTTPS、安全Cookie、HSTS和开发登录关闭；阶段7补受控试用设置和部署验证，不复制安全配置。
+- 阶段6已经交付独立试用账号、登录审计、试用批次/反馈闭环、局域网启动脚本和操作手册；阶段7复用这些业务能力，不再新建第二套账号、反馈或临时启动机制。
 - `/api/v1/health`是公开、无敏感信息的存活探针；TRD要求的授权运行看板、备份记录和恢复验证API尚未实现，两者保持分离。
 - `platform`目前只有抽象模型和基础API，没有迁移；阶段7由该域拥有`BackupRun`与`RestoreVerification`，首个迁移为`platform/0001_runtime_operations.py`。
-- `authorization`当前最新迁移为0012，阶段6规划使用0013；阶段7动作种子顺延为0014，不抢占阶段6编号。
+- `authorization`当前最新迁移为0013；阶段7动作种子使用0014。`products`已到0018，但不改变`platform`和`authorization`的计划编号。
 - 开发Compose只有MySQL/Redis，Nginx只服务SPA；阶段7新增独立受控试用Compose与代理配置，不改变开发环境行为。
 - 当前CI可执行后端、前端、OpenAPI、E2E和镜像构建，但不生成可验证离线包，也没有发布、备份、恢复和回滚脚本。
 - 当前`scripts\check.cmd`是本地全量权威门禁；阶段7扩展其覆盖，但发布验收不得只引用历史CI或阶段6结果。
@@ -93,8 +95,8 @@
 | PR2 | Task 7.2 | 运行事实、权限、API和管理看板 |
 | PR3 | Task 7.3 | 数据库/文件备份、清单和失败告警 |
 | PR4 | Task 7.4 | 隔离联合恢复与RPO/RTO证据 |
-| PR5 | Task 7.5—7.6 | 安全专项、容量测试和阈值判定 |
-| PR6 | Task 7.7 | 可追溯离线包、同包部署和回滚 |
+| PR5 | Task 7.5 + Task 7.6测试工具 | 安全专项、可重复容量种子与压测工具；此时的试跑不构成正式容量验收 |
+| PR6 | Task 7.7 + Task 7.6正式运行 | 可追溯离线包、同包部署、在该候选包上完成正式容量判定和回滚 |
 | PR7 | Task 7.8 | 全链路回归、终审、阶段7检查点和试用启动批准 |
 
 ## 7. Task 7.0：建立阶段7执行与验收基线
@@ -188,12 +190,13 @@
 - [ ] 覆盖普通列表/详情、业务写入、生命周期/产品看板、通知可见和配置上限内文件流式传输。
 - [ ] 门槛：列表/详情p95≤1秒，写入p95≤2秒，看板p95≤2秒，通知≤60秒，稳态服务端错误率<0.5%。
 - [ ] 在Compose总限制6 vCPU/8GB下记录并发、持续时间、吞吐、p50/p95/p99、错误率、CPU、内存和数据库连接。
+- [ ] 正式容量证据必须在Task 7.7生成并部署的同一候选发布包上执行；源码环境或更早镜像的结果只能作为调试证据。
 - [ ] 预热与正式样本分离；失败阈值不得通过删样本、降低并发或重跑挑选最好结果掩盖。
 - [ ] 提交：`test: verify first release capacity`。
 
 ## 14. Task 7.7：离线发布包、同包部署与回滚
 
-**Files:** Create `scripts/release/build-release-package.ps1`, `scripts/release/verify-release-package.ps1`, `scripts/release/deploy-release.ps1`, `scripts/release/rollback-release.ps1`, `deploy/release/manifest.schema.json`, `docs/operations/release-runbook.md`; Modify `.github/workflows/ci.yml`, `scripts/check.ps1`.
+**Files:** Create `scripts/release/build-release-package.ps1`, `scripts/release/verify-release-package.ps1`, `scripts/release/deploy-release.ps1`, `scripts/release/rollback-release.ps1`, `deploy/release/manifest.schema.json`, `docs/operations/release-runbook.md`; Modify `.github/workflows/ci.yml`, `scripts/check.ps1`, `docs/implementation/phase-7-capacity-report.md`.
 
 **Interfaces and direct callers:** CI调用构建脚本一次生成包和SHA-256；部署脚本只接受验证通过的包；回滚脚本使用上一已知良好包和部署前备份。
 
@@ -201,6 +204,8 @@
 - [ ] 排除`.env`、密钥、证书私钥、上传文件、数据库、备份、测试真实数据、缓存和开发依赖。
 - [ ] 未提交工作树、摘要不匹配、清单不完整、镜像架构不符或来源提交未知时拒绝构建/部署。
 - [ ] 同一包先在干净验证环境部署，再部署受控试用环境；禁止现场重新构建或替换包内文件。
+- [ ] 干净环境部署成功后，以该包作为Task 7.6正式容量运行的唯一应用来源；容量失败后不得替换镜像继续沿用原包摘要。
+- [ ] 先冻结候选代码提交和发布包SHA，再保存不可变的容量原始结果；容量报告以单独证据提交引用候选提交、包SHA、镜像摘要、环境快照和原始结果位置，不重新构建候选包。
 - [ ] 部署前备份，执行迁移、健康检查、核心冒烟和发布日志；任一步失败停止并给出可见状态。
 - [ ] 回滚至少演练应用包回退；数据库迁移若不可逆，发布前必须提供兼容策略或阻止发布。
 - [ ] 提交：`release: build reproducible pilot package`。
@@ -217,6 +222,7 @@
 - [ ] 当前审核代理逐PR及最终差异执行Spec/Standards双轴审阅；不在审核中直接修代码，所有finding由实现方整改后复验。
 - [ ] 测试矩阵区分本轮实跑、历史记录、未执行和环境阻塞；禁止用文档记录替代本轮证据。
 - [ ] 检查点列出提交、发布包SHA、目标环境、备份/恢复记录、RPO/RTO、容量结果、审阅发现、缺陷和已知限制。
+- [ ] 检查点分别记录候选代码提交和后续证据提交；容量、部署、回滚证据必须回指同一候选包SHA，不能用证据提交的HEAD冒充候选来源。
 - [ ] P0/P1必须为零；P2只有明确规避、负责人和期限且经项目负责人书面接受才可GO。
 - [ ] 产品总监批准约8人、两周、人员范围、数据边界、反馈R/A、停止条件和回滚方案后，才允许启动真实用户试用。
 - [ ] 明确阶段7 GO不代表真实试用完成或正式生产上线；试用结论另行形成验收决策。
