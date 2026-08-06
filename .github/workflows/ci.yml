@@ -206,7 +206,15 @@ jobs:
 
       - name: Run platform kernel E2E
         working-directory: tests/e2e
-        run: npx playwright test
+        # Keep the same ordered suite as scripts/check.ps1 (not every file under tests/e2e).
+        run: >
+          npx playwright test
+          platform-kernel.spec.ts
+          opportunity-to-project.spec.ts
+          product-profile-migration.spec.ts
+          development-first-launch.spec.ts
+          operations-iteration-retirement.spec.ts
+          controlled-files-notifications-pilot-readiness.spec.ts
 
   images:
     name: Docker image builds (no push)

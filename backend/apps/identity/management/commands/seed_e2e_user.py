@@ -1534,3 +1534,12 @@ class Command(BaseCommand):
             raise RuntimeError("FIRST_LAUNCH gate missing after InitializeProjectRuntime")
         if gate.status not in {GateStatus.DECIDED, GateStatus.APPROVED}:
             self._submit_first_launch_gate(project, submitter=leader)
+
+        # Phase 6 material gates evaluate YOGURT/ACTIVE at publish time. The happy-path
+        # launch fixture must already hold an approved PRODUCT_LABEL or first-launch
+        # handover lands in PUBLISH_PENDING_REPAIR instead of OPERATING.
+        if publishable and project.product_asset_id is not None:
+            self._ensure_approved_product_label(
+                product=project.product_asset,
+                actor=leader,
+            )
